@@ -1,4 +1,13 @@
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
+import { config as loadDotEnv } from "dotenv";
 import { z } from "zod";
+
+const workspaceRootEnvPath = resolve(process.cwd(), ".env");
+
+if (existsSync(workspaceRootEnvPath)) {
+  loadDotEnv({ path: workspaceRootEnvPath });
+}
 
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -19,7 +28,10 @@ function parseEnv() {
     const details = parsedEnv.error.issues
       .map((issue) => `${issue.path.join(".") || "env"}: ${issue.message}`)
       .join("; ");
-    throw new Error(`Invalid API environment configuration. ${details}`);
+    const envHint = existsSync(workspaceRootEnvPath)
+      ? `Checked ${workspaceRootEnvPath}.`
+      : `No .env file found at ${workspaceRootEnvPath}. Copy .env.example to .env and set DATABASE_URL.`;
+    throw new Error(`Invalid API environment configuration. ${details} ${envHint}`);
   }
 
   return parsedEnv.data;
