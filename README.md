@@ -37,3 +37,11 @@ For a full local run, use:
 2. `npm run setup:dev --workspace @fitness/api`
 3. `npm run dev --workspace @fitness/api`
 4. `npm run dev --workspace @fitness/mobile`
+
+To open the mobile app in a browser from the repo root, use:
+
+`npm run dev:mobile:web`
+
+Important:
+- Run Expo from the mobile workspace or via the root workspace scripts above.
+- Do not run `npx expo start` from the repo root, because Expo will treat the monorepo root as the app project and fail to resolve the correct entry file.

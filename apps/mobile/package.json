@@ -2,7 +2,7 @@
   "name": "@fitness/mobile",
   "version": "0.1.0",
   "private": true,
-  "main": "expo/AppEntry",
+  "main": "./index.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "expo start",
