@@ -56,6 +56,14 @@ The API reads:
 - `DATABASE_URL`: required PostgreSQL connection string
 - `PORT`: optional, defaults to `4000`
 - `NODE_ENV`: optional, one of `development`, `test`, `production`
+- `USE_PGLITE_DEV`: optional, set to `true` only for local PGlite development
+
+Hosted Postgres notes:
+
+- Neon pooled connection strings are the recommended production path for Vercel.
+- Supabase pooler connection strings also work.
+- If your hosted connection string already includes SSL parameters such as `sslmode=require`, the API uses them as provided.
+- If a Neon or Supabase URL does not include inline SSL parameters, the API applies a conservative SSL fallback automatically.
 
 If required environment variables are missing or invalid, startup fails immediately with a concise configuration error.
 

@@ -30,6 +30,7 @@ Backend foundation and the first backend workout vertical slice are implemented:
 - backend tests cover domain, application, infrastructure, and HTTP layers
 
 See [BACKEND.md](C:\Users\Grwyl\repos\fitness-app\BACKEND.md) for backend run, test, env, and auth details.
+See [DEPLOYMENT.md](C:\Users\Grwyl\repos\fitness-app\DEPLOYMENT.md) for Vercel + hosted Postgres deployment steps.
 
 For a full local run, use:
 
@@ -37,6 +38,8 @@ For a full local run, use:
 2. `npm run setup:dev --workspace @fitness/api`
 3. `npm run dev --workspace @fitness/api`
 4. `npm run dev --workspace @fitness/mobile`
+
+For a hosted tester environment, follow [DEPLOYMENT.md](C:\Users\Grwyl\repos\fitness-app\DEPLOYMENT.md), including the one-time `npm run setup:dev --workspace @fitness/api` against the hosted Postgres database before deploying the API.
 
 To open the mobile app in a browser from the repo root, use:
 

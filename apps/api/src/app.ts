@@ -13,6 +13,7 @@ export function createApp(options?: { workoutRouter?: Router }) {
   app.use(cors());
   app.use(express.json());
 
+  app.use(healthRouter);
   app.use("/api/v1", healthRouter);
   if (options?.workoutRouter) {
     app.use("/api/v1", options.workoutRouter);

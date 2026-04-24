@@ -5,9 +5,10 @@
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "dev": "tsx watch src/index.ts",
+    "build:vercel": "tsc -b ../../packages/shared ../../packages/db . --pretty false",
+    "dev": "tsx watch src/server.ts",
     "setup:dev": "npm run build && node dist/scripts/setup-dev.js",
-    "start": "node dist/index.js",
+    "start": "node dist/server.js",
     "test": "node dist/modules/workout/run-tests.js"
   },
   "dependencies": {

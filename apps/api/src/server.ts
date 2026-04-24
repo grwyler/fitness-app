@@ -1,0 +1,19 @@
+import { createServer } from "node:http";
+import { env } from "./config/env.js";
+import { createRuntimeApp } from "./bootstrap.js";
+import { logger } from "./lib/observability/logger.js";
+
+async function main() {
+  const { app, databaseMode } = await createRuntimeApp();
+  const server = createServer(app);
+
+  server.listen(env.PORT, () => {
+    logger.info("fitness-api listening", {
+      url: `http://localhost:${env.PORT}`,
+      nodeEnv: env.NODE_ENV,
+      databaseMode
+    });
+  });
+}
+
+void main();
