@@ -1,0 +1,26 @@
+import { Router } from "express";
+import { createWorkoutHandlers } from "./workout.handlers.js";
+import type { CompleteWorkoutSessionUseCase } from "../application/use-cases/complete-workout-session.use-case.js";
+import type { GetCurrentWorkoutSessionUseCase } from "../application/use-cases/get-current-workout-session.use-case.js";
+import type { GetDashboardUseCase } from "../application/use-cases/get-dashboard.use-case.js";
+import type { LogSetUseCase } from "../application/use-cases/log-set.use-case.js";
+import type { StartWorkoutSessionUseCase } from "../application/use-cases/start-workout-session.use-case.js";
+
+export function createWorkoutRouter(dependencies: {
+  getDashboardUseCase: GetDashboardUseCase;
+  getCurrentWorkoutSessionUseCase: GetCurrentWorkoutSessionUseCase;
+  startWorkoutSessionUseCase: StartWorkoutSessionUseCase;
+  logSetUseCase: LogSetUseCase;
+  completeWorkoutSessionUseCase: CompleteWorkoutSessionUseCase;
+}) {
+  const router = Router();
+  const handlers = createWorkoutHandlers(dependencies);
+
+  router.get("/dashboard", handlers.getDashboard);
+  router.get("/workout-sessions/current", handlers.getCurrentWorkoutSession);
+  router.post("/workout-sessions/start", handlers.startWorkoutSession);
+  router.post("/sets/:setId/log", handlers.logSet);
+  router.post("/workout-sessions/:sessionId/complete", handlers.completeWorkoutSession);
+
+  return router;
+}

@@ -1,9 +1,12 @@
 import type { ApiErrorCode, ApiErrorDetail, ApiErrorEnvelope, ApiSuccessEnvelope } from "@fitness/shared";
 
-export function success<TData>(data: TData): ApiSuccessEnvelope<TData> {
+export function success<TData, TMeta extends Record<string, unknown> = Record<string, never>>(
+  data: TData,
+  meta?: TMeta
+): ApiSuccessEnvelope<TData, TMeta> {
   return {
     data,
-    meta: {}
+    meta: (meta ?? {}) as TMeta
   };
 }
 
@@ -16,4 +19,3 @@ export function failure(code: ApiErrorCode, message: string, details?: ApiErrorD
     }
   };
 }
-
