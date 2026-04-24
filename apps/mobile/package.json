@@ -6,7 +6,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "expo start",
-    "test": "node dist/src/tests/run-mobile-tests.js"
+    "test": "tsc -p tsconfig.test.json && node -e \"require('fs').mkdirSync('dist',{recursive:true});require('fs').writeFileSync('dist/package.json','{\\\"type\\\":\\\"module\\\"}')\" && node --experimental-specifier-resolution=node dist/src/tests/run-mobile-tests.js"
   },
   "dependencies": {
     "@fitness/shared": "0.1.0",

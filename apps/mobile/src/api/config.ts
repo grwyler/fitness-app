@@ -1,7 +1,27 @@
-import { Platform } from "react-native";
+function resolvePlatformOs() {
+  try {
+    const runtimeRequire = new Function(
+      "return typeof require !== 'undefined' ? require : undefined;"
+    )() as undefined | ((specifier: string) => unknown);
+
+    if (!runtimeRequire) {
+      return "ios";
+    }
+
+    const reactNativeModule = runtimeRequire("react-native") as {
+      Platform?: {
+        OS?: string;
+      };
+    };
+
+    return reactNativeModule.Platform?.OS ?? "ios";
+  } catch {
+    return "ios";
+  }
+}
 
 const defaultApiBaseUrl =
-  Platform.OS === "android"
+  resolvePlatformOs() === "android"
     ? "http://10.0.2.2:4000/api/v1"
     : "http://127.0.0.1:4000/api/v1";
 

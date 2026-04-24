@@ -8,7 +8,7 @@ import type {
   StartWorkoutSessionRequest,
   WorkoutSessionDto
 } from "@fitness/shared";
-import { apiRequest } from "./client";
+import { apiRequest } from "./client.js";
 
 export async function fetchDashboard() {
   return apiRequest<GetDashboardResponse>("/dashboard");

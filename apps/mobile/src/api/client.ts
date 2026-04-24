@@ -1,6 +1,6 @@
 import type { ApiErrorEnvelope, ApiSuccessEnvelope } from "@fitness/shared";
-import { apiConfig } from "./config";
-import { MobileApiError } from "./errors";
+import { apiConfig } from "./config.js";
+import { MobileApiError } from "./errors.js";
 
 type RequestOptions = {
   method?: "GET" | "POST";

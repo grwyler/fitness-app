@@ -1,4 +1,4 @@
-import type { FeedbackEntry } from "../types";
+import type { FeedbackEntry } from "../types.js";
 
 export type FeedbackStorageAdapter = {
   getItem(key: string): Promise<string | null>;

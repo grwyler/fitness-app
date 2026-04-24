@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import type { ApiErrorEnvelope } from "@fitness/shared";
-import { apiRequest } from "../api/client";
-import { fetchDashboard, startWorkoutSession, logSet, completeWorkoutSession } from "../api/workouts";
-import { MobileApiError } from "../api/errors";
-import { resolveStableIdempotencyKey } from "../features/workout/utils/idempotency";
-import type { MobileTestCase } from "./mobile-test-case";
+import { apiRequest } from "../api/client.js";
+import { fetchDashboard, startWorkoutSession, logSet, completeWorkoutSession } from "../api/workouts.js";
+import { MobileApiError } from "../api/errors.js";
+import { resolveStableIdempotencyKey } from "../features/workout/utils/idempotency.js";
+import type { MobileTestCase } from "./mobile-test-case.js";
 
 type MockFetchResponse = {
   ok: boolean;

@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
-import { buildFeedbackContext } from "../features/feedback/utils/build-feedback-context";
-import { createFeedbackStorage } from "../features/feedback/storage/feedback-storage";
-import { createFeedbackEntry } from "../features/feedback/types";
-import type { MobileTestCase } from "./mobile-test-case";
+import { buildFeedbackContext } from "../features/feedback/utils/build-feedback-context.js";
+import { createFeedbackStorage } from "../features/feedback/storage/feedback-storage.js";
+import { createFeedbackEntry } from "../features/feedback/types.js";
+import type { MobileTestCase } from "./mobile-test-case.js";
 
 export const feedbackTestCases: MobileTestCase[] = [
   {
@@ -40,6 +40,7 @@ export const feedbackTestCases: MobileTestCase[] = [
       const context = buildFeedbackContext({
         screenName: "ActiveWorkoutScreen",
         routeName: "ActiveWorkout",
+        platform: "ios",
         workoutSessionId: "session-123",
         appVersion: "0.1.0",
         lastAction: "logged_set",

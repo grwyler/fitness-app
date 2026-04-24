@@ -80,17 +80,17 @@ export function DashboardScreen({ navigation }: Props) {
         </Text>
         <PrimaryButton
           label={activeWorkout ? "Workout already active" : "Start workout"}
-          onPress={() =>
+          onPress={() => {
+            setLastAction("start_workout");
             startWorkoutMutation.mutate(
               {},
               {
                 onSuccess: () => {
-                  setLastAction("start_workout");
                   navigation.navigate("ActiveWorkout");
                 }
               }
-            )
-          }
+            );
+          }}
           disabled={Boolean(activeWorkout || !nextWorkout)}
           loading={startWorkoutMutation.isPending}
         />

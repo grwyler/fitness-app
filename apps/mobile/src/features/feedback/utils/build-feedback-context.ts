@@ -1,4 +1,4 @@
-import type { FeedbackContext } from "../types";
+import type { FeedbackContext } from "../types.js";
 
 type BuildFeedbackContextInput = {
   screenName: string;

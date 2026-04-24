@@ -125,7 +125,10 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
           loggingSetId={logSetMutation.isPending ? logSetMutation.variables?.setId ?? null : null}
           onCompleteSet={(set) => handleLogSet(set, set.targetReps)}
           onFailSet={(set) => handleLogSet(set, Math.max(0, set.targetReps - 1))}
-          onSelectFeedback={(feedback) => setExerciseFeedback(exercise.id, feedback)}
+          onSelectFeedback={(feedback) => {
+            setLastAction(`set_exercise_feedback:${exercise.id}`);
+            setExerciseFeedback(exercise.id, feedback);
+          }}
         />
       ))}
 
