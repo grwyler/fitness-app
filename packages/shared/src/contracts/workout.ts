@@ -4,9 +4,24 @@ import type {
   ProgressMetricType,
   ProgressionResult,
   SetStatus,
+  UnitSystem,
   WorkoutSessionStatus
 } from "../domain/enums.js";
-import type { ISODateTime, UUID } from "../domain/primitives.js";
+import type {
+  CanonicalWeightLbs,
+  ISODateTime,
+  IdempotencyKey,
+  UUID
+} from "../domain/primitives.js";
+
+export type IdempotentRequestHeaders = {
+  "Idempotency-Key": IdempotencyKey;
+};
+
+export type WeightValueDto = {
+  value: CanonicalWeightLbs;
+  unit: "lb";
+};
 
 export type SetDto = {
   id: UUID;
@@ -14,8 +29,8 @@ export type SetDto = {
   setNumber: number;
   targetReps: number;
   actualReps: number | null;
-  targetWeightLbs: number;
-  actualWeightLbs: number | null;
+  targetWeight: WeightValueDto;
+  actualWeight: WeightValueDto | null;
   status: SetStatus;
   completedAt: ISODateTime | null;
 };
@@ -28,7 +43,8 @@ export type ExerciseEntryDto = {
   sequenceOrder: number;
   targetSets: number;
   targetReps: number;
-  targetWeightLbs: number;
+  targetWeight: WeightValueDto;
+  restSeconds: number | null;
   effortFeedback: EffortFeedback | null;
   completedAt: ISODateTime | null;
   sets: SetDto[];
@@ -45,6 +61,13 @@ export type WorkoutSessionDto = {
   completedAt: ISODateTime | null;
   durationSeconds: number | null;
   exercises: ExerciseEntryDto[];
+};
+
+export type NextWorkoutTemplateDto = {
+  id: UUID;
+  name: string;
+  sequenceOrder: number;
+  estimatedDurationMinutes: number | null;
 };
 
 export type WorkoutHistoryItemDto = {
@@ -72,8 +95,8 @@ export type ProgressMetricDto = {
 export type ProgressionUpdateDto = {
   exerciseId: UUID;
   exerciseName: string;
-  previousWeightLbs: number;
-  nextWeightLbs: number;
+  previousWeight: WeightValueDto;
+  nextWeight: WeightValueDto;
   result: ProgressionResult;
   reason: string;
 };
@@ -85,7 +108,7 @@ export type StartWorkoutSessionRequest = {
 
 export type LogSetRequest = {
   actualReps: number;
-  actualWeightLbs?: number;
+  actualWeight?: WeightValueDto;
   completedAt?: ISODateTime;
 };
 
@@ -119,23 +142,22 @@ export type CompleteWorkoutSessionResponse = {
   workoutSession: WorkoutSessionDto;
   progressionUpdates: ProgressionUpdateDto[];
   progressMetrics: ProgressMetricDto[];
-  nextWorkoutTemplate: {
-    id: UUID;
-    name: string;
-    sequenceOrder: number;
-  } | null;
+  nextWorkoutTemplate: NextWorkoutTemplateDto | null;
 };
 
 export type DashboardDto = {
   activeWorkoutSession: WorkoutSessionDto | null;
-  nextWorkoutTemplate: {
-    id: UUID;
-    name: string;
-    sequenceOrder: number;
-    estimatedDurationMinutes: number | null;
-  } | null;
+  nextWorkoutTemplate: NextWorkoutTemplateDto | null;
   recentProgressMetrics: ProgressMetricDto[];
   recentWorkoutHistory: WorkoutHistoryItemDto[];
   weeklyWorkoutCount: number;
+  userUnitSystem: UnitSystem;
 };
 
+export type GetDashboardResponse = DashboardDto;
+
+export type CurrentWorkoutSessionDto = {
+  activeWorkoutSession: WorkoutSessionDto | null;
+};
+
+export type GetCurrentWorkoutSessionResponse = CurrentWorkoutSessionDto;
