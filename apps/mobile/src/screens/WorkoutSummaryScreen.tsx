@@ -3,7 +3,7 @@ import type { ProgressMetricDto, ProgressionUpdateDto } from "@fitness/shared";
 import { StyleSheet, Text, View } from "react-native";
 import { Screen } from "../components/Screen";
 import { PrimaryButton } from "../components/PrimaryButton";
-import type { RootStackParamList } from "../app/navigation/navigation-types";
+import type { RootStackParamList } from "../core/navigation/navigation-types";
 import { colors, spacing } from "../theme/tokens";
 
 type Props = NativeStackScreenProps<RootStackParamList, "WorkoutSummary">;

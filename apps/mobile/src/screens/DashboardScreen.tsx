@@ -6,7 +6,7 @@ import { ErrorState } from "../components/ErrorState";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { useDashboard } from "../features/workout/hooks/useDashboard";
 import { useStartWorkout } from "../features/workout/hooks/useStartWorkout";
-import type { RootStackParamList } from "../app/navigation/navigation-types";
+import type { RootStackParamList } from "../core/navigation/navigation-types";
 import { colors, spacing } from "../theme/tokens";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Dashboard">;

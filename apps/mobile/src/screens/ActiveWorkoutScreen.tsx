@@ -6,7 +6,7 @@ import { LoadingState } from "../components/LoadingState";
 import { ErrorState } from "../components/ErrorState";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { WorkoutExerciseCard } from "../components/WorkoutExerciseCard";
-import type { RootStackParamList } from "../app/navigation/navigation-types";
+import type { RootStackParamList } from "../core/navigation/navigation-types";
 import { useCurrentWorkout } from "../features/workout/hooks/useCurrentWorkout";
 import { useLogSet } from "../features/workout/hooks/useLogSet";
 import { useCompleteWorkout } from "../features/workout/hooks/useCompleteWorkout";
