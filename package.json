@@ -1,0 +1,21 @@
+{
+  "name": "fitness-app",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "npm@11.9.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --pretty false",
+    "dev:api": "npm run dev --workspace @fitness/api",
+    "dev:mobile": "npm run dev --workspace @fitness/mobile"
+  },
+  "devDependencies": {
+    "@types/node": "^24.7.2",
+    "typescript": "^5.9.3"
+  }
+}
+
