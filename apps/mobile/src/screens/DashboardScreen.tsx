@@ -1,9 +1,11 @@
+import { useState } from "react";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { StyleSheet, Text, View } from "react-native";
 import { Screen } from "../components/Screen";
 import { LoadingState } from "../components/LoadingState";
 import { ErrorState } from "../components/ErrorState";
 import { PrimaryButton } from "../components/PrimaryButton";
+import { FeedbackButton } from "../features/feedback/components/FeedbackButton";
 import { useDashboard } from "../features/workout/hooks/useDashboard";
 import { useStartWorkout } from "../features/workout/hooks/useStartWorkout";
 import type { RootStackParamList } from "../core/navigation/navigation-types";
@@ -14,6 +16,7 @@ type Props = NativeStackScreenProps<RootStackParamList, "Dashboard">;
 export function DashboardScreen({ navigation }: Props) {
   const dashboardQuery = useDashboard();
   const startWorkoutMutation = useStartWorkout();
+  const [lastAction, setLastAction] = useState<string | null>(null);
 
   if (dashboardQuery.isLoading) {
     return (
@@ -57,7 +60,13 @@ export function DashboardScreen({ navigation }: Props) {
           <Text style={styles.cardBody}>
             {activeWorkout.exercises.length} exercises in progress
           </Text>
-          <PrimaryButton label="Resume workout" onPress={() => navigation.navigate("ActiveWorkout")} />
+          <PrimaryButton
+            label="Resume workout"
+            onPress={() => {
+              setLastAction("resume_workout");
+              navigation.navigate("ActiveWorkout");
+            }}
+          />
         </View>
       ) : null}
 
@@ -75,7 +84,10 @@ export function DashboardScreen({ navigation }: Props) {
             startWorkoutMutation.mutate(
               {},
               {
-                onSuccess: () => navigation.navigate("ActiveWorkout")
+                onSuccess: () => {
+                  setLastAction("start_workout");
+                  navigation.navigate("ActiveWorkout");
+                }
               }
             )
           }
@@ -90,6 +102,21 @@ export function DashboardScreen({ navigation }: Props) {
         <Text style={styles.cardBody}>
           Recent activity: {dashboard.recentProgressMetrics[0]?.displayText ?? "No progress metrics yet."}
         </Text>
+      </View>
+
+      <View style={styles.actions}>
+        <FeedbackButton
+          screenName="DashboardScreen"
+          workoutSessionId={activeWorkout?.id ?? null}
+          lastAction={lastAction}
+        />
+        {__DEV__ ? (
+          <PrimaryButton
+            label="Review feedback"
+            tone="secondary"
+            onPress={() => navigation.navigate("FeedbackDebug")}
+          />
+        ) : null}
       </View>
     </Screen>
   );
@@ -140,5 +167,8 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: 16,
     lineHeight: 22
+  },
+  actions: {
+    gap: spacing.sm
   }
 });

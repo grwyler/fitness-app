@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { CompleteWorkoutSessionRequest, SetDto } from "@fitness/shared";
 import { StyleSheet, Text, View } from "react-native";
@@ -7,6 +8,7 @@ import { ErrorState } from "../components/ErrorState";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { WorkoutExerciseCard } from "../components/WorkoutExerciseCard";
 import type { RootStackParamList } from "../core/navigation/navigation-types";
+import { FeedbackButton } from "../features/feedback/components/FeedbackButton";
 import { useCurrentWorkout } from "../features/workout/hooks/useCurrentWorkout";
 import { useLogSet } from "../features/workout/hooks/useLogSet";
 import { useCompleteWorkout } from "../features/workout/hooks/useCompleteWorkout";
@@ -21,6 +23,8 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
   const completeWorkoutMutation = useCompleteWorkout();
   const feedbackByEntryId = useActiveWorkoutStore((state) => state.exerciseFeedbackByEntryId);
   const setExerciseFeedback = useActiveWorkoutStore((state) => state.setExerciseFeedback);
+  const activeSessionId = useActiveWorkoutStore((state) => state.activeSessionId);
+  const [lastAction, setLastAction] = useState<string | null>(null);
 
   if (currentWorkoutQuery.isLoading) {
     return (
@@ -68,6 +72,7 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
   );
 
   function handleLogSet(set: SetDto, actualReps: number) {
+    setLastAction(actualReps >= set.targetReps ? `completed_set:${set.id}` : `missed_set:${set.id}`);
     logSetMutation.mutate({
       setId: set.id,
       request: {
@@ -78,6 +83,7 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
   }
 
   function handleCompleteWorkout() {
+    setLastAction("complete_workout");
     const request: CompleteWorkoutSessionRequest = {
       exerciseFeedback: workout.exercises.map((exercise) => ({
         exerciseEntryId: exercise.id,
@@ -134,6 +140,11 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
           onPress={handleCompleteWorkout}
           disabled={hasPendingSets || !hasCompleteFeedback}
           loading={completeWorkoutMutation.isPending}
+        />
+        <FeedbackButton
+          screenName="ActiveWorkoutScreen"
+          workoutSessionId={activeSessionId ?? workout.id}
+          lastAction={lastAction}
         />
       </View>
     </Screen>

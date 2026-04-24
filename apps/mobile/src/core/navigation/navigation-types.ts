@@ -6,4 +6,5 @@ export type RootStackParamList = {
   WorkoutSummary: {
     summary: CompleteWorkoutSessionResponse;
   };
+  FeedbackDebug: undefined;
 };

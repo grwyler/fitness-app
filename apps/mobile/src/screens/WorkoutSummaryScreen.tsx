@@ -1,15 +1,18 @@
+import { useState } from "react";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { ProgressMetricDto, ProgressionUpdateDto } from "@fitness/shared";
 import { StyleSheet, Text, View } from "react-native";
 import { Screen } from "../components/Screen";
 import { PrimaryButton } from "../components/PrimaryButton";
 import type { RootStackParamList } from "../core/navigation/navigation-types";
+import { FeedbackButton } from "../features/feedback/components/FeedbackButton";
 import { colors, spacing } from "../theme/tokens";
 
 type Props = NativeStackScreenProps<RootStackParamList, "WorkoutSummary">;
 
 export function WorkoutSummaryScreen({ navigation, route }: Props) {
   const { summary } = route.params;
+  const [lastAction, setLastAction] = useState<string | null>("completed_workout");
 
   return (
     <Screen>
@@ -43,9 +46,18 @@ export function WorkoutSummaryScreen({ navigation, route }: Props) {
         ))}
       </View>
 
+      <FeedbackButton
+        screenName="WorkoutSummaryScreen"
+        workoutSessionId={summary.workoutSession.id}
+        lastAction={lastAction}
+      />
+
       <PrimaryButton
         label="Back to dashboard"
-        onPress={() => navigation.reset({ index: 0, routes: [{ name: "Dashboard" }] })}
+        onPress={() => {
+          setLastAction("return_to_dashboard");
+          navigation.reset({ index: 0, routes: [{ name: "Dashboard" }] });
+        }}
       />
     </Screen>
   );
