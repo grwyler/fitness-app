@@ -7,7 +7,8 @@
     ],
     "types": [
       "react",
-      "react-native"
+      "react-native",
+      "node"
     ],
     "rootDir": ".",
     "outDir": "./dist",
@@ -24,4 +25,3 @@
     }
   ]
 }
-

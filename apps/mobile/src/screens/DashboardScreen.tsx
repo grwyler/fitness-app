@@ -1,79 +1,116 @@
-import { SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
+import type { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { StyleSheet, Text, View } from "react-native";
+import { Screen } from "../components/Screen";
+import { LoadingState } from "../components/LoadingState";
+import { ErrorState } from "../components/ErrorState";
+import { PrimaryButton } from "../components/PrimaryButton";
+import { useDashboard } from "../features/workout/hooks/useDashboard";
+import { useStartWorkout } from "../features/workout/hooks/useStartWorkout";
+import type { RootStackParamList } from "../app/navigation/navigation-types";
 import { colors, spacing } from "../theme/tokens";
 
-const dashboardPreview = {
-  programName: "Beginner Full Body V1",
-  daysPerWeek: 3,
-  nextWorkout: {
-    name: "Workout A",
-    exerciseCount: 5,
-    estimatedDurationMinutes: 60
+type Props = NativeStackScreenProps<RootStackParamList, "Dashboard">;
+
+export function DashboardScreen({ navigation }: Props) {
+  const dashboardQuery = useDashboard();
+  const startWorkoutMutation = useStartWorkout();
+
+  if (dashboardQuery.isLoading) {
+    return (
+      <Screen>
+        <LoadingState label="Loading your dashboard..." />
+      </Screen>
+    );
   }
-};
 
-export function DashboardScreen() {
+  if (dashboardQuery.isError || !dashboardQuery.data) {
+    return (
+      <Screen>
+        <ErrorState
+          title="Dashboard unavailable"
+          message="We couldn't load your workout dashboard."
+          actionLabel="Try again"
+          onAction={() => void dashboardQuery.refetch()}
+        />
+      </Screen>
+    );
+  }
+
+  const dashboard = dashboardQuery.data;
+  const activeWorkout = dashboard.activeWorkoutSession;
+  const nextWorkout = dashboard.nextWorkoutTemplate;
+
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.hero}>
-          <Text style={styles.eyebrow}>Fitness App</Text>
-          <Text style={styles.title}>Show up. Follow the plan. Let the system handle the rest.</Text>
-          <Text style={styles.subtitle}>
-            Phase 1 foundation is wired around the first production slice: start workout, log sets,
-            complete workout.
-          </Text>
-        </View>
+    <Screen>
+      <View style={styles.hero}>
+        <Text style={styles.eyebrow}>Fitness App</Text>
+        <Text style={styles.title}>Train with a clear next step.</Text>
+        <Text style={styles.subtitle}>
+          Your dashboard is powered by the live workout API.
+        </Text>
+      </View>
 
+      {activeWorkout ? (
         <View style={styles.card}>
-          <Text style={styles.cardLabel}>Next workout</Text>
-          <Text style={styles.cardTitle}>{dashboardPreview.nextWorkout.name}</Text>
+          <Text style={styles.cardLabel}>Active workout</Text>
+          <Text style={styles.cardTitle}>{activeWorkout.workoutName}</Text>
           <Text style={styles.cardBody}>
-            {dashboardPreview.nextWorkout.exerciseCount} exercises • {dashboardPreview.nextWorkout.estimatedDurationMinutes} minutes
+            {activeWorkout.exercises.length} exercises in progress
           </Text>
+          <PrimaryButton label="Resume workout" onPress={() => navigation.navigate("ActiveWorkout")} />
         </View>
+      ) : null}
 
-        <View style={styles.card}>
-          <Text style={styles.cardLabel}>Program design</Text>
-          <Text style={styles.cardTitle}>{dashboardPreview.programName}</Text>
-          <Text style={styles.cardBody}>
-            {dashboardPreview.daysPerWeek} sessions per week, deterministic progression, low-cognitive-load workout flow.
-          </Text>
-        </View>
+      <View style={styles.card}>
+        <Text style={styles.cardLabel}>Next workout</Text>
+        <Text style={styles.cardTitle}>{nextWorkout?.name ?? "No workout queued"}</Text>
+        <Text style={styles.cardBody}>
+          {nextWorkout
+            ? `Estimated ${nextWorkout.estimatedDurationMinutes ?? 0} minutes`
+            : "No active program enrollment is available."}
+        </Text>
+        <PrimaryButton
+          label={activeWorkout ? "Workout already active" : "Start workout"}
+          onPress={() =>
+            startWorkoutMutation.mutate(
+              {},
+              {
+                onSuccess: () => navigation.navigate("ActiveWorkout")
+              }
+            )
+          }
+          disabled={Boolean(activeWorkout || !nextWorkout)}
+          loading={startWorkoutMutation.isPending}
+        />
+      </View>
 
-        <View style={styles.card}>
-          <Text style={styles.cardLabel}>Foundation modules</Text>
-          <Text style={styles.cardBody}>Shared contracts, Postgres schema, seed definitions, API bootstrap, Expo shell.</Text>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+      <View style={styles.card}>
+        <Text style={styles.cardLabel}>This week</Text>
+        <Text style={styles.cardTitle}>{dashboard.weeklyWorkoutCount} workouts completed</Text>
+        <Text style={styles.cardBody}>
+          Recent activity: {dashboard.recentProgressMetrics[0]?.displayText ?? "No progress metrics yet."}
+        </Text>
+      </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: colors.background
-  },
-  content: {
-    padding: spacing.lg,
-    gap: spacing.md
-  },
   hero: {
-    gap: spacing.sm,
-    marginBottom: spacing.sm
+    gap: spacing.sm
   },
   eyebrow: {
     color: colors.accentStrong,
     fontSize: 14,
     fontWeight: "700",
-    letterSpacing: 1.2,
+    letterSpacing: 1.1,
     textTransform: "uppercase"
   },
   title: {
     color: colors.textPrimary,
-    fontSize: 34,
+    fontSize: 30,
     fontWeight: "800",
-    lineHeight: 40
+    lineHeight: 36
   },
   subtitle: {
     color: colors.textSecondary,
@@ -83,9 +120,9 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
     borderColor: colors.border,
-    borderRadius: 24,
+    borderRadius: 22,
     borderWidth: 1,
-    gap: spacing.xs,
+    gap: spacing.sm,
     padding: spacing.lg
   },
   cardLabel: {

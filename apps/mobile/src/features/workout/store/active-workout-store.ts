@@ -1,0 +1,88 @@
+import type { CompleteWorkoutSessionResponse, EffortFeedback } from "@fitness/shared";
+import { create } from "zustand";
+import { resolveStableIdempotencyKey } from "../utils/idempotency";
+
+type StoredKey = {
+  key: string;
+  fingerprint: string;
+};
+
+type ActiveWorkoutState = {
+  activeSessionId: string | null;
+  exerciseFeedbackByEntryId: Record<string, EffortFeedback>;
+  idempotencyKeys: Record<string, StoredKey>;
+  latestSummary: CompleteWorkoutSessionResponse | null;
+  setActiveSessionId(sessionId: string | null): void;
+  setExerciseFeedback(exerciseEntryId: string, feedback: EffortFeedback): void;
+  clearExerciseFeedback(): void;
+  getMutationKey(scope: string, payload: unknown): string;
+  clearMutationKey(scope: string): void;
+  clearAllMutationKeys(): void;
+  setLatestSummary(summary: CompleteWorkoutSessionResponse | null): void;
+  resetForCompletedWorkout(): void;
+};
+
+export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
+  activeSessionId: null,
+  exerciseFeedbackByEntryId: {},
+  idempotencyKeys: {},
+  latestSummary: null,
+  setActiveSessionId(sessionId) {
+    set({ activeSessionId: sessionId });
+  },
+  setExerciseFeedback(exerciseEntryId, feedback) {
+    set((state) => ({
+      exerciseFeedbackByEntryId: {
+        ...state.exerciseFeedbackByEntryId,
+        [exerciseEntryId]: feedback
+      }
+    }));
+  },
+  clearExerciseFeedback() {
+    set({ exerciseFeedbackByEntryId: {} });
+  },
+  getMutationKey(scope, payload) {
+    const existing = get().idempotencyKeys[scope];
+    const next = existing
+      ? resolveStableIdempotencyKey({
+          scope,
+          payload,
+          existing
+        })
+      : resolveStableIdempotencyKey({
+          scope,
+          payload
+        });
+
+    set((state) => ({
+      idempotencyKeys: {
+        ...state.idempotencyKeys,
+        [scope]: next
+      }
+    }));
+
+    return next.key;
+  },
+  clearMutationKey(scope) {
+    set((state) => {
+      const nextKeys = { ...state.idempotencyKeys };
+      delete nextKeys[scope];
+      return {
+        idempotencyKeys: nextKeys
+      };
+    });
+  },
+  clearAllMutationKeys() {
+    set({ idempotencyKeys: {} });
+  },
+  setLatestSummary(summary) {
+    set({ latestSummary: summary });
+  },
+  resetForCompletedWorkout() {
+    set({
+      activeSessionId: null,
+      exerciseFeedbackByEntryId: {},
+      idempotencyKeys: {}
+    });
+  }
+}));
