@@ -30,3 +30,10 @@ Backend foundation and the first backend workout vertical slice are implemented:
 - backend tests cover domain, application, infrastructure, and HTTP layers
 
 See [BACKEND.md](C:\Users\Grwyl\repos\fitness-app\BACKEND.md) for backend run, test, env, and auth details.
+
+For a full local run, use:
+
+1. `Copy-Item .env.example .env`
+2. `npm run setup:dev --workspace @fitness/api`
+3. `npm run dev --workspace @fitness/api`
+4. `npm run dev --workspace @fitness/mobile`

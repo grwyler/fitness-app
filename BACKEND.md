@@ -39,6 +39,18 @@ npm run build
 npm run dev:api
 ```
 
+Optional but recommended before first run:
+
+```powershell
+npm run setup:dev --workspace @fitness/api
+```
+
+That command:
+
+- pushes the current Drizzle schema into the configured Postgres database
+- seeds a development user, program, workout templates, and enrollment
+- aligns the development mobile client with the seeded user id
+
 The API reads:
 
 - `DATABASE_URL`: required PostgreSQL connection string
@@ -107,6 +119,10 @@ For now, requests are considered authenticated when they include:
 
 - `x-user-id`
 - optional `x-unit-system`
+
+For local development, the seeded default user id is:
+
+- `11111111-1111-1111-1111-111111111111`
 
 This is a placeholder boundary only. Real auth should replace that module by:
 
