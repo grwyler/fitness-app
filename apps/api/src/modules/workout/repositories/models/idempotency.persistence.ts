@@ -3,7 +3,7 @@ export type IdempotencyRouteFamily =
   | "log_set"
   | "complete_workout_session";
 
-export type IdempotencyStatus = "pending" | "completed" | "failed";
+export type IdempotencyStatus = "pending" | "completed";
 
 export type IdempotencyScope = {
   userId: string;

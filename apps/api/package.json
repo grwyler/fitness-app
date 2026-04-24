@@ -7,18 +7,21 @@
     "build": "tsc -p tsconfig.json",
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
-    "test": "node dist/modules/workout/domain/run-domain-tests.js"
+    "test": "node dist/modules/workout/run-tests.js"
   },
   "dependencies": {
+    "@electric-sql/pglite": "^0.2.17",
     "@fitness/db": "0.1.0",
     "@fitness/shared": "0.1.0",
     "cors": "^2.8.5",
     "express": "^5.1.0",
+    "pg": "^8.16.3",
     "zod": "^4.1.12"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
+    "@types/pg": "^8.15.5",
     "tsx": "^4.20.6"
   }
 }

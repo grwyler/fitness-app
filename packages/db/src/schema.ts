@@ -32,6 +32,7 @@ const workoutSessionStatusEnum = pgEnum("workout_session_status", workoutSession
 const effortFeedbackEnum = pgEnum("effort_feedback", effortFeedbackValues);
 const setStatusEnum = pgEnum("set_status", setStatuses);
 const progressMetricTypeEnum = pgEnum("progress_metric_type", progressMetricTypes);
+const idempotencyStatusEnum = pgEnum("idempotency_status", ["pending", "completed"]);
 
 const timestamps = {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -66,6 +67,7 @@ export const exercises = pgTable(
     movementPattern: text("movement_pattern"),
     primaryMuscleGroup: text("primary_muscle_group"),
     equipmentType: text("equipment_type"),
+    defaultStartingWeightLbs: numeric("default_starting_weight_lbs", { precision: 6, scale: 2 }).notNull(),
     defaultIncrementLbs: numeric("default_increment_lbs", { precision: 5, scale: 2 }).notNull(),
     isActive: boolean("is_active").notNull().default(true),
     ...timestamps
@@ -73,6 +75,10 @@ export const exercises = pgTable(
   (table) => ({
     nameUnique: uniqueIndex("idx_exercises_name").on(table.name),
     categoryIndex: index("idx_exercises_category").on(table.category),
+    positiveStartingWeight: check(
+      "chk_exercises_default_starting_weight_nonnegative",
+      sql`${table.defaultStartingWeightLbs} >= 0`
+    ),
     positiveIncrement: check("chk_exercises_default_increment_positive", sql`${table.defaultIncrementLbs} > 0`)
   })
 );
@@ -198,6 +204,7 @@ export const exerciseEntries = pgTable(
     targetSets: integer("target_sets").notNull(),
     targetReps: integer("target_reps").notNull(),
     targetWeightLbs: numeric("target_weight_lbs", { precision: 6, scale: 2 }).notNull(),
+    restSeconds: integer("rest_seconds"),
     effortFeedback: effortFeedbackEnum("effort_feedback"),
     completedAt: timestamp("completed_at", { withTimezone: true }),
     exerciseNameSnapshot: text("exercise_name_snapshot").notNull(),
@@ -283,6 +290,32 @@ export const progressMetrics = pgTable(
   })
 );
 
+export const idempotencyRecords = pgTable(
+  "idempotency_records",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: text("user_id").notNull(),
+    key: text("key").notNull(),
+    routeFamily: text("route_family").notNull(),
+    targetResourceId: text("target_resource_id").notNull().default(""),
+    requestFingerprint: text("request_fingerprint").notNull(),
+    status: idempotencyStatusEnum("status").notNull(),
+    responseStatusCode: integer("response_status_code"),
+    responseBody: text("response_body"),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    ...timestamps
+  },
+  (table) => ({
+    scopeUnique: uniqueIndex("idx_idempotency_scope").on(
+      table.userId,
+      table.key,
+      table.routeFamily,
+      table.targetResourceId
+    ),
+    statusIndex: index("idx_idempotency_status").on(table.status)
+  })
+);
+
 export const schema = {
   users,
   exercises,
@@ -294,5 +327,6 @@ export const schema = {
   exerciseEntries,
   sets,
   progressionStates,
-  progressMetrics
+  progressMetrics,
+  idempotencyRecords
 };

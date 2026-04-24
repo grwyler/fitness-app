@@ -16,6 +16,7 @@ export type ExerciseRecord = {
 export type WorkoutTemplateRecord = {
   id: string;
   programId: string;
+  programName: string;
   name: string;
   sequenceOrder: number;
   estimatedDurationMinutes: number | null;
@@ -43,4 +44,3 @@ export type WorkoutTemplateDefinition = {
     exercise: ExerciseRecord;
   }>;
 };
-

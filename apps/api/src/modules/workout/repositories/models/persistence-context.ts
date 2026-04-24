@@ -1,8 +1,8 @@
 export type RepositoryTransaction = {
-  readonly __repositoryTransaction: unique symbol;
+  readonly __repositoryTransaction: "RepositoryTransaction";
+  readonly context: unknown;
 };
 
 export type RepositoryOptions = {
   tx?: RepositoryTransaction;
 };
-

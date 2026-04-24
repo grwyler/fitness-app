@@ -7,6 +7,7 @@ type SeedExercise = {
   movementPattern: string;
   primaryMuscleGroup: string;
   equipmentType: string;
+  defaultStartingWeightLbs: number;
   defaultIncrementLbs: number;
 };
 
@@ -42,6 +43,7 @@ export const seedExercises: SeedExercise[] = [
     movementPattern: "squat",
     primaryMuscleGroup: "quads",
     equipmentType: "barbell",
+    defaultStartingWeightLbs: 95,
     defaultIncrementLbs: 5
   },
   {
@@ -51,6 +53,7 @@ export const seedExercises: SeedExercise[] = [
     movementPattern: "push",
     primaryMuscleGroup: "chest",
     equipmentType: "barbell",
+    defaultStartingWeightLbs: 95,
     defaultIncrementLbs: 5
   },
   {
@@ -60,6 +63,7 @@ export const seedExercises: SeedExercise[] = [
     movementPattern: "pull",
     primaryMuscleGroup: "back",
     equipmentType: "barbell",
+    defaultStartingWeightLbs: 95,
     defaultIncrementLbs: 5
   },
   {
@@ -69,6 +73,7 @@ export const seedExercises: SeedExercise[] = [
     movementPattern: "hinge",
     primaryMuscleGroup: "posterior_chain",
     equipmentType: "barbell",
+    defaultStartingWeightLbs: 135,
     defaultIncrementLbs: 5
   },
   {
@@ -78,6 +83,7 @@ export const seedExercises: SeedExercise[] = [
     movementPattern: "push",
     primaryMuscleGroup: "shoulders",
     equipmentType: "barbell",
+    defaultStartingWeightLbs: 65,
     defaultIncrementLbs: 5
   },
   {
@@ -87,6 +93,7 @@ export const seedExercises: SeedExercise[] = [
     movementPattern: "pull",
     primaryMuscleGroup: "biceps",
     equipmentType: "dumbbell",
+    defaultStartingWeightLbs: 20,
     defaultIncrementLbs: 2.5
   },
   {
@@ -96,6 +103,7 @@ export const seedExercises: SeedExercise[] = [
     movementPattern: "push",
     primaryMuscleGroup: "triceps",
     equipmentType: "cable",
+    defaultStartingWeightLbs: 30,
     defaultIncrementLbs: 2.5
   },
   {
@@ -105,6 +113,7 @@ export const seedExercises: SeedExercise[] = [
     movementPattern: "hinge",
     primaryMuscleGroup: "hamstrings",
     equipmentType: "machine",
+    defaultStartingWeightLbs: 40,
     defaultIncrementLbs: 2.5
   },
   {
@@ -114,6 +123,7 @@ export const seedExercises: SeedExercise[] = [
     movementPattern: "pull",
     primaryMuscleGroup: "lats",
     equipmentType: "cable",
+    defaultStartingWeightLbs: 50,
     defaultIncrementLbs: 2.5
   }
 ];
@@ -153,4 +163,3 @@ export const beginnerFullBodyV1: SeedProgram = {
 };
 
 export const seedPrograms = [beginnerFullBodyV1];
-
