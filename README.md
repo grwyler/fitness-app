@@ -21,11 +21,12 @@ Open app -> start workout -> log sets -> complete workout -> review progress
 
 ## Current status
 
-Phase 1 foundation is scaffolded:
+Backend foundation and the first backend workout vertical slice are implemented:
 
-- workspace configuration
-- shared domain contracts
-- database schema and starter seed data
-- API bootstrap with health endpoint
-- Expo app shell with a dashboard-oriented home screen
+- domain rules and shared contracts are finalized
+- production-oriented Postgres schema and Drizzle repositories are in place
+- workout use-cases are implemented with transactions and idempotency
+- HTTP endpoints for dashboard/current/start/log/complete are wired
+- backend tests cover domain, application, infrastructure, and HTTP layers
 
+See [BACKEND.md](C:\Users\Grwyl\repos\fitness-app\BACKEND.md) for backend run, test, env, and auth details.

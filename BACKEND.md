@@ -1,0 +1,148 @@
+# Backend
+
+## Overview
+
+The backend is a TypeScript Express API with:
+
+- `Express` for HTTP transport
+- `Zod` for request and environment validation
+- `Drizzle ORM` for persistence
+- `PostgreSQL` in runtime environments
+- `PGlite` for integration-style tests
+
+The core backend slice currently supports:
+
+- `GET /api/v1/dashboard`
+- `GET /api/v1/workout-sessions/current`
+- `POST /api/v1/workout-sessions/start`
+- `POST /api/v1/sets/:setId/log`
+- `POST /api/v1/workout-sessions/:sessionId/complete`
+
+## Run the API
+
+1. Copy `.env.example` to `.env` and set `DATABASE_URL`.
+2. Install dependencies:
+
+```powershell
+npm install
+```
+
+3. Build the workspace:
+
+```powershell
+npm run build
+```
+
+4. Start the API:
+
+```powershell
+npm run dev:api
+```
+
+The API reads:
+
+- `DATABASE_URL`: required PostgreSQL connection string
+- `PORT`: optional, defaults to `4000`
+- `NODE_ENV`: optional, one of `development`, `test`, `production`
+
+If required environment variables are missing or invalid, startup fails immediately with a concise configuration error.
+
+## Run tests
+
+Workspace typecheck:
+
+```powershell
+npm run typecheck
+```
+
+API tests:
+
+```powershell
+npm run test --workspace @fitness/api
+```
+
+Notes:
+
+- Domain, application, infrastructure, and HTTP tests all run through the API workspace test command.
+- Integration-style backend tests use `PGlite`, so they do not require a separate external test database.
+
+## API envelopes
+
+Success responses always use:
+
+```json
+{
+  "data": {},
+  "meta": {}
+}
+```
+
+Error responses always use:
+
+```json
+{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Request validation failed.",
+    "details": []
+  }
+}
+```
+
+Current error mapping:
+
+- `400`: validation failures, including missing `Idempotency-Key`
+- `401`: unauthenticated requests
+- `404`: missing session, set, or workout template
+- `409`: business rule conflicts and idempotency conflicts
+- `500`: unexpected backend errors
+
+## Auth assumptions
+
+Current local/test auth is intentionally isolated in:
+
+- [apps/api/src/modules/workout/http/workout.auth.ts](C:\Users\Grwyl\repos\fitness-app\apps\api\src\modules\workout\http\workout.auth.ts)
+
+For now, requests are considered authenticated when they include:
+
+- `x-user-id`
+- optional `x-unit-system`
+
+This is a placeholder boundary only. Real auth should replace that module by:
+
+1. verifying a session or bearer token
+2. resolving the current user id and unit system
+3. returning the same `RequestContext` shape used by the use-cases
+
+No domain, repository, or use-case code should need to change when real auth is introduced.
+
+## Idempotency
+
+Mutation endpoints require `Idempotency-Key`:
+
+- `POST /api/v1/workout-sessions/start`
+- `POST /api/v1/sets/:setId/log`
+- `POST /api/v1/workout-sessions/:sessionId/complete`
+
+Behavior:
+
+- same key + same effective payload replays the stored response
+- same key + different payload returns `409 CONFLICT`
+
+## Observability boundary
+
+Current observability hooks are intentionally minimal:
+
+- [apps/api/src/lib/observability/logger.ts](C:\Users\Grwyl\repos\fitness-app\apps\api\src\lib\observability\logger.ts)
+- [apps/api/src/lib/observability/error-reporter.ts](C:\Users\Grwyl\repos\fitness-app\apps\api\src\lib\observability\error-reporter.ts)
+
+These define where structured logging and error tracking attach later.
+
+- `logger` is the boundary for production logging
+- `errorReporter` is the boundary for Sentry or equivalent error capture
+
+Expected future replacement:
+
+- swap `errorReporter.captureException` with Sentry
+- route structured logs to the deployment platform or log pipeline
+- keep route handlers and use-cases free of vendor-specific instrumentation

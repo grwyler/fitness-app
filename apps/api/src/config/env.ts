@@ -8,9 +8,21 @@ const envSchema = z.object({
 
 export type AppEnv = z.infer<typeof envSchema>;
 
-export const env = envSchema.parse({
-  NODE_ENV: process.env.NODE_ENV,
-  PORT: process.env.PORT,
-  DATABASE_URL: process.env.DATABASE_URL
-});
+function parseEnv() {
+  const parsedEnv = envSchema.safeParse({
+    NODE_ENV: process.env.NODE_ENV,
+    PORT: process.env.PORT,
+    DATABASE_URL: process.env.DATABASE_URL
+  });
 
+  if (!parsedEnv.success) {
+    const details = parsedEnv.error.issues
+      .map((issue) => `${issue.path.join(".") || "env"}: ${issue.message}`)
+      .join("; ");
+    throw new Error(`Invalid API environment configuration. ${details}`);
+  }
+
+  return parsedEnv.data;
+}
+
+export const env = parseEnv();

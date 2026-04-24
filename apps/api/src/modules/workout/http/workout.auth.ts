@@ -9,6 +9,9 @@ const authHeaderSchema = z.object({
   "x-unit-system": z.enum(unitSystems).optional()
 });
 
+// Temporary auth adapter for local development and automated tests.
+// Real auth should replace this module by resolving the authenticated user from
+// a verified session or bearer token and then constructing the same RequestContext.
 export function resolveAuthenticatedRequestContext(request: Request): RequestContext {
   const parsedHeaders = authHeaderSchema.safeParse({
     "x-user-id": request.header("x-user-id"),
