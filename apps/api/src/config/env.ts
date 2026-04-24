@@ -1,12 +1,20 @@
 import { existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { config as loadDotEnv } from "dotenv";
 import { z } from "zod";
 
-const workspaceRootEnvPath = resolve(process.cwd(), ".env");
+const currentFileDirectory = dirname(fileURLToPath(import.meta.url));
+const envCandidatePaths = [
+  resolve(process.cwd(), ".env"),
+  resolve(process.cwd(), "..", ".env"),
+  resolve(process.cwd(), "..", "..", ".env"),
+  resolve(currentFileDirectory, "..", "..", "..", "..", ".env")
+];
+const resolvedEnvPath = envCandidatePaths.find((candidatePath) => existsSync(candidatePath));
 
-if (existsSync(workspaceRootEnvPath)) {
-  loadDotEnv({ path: workspaceRootEnvPath });
+if (resolvedEnvPath) {
+  loadDotEnv({ path: resolvedEnvPath });
 }
 
 const envSchema = z.object({
@@ -28,9 +36,9 @@ function parseEnv() {
     const details = parsedEnv.error.issues
       .map((issue) => `${issue.path.join(".") || "env"}: ${issue.message}`)
       .join("; ");
-    const envHint = existsSync(workspaceRootEnvPath)
-      ? `Checked ${workspaceRootEnvPath}.`
-      : `No .env file found at ${workspaceRootEnvPath}. Copy .env.example to .env and set DATABASE_URL.`;
+    const envHint = resolvedEnvPath
+      ? `Loaded environment from ${resolvedEnvPath}.`
+      : `No .env file found. Checked: ${envCandidatePaths.join(", ")}. Copy .env.example to .env at the repo root and set DATABASE_URL.`;
     throw new Error(`Invalid API environment configuration. ${details} ${envHint}`);
   }
 
