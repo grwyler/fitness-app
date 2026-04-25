@@ -1,6 +1,7 @@
 import type { ApiErrorEnvelope, ApiSuccessEnvelope } from "@fitness/shared";
 import { apiConfig } from "./config";
 import { MobileApiError } from "./errors";
+import { getAuthToken, handleUnauthorizedResponse } from "../core/auth/auth-bridge";
 
 type RequestOptions = {
   method?: "GET" | "POST";
@@ -27,13 +28,13 @@ export async function apiRequest<TData, TMeta extends Record<string, unknown> = 
   path: string,
   options?: RequestOptions
 ): Promise<ApiSuccessEnvelope<TData, TMeta>> {
+  const token = await getAuthToken();
   const response = await fetch(`${apiConfig.baseUrl}${path}`, {
     method: options?.method ?? "GET",
     headers: {
       Accept: "application/json",
       "Content-Type": "application/json",
-      "x-user-id": apiConfig.userId,
-      "x-unit-system": apiConfig.unitSystem,
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(options?.idempotencyKey ? { "Idempotency-Key": options.idempotencyKey } : {})
     },
     body: options?.body === undefined ? undefined : JSON.stringify(options.body)
@@ -42,6 +43,10 @@ export async function apiRequest<TData, TMeta extends Record<string, unknown> = 
   const payload = (await response.json()) as unknown;
 
   if (!response.ok) {
+    if (response.status === 401) {
+      await handleUnauthorizedResponse();
+    }
+
     if (isApiErrorEnvelope(payload)) {
       const errorInput =
         payload.error.details === undefined

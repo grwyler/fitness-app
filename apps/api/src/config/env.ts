@@ -18,6 +18,7 @@ if (resolvedEnvPath) {
 }
 
 const envSchema = z.object({
+  CLERK_PUBLISHABLE_KEY: z.string().min(1, "CLERK_PUBLISHABLE_KEY is required").optional(),
   CLERK_SECRET_KEY: z.string().min(1, "CLERK_SECRET_KEY is required").optional(),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().positive().default(4000),
@@ -34,6 +35,7 @@ export type AppEnv = z.infer<typeof envSchema>;
 function parseEnv() {
   const parsedEnv = envSchema.safeParse({
     NODE_ENV: process.env.NODE_ENV,
+    CLERK_PUBLISHABLE_KEY: process.env.CLERK_PUBLISHABLE_KEY,
     CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY,
     PORT: process.env.PORT,
     DATABASE_URL: process.env.DATABASE_URL,
@@ -65,6 +67,15 @@ function parseEnv() {
       : `No .env file found. Checked: ${envCandidatePaths.join(", ")}.`;
     throw new Error(
       `Invalid API environment configuration. CLERK_SECRET_KEY is required outside tests. ${envHint}`
+    );
+  }
+
+  if (parsedEnv.data.NODE_ENV !== "test" && !parsedEnv.data.CLERK_PUBLISHABLE_KEY) {
+    const envHint = resolvedEnvPath
+      ? `Loaded environment from ${resolvedEnvPath}.`
+      : `No .env file found. Checked: ${envCandidatePaths.join(", ")}.`;
+    throw new Error(
+      `Invalid API environment configuration. CLERK_PUBLISHABLE_KEY is required outside tests. ${envHint}`
     );
   }
 
