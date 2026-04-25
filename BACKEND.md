@@ -119,24 +119,26 @@ Current error mapping:
 
 ## Auth assumptions
 
-Current local/test auth is intentionally isolated in:
+Runtime auth is isolated in:
 
-- [apps/api/src/modules/workout/http/workout.auth.ts](C:\Users\Grwyl\repos\fitness-app\apps\api\src\modules\workout\http\workout.auth.ts)
+- [apps/api/src/lib/auth/auth.middleware.ts](C:\Users\Grwyl\repos\fitness-app\apps\api\src\lib\auth\auth.middleware.ts)
+- [apps/api/src/lib/auth/request-context.middleware.ts](C:\Users\Grwyl\repos\fitness-app\apps\api\src\lib\auth\request-context.middleware.ts)
+- [apps/api/src/lib/auth/resolve-user.ts](C:\Users\Grwyl\repos\fitness-app\apps\api\src\lib\auth\resolve-user.ts)
 
-For now, requests are considered authenticated when they include:
+Protected requests must include:
 
-- `x-user-id`
-- optional `x-unit-system`
+- `Authorization: Bearer <clerk-session-token>`
 
-For local development, the seeded default user id is:
+The backend:
+
+1. verifies the Clerk bearer token at the HTTP boundary
+2. resolves the current app user through `users.auth_provider_id`
+3. loads the user's internal `id` and `unit_system`
+4. returns the same `RequestContext` shape used by the use-cases
+
+For local development, the seeded default internal user id is:
 
 - `11111111-1111-1111-1111-111111111111`
-
-This is a placeholder boundary only. Real auth should replace that module by:
-
-1. verifying a session or bearer token
-2. resolving the current user id and unit system
-3. returning the same `RequestContext` shape used by the use-cases
 
 No domain, repository, or use-case code should need to change when real auth is introduced.
 

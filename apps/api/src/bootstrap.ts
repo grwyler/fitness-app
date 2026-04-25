@@ -22,6 +22,7 @@ export async function createRuntimeApp(): Promise<ApiRuntime> {
 
     return {
       app: createApp({
+        database,
         workoutRouter: createWorkoutHttpRouter(database)
       }),
       databaseMode: "pglite-dev"
@@ -36,6 +37,7 @@ export function createPostgresRuntimeApp(connectionString = env.DATABASE_URL!): 
 
   return {
     app: createApp({
+      database,
       workoutRouter: createWorkoutHttpRouter(database)
     }),
     databaseMode: "postgres"

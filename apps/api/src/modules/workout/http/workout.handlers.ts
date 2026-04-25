@@ -5,7 +5,7 @@ import type {
   StartWorkoutSessionRequest
 } from "@fitness/shared";
 import { success } from "../../../lib/http/envelope.js";
-import { resolveAuthenticatedRequestContext } from "./workout.auth.js";
+import { getRequestContext } from "../../../lib/auth/request-context.middleware.js";
 import {
   asyncHandler,
   requireIdempotencyKey,
@@ -42,19 +42,19 @@ export function createWorkoutHandlers(dependencies: {
 }): WorkoutHttpHandlers {
   return {
     getDashboard: asyncHandler(async (request, response) => {
-      const context = resolveAuthenticatedRequestContext(request);
+      const context = getRequestContext(request);
       const result = await dependencies.getDashboardUseCase.execute({ context });
       response.json(success(result.data, result.meta));
     }),
 
     getCurrentWorkoutSession: asyncHandler(async (request, response) => {
-      const context = resolveAuthenticatedRequestContext(request);
+      const context = getRequestContext(request);
       const result = await dependencies.getCurrentWorkoutSessionUseCase.execute({ context });
       response.json(success(result.data, result.meta));
     }),
 
     startWorkoutSession: asyncHandler(async (request, response) => {
-      const context = resolveAuthenticatedRequestContext(request);
+      const context = getRequestContext(request);
       const body = validateBody(startWorkoutSessionBodySchema, request);
       const idempotencyKey = requireIdempotencyKey(request);
       const useCaseRequest: StartWorkoutSessionRequest = {
@@ -72,7 +72,7 @@ export function createWorkoutHandlers(dependencies: {
     }),
 
     logSet: asyncHandler(async (request, response) => {
-      const context = resolveAuthenticatedRequestContext(request);
+      const context = getRequestContext(request);
       const params = validateParams(setParamsSchema, request);
       const body = validateBody(logSetBodySchema, request);
       const idempotencyKey = requireIdempotencyKey(request);
@@ -93,7 +93,7 @@ export function createWorkoutHandlers(dependencies: {
     }),
 
     completeWorkoutSession: asyncHandler(async (request, response) => {
-      const context = resolveAuthenticatedRequestContext(request);
+      const context = getRequestContext(request);
       const params = validateParams(workoutSessionParamsSchema, request);
       const body = validateBody(completeWorkoutSessionBodySchema, request);
       const idempotencyKey = requireIdempotencyKey(request);

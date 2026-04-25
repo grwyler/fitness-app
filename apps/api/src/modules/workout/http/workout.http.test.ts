@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
+import { users } from "@fitness/db";
+import type { Request } from "express";
 import { createApp } from "../../../app.js";
 import type { HttpTestCase } from "./test-helpers/http-test-case.js";
 import { createWorkoutHttpRouter } from "./workout.module.js";
@@ -10,8 +12,74 @@ import {
   seedInProgressWorkout
 } from "../infrastructure/test-helpers/integration-db.js";
 
+function createTestAuth() {
+  const clerkUsers = new Map([
+    [
+      "auth-user-1",
+      {
+        id: "auth-user-1",
+        emailAddresses: [{ id: "email-auth-user-1", emailAddress: "user-1@example.com" }],
+        firstName: "User",
+        lastName: "One",
+        primaryEmailAddressId: "email-auth-user-1",
+        username: "user-one"
+      }
+    ],
+    [
+      "auth-user-new",
+      {
+        id: "auth-user-new",
+        emailAddresses: [{ id: "email-auth-user-new", emailAddress: "new-user@example.com" }],
+        firstName: "New",
+        lastName: "User",
+        primaryEmailAddressId: "email-auth-user-new",
+        username: "new-user"
+      }
+    ]
+  ]);
+
+  return {
+    clerkClient: {
+      users: {
+        async getUser(userId: string) {
+          const user = clerkUsers.get(userId);
+          if (!user) {
+            throw new Error("Unknown Clerk user.");
+          }
+
+          return user;
+        }
+      }
+    },
+    clerkGetAuth(request: Request) {
+      const authorization = request.header("authorization");
+      if (!authorization?.startsWith("Bearer ")) {
+        return { userId: null, isAuthenticated: false };
+      }
+
+      const token = authorization.slice("Bearer ".length);
+      if (token === "valid-user-1-token") {
+        return { userId: "auth-user-1", isAuthenticated: true };
+      }
+
+      if (token === "valid-new-user-token") {
+        return { userId: "auth-user-new", isAuthenticated: true };
+      }
+
+      if (token === "exploding-token") {
+        throw new Error("Token verification failed.");
+      }
+
+      return { userId: null, isAuthenticated: false };
+    },
+    clerkMiddleware: () => (_request: unknown, _response: unknown, next: () => void) => next()
+  };
+}
+
 async function startHttpServer(database: any) {
   const app = createApp({
+    auth: createTestAuth(),
+    database,
     workoutRouter: createWorkoutHttpRouter(database)
   });
   const server = createServer(app);
@@ -36,8 +104,7 @@ async function startHttpServer(database: any) {
 
 function createAuthHeaders(extraHeaders?: Record<string, string>) {
   return {
-    "x-user-id": "user-1",
-    "x-unit-system": "imperial",
+    Authorization: "Bearer valid-user-1-token",
     ...(extraHeaders ?? {})
   };
 }
@@ -300,3 +367,128 @@ export const workoutHttpTestCases: HttpTestCase[] = [
     }
   }
 ];
+
+workoutHttpTestCases.push(
+  {
+    name: "Missing bearer token returns 401",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        const server = await startHttpServer(context.db);
+
+        try {
+          const response = await fetch(`${server.baseUrl}/api/v1/dashboard`);
+          const payload = await readJson(response);
+
+          assert.equal(response.status, 401);
+          assert.equal(payload.error.code, "UNAUTHENTICATED");
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "Invalid bearer token returns 401",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        const server = await startHttpServer(context.db);
+
+        try {
+          const response = await fetch(`${server.baseUrl}/api/v1/dashboard`, {
+            headers: {
+              Authorization: "Bearer invalid-token"
+            }
+          });
+          const payload = await readJson(response);
+
+          assert.equal(response.status, 401);
+          assert.equal(payload.error.code, "UNAUTHENTICATED");
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "First authenticated request creates a local user",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        const server = await startHttpServer(context.db);
+
+        try {
+          const before = await context.db.select().from(users);
+
+          const response = await fetch(`${server.baseUrl}/api/v1/dashboard`, {
+            headers: {
+              Authorization: "Bearer valid-new-user-token"
+            }
+          });
+
+          const after = await context.db.select().from(users);
+          const createdUser = after.find((user) => user.authProviderId === "auth-user-new");
+
+          assert.equal(response.status, 200);
+          assert.equal(before.length, 0);
+          assert.equal(after.length, 1);
+          assert.ok(createdUser);
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "Second authenticated request reuses the same local user",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        const server = await startHttpServer(context.db);
+
+        try {
+          const firstResponse = await fetch(`${server.baseUrl}/api/v1/dashboard`, {
+            headers: {
+              Authorization: "Bearer valid-new-user-token"
+            }
+          });
+
+          const usersAfterFirstRequest = await context.db.select().from(users);
+          const createdUser = usersAfterFirstRequest.find((user) => user.authProviderId === "auth-user-new");
+
+          const secondResponse = await fetch(`${server.baseUrl}/api/v1/dashboard`, {
+            headers: {
+              Authorization: "Bearer valid-new-user-token"
+            }
+          });
+
+          const usersAfterSecondRequest = await context.db.select().from(users);
+
+          assert.equal(firstResponse.status, 200);
+          assert.equal(secondResponse.status, 200);
+          assert.ok(createdUser);
+          assert.equal(usersAfterSecondRequest.length, 1);
+          assert.ok(usersAfterSecondRequest[0]);
+          assert.equal(usersAfterSecondRequest[0].id, createdUser.id);
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  }
+);

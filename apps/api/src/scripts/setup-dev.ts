@@ -13,8 +13,8 @@ async function main() {
     await bootstrapDevelopmentDatabase(pool);
     console.log("");
     console.log("Development database is ready.");
-    console.log(`Use x-user-id: ${DEV_USER_ID}`);
-    console.log("Mobile defaults have been aligned to this same dev user.");
+    console.log(`Seeded internal user id: ${DEV_USER_ID}`);
+    console.log("Backend auth now resolves this user from Clerk via auth_provider_id.");
   } finally {
     await pool.end();
   }

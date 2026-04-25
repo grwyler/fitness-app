@@ -9,9 +9,8 @@ const weightValueSchema = z.object({
 const isoDateTimeSchema = z.string().datetime({ offset: true });
 
 export const workoutHeadersSchema = z.object({
-  "idempotency-key": z.string().min(1).optional(),
-  "x-user-id": z.string().min(1).optional(),
-  "x-unit-system": z.enum(unitSystems).optional()
+  authorization: z.string().min(1).optional(),
+  "idempotency-key": z.string().min(1).optional()
 });
 
 export const workoutSessionParamsSchema = z.object({

@@ -1,13 +1,36 @@
 import cors from "cors";
-import express, { type NextFunction, type Request, type Response, type Router } from "express";
+import { clerkClient, clerkMiddleware, getAuth } from "@clerk/express";
+import express, {
+  type NextFunction,
+  type Request,
+  type RequestHandler,
+  type Response,
+  type Router
+} from "express";
 import { healthRouter } from "./modules/health/health.routes.js";
 import { failure } from "./lib/http/envelope.js";
 import { isAppError } from "./lib/http/errors.js";
 import { errorReporter } from "./lib/observability/error-reporter.js";
 import { logger } from "./lib/observability/logger.js";
 import { toAppError } from "./modules/workout/http/workout.http-errors.js";
+import { createAuthenticateRequestMiddleware } from "./lib/auth/auth.middleware.js";
+import type { ClerkAuthGetter, ClerkClientLike } from "./lib/auth/auth.types.js";
+import { createRequestContextMiddleware } from "./lib/auth/request-context.middleware.js";
 
-export function createApp(options?: { workoutRouter?: Router }) {
+type DatabaseLike = {
+  select: (...args: any[]) => any;
+  insert: (...args: any[]) => any;
+};
+
+export function createApp(options?: {
+  auth?: {
+    clerkClient?: ClerkClientLike;
+    clerkGetAuth?: ClerkAuthGetter;
+    clerkMiddleware?: () => RequestHandler;
+  };
+  database?: DatabaseLike;
+  workoutRouter?: Router;
+}) {
   const app = express();
 
   app.use(cors());
@@ -16,6 +39,22 @@ export function createApp(options?: { workoutRouter?: Router }) {
   app.use(healthRouter);
   app.use("/api/v1", healthRouter);
   if (options?.workoutRouter) {
+    if (options.database) {
+      const authMiddlewareFactory = options.auth?.clerkMiddleware ?? clerkMiddleware;
+      const authClient = options.auth?.clerkClient ?? clerkClient;
+      const authGetter = options.auth?.clerkGetAuth ?? getAuth;
+
+      app.use("/api/v1", authMiddlewareFactory());
+      app.use("/api/v1", createAuthenticateRequestMiddleware(authGetter));
+      app.use(
+        "/api/v1",
+        createRequestContextMiddleware({
+          clerkClient: authClient,
+          database: options.database
+        })
+      );
+    }
+
     app.use("/api/v1", options.workoutRouter);
   }
 
