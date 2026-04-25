@@ -31,6 +31,7 @@ Backend foundation and the first backend workout vertical slice are implemented:
 
 See [BACKEND.md](C:\Users\Grwyl\repos\fitness-app\BACKEND.md) for backend run, test, env, and auth details.
 See [DEPLOYMENT.md](C:\Users\Grwyl\repos\fitness-app\DEPLOYMENT.md) for Vercel + hosted Postgres deployment steps.
+The browser-based tester app is live at [https://mobile-ruddy-phi.vercel.app](https://mobile-ruddy-phi.vercel.app).
 
 For a full local run, use:
 
@@ -44,6 +45,10 @@ For a hosted tester environment, follow [DEPLOYMENT.md](C:\Users\Grwyl\repos\fit
 To open the mobile app in a browser from the repo root, use:
 
 `npm run dev:mobile:web`
+
+To build the browser app for deployment from the repo root, use:
+
+`npm run build:mobile:web`
 
 Important:
 - Run Expo from the mobile workspace or via the root workspace scripts above.

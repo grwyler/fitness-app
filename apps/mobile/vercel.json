@@ -1,0 +1,14 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "EXPO_PUBLIC_API_BASE_URL=https://fitness-app-hazel-nine.vercel.app/api/v1 npm run export:web",
+  "outputDirectory": "dist",
+  "devCommand": "npm run dev:web",
+  "framework": null,
+  "cleanUrls": true,
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/"
+    }
+  ]
+}

@@ -146,3 +146,51 @@ You can place that in:
 5. Verify `/health`.
 6. Set `EXPO_PUBLIC_API_BASE_URL` to the deployed `/api/v1` base URL.
 7. Build and distribute the Expo app to testers.
+
+## Web tester deployment
+
+The Expo app can also be deployed as a browser-based tester app on Vercel.
+
+Current tester URL:
+
+- `https://mobile-ruddy-phi.vercel.app`
+
+Current API base URL used by the deployed web build:
+
+- `https://fitness-app-hazel-nine.vercel.app/api/v1`
+
+The mobile web project lives in:
+
+- [apps/mobile](C:\Users\Grwyl\repos\fitness-app\apps\mobile)
+
+Important web deployment files:
+
+- [apps/mobile/vercel.json](C:\Users\Grwyl\repos\fitness-app\apps\mobile\vercel.json)
+- [apps/mobile/app.json](C:\Users\Grwyl\repos\fitness-app\apps\mobile\app.json)
+- [apps/mobile/src/api/config.ts](C:\Users\Grwyl\repos\fitness-app\apps\mobile\src\api\config.ts)
+
+Web commands:
+
+```powershell
+npm run dev:web --workspace @fitness/mobile
+npm run build:web --workspace @fitness/mobile
+```
+
+The Vercel project for the tester web app should use:
+
+- `Root Directory`: `apps/mobile`
+- `Framework Preset`: `Other`
+
+The checked-in mobile Vercel config:
+
+- exports the Expo app as a static web build
+- writes output to `dist`
+- rewrites all routes back to `/` for SPA navigation
+- injects `EXPO_PUBLIC_API_BASE_URL=https://fitness-app-hazel-nine.vercel.app/api/v1` during the web build
+
+To redeploy the tester web app manually from the repo:
+
+```powershell
+cd apps/mobile
+npx vercel deploy --prod --yes --scope grwylers-projects
+```

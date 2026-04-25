@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "build:vercel": "tsc -b ../../packages/shared ../../packages/db . --pretty false",
+    "build:vercel": "tsc -p tsconfig.vercel.json --pretty false",
     "dev": "tsx watch src/server.ts",
     "setup:dev": "npm run build && node dist/scripts/setup-dev.js",
     "start": "node dist/server.js",
@@ -13,8 +13,8 @@
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.2.17",
-    "@fitness/db": "0.1.0",
-    "@fitness/shared": "0.1.0",
+    "@fitness/db": "file:../../packages/db",
+    "@fitness/shared": "file:../../packages/shared",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^5.1.0",
@@ -24,7 +24,9 @@
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
+    "@types/node": "^24.7.2",
     "@types/pg": "^8.15.5",
+    "typescript": "^5.9.3",
     "tsx": "^4.20.6"
   }
 }

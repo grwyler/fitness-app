@@ -6,10 +6,13 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "expo start",
+    "dev:web": "expo start --web",
+    "export:web": "expo export --platform web",
+    "build:web": "npm run export:web",
     "test": "tsc -p tsconfig.test.json && node -e \"require('fs').mkdirSync('dist',{recursive:true});require('fs').writeFileSync('dist/package.json','{\\\"type\\\":\\\"module\\\"}')\" && node --experimental-specifier-resolution=node dist/src/tests/run-mobile-tests.js"
   },
   "dependencies": {
-    "@fitness/shared": "0.1.0",
+    "@fitness/shared": "file:../../packages/shared",
     "@react-native-async-storage/async-storage": "^3.0.2",
     "@react-navigation/native": "^7.2.2",
     "@react-navigation/native-stack": "^7.14.12",

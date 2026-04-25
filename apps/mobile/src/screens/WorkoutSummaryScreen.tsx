@@ -29,9 +29,7 @@ export function WorkoutSummaryScreen({ navigation, route }: Props) {
         {summary.progressionUpdates.map((update: ProgressionUpdateDto) => (
           <View key={update.exerciseId} style={styles.row}>
             <Text style={styles.rowTitle}>{update.exerciseName}</Text>
-            <Text style={styles.rowBody}>
-              {update.previousWeight.value} lb → {update.nextWeight.value} lb
-            </Text>
+            <Text style={styles.rowBody}>{`${update.previousWeight.value} lb -> ${update.nextWeight.value} lb`}</Text>
             <Text style={styles.rowBody}>{update.reason}</Text>
           </View>
         ))}
