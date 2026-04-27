@@ -1,5 +1,15 @@
 import type { EffortFeedback, ExerciseEntryDto, SetDto } from "@fitness/shared";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import {
+  buildLogSetRequestFromDraft,
+  getSetLogDefaultDraft,
+  getSetOutcomeText,
+  getSetStatusLabel,
+  normalizeRepsInput,
+  normalizeWeightInput,
+  validateSetLogDraft,
+  type SetLogDraft
+} from "../features/workout/utils/set-logging.shared";
 import { colors, spacing } from "../theme/tokens";
 import { PrimaryButton } from "./PrimaryButton";
 
@@ -16,24 +26,14 @@ function formatFeedbackLabel(feedback: EffortFeedback) {
   }
 }
 
-function renderSetStatusLabel(set: SetDto) {
-  if (set.status === "completed") {
-    return "Completed";
-  }
-
-  if (set.status === "failed") {
-    return "Failed";
-  }
-
-  return "Pending";
-}
-
 export function WorkoutExerciseCard(props: {
   exercise: ExerciseEntryDto;
   selectedFeedback?: EffortFeedback;
   loggingSetId?: string | null;
-  onCompleteSet: (set: SetDto) => void;
-  onFailSet: (set: SetDto) => void;
+  submittingSetIds?: Record<string, boolean>;
+  setLogDraftsBySetId: Record<string, SetLogDraft>;
+  onChangeSetLogDraft: (setId: string, draft: SetLogDraft) => void;
+  onLogSet: (set: SetDto, draft: SetLogDraft) => void;
   onSelectFeedback: (feedback: EffortFeedback) => void;
 }) {
   return (
@@ -49,33 +49,125 @@ export function WorkoutExerciseCard(props: {
       <View style={styles.setList}>
         {props.exercise.sets.map((set) => {
           const isPending = set.status === "pending";
-          const isLogging = props.loggingSetId === set.id;
+          const isLogging = props.loggingSetId === set.id || props.submittingSetIds?.[set.id] === true;
+          const previousSet =
+            props.exercise.sets.find((candidate) => candidate.setNumber === set.setNumber - 1) ?? null;
+          const draft = props.setLogDraftsBySetId[set.id] ?? getSetLogDefaultDraft({ set, previousSet });
+          const validation = validateSetLogDraft(draft);
+          const request = buildLogSetRequestFromDraft(draft);
+          const outcomeText = getSetOutcomeText({
+            actualReps: validation.actualReps,
+            targetReps: set.targetReps
+          });
+          const canSubmit = isPending && request !== null && !isLogging;
 
           return (
-            <View key={set.id} style={styles.setRow}>
+            <View key={set.id} style={[styles.setRow, !isPending && styles.setRowLogged]}>
               <View style={styles.setInfo}>
-                <Text style={styles.setTitle}>Set {set.setNumber}</Text>
+                <View style={styles.setTitleRow}>
+                  <Text style={styles.setTitle}>Set {set.setNumber}</Text>
+                  <Text
+                    style={[
+                      styles.statusPill,
+                      set.status === "completed" && styles.statusPillComplete,
+                      set.status === "failed" && styles.statusPillFailed
+                    ]}
+                  >
+                    {getSetStatusLabel(set)}
+                  </Text>
+                </View>
                 <Text style={styles.setMeta}>
-                  {set.targetReps} reps at {set.targetWeight.value} lb
+                  Target {set.targetReps} reps at {set.targetWeight.value} lb
                 </Text>
-                <Text style={styles.setMeta}>{renderSetStatusLabel(set)}</Text>
               </View>
 
               {isPending ? (
-                <View style={styles.setActions}>
+                <View style={styles.pendingSetBody}>
+                  <View style={styles.inputGrid}>
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.inputLabel}>Reps</Text>
+                      <View style={styles.stepperRow}>
+                        <Pressable
+                          accessibilityRole="button"
+                          disabled={isLogging}
+                          onPress={() => {
+                            const nextReps = Math.max(0, (validation.actualReps ?? 0) - 1);
+                            props.onChangeSetLogDraft(set.id, {
+                              ...draft,
+                              repsText: nextReps.toString()
+                            });
+                          }}
+                          style={[styles.stepperButton, isLogging && styles.disabledControl]}
+                        >
+                          <Text style={styles.stepperLabel}>-</Text>
+                        </Pressable>
+                        <TextInput
+                          accessibilityLabel={`Set ${set.setNumber} reps`}
+                          editable={!isLogging}
+                          inputMode="numeric"
+                          keyboardType="number-pad"
+                          onChangeText={(value) =>
+                            props.onChangeSetLogDraft(set.id, {
+                              ...draft,
+                              repsText: normalizeRepsInput(value)
+                            })
+                          }
+                          returnKeyType="done"
+                          selectTextOnFocus
+                          style={styles.setInput}
+                          value={draft.repsText}
+                        />
+                        <Pressable
+                          accessibilityRole="button"
+                          disabled={isLogging}
+                          onPress={() => {
+                            const nextReps = (validation.actualReps ?? 0) + 1;
+                            props.onChangeSetLogDraft(set.id, {
+                              ...draft,
+                              repsText: nextReps.toString()
+                            });
+                          }}
+                          style={[styles.stepperButton, isLogging && styles.disabledControl]}
+                        >
+                          <Text style={styles.stepperLabel}>+</Text>
+                        </Pressable>
+                      </View>
+                    </View>
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.inputLabel}>Load</Text>
+                      <TextInput
+                        accessibilityLabel={`Set ${set.setNumber} load`}
+                        editable={!isLogging}
+                        inputMode="decimal"
+                        keyboardType="decimal-pad"
+                        onChangeText={(value) =>
+                          props.onChangeSetLogDraft(set.id, {
+                            ...draft,
+                            weightText: normalizeWeightInput(value)
+                          })
+                        }
+                        returnKeyType="done"
+                        selectTextOnFocus
+                        style={styles.weightInput}
+                        value={draft.weightText}
+                      />
+                    </View>
+                  </View>
+                  <Text style={[styles.setHint, validation.error && styles.setHintError]}>
+                    {validation.error ?? outcomeText}
+                  </Text>
                   <PrimaryButton
-                    label="Complete"
-                    onPress={() => props.onCompleteSet(set)}
+                    label={isLogging ? "Saving..." : "Log set"}
+                    onPress={() => props.onLogSet(set, draft)}
+                    disabled={!canSubmit}
                     loading={isLogging}
-                  />
-                  <PrimaryButton
-                    label="Fail"
-                    onPress={() => props.onFailSet(set)}
-                    loading={isLogging}
-                    tone="danger"
                   />
                 </View>
-              ) : null}
+              ) : (
+                <Text style={styles.loggedSummary}>
+                  Logged {set.actualReps ?? 0} reps at {set.actualWeight?.value ?? set.targetWeight.value} lb
+                </Text>
+              )}
             </View>
           );
         })}
@@ -135,12 +227,24 @@ const styles = StyleSheet.create({
   },
   setRow: {
     backgroundColor: colors.background,
+    borderColor: "transparent",
     borderRadius: 18,
+    borderWidth: 1,
     gap: spacing.sm,
     padding: spacing.md
   },
+  setRowLogged: {
+    borderColor: colors.border,
+    opacity: 0.86
+  },
   setInfo: {
     gap: 4
+  },
+  setTitleRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: spacing.sm,
+    justifyContent: "space-between"
   },
   setTitle: {
     color: colors.textPrimary,
@@ -151,8 +255,112 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: 14
   },
-  setActions: {
+  statusPill: {
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: 999,
+    color: colors.textSecondary,
+    fontSize: 12,
+    fontWeight: "700",
+    overflow: "hidden",
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 5
+  },
+  statusPillComplete: {
+    backgroundColor: colors.success,
+    color: colors.surface
+  },
+  statusPillFailed: {
+    backgroundColor: "#9c3b31",
+    color: colors.surface
+  },
+  pendingSetBody: {
     gap: spacing.sm
+  },
+  inputGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm
+  },
+  inputGroup: {
+    flexBasis: "100%",
+    flexGrow: 1,
+    flexShrink: 1,
+    gap: 6,
+    maxWidth: "100%",
+    minWidth: 0
+  },
+  inputLabel: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    fontWeight: "700"
+  },
+  stepperRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: spacing.xs,
+    maxWidth: "100%",
+    minWidth: 0
+  },
+  stepperButton: {
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: 14,
+    borderWidth: 1,
+    flexShrink: 0,
+    height: 48,
+    justifyContent: "center",
+    width: 44
+  },
+  stepperLabel: {
+    color: colors.textPrimary,
+    fontSize: 22,
+    fontWeight: "800"
+  },
+  disabledControl: {
+    opacity: 0.55
+  },
+  setInput: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: 14,
+    borderWidth: 1,
+    color: colors.textPrimary,
+    flex: 1,
+    flexShrink: 1,
+    fontSize: 20,
+    fontWeight: "800",
+    minWidth: 48,
+    minHeight: 48,
+    paddingHorizontal: spacing.sm,
+    textAlign: "center"
+  },
+  weightInput: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: 14,
+    borderWidth: 1,
+    color: colors.textPrimary,
+    fontSize: 20,
+    fontWeight: "800",
+    maxWidth: "100%",
+    minHeight: 48,
+    minWidth: 0,
+    paddingHorizontal: spacing.sm,
+    width: "100%"
+  },
+  setHint: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    fontWeight: "600"
+  },
+  setHintError: {
+    color: "#9c3b31"
+  },
+  loggedSummary: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    fontWeight: "600"
   },
   feedbackSection: {
     gap: spacing.sm

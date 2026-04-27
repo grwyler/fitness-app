@@ -1,5 +1,6 @@
 import type { CompleteWorkoutSessionResponse, EffortFeedback } from "@fitness/shared";
 import { create } from "zustand";
+import type { SetLogDraft } from "../utils/set-logging.shared";
 import { resolveStableIdempotencyKey } from "../utils/idempotency";
 
 type StoredKey = {
@@ -12,9 +13,12 @@ type ActiveWorkoutState = {
   exerciseFeedbackByEntryId: Record<string, EffortFeedback>;
   idempotencyKeys: Record<string, StoredKey>;
   latestSummary: CompleteWorkoutSessionResponse | null;
+  setLogDraftsBySetId: Record<string, SetLogDraft>;
   setActiveSessionId(sessionId: string | null): void;
   setExerciseFeedback(exerciseEntryId: string, feedback: EffortFeedback): void;
   clearExerciseFeedback(): void;
+  setSetLogDraft(setId: string, draft: SetLogDraft): void;
+  clearSetLogDraft(setId: string): void;
   getMutationKey(scope: string, payload: unknown): string;
   clearMutationKey(scope: string): void;
   clearAllMutationKeys(): void;
@@ -27,6 +31,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   exerciseFeedbackByEntryId: {},
   idempotencyKeys: {},
   latestSummary: null,
+  setLogDraftsBySetId: {},
   setActiveSessionId(sessionId) {
     set({ activeSessionId: sessionId });
   },
@@ -40,6 +45,23 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   },
   clearExerciseFeedback() {
     set({ exerciseFeedbackByEntryId: {} });
+  },
+  setSetLogDraft(setId, draft) {
+    set((state) => ({
+      setLogDraftsBySetId: {
+        ...state.setLogDraftsBySetId,
+        [setId]: draft
+      }
+    }));
+  },
+  clearSetLogDraft(setId) {
+    set((state) => {
+      const nextDrafts = { ...state.setLogDraftsBySetId };
+      delete nextDrafts[setId];
+      return {
+        setLogDraftsBySetId: nextDrafts
+      };
+    });
   },
   getMutationKey(scope, payload) {
     const existing = get().idempotencyKeys[scope];
@@ -82,7 +104,8 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
     set({
       activeSessionId: null,
       exerciseFeedbackByEntryId: {},
-      idempotencyKeys: {}
+      idempotencyKeys: {},
+      setLogDraftsBySetId: {}
     });
   }
 }));

@@ -13,6 +13,7 @@ import { useCurrentWorkout } from "../features/workout/hooks/useCurrentWorkout";
 import { useLogSet } from "../features/workout/hooks/useLogSet";
 import { useCompleteWorkout } from "../features/workout/hooks/useCompleteWorkout";
 import { useActiveWorkoutStore } from "../features/workout/store/active-workout-store";
+import { buildLogSetRequestFromDraft, type SetLogDraft } from "../features/workout/utils/set-logging.shared";
 import { colors, spacing } from "../theme/tokens";
 
 type Props = NativeStackScreenProps<RootStackParamList, "ActiveWorkout">;
@@ -24,7 +25,10 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
   const feedbackByEntryId = useActiveWorkoutStore((state) => state.exerciseFeedbackByEntryId);
   const setExerciseFeedback = useActiveWorkoutStore((state) => state.setExerciseFeedback);
   const activeSessionId = useActiveWorkoutStore((state) => state.activeSessionId);
+  const setLogDraftsBySetId = useActiveWorkoutStore((state) => state.setLogDraftsBySetId);
+  const setSetLogDraft = useActiveWorkoutStore((state) => state.setSetLogDraft);
   const [lastAction, setLastAction] = useState<string | null>(null);
+  const [submittingSetIds, setSubmittingSetIds] = useState<Record<string, boolean>>({});
 
   if (currentWorkoutQuery.isLoading) {
     return (
@@ -71,15 +75,36 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
     (exercise) => feedbackByEntryId[exercise.id] !== undefined
   );
 
-  function handleLogSet(set: SetDto, actualReps: number) {
-    setLastAction(actualReps >= set.targetReps ? `completed_set:${set.id}` : `missed_set:${set.id}`);
-    logSetMutation.mutate({
-      setId: set.id,
-      request: {
-        actualReps,
-        actualWeight: set.targetWeight
+  function handleLogSet(set: SetDto, draft: SetLogDraft) {
+    if (submittingSetIds[set.id]) {
+      return;
+    }
+
+    const request = buildLogSetRequestFromDraft(draft);
+    if (!request) {
+      return;
+    }
+
+    setSubmittingSetIds((current) => ({
+      ...current,
+      [set.id]: true
+    }));
+    setLastAction(request.actualReps >= set.targetReps ? `completed_set:${set.id}` : `missed_set:${set.id}`);
+    logSetMutation.mutate(
+      {
+        setId: set.id,
+        request
+      },
+      {
+        onSettled: () => {
+          setSubmittingSetIds((current) => {
+            const next = { ...current };
+            delete next[set.id];
+            return next;
+          });
+        }
       }
-    });
+    );
   }
 
   function handleCompleteWorkout() {
@@ -123,8 +148,10 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
             ? { selectedFeedback: feedbackByEntryId[exercise.id] }
             : {})}
           loggingSetId={logSetMutation.isPending ? logSetMutation.variables?.setId ?? null : null}
-          onCompleteSet={(set) => handleLogSet(set, set.targetReps)}
-          onFailSet={(set) => handleLogSet(set, Math.max(0, set.targetReps - 1))}
+          submittingSetIds={submittingSetIds}
+          setLogDraftsBySetId={setLogDraftsBySetId}
+          onChangeSetLogDraft={setSetLogDraft}
+          onLogSet={handleLogSet}
           onSelectFeedback={(feedback) => {
             setLastAction(`set_exercise_feedback:${exercise.id}`);
             setExerciseFeedback(exercise.id, feedback);
@@ -133,6 +160,9 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
       ))}
 
       <View style={styles.footer}>
+        {logSetMutation.isError ? (
+          <Text style={styles.errorText}>Set not saved. Check the values and try again.</Text>
+        ) : null}
         <Text style={styles.footerText}>
           {!hasPendingSets && hasCompleteFeedback
             ? "All sets are logged and feedback is ready."
@@ -179,5 +209,10 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: 16,
     lineHeight: 22
+  },
+  errorText: {
+    color: "#9c3b31",
+    fontSize: 14,
+    fontWeight: "700"
   }
 });
