@@ -3,6 +3,8 @@ import { createServer } from "node:http";
 import { progressionStates, sets, users } from "@fitness/db";
 import type { Request } from "express";
 import { createApp } from "../../../app.js";
+import { getClerkPublishableKeyType, getClerkSecretKeyType } from "../../../config/env.js";
+import { createAuthenticateRequestMiddlewareWithDiagnostics } from "../../../lib/auth/auth.middleware.js";
 import { bootstrapDevelopmentDatabase } from "../../../lib/db/dev-bootstrap.js";
 import { createPgliteClient, createPgliteDatabase } from "../../../lib/db/connection.js";
 import type { HttpTestCase } from "./test-helpers/http-test-case.js";
@@ -117,6 +119,91 @@ async function readJson(response: Response) {
 }
 
 export const workoutHttpTestCases: HttpTestCase[] = [
+  {
+    name: "API env accepts Clerk test key shapes",
+    run: () => {
+      assert.equal(getClerkPublishableKeyType("pk_test_example"), "test");
+      assert.equal(getClerkSecretKeyType("sk_test_example"), "test");
+    }
+  },
+  {
+    name: "Auth middleware accepts a valid mocked Clerk auth result",
+    run: async () => {
+      const warnings: Array<Record<string, unknown>> = [];
+      const middleware = createAuthenticateRequestMiddlewareWithDiagnostics(
+        () => ({ userId: "auth-user-1", isAuthenticated: true }),
+        {
+          logger: {
+            error: () => {},
+            info: () => {},
+            warn: (_message, context) => {
+              warnings.push(context ?? {});
+            }
+          }
+        }
+      );
+      const request = {
+        clerkUserId: undefined,
+        header(name: string) {
+          return name.toLowerCase() === "authorization" ? "Bearer valid-token" : undefined;
+        }
+      };
+
+      await new Promise<void>((resolve, reject) => {
+        middleware(request as unknown as Request, {} as any, (error?: unknown) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+
+          resolve();
+        });
+      });
+
+      assert.equal(request.clerkUserId, "auth-user-1");
+      assert.equal(warnings.length, 0);
+    }
+  },
+  {
+    name: "Auth middleware logs safe diagnostics on token verification failure",
+    run: async () => {
+      const warnings: Array<{ message: string; context?: Record<string, unknown> }> = [];
+      const middleware = createAuthenticateRequestMiddlewareWithDiagnostics(
+        () => {
+          throw new Error("Token verification failed.");
+        },
+        {
+          logger: {
+            error: () => {},
+            info: () => {},
+            warn: (message, context) => {
+              warnings.push(context ? { context, message } : { message });
+            }
+          }
+        }
+      );
+      const request = {
+        header(name: string) {
+          return name.toLowerCase() === "authorization" ? "Bearer invalid-token" : undefined;
+        }
+      };
+
+      const error = await new Promise<unknown>((resolve) => {
+        middleware(request as unknown as Request, {} as any, (nextError?: unknown) => {
+          resolve(nextError);
+        });
+      });
+
+      assert.ok(error instanceof Error);
+      assert.equal(warnings.length, 1);
+      assert.equal(warnings[0]?.message, "API auth token verification failed");
+      assert.equal(warnings[0]?.context?.authorizationHeaderPresent, true);
+      assert.equal(warnings[0]?.context?.bearerTokenPresent, true);
+      assert.equal(warnings[0]?.context?.verificationErrorName, "Error");
+      assert.equal(warnings[0]?.context?.verificationErrorMessage, "Token verification failed.");
+      assert.equal("token" in (warnings[0]?.context ?? {}), false);
+    }
+  },
   {
     name: "GET /api/v1/dashboard returns dashboard data",
     run: async () => {

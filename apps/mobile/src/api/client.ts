@@ -2,7 +2,7 @@ import type { ApiErrorEnvelope, ApiSuccessEnvelope } from "@fitness/shared";
 import { apiConfig } from "./config";
 import { MobileApiError } from "./errors";
 import { getAuthToken, getLastKnownAuthTokenSource } from "../core/auth/auth-bridge";
-import { appendAuthDebugTimeline, setLastAuthDebugMessage } from "../core/auth/auth-debug";
+import { appendAuthDebugTimeline, logSafeAuthDiagnostic, setLastAuthDebugMessage } from "../core/auth/auth-debug";
 
 type RequestOptions = {
   method?: "GET" | "POST";
@@ -45,6 +45,11 @@ export async function apiRequest<TData, TMeta extends Record<string, unknown> = 
     "api_request_prepared",
     `path=${path}; url=${requestUrl}; tokenPresent=${token ? "yes" : "no"}; tokenSource=${tokenSource}`
   );
+  logSafeAuthDiagnostic("api_request_prepared", {
+    authorizationHeaderSet: Boolean(token),
+    path,
+    tokenSource
+  });
   if (!token) {
     appendAuthDebugTimeline("api_request_blocked_token_not_ready", `path=${path}; tokenSource=${tokenSource}`);
   }
@@ -68,6 +73,12 @@ export async function apiRequest<TData, TMeta extends Record<string, unknown> = 
   });
 
   const payload = (await response.json()) as unknown;
+  logSafeAuthDiagnostic("api_response_received", {
+    authorizationHeaderSet: Boolean(token),
+    path,
+    status: String(response.status),
+    tokenSource
+  });
 
   if (!response.ok) {
     if (response.status === 401) {

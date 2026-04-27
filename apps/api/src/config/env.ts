@@ -33,7 +33,7 @@ const envSchema = z.object({
 
 export type AppEnv = z.infer<typeof envSchema>;
 
-function getClerkPublishableKeyType(value: string | undefined) {
+export function getClerkPublishableKeyType(value: string | undefined) {
   if (!value) {
     return "missing";
   }
@@ -49,7 +49,7 @@ function getClerkPublishableKeyType(value: string | undefined) {
   return "invalid";
 }
 
-function getClerkSecretKeyType(value: string | undefined) {
+export function getClerkSecretKeyType(value: string | undefined) {
   if (!value) {
     return "missing";
   }
@@ -63,6 +63,14 @@ function getClerkSecretKeyType(value: string | undefined) {
   }
 
   return "invalid";
+}
+
+export function getSafeKeySuffix(value: string | undefined) {
+  if (!value) {
+    return "missing";
+  }
+
+  return `...${value.slice(-4)}`;
 }
 
 function parseEnv() {
