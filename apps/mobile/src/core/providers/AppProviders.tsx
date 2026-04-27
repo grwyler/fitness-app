@@ -9,15 +9,11 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { queryClient } from "./query-client";
 import { AuthProvider } from "../auth/AuthProvider";
 
-const fallbackPublishableKey =
-  "pk_test_Y29tcGxldGUtc3VuYmVhbS0zOS5jbGVyay5hY2NvdW50cy5kZXYk";
-
 const publishableKey =
   process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ??
   Constants.expoConfig?.extra?.clerkPublishableKey ??
   Constants.manifest?.extra?.clerkPublishableKey ??
-  Constants.manifest2?.extra?.expoClient?.extra?.clerkPublishableKey ??
-  fallbackPublishableKey;
+  Constants.manifest2?.extra?.expoClient?.extra?.clerkPublishableKey;
 
 if (!publishableKey) {
   throw new Error(

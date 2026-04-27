@@ -61,15 +61,34 @@ function resolveEnvValue(name) {
 
 module.exports = () => {
   const expoConfig = baseConfig.expo ?? {};
+  const clerkPublishableKey =
+    resolveEnvValue("EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY") ??
+    resolveEnvValue("CLERK_PUBLISHABLE_KEY");
+  const apiBaseUrl = resolveEnvValue("EXPO_PUBLIC_API_BASE_URL");
+  const isProductionBuild =
+    process.env.NODE_ENV === "production" || process.env.VERCEL_ENV === "production";
+
+  if (isProductionBuild && !apiBaseUrl) {
+    throw new Error("EXPO_PUBLIC_API_BASE_URL is required for production mobile web builds.");
+  }
+
+  if (
+    isProductionBuild &&
+    /^https?:\/\/(localhost|127\.0\.0\.1|10\.0\.2\.2)(:|\/|$)/.test(apiBaseUrl ?? "")
+  ) {
+    throw new Error("EXPO_PUBLIC_API_BASE_URL must not point to localhost in production mobile web builds.");
+  }
+
+  if (isProductionBuild && !clerkPublishableKey) {
+    throw new Error("EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY is required for production mobile web builds.");
+  }
 
   return {
     ...expoConfig,
     extra: {
       ...expoConfig.extra,
-      clerkPublishableKey:
-        resolveEnvValue("EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY") ??
-        resolveEnvValue("CLERK_PUBLISHABLE_KEY"),
-      apiBaseUrl: resolveEnvValue("EXPO_PUBLIC_API_BASE_URL")
+      clerkPublishableKey,
+      apiBaseUrl
     }
   };
 };

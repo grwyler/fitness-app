@@ -10,6 +10,8 @@
   "scripts": {
     "build": "tsc -b",
     "build:mobile:web": "npm run build:web --workspace @fitness/mobile",
+    "smoke:mobile:web": "node scripts/smoke-mobile-web-build.mjs",
+    "smoke:url": "node scripts/smoke-url.mjs",
     "typecheck": "tsc -b --pretty false",
     "dev:api": "npm run dev --workspace @fitness/api",
     "dev:mobile": "npm run dev --workspace @fitness/mobile",

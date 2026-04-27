@@ -1,16 +1,13 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "version": 2,
-  "builds": [
+  "buildCommand": "npm run build:mobile:web",
+  "outputDirectory": "apps/mobile/dist",
+  "framework": null,
+  "cleanUrls": true,
+  "rewrites": [
     {
-      "src": "apps/api/src/index.ts",
-      "use": "@vercel/node"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "apps/api/src/index.ts"
+      "source": "/(.*)",
+      "destination": "/"
     }
   ]
 }

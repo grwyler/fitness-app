@@ -4,7 +4,8 @@
 
 Use:
 
-- `Vercel` Hobby for the API
+- `Vercel` for the production mobile web app
+- a separate `Vercel` project for the API
 - `Neon` Postgres with the pooled connection string for production
 - `EXPO_PUBLIC_API_BASE_URL` in Expo set to your deployed API origin plus `/api/v1`
 
@@ -54,9 +55,33 @@ For hosted Postgres, this API now applies an SSL fallback for Neon and Supabase 
 - Local dev can still use `USE_PGLITE_DEV=true`
 - API tests still use in-memory PGlite and do not need a hosted database
 
-## Vercel project setup
+## Production web app setup
 
-Create a Vercel project from this monorepo with:
+The public product URL should deploy the Expo mobile web app from the repository root.
+
+The repo-level [vercel.json](C:\Users\Grwyl\repos\fitness-app\vercel.json) is the production web deployment config. It:
+
+- runs `npm run build:mobile:web`
+- publishes `apps/mobile/dist`
+- rewrites all routes to `/` so Expo/React Navigation deep links load the SPA shell
+
+Create or update the production web Vercel project with:
+
+- `Root Directory`: repository root
+- `Framework Preset`: `Other`
+- `Build Command`: leave unset or use the checked-in `vercel.json`
+- `Output Directory`: leave unset or use the checked-in `vercel.json`
+
+Set these environment variables on the production web Vercel project:
+
+- `EXPO_PUBLIC_API_BASE_URL`: deployed API origin plus `/api/v1`
+- `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY`: Clerk publishable key for the same Clerk environment used by the API
+
+Do not point the production web app at localhost or at a preview-only API.
+
+## API Vercel project setup
+
+Create a separate Vercel project from this monorepo with:
 
 - `Root Directory`: `apps/api`
 - `Framework Preset`: `Other`
@@ -66,6 +91,8 @@ This repo includes [apps/api/vercel.json](C:\Users\Grwyl\repos\fitness-app\apps\
 Set these environment variables in the Vercel project:
 
 - `DATABASE_URL`: your hosted Postgres connection string
+- `CLERK_PUBLISHABLE_KEY`: Clerk publishable key
+- `CLERK_SECRET_KEY`: Clerk backend secret key
 - `NODE_ENV=production`
 
 Optional:
@@ -75,19 +102,27 @@ Optional:
 
 ## Deploy the API
 
-### GitHub Actions flow
+## GitHub Actions flow
 
-Merges to `main` deploy to Vercel automatically via [`.github/workflows/vercel-production.yml`](C:\Users\Grwyl\repos\fitness-app\.github\workflows\vercel-production.yml).
+Merges to `main` deploy the production web app to Vercel automatically via [`.github/workflows/vercel-production.yml`](C:\Users\Grwyl\repos\fitness-app\.github\workflows\vercel-production.yml).
 
 Add these repository secrets in GitHub before relying on the workflow:
 
 - `VERCEL_TOKEN`
 - `VERCEL_ORG_ID`
-- `VERCEL_PROJECT_ID`
+- `VERCEL_PROJECT_ID`: the production web app Vercel project, not the API project
+
+Optional repository variable:
+
+- `VERCEL_PRODUCTION_URL`: the canonical production URL, for example `https://setwisefit.vercel.app`
 
 The workflow can also be started manually from the GitHub Actions tab with `workflow_dispatch`.
 
-### Dashboard flow
+The workflow builds the Vercel output, verifies the built app serves the Expo web HTML shell at `/` and a deep link path, deploys the prebuilt output, and smoke-checks the deployed URL. If the URL returns the API `NOT_FOUND` JSON payload, the workflow fails.
+
+The API should either use a separate Vercel Git integration for the `apps/api` project or a separate API deployment workflow with its own project id secret. Do not reuse the production web app project id for the API.
+
+## API dashboard flow
 
 1. Push the repo to GitHub.
 2. Create a local `.env` that points `DATABASE_URL` at your hosted database.
@@ -104,11 +139,12 @@ npm run setup:dev --workspace @fitness/api
 
 That setup command currently creates the schema and inserts the seeded development user/program that the mobile app expects.
 
-### CLI flow
+## API CLI flow
 
-From the repo root:
+From the API workspace:
 
 ```powershell
+cd apps/api
 vercel link --repo
 vercel --prod
 ```
@@ -198,7 +234,12 @@ The checked-in mobile Vercel config:
 - exports the Expo app as a static web build
 - writes output to `dist`
 - rewrites all routes back to `/` for SPA navigation
-- injects `EXPO_PUBLIC_API_BASE_URL=https://fitness-app-hazel-nine.vercel.app/api/v1` during the web build
+- reads `EXPO_PUBLIC_API_BASE_URL` from the Vercel project environment during the web build
+
+Set these environment variables on the tester web Vercel project:
+
+- `EXPO_PUBLIC_API_BASE_URL`
+- `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY`
 
 To redeploy the tester web app manually from the repo:
 
