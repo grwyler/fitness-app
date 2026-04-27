@@ -12,6 +12,7 @@ import { FollowProgramUseCase } from "../application/use-cases/follow-program.us
 import { GetCurrentWorkoutSessionUseCase } from "../application/use-cases/get-current-workout-session.use-case.js";
 import { GetDashboardUseCase } from "../application/use-cases/get-dashboard.use-case.js";
 import { GetProgressionUseCase } from "../application/use-cases/get-progression.use-case.js";
+import { GetWorkoutHistoryDetailUseCase } from "../application/use-cases/get-workout-history-detail.use-case.js";
 import { GetWorkoutHistoryUseCase } from "../application/use-cases/get-workout-history.use-case.js";
 import { ListProgramsUseCase } from "../application/use-cases/list-programs.use-case.js";
 import { LogSetUseCase } from "../application/use-cases/log-set.use-case.js";
@@ -57,6 +58,7 @@ export function createWorkoutHttpRouter(database: WorkoutDatabase) {
 
   const getCurrentWorkoutSessionUseCase = new GetCurrentWorkoutSessionUseCase(workoutSessionRepository);
   const getWorkoutHistoryUseCase = new GetWorkoutHistoryUseCase(workoutSessionRepository);
+  const getWorkoutHistoryDetailUseCase = new GetWorkoutHistoryDetailUseCase(workoutSessionRepository);
   const getProgressionUseCase = new GetProgressionUseCase(workoutSessionRepository);
   const listProgramsUseCase = new ListProgramsUseCase(programRepository);
   const followProgramUseCase = new FollowProgramUseCase(
@@ -80,6 +82,7 @@ export function createWorkoutHttpRouter(database: WorkoutDatabase) {
     getDashboardUseCase,
     getProgressionUseCase,
     getWorkoutHistoryUseCase,
+    getWorkoutHistoryDetailUseCase,
     getCurrentWorkoutSessionUseCase,
     startWorkoutSessionUseCase,
     logSetUseCase,

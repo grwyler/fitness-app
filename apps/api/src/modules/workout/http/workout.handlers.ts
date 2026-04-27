@@ -27,6 +27,7 @@ import type { FollowProgramUseCase } from "../application/use-cases/follow-progr
 import type { GetCurrentWorkoutSessionUseCase } from "../application/use-cases/get-current-workout-session.use-case.js";
 import type { GetDashboardUseCase } from "../application/use-cases/get-dashboard.use-case.js";
 import type { GetProgressionUseCase } from "../application/use-cases/get-progression.use-case.js";
+import type { GetWorkoutHistoryDetailUseCase } from "../application/use-cases/get-workout-history-detail.use-case.js";
 import type { GetWorkoutHistoryUseCase } from "../application/use-cases/get-workout-history.use-case.js";
 import type { ListProgramsUseCase } from "../application/use-cases/list-programs.use-case.js";
 import type { LogSetUseCase } from "../application/use-cases/log-set.use-case.js";
@@ -38,6 +39,7 @@ export type WorkoutHttpHandlers = {
   getDashboard: RequestHandler;
   getProgression: RequestHandler;
   getWorkoutHistory: RequestHandler;
+  getWorkoutHistoryDetail: RequestHandler;
   getCurrentWorkoutSession: RequestHandler;
   startWorkoutSession: RequestHandler;
   logSet: RequestHandler;
@@ -50,6 +52,7 @@ export function createWorkoutHandlers(dependencies: {
   getDashboardUseCase: GetDashboardUseCase;
   getProgressionUseCase: GetProgressionUseCase;
   getWorkoutHistoryUseCase: GetWorkoutHistoryUseCase;
+  getWorkoutHistoryDetailUseCase: GetWorkoutHistoryDetailUseCase;
   getCurrentWorkoutSessionUseCase: GetCurrentWorkoutSessionUseCase;
   startWorkoutSessionUseCase: StartWorkoutSessionUseCase;
   logSetUseCase: LogSetUseCase;
@@ -89,6 +92,16 @@ export function createWorkoutHandlers(dependencies: {
       const result = await dependencies.getWorkoutHistoryUseCase.execute({
         context,
         ...(query.limit ? { limit: query.limit } : {})
+      });
+      response.json(success(result.data, result.meta));
+    }),
+
+    getWorkoutHistoryDetail: asyncHandler(async (request, response) => {
+      const context = getRequestContext(request);
+      const params = validateParams(workoutSessionParamsSchema, request);
+      const result = await dependencies.getWorkoutHistoryDetailUseCase.execute({
+        context,
+        sessionId: params.sessionId
       });
       response.json(success(result.data, result.meta));
     }),

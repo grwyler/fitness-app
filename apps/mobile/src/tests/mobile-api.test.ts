@@ -5,6 +5,7 @@ import {
   fetchDashboard,
   fetchProgression,
   fetchWorkoutHistory,
+  fetchWorkoutHistoryDetail,
   startWorkoutSession,
   logSet,
   completeWorkoutSession
@@ -86,6 +87,7 @@ export const mobileApiTestCases: MobileTestCase[] = [
       await fetchDashboard();
       await fetchProgression();
       await fetchWorkoutHistory(20);
+      await fetchWorkoutHistoryDetail("session-1");
       await startWorkoutSession({
         request: {},
         idempotencyKey: "start-key"
@@ -113,9 +115,10 @@ export const mobileApiTestCases: MobileTestCase[] = [
       assert.equal((calls[0]?.headers as Record<string, string>)["Idempotency-Key"], undefined);
       assert.equal((calls[1]?.headers as Record<string, string>)["Idempotency-Key"], undefined);
       assert.equal((calls[2]?.headers as Record<string, string>)["Idempotency-Key"], undefined);
-      assert.equal((calls[3]?.headers as Record<string, string>)["Idempotency-Key"], "start-key");
-      assert.equal((calls[4]?.headers as Record<string, string>)["Idempotency-Key"], "log-key");
-      assert.equal((calls[5]?.headers as Record<string, string>)["Idempotency-Key"], "complete-key");
+      assert.equal((calls[3]?.headers as Record<string, string>)["Idempotency-Key"], undefined);
+      assert.equal((calls[4]?.headers as Record<string, string>)["Idempotency-Key"], "start-key");
+      assert.equal((calls[5]?.headers as Record<string, string>)["Idempotency-Key"], "log-key");
+      assert.equal((calls[6]?.headers as Record<string, string>)["Idempotency-Key"], "complete-key");
     }
   },
   {

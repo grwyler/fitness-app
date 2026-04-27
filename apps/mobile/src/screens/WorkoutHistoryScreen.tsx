@@ -1,10 +1,14 @@
-import { StyleSheet, Text, View } from "react-native";
+import type { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { ErrorState } from "../components/ErrorState";
 import { LoadingState } from "../components/LoadingState";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { Screen } from "../components/Screen";
+import type { RootStackParamList } from "../core/navigation/navigation-types";
 import { useWorkoutHistory } from "../features/workout/hooks/useWorkoutHistory";
 import { colors, spacing } from "../theme/tokens";
+
+type Props = NativeStackScreenProps<RootStackParamList, "WorkoutHistory">;
 
 function formatCompletedDate(value: string | null) {
   if (!value) {
@@ -28,7 +32,7 @@ function formatDuration(durationSeconds: number | null) {
   return `${minutes} min`;
 }
 
-export function WorkoutHistoryScreen() {
+export function WorkoutHistoryScreen({ navigation }: Props) {
   const historyQuery = useWorkoutHistory(50);
 
   if (historyQuery.isLoading) {
@@ -69,7 +73,12 @@ export function WorkoutHistoryScreen() {
         </View>
       ) : (
         items.map((item) => (
-          <View key={item.id} style={styles.card}>
+          <Pressable
+            key={item.id}
+            accessibilityRole="button"
+            onPress={() => navigation.navigate("WorkoutHistoryDetail", { sessionId: item.id })}
+            style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+          >
             <Text style={styles.cardLabel}>{formatCompletedDate(item.completedAt)}</Text>
             <Text style={styles.cardTitle}>{item.workoutName}</Text>
             <Text style={styles.cardBody}>{item.programName}</Text>
@@ -79,7 +88,8 @@ export function WorkoutHistoryScreen() {
             {item.failedSetCount > 0 ? (
               <Text style={styles.warningText}>{item.failedSetCount} failed sets</Text>
             ) : null}
-          </View>
+            <Text style={styles.detailHint}>View details</Text>
+          </Pressable>
         ))
       )}
 
@@ -123,6 +133,9 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     padding: spacing.lg
   },
+  cardPressed: {
+    opacity: 0.72
+  },
   cardLabel: {
     color: colors.accentStrong,
     fontSize: 13,
@@ -149,5 +162,10 @@ const styles = StyleSheet.create({
     color: colors.accentStrong,
     fontSize: 14,
     fontWeight: "700"
+  },
+  detailHint: {
+    color: colors.accentStrong,
+    fontSize: 14,
+    fontWeight: "800"
   }
 });

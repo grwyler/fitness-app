@@ -3,5 +3,6 @@ export const workoutQueryKeys = {
   currentWorkout: ["current-workout"] as const,
   progression: ["progression"] as const,
   programs: ["programs"] as const,
-  workoutHistory: ["workout-history"] as const
+  workoutHistory: ["workout-history"] as const,
+  workoutHistoryDetail: ["workout-history-detail"] as const
 };

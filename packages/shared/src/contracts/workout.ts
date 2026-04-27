@@ -130,6 +130,10 @@ export type GetWorkoutHistoryResponse = {
   nextCursor: string | null;
 };
 
+export type GetWorkoutHistoryDetailResponse = {
+  workoutSession: WorkoutSessionDto;
+};
+
 export type ProgressMetricDto = {
   id: UUID;
   metricType: ProgressMetricType;

@@ -15,6 +15,26 @@ export function formatSetWeightValue(value: number) {
   return Number.isInteger(value) ? value.toString() : value.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
 }
 
+export function adjustWeightText(input: {
+  weightText: string;
+  delta: number;
+}) {
+  const currentWeight = Number(input.weightText);
+  const baseWeight = Number.isFinite(currentWeight) ? currentWeight : 0;
+  return formatSetWeightValue(Math.max(0, baseWeight + input.delta));
+}
+
+export function getPreviousLoggedSet(input: {
+  sets: SetDto[];
+  setNumber: number;
+}): SetDto | null {
+  return (
+    [...input.sets]
+      .filter((set) => set.setNumber < input.setNumber && set.status !== "pending")
+      .sort((left, right) => right.setNumber - left.setNumber)[0] ?? null
+  );
+}
+
 export function getSetLogDefaultDraft(input: {
   set: SetDto;
   previousSet?: SetDto | null;

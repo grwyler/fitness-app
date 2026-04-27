@@ -1,7 +1,9 @@
 import type { EffortFeedback, ExerciseEntryDto, SetDto } from "@fitness/shared";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import {
+  adjustWeightText,
   buildLogSetRequestFromDraft,
+  getPreviousLoggedSet,
   getSetLogDefaultDraft,
   getSetOutcomeText,
   getSetStatusLabel,
@@ -14,6 +16,7 @@ import { colors, spacing } from "../theme/tokens";
 import { PrimaryButton } from "./PrimaryButton";
 
 const effortOptions: EffortFeedback[] = ["too_easy", "just_right", "too_hard"];
+const weightAdjustments = [-5, -2.5, 2.5, 5];
 
 function formatFeedbackLabel(feedback: EffortFeedback) {
   switch (feedback) {
@@ -50,8 +53,10 @@ export function WorkoutExerciseCard(props: {
         {props.exercise.sets.map((set) => {
           const isPending = set.status === "pending";
           const isLogging = props.loggingSetId === set.id || props.submittingSetIds?.[set.id] === true;
-          const previousSet =
-            props.exercise.sets.find((candidate) => candidate.setNumber === set.setNumber - 1) ?? null;
+          const previousSet = getPreviousLoggedSet({
+            sets: props.exercise.sets,
+            setNumber: set.setNumber
+          });
           const draft = props.setLogDraftsBySetId[set.id] ?? getSetLogDefaultDraft({ set, previousSet });
           const validation = validateSetLogDraft(draft);
           const request = buildLogSetRequestFromDraft(draft);
@@ -60,6 +65,10 @@ export function WorkoutExerciseCard(props: {
             targetReps: set.targetReps
           });
           const canSubmit = isPending && request !== null && !isLogging;
+          const quickRepValues = Array.from(
+            new Set([set.targetReps, Math.max(0, set.targetReps - 1), validation.actualReps ?? set.targetReps])
+          );
+          const previousWeight = previousSet?.actualWeight?.value ?? null;
 
           return (
             <View key={set.id} style={[styles.setRow, !isPending && styles.setRowLogged]}>
@@ -86,6 +95,39 @@ export function WorkoutExerciseCard(props: {
                   <View style={styles.inputGrid}>
                     <View style={styles.inputGroup}>
                       <Text style={styles.inputLabel}>Reps</Text>
+                      <View style={styles.quickRepRow}>
+                        {quickRepValues.map((reps) => {
+                          const selected = draft.repsText === reps.toString();
+
+                          return (
+                            <Pressable
+                              key={reps}
+                              accessibilityRole="button"
+                              disabled={isLogging}
+                              onPress={() =>
+                                props.onChangeSetLogDraft(set.id, {
+                                  ...draft,
+                                  repsText: reps.toString()
+                                })
+                              }
+                              style={[
+                                styles.quickRepButton,
+                                selected && styles.quickRepButtonSelected,
+                                isLogging && styles.disabledControl
+                              ]}
+                            >
+                              <Text
+                                style={[
+                                  styles.quickRepLabel,
+                                  selected && styles.quickRepLabelSelected
+                                ]}
+                              >
+                                {reps}
+                              </Text>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
                       <View style={styles.stepperRow}>
                         <Pressable
                           accessibilityRole="button"
@@ -134,23 +176,53 @@ export function WorkoutExerciseCard(props: {
                       </View>
                     </View>
                     <View style={styles.inputGroup}>
-                      <Text style={styles.inputLabel}>Load</Text>
-                      <TextInput
-                        accessibilityLabel={`Set ${set.setNumber} load`}
-                        editable={!isLogging}
-                        inputMode="decimal"
-                        keyboardType="decimal-pad"
-                        onChangeText={(value) =>
-                          props.onChangeSetLogDraft(set.id, {
-                            ...draft,
-                            weightText: normalizeWeightInput(value)
-                          })
-                        }
-                        returnKeyType="done"
-                        selectTextOnFocus
-                        style={styles.weightInput}
-                        value={draft.weightText}
-                      />
+                      <View style={styles.labelRow}>
+                        <Text style={styles.inputLabel}>Load</Text>
+                        {previousWeight !== null ? (
+                          <Text style={styles.previousValue}>Previous {previousWeight} lb</Text>
+                        ) : null}
+                      </View>
+                      <View style={styles.weightEntryRow}>
+                        <TextInput
+                          accessibilityLabel={`Set ${set.setNumber} load`}
+                          editable={!isLogging}
+                          inputMode="decimal"
+                          keyboardType="decimal-pad"
+                          onChangeText={(value) =>
+                            props.onChangeSetLogDraft(set.id, {
+                              ...draft,
+                              weightText: normalizeWeightInput(value)
+                            })
+                          }
+                          returnKeyType="done"
+                          selectTextOnFocus
+                          style={styles.weightInput}
+                          value={draft.weightText}
+                        />
+                      </View>
+                      <View style={styles.weightAdjustRow}>
+                        {weightAdjustments.map((delta) => (
+                          <Pressable
+                            key={delta}
+                            accessibilityRole="button"
+                            disabled={isLogging}
+                            onPress={() =>
+                              props.onChangeSetLogDraft(set.id, {
+                                ...draft,
+                                weightText: adjustWeightText({
+                                  weightText: draft.weightText,
+                                  delta
+                                })
+                              })
+                            }
+                            style={[styles.weightAdjustButton, isLogging && styles.disabledControl]}
+                          >
+                            <Text style={styles.weightAdjustLabel}>
+                              {delta > 0 ? `+${delta}` : delta}
+                            </Text>
+                          </Pressable>
+                        ))}
+                      </View>
                     </View>
                   </View>
                   <Text style={[styles.setHint, validation.error && styles.setHintError]}>
@@ -294,6 +366,45 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700"
   },
+  labelRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: spacing.sm
+  },
+  previousValue: {
+    color: colors.textSecondary,
+    flexShrink: 1,
+    fontSize: 12,
+    fontWeight: "700",
+    textAlign: "right"
+  },
+  quickRepRow: {
+    flexDirection: "row",
+    gap: spacing.xs
+  },
+  quickRepButton: {
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: 14,
+    borderWidth: 1,
+    flex: 1,
+    minHeight: 44,
+    justifyContent: "center"
+  },
+  quickRepButtonSelected: {
+    backgroundColor: colors.accentStrong,
+    borderColor: colors.accentStrong
+  },
+  quickRepLabel: {
+    color: colors.textPrimary,
+    fontSize: 18,
+    fontWeight: "800"
+  },
+  quickRepLabelSelected: {
+    color: colors.surface
+  },
   stepperRow: {
     alignItems: "center",
     flexDirection: "row",
@@ -348,6 +459,30 @@ const styles = StyleSheet.create({
     minWidth: 0,
     paddingHorizontal: spacing.sm,
     width: "100%"
+  },
+  weightEntryRow: {
+    maxWidth: "100%"
+  },
+  weightAdjustRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.xs
+  },
+  weightAdjustButton: {
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: 14,
+    borderWidth: 1,
+    flexBasis: "23%",
+    flexGrow: 1,
+    minHeight: 42,
+    justifyContent: "center"
+  },
+  weightAdjustLabel: {
+    color: colors.textPrimary,
+    fontSize: 15,
+    fontWeight: "800"
   },
   setHint: {
     color: colors.textSecondary,

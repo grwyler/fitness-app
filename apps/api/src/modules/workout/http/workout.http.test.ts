@@ -336,6 +336,10 @@ export const workoutHttpTestCases: HttpTestCase[] = [
             headers: createAuthHeaders()
           });
           const historyPayload = await readJson(historyResponse);
+          const historyDetailResponse = await fetch(`${server.baseUrl}/api/v1/workout-history/session-1`, {
+            headers: createAuthHeaders()
+          });
+          const historyDetailPayload = await readJson(historyDetailResponse);
           const progressionResponse = await fetch(`${server.baseUrl}/api/v1/progression`, {
             headers: createAuthHeaders()
           });
@@ -357,6 +361,10 @@ export const workoutHttpTestCases: HttpTestCase[] = [
           assert.equal(historyPayload.data.items[0].exerciseCount, 1);
           assert.equal(historyPayload.data.items[0].completedSetCount, 3);
           assert.equal(historyPayload.data.nextCursor, null);
+          assert.equal(historyDetailResponse.status, 200);
+          assert.equal(historyDetailPayload.data.workoutSession.id, "session-1");
+          assert.equal(historyDetailPayload.data.workoutSession.exercises[0].sets.length, 3);
+          assert.equal(historyDetailPayload.data.workoutSession.exercises[0].sets[0].actualReps, 8);
           assert.equal(progressionResponse.status, 200);
           assert.equal(progressionPayload.data.totalCompletedWorkouts, 1);
           assert.equal(progressionPayload.data.recentWorkoutVolume[0].totalVolume.value, 3240);

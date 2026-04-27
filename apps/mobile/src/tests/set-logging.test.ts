@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import type { SetDto } from "@fitness/shared";
 import {
+  adjustWeightText,
   buildLogSetRequestFromDraft,
+  getPreviousLoggedSet,
   getSetLogDefaultDraft,
   getSetOutcomeText,
   getSetStatusLabel,
@@ -56,6 +58,37 @@ export const setLoggingTestCases: MobileTestCase[] = [
         repsText: "7",
         weightText: "132.5"
       });
+    }
+  },
+  {
+    name: "Set logging finds previous logged values and adjusts weight safely",
+    run: () => {
+      const sets = [
+        createSet({
+          id: "set-1",
+          setNumber: 1,
+          actualReps: 8,
+          actualWeight: {
+            value: 135,
+            unit: "lb"
+          },
+          status: "completed"
+        }),
+        createSet({
+          id: "set-2",
+          setNumber: 2,
+          status: "pending"
+        }),
+        createSet({
+          id: "set-3",
+          setNumber: 3,
+          status: "pending"
+        })
+      ];
+
+      assert.equal(getPreviousLoggedSet({ sets, setNumber: 3 })?.id, "set-1");
+      assert.equal(adjustWeightText({ weightText: "135", delta: 2.5 }), "137.5");
+      assert.equal(adjustWeightText({ weightText: "2.5", delta: -5 }), "0");
     }
   },
   {

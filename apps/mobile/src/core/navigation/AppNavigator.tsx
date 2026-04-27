@@ -5,6 +5,7 @@ import { DashboardScreen } from "../../screens/DashboardScreen";
 import { ActiveWorkoutScreen } from "../../screens/ActiveWorkoutScreen";
 import { WorkoutSummaryScreen } from "../../screens/WorkoutSummaryScreen";
 import { WorkoutHistoryScreen } from "../../screens/WorkoutHistoryScreen";
+import { WorkoutHistoryDetailScreen } from "../../screens/WorkoutHistoryDetailScreen";
 import { ProgressionScreen } from "../../screens/ProgressionScreen";
 import { FeedbackDebugScreen } from "../../screens/FeedbackDebugScreen";
 import { AuthLoadingScreen } from "../../screens/AuthLoadingScreen";
@@ -64,6 +65,11 @@ export function AppNavigator() {
             name="WorkoutHistory"
             component={WorkoutHistoryScreen}
             options={{ title: "Workout History" }}
+          />
+          <Stack.Screen
+            name="WorkoutHistoryDetail"
+            component={WorkoutHistoryDetailScreen}
+            options={{ title: "Workout Detail" }}
           />
           <Stack.Screen
             name="Progression"
