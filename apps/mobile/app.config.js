@@ -77,8 +77,20 @@ function resolveEnvValue(name, options = {}) {
   };
 }
 
-function isLiveClerkPublishableKey(value) {
-  return typeof value === "string" && value.startsWith("pk_live_");
+function getClerkPublishableKeyType(value) {
+  if (typeof value !== "string") {
+    return "invalid";
+  }
+
+  if (value.startsWith("pk_live_")) {
+    return "live";
+  }
+
+  if (value.startsWith("pk_test_")) {
+    return "test";
+  }
+
+  return "invalid";
 }
 
 function maskValue(value) {
@@ -138,16 +150,23 @@ function assertProductionApiBaseUrl(apiBaseUrl, source) {
 
 function assertProductionClerkPublishableKey(clerkPublishableKey, source) {
   const sourceLabel = source ? ` Source: ${source}.` : "";
+  const keyType = getClerkPublishableKeyType(clerkPublishableKey);
 
   if (!clerkPublishableKey) {
     failConfig(
-      `Missing EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY.${sourceLabel} Production web builds require a Clerk production publishable key starting with pk_live_. Add it to the Vercel web project Production environment.`
+      `Missing EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY.${sourceLabel} Production web builds require a Clerk publishable key starting with pk_live_ or pk_test_. Add it to the Vercel web project Production environment.`
     );
   }
 
-  if (!isLiveClerkPublishableKey(clerkPublishableKey)) {
+  if (keyType === "invalid") {
     failConfig(
-      `Invalid EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY.${sourceLabel} Expected pk_live_...; received ${maskValue(clerkPublishableKey)}. Do not use pk_test_ keys in production.`
+      `Invalid EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY.${sourceLabel} Expected pk_live_... or pk_test_...; received ${maskValue(clerkPublishableKey)}.`
+    );
+  }
+
+  if (keyType === "test") {
+    console.warn(
+      `[mobile-config] EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY is using a Clerk development key (pk_test_...) in a deployed build. This is allowed for MVP testing; configure the matching Clerk DEVELOPMENT instance for https://setwisefit.vercel.app.`
     );
   }
 }

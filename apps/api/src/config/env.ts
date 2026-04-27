@@ -33,6 +33,38 @@ const envSchema = z.object({
 
 export type AppEnv = z.infer<typeof envSchema>;
 
+function getClerkPublishableKeyType(value: string | undefined) {
+  if (!value) {
+    return "missing";
+  }
+
+  if (value.startsWith("pk_live_")) {
+    return "live";
+  }
+
+  if (value.startsWith("pk_test_")) {
+    return "test";
+  }
+
+  return "invalid";
+}
+
+function getClerkSecretKeyType(value: string | undefined) {
+  if (!value) {
+    return "missing";
+  }
+
+  if (value.startsWith("sk_live_")) {
+    return "live";
+  }
+
+  if (value.startsWith("sk_test_")) {
+    return "test";
+  }
+
+  return "invalid";
+}
+
 function parseEnv() {
   const parsedEnv = envSchema.safeParse({
     NODE_ENV: process.env.NODE_ENV,
@@ -82,12 +114,27 @@ function parseEnv() {
   }
 
   if (parsedEnv.data.NODE_ENV === "production") {
-    if (!parsedEnv.data.CLERK_PUBLISHABLE_KEY?.startsWith("pk_live_")) {
-      throw new Error("Invalid API environment configuration. CLERK_PUBLISHABLE_KEY must start with pk_live_ in production.");
+    const publishableKeyType = getClerkPublishableKeyType(parsedEnv.data.CLERK_PUBLISHABLE_KEY);
+    const secretKeyType = getClerkSecretKeyType(parsedEnv.data.CLERK_SECRET_KEY);
+
+    if (publishableKeyType === "invalid") {
+      throw new Error("Invalid API environment configuration. CLERK_PUBLISHABLE_KEY must start with pk_live_ or pk_test_ in production.");
     }
 
-    if (!parsedEnv.data.CLERK_SECRET_KEY?.startsWith("sk_live_")) {
-      throw new Error("Invalid API environment configuration. CLERK_SECRET_KEY must start with sk_live_ in production.");
+    if (secretKeyType === "invalid") {
+      throw new Error("Invalid API environment configuration. CLERK_SECRET_KEY must start with sk_live_ or sk_test_ in production.");
+    }
+
+    if (publishableKeyType === "test") {
+      console.warn(
+        "API is using a Clerk development publishable key (pk_test_...) in production. This is allowed for MVP testing; use the matching Clerk DEVELOPMENT instance."
+      );
+    }
+
+    if (secretKeyType === "test") {
+      console.warn(
+        "API is using a Clerk development secret key (sk_test_...) in production. This is allowed for MVP testing; use the matching Clerk DEVELOPMENT instance."
+      );
     }
   }
 

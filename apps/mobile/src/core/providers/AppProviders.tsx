@@ -9,6 +9,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { apiConfig, isApiBaseUrlConfigured } from "../../api/config";
 import { queryClient } from "./query-client";
 import { AuthProvider } from "../auth/AuthProvider";
+import { logSafeAuthDiagnostic } from "../auth/auth-debug";
 import { StartupConfigErrorScreen } from "./StartupConfigErrorScreen";
 
 function resolveNonEmptyString(value: unknown) {
@@ -24,6 +25,33 @@ const publishableKey = resolveNonEmptyString(
 
 const isDevelopment = typeof __DEV__ !== "undefined" ? __DEV__ : process.env.NODE_ENV !== "production";
 
+function getClerkPublishableKeyType(value: string | undefined) {
+  if (!value) {
+    return "missing";
+  }
+
+  if (value.startsWith("pk_live_")) {
+    return "live";
+  }
+
+  if (value.startsWith("pk_test_")) {
+    return "test";
+  }
+
+  return "invalid";
+}
+
+function maskKeySuffix(value: string | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  return `...${value.slice(-4)}`;
+}
+
+const clerkKeyType = getClerkPublishableKeyType(publishableKey);
+let hasLoggedClerkConfig = false;
+
 const missingEnvVars = [
   publishableKey ? null : "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY"
 ].filter((name): name is string => Boolean(name));
@@ -34,11 +62,19 @@ if (missingEnvVars.length > 0 && !isDevelopment) {
   );
 }
 
-if (!isDevelopment && !publishableKey?.startsWith("pk_live_")) {
-  throw new Error("EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY must be a production Clerk key that starts with pk_live_.");
+if (!isDevelopment && clerkKeyType === "invalid") {
+  throw new Error("EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY must start with pk_live_ or pk_test_.");
 }
 
 export function AppProviders({ children }: PropsWithChildren) {
+  if (!hasLoggedClerkConfig) {
+    hasLoggedClerkConfig = true;
+    logSafeAuthDiagnostic("clerk_config", {
+      clerkKeySuffix: maskKeySuffix(publishableKey),
+      clerkKeyType
+    });
+  }
+
   if (missingEnvVars.length > 0) {
     return (
       <SafeAreaProvider>
