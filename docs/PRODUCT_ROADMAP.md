@@ -33,7 +33,7 @@ A mobile-first training system that tells users exactly what to do in the gym an
 
 A user can:
 
-- [x] Create an account (auth)
+- [x] Create an account
 - [x] Follow a predefined program
 - [x] Log workouts easily
 - [x] See past workouts
@@ -43,42 +43,55 @@ A user can:
 
 ## Current Focus
 
-### Priority 1 - Workout UX
+### Priority 1 — Workout UX (Critical)
 
-- [ ] Improve set logging UX
-- [ ] Add reps input polish
-- [ ] Add weight input or quick adjust
-- [ ] Add rest timer
-- [ ] Improve feedback selection UX
-- [ ] Improve completion feedback
-
----
-
-### Priority 2 - Basic History
-
-- [ ] View past workouts
-- [ ] Show exercises + weights
-- [ ] Show simple progression
+- [x] Improve set logging UX
+- [x] Fix layout issues (reps + button overflow)
+- [ ] Reps input polish (fast numeric entry, no friction)
+- [ ] Weight input polish (quick adjust, previous value autofill)
+- [ ] Prevent mis-taps / duplicate sets
+- [ ] Add rest timer (simple, optional, non-blocking)
+- [ ] Improve completion feedback (make it feel rewarding)
 
 ---
 
-### Priority 3 - Program Visibility
+### Priority 2 — Progress & History (High Impact)
 
-- [ ] Show current program
-- [ ] Show next workout clearly
-- [ ] Show exercise intent (sets/reps)
+- [x] View past workouts
+- [ ] Workout detail screen (sets, weights, exercises)
+- [ ] Show simple progression (already started)
+- [ ] Highlight improvements (e.g., "↑ +10 lbs from last time")
+- [ ] Show streak or consistency metric (optional, simple)
 
 ---
 
-### Priority 4 - Auth Hardening
+#### Priority 3 — Program Experience
 
-- [x] Integrate Clerk
-- [x] Replace placeholder headers
-- [x] Persist signed-in identity in mobile
-- [x] Secure API endpoints with bearer auth
-- [ ] Add password reset / account recovery flow
-- [ ] Verify production Clerk environment and deploy config
-- [ ] Add auth smoke-test coverage for sign-in and session restore
+- [x] Follow predefined program
+- [ ] Clearly show:
+  - current program
+  - next workout
+  - workout intent (sets/reps)
+- [ ] Show where the user is in the program (week/day)
+
+---
+
+### Priority 4 — Quick Custom Workout (MVP-safe)
+
+- [ ] Start a “Custom Workout”
+- [ ] Add exercises from existing list
+- [ ] Add sets (reuse existing logging UI)
+- [ ] Complete workout → saves to history
+- [ ] No saving templates (yet)
+- [ ] No editing exercises database
+
+---
+
+## Priority 5 — Auth & Stability
+
+- [ ] Verify production Clerk setup
+- [ ] Add session restore test
+- [ ] Add basic error boundaries in mobile
 
 ---
 
