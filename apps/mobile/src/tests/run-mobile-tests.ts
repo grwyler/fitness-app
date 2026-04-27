@@ -4,11 +4,13 @@ import { authBehaviorTestCases } from "./auth-behavior.test.js";
 import { feedbackTestCases } from "./feedback.test.js";
 import { progressionScreenTestCases } from "./progression-screen.test.js";
 import { setLoggingTestCases } from "./set-logging.test.js";
+import { activeWorkoutScreenTestCases } from "./active-workout-screen.test.js";
 
 void runMobileTestCases([
   ...mobileApiTestCases,
   ...authBehaviorTestCases,
   ...feedbackTestCases,
   ...progressionScreenTestCases,
-  ...setLoggingTestCases
+  ...setLoggingTestCases,
+  ...activeWorkoutScreenTestCases
 ]);

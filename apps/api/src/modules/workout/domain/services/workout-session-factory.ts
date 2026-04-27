@@ -26,6 +26,7 @@ export class WorkoutSessionFactory {
       startedAt: input.startedAt,
       completedAt: null,
       durationSeconds: null,
+      isPartial: false,
       userEffortFeedback: null as EffortFeedback | null,
       programNameSnapshot: input.programName,
       workoutNameSnapshot: input.workoutTemplateDefinition.template.name
@@ -77,4 +78,3 @@ export class WorkoutSessionFactory {
     };
   }
 }
-

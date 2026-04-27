@@ -50,8 +50,9 @@ export const completeWorkoutSessionBodySchema = z.object({
         effortFeedback: z.enum(effortFeedbackValues)
       })
     )
-    .min(1),
-  userEffortFeedback: z.enum(effortFeedbackValues).optional()
+    .default([]),
+  userEffortFeedback: z.enum(effortFeedbackValues).optional(),
+  finishEarly: z.boolean().optional()
 });
 
 export type WorkoutHeaders = z.infer<typeof workoutHeadersSchema>;

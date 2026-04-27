@@ -81,6 +81,7 @@ export function WorkoutHistoryDetailScreen({ route, navigation }: Props) {
     (count, exercise) => count + exercise.sets.filter((set) => set.status === "failed").length,
     0
   );
+  const plannedSets = workout.exercises.reduce((count, exercise) => count + exercise.sets.length, 0);
 
   return (
     <Screen>
@@ -94,8 +95,10 @@ export function WorkoutHistoryDetailScreen({ route, navigation }: Props) {
         <Text style={styles.cardLabel}>Completed</Text>
         <Text style={styles.cardTitle}>{formatCompletedDate(workout.completedAt)}</Text>
         <Text style={styles.cardBody}>
-          {formatDuration(workout.durationSeconds)} - {workout.exercises.length} exercises - {completedSets} sets
+          {formatDuration(workout.durationSeconds)} - {workout.exercises.length} exercises - {completedSets}/
+          {plannedSets} sets
         </Text>
+        {workout.isPartial ? <Text style={styles.warningText}>Finished early</Text> : null}
         {failedSets > 0 ? <Text style={styles.warningText}>{failedSets} missed sets</Text> : null}
       </View>
 
@@ -112,7 +115,9 @@ export function WorkoutHistoryDetailScreen({ route, navigation }: Props) {
             <View key={set.id} style={styles.setRow}>
               <Text style={styles.setTitle}>Set {set.setNumber}</Text>
               <Text style={styles.setMeta}>
-                {set.actualReps ?? 0} reps at {set.actualWeight?.value ?? set.targetWeight.value} lb
+                {set.status === "pending"
+                  ? `Planned ${set.targetReps} reps at ${set.targetWeight.value} lb`
+                  : `${set.actualReps ?? 0} reps at ${set.actualWeight?.value ?? set.targetWeight.value} lb`}
               </Text>
               <Text
                 style={[

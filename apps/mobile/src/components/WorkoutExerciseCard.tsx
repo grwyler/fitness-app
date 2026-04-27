@@ -65,9 +65,6 @@ export function WorkoutExerciseCard(props: {
             targetReps: set.targetReps
           });
           const canSubmit = isPending && request !== null && !isLogging;
-          const quickRepValues = Array.from(
-            new Set([set.targetReps, Math.max(0, set.targetReps - 1), validation.actualReps ?? set.targetReps])
-          );
           const previousWeight = previousSet?.actualWeight?.value ?? null;
 
           return (
@@ -95,39 +92,6 @@ export function WorkoutExerciseCard(props: {
                   <View style={styles.inputGrid}>
                     <View style={styles.inputGroup}>
                       <Text style={styles.inputLabel}>Reps</Text>
-                      <View style={styles.quickRepRow}>
-                        {quickRepValues.map((reps) => {
-                          const selected = draft.repsText === reps.toString();
-
-                          return (
-                            <Pressable
-                              key={reps}
-                              accessibilityRole="button"
-                              disabled={isLogging}
-                              onPress={() =>
-                                props.onChangeSetLogDraft(set.id, {
-                                  ...draft,
-                                  repsText: reps.toString()
-                                })
-                              }
-                              style={[
-                                styles.quickRepButton,
-                                selected && styles.quickRepButtonSelected,
-                                isLogging && styles.disabledControl
-                              ]}
-                            >
-                              <Text
-                                style={[
-                                  styles.quickRepLabel,
-                                  selected && styles.quickRepLabelSelected
-                                ]}
-                              >
-                                {reps}
-                              </Text>
-                            </Pressable>
-                          );
-                        })}
-                      </View>
                       <View style={styles.stepperRow}>
                         <Pressable
                           accessibilityRole="button"
@@ -379,32 +343,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     textAlign: "right"
   },
-  quickRepRow: {
-    flexDirection: "row",
-    gap: spacing.xs
-  },
-  quickRepButton: {
-    alignItems: "center",
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderRadius: 14,
-    borderWidth: 1,
-    flex: 1,
-    minHeight: 44,
-    justifyContent: "center"
-  },
-  quickRepButtonSelected: {
-    backgroundColor: colors.accentStrong,
-    borderColor: colors.accentStrong
-  },
-  quickRepLabel: {
-    color: colors.textPrimary,
-    fontSize: 18,
-    fontWeight: "800"
-  },
-  quickRepLabelSelected: {
-    color: colors.surface
-  },
   stepperRow: {
     alignItems: "center",
     flexDirection: "row",
@@ -470,18 +408,18 @@ const styles = StyleSheet.create({
   },
   weightAdjustButton: {
     alignItems: "center",
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
+    backgroundColor: colors.surfaceMuted,
+    borderColor: "transparent",
     borderRadius: 14,
     borderWidth: 1,
     flexBasis: "23%",
     flexGrow: 1,
-    minHeight: 42,
+    minHeight: 40,
     justifyContent: "center"
   },
   weightAdjustLabel: {
-    color: colors.textPrimary,
-    fontSize: 15,
+    color: colors.textSecondary,
+    fontSize: 14,
     fontWeight: "800"
   },
   setHint: {

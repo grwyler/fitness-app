@@ -31,6 +31,8 @@ export function useCompleteWorkout() {
       clearMutationKey(result.scope);
       void queryClient.invalidateQueries({ queryKey: workoutQueryKeys.dashboard });
       void queryClient.invalidateQueries({ queryKey: workoutQueryKeys.currentWorkout });
+      void queryClient.invalidateQueries({ queryKey: workoutQueryKeys.workoutHistory });
+      void queryClient.invalidateQueries({ queryKey: workoutQueryKeys.progression });
     }
   });
 }

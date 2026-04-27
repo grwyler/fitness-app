@@ -178,6 +178,7 @@ export const workoutSessions = pgTable(
     startedAt: timestamp("started_at", { withTimezone: true }),
     completedAt: timestamp("completed_at", { withTimezone: true }),
     durationSeconds: integer("duration_seconds"),
+    isPartial: boolean("is_partial").notNull().default(false),
     userEffortFeedback: effortFeedbackEnum("user_effort_feedback"),
     programNameSnapshot: text("program_name_snapshot").notNull(),
     workoutNameSnapshot: text("workout_name_snapshot").notNull(),

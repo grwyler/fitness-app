@@ -12,7 +12,7 @@ export type WorkoutCompletionExercise = {
 
 export type WorkoutCompletionValidationInput = {
   workoutSessionStatus: WorkoutSessionStatus;
+  allowPartialCompletion: boolean;
   exercises: WorkoutCompletionExercise[];
   exerciseFeedback: Record<string, EffortFeedback | undefined>;
 };
-

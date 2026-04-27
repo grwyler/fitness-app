@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
-import { users } from "@fitness/db";
+import { progressionStates, sets, users } from "@fitness/db";
 import type { Request } from "express";
 import { createApp } from "../../../app.js";
 import { bootstrapDevelopmentDatabase } from "../../../lib/db/dev-bootstrap.js";
@@ -619,6 +619,70 @@ export const workoutHttpTestCases: HttpTestCase[] = [
           assert.equal(progressionPayload.data.recentWorkoutVolume[0].totalVolume.value, 3240);
           assert.equal(progressionPayload.data.exercises[0].exerciseName, "Bench Press");
           assert.equal(progressionPayload.data.exercises[0].recentBestWeight.value, 135);
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "POST /api/v1/workout-sessions/:sessionId/complete finishes a partial workout without fabricating sets",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        await seedInProgressWorkout(context, {
+          setStatuses: ["completed", "pending", "pending"],
+          actualReps: [8, 0, 0]
+        });
+        const server = await startHttpServer(context.db);
+
+        try {
+          const completeResponse = await fetch(`${server.baseUrl}/api/v1/workout-sessions/session-1/complete`, {
+            method: "POST",
+            headers: createAuthHeaders({
+              "content-type": "application/json",
+              "Idempotency-Key": "complete-http-key-partial-1"
+            }),
+            body: JSON.stringify({
+              completedAt: "2026-04-24T10:25:00.000Z",
+              exerciseFeedback: [],
+              finishEarly: true
+            })
+          });
+          const completePayload = await readJson(completeResponse);
+
+          const historyResponse = await fetch(`${server.baseUrl}/api/v1/workout-history?limit=20&status=completed`, {
+            headers: createAuthHeaders()
+          });
+          const historyPayload = await readJson(historyResponse);
+          const historyDetailResponse = await fetch(`${server.baseUrl}/api/v1/workout-history/session-1`, {
+            headers: createAuthHeaders()
+          });
+          const historyDetailPayload = await readJson(historyDetailResponse);
+          const setRows = await context.db.select().from(sets);
+          const progressionRows = await context.db.select().from(progressionStates);
+
+          assert.equal(completeResponse.status, 200);
+          assert.equal(completePayload.data.workoutSession.isPartial, true);
+          assert.equal(completePayload.data.progressionUpdates.length, 0);
+          assert.equal(historyResponse.status, 200);
+          assert.equal(historyPayload.data.items[0].isPartial, true);
+          assert.equal(historyPayload.data.items[0].plannedSetCount, 3);
+          assert.equal(historyPayload.data.items[0].completedSetCount, 1);
+          assert.equal(historyDetailResponse.status, 200);
+          assert.equal(historyDetailPayload.data.workoutSession.isPartial, true);
+          assert.deepEqual(
+            historyDetailPayload.data.workoutSession.exercises[0].sets.map((set: { status: string }) => set.status),
+            ["completed", "pending", "pending"]
+          );
+          assert.equal(setRows.length, 3);
+          assert.equal(setRows.filter((set) => set.status === "pending").length, 2);
+          assert.equal(setRows.filter((set) => set.status === "skipped").length, 0);
+          assert.equal(progressionRows[0]?.currentWeightLbs, "135.00");
         } finally {
           await server.close();
         }

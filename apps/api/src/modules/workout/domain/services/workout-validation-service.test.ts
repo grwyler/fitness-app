@@ -49,6 +49,7 @@ export const workoutValidationServiceTestCases: DomainTestCase[] = [
       assert.doesNotThrow(() =>
         validationService.assertWorkoutCanBeCompleted({
           workoutSessionStatus: "in_progress",
+          allowPartialCompletion: false,
           exercises: [
             {
               exerciseEntryId: "entry-1",
@@ -69,6 +70,7 @@ export const workoutValidationServiceTestCases: DomainTestCase[] = [
         () =>
           validationService.assertWorkoutCanBeCompleted({
             workoutSessionStatus: "in_progress",
+            allowPartialCompletion: false,
             exercises: [
               {
                 exerciseEntryId: "entry-1",
@@ -84,12 +86,31 @@ export const workoutValidationServiceTestCases: DomainTestCase[] = [
     }
   },
   {
+    name: "WorkoutValidationService allows explicit partial completion with pending sets",
+    run: () => {
+      assert.doesNotThrow(() =>
+        validationService.assertWorkoutCanBeCompleted({
+          workoutSessionStatus: "in_progress",
+          allowPartialCompletion: true,
+          exercises: [
+            {
+              exerciseEntryId: "entry-1",
+              setStatuses: ["completed", "pending"]
+            }
+          ],
+          exerciseFeedback: {}
+        })
+      );
+    }
+  },
+  {
     name: "WorkoutValidationService rejects workout completion when exercise feedback is missing",
     run: () => {
       assert.throws(
         () =>
           validationService.assertWorkoutCanBeCompleted({
             workoutSessionStatus: "in_progress",
+            allowPartialCompletion: false,
             exercises: [
               {
                 exerciseEntryId: "entry-1",

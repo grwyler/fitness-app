@@ -30,7 +30,8 @@ function buildCompleteWorkoutFingerprint(sessionId: string, request: CompleteWor
     exerciseFeedback: [...request.exerciseFeedback].sort((left, right) =>
       left.exerciseEntryId.localeCompare(right.exerciseEntryId)
     ),
-    userEffortFeedback: request.userEffortFeedback ?? null
+    userEffortFeedback: request.userEffortFeedback ?? null,
+    finishEarly: request.finishEarly ?? false
   });
 }
 
@@ -84,6 +85,7 @@ export class CompleteWorkoutSessionUseCase {
 
         this.validationService.assertWorkoutCanBeCompleted({
           workoutSessionStatus: workoutSessionGraph.session.status,
+          allowPartialCompletion: input.request.finishEarly === true,
           exercises: workoutSessionGraph.exerciseEntries.map((exerciseEntry) => ({
             exerciseEntryId: exerciseEntry.id,
             setStatuses: workoutSessionGraph.sets
@@ -103,7 +105,18 @@ export class CompleteWorkoutSessionUseCase {
           );
         }
 
-        const exerciseIds = workoutSessionGraph.exerciseEntries.map((exerciseEntry) => exerciseEntry.exerciseId);
+        const completedAt = input.request.completedAt ? new Date(input.request.completedAt) : new Date();
+        const isPartial = workoutSessionGraph.sets.some(
+          (set) => set.status === "pending" || set.status === "skipped"
+        );
+        const progressionEligibleExerciseEntries = workoutSessionGraph.exerciseEntries.filter((exerciseEntry) => {
+          const relatedSets = workoutSessionGraph.sets.filter((set) => set.exerciseEntryId === exerciseEntry.id);
+          return (
+            relatedSets.length > 0 &&
+            relatedSets.every((set) => set.status === "completed" || set.status === "failed")
+          );
+        });
+        const exerciseIds = progressionEligibleExerciseEntries.map((exerciseEntry) => exerciseEntry.exerciseId);
         const progressionSeeds = await this.exerciseRepository.findProgressionSeedsByExerciseIds(exerciseIds, {
           tx
         });
@@ -120,9 +133,7 @@ export class CompleteWorkoutSessionUseCase {
           progressionStates.map((progressionState) => [progressionState.exerciseId, progressionState])
         );
 
-        const completedAt = input.request.completedAt ? new Date(input.request.completedAt) : new Date();
-
-        const progressionUpdates = workoutSessionGraph.exerciseEntries.map((exerciseEntry) => {
+        const progressionUpdates = progressionEligibleExerciseEntries.map((exerciseEntry) => {
           const progressionSeed = progressionSeedByExerciseId.get(exerciseEntry.exerciseId);
           if (!progressionSeed) {
             throw new WorkoutApplicationError(
@@ -237,6 +248,7 @@ export class CompleteWorkoutSessionUseCase {
             sessionId: workoutSessionGraph.session.id,
             completedAt,
             durationSeconds,
+            isPartial,
             userEffortFeedback: input.request.userEffortFeedback ?? null
           },
           { tx }
@@ -308,4 +320,3 @@ export class CompleteWorkoutSessionUseCase {
     };
   }
 }
-

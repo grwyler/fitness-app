@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import type { CompleteWorkoutSessionRequest, SetDto } from "@fitness/shared";
+import type { SetDto } from "@fitness/shared";
 import { StyleSheet, Text, View } from "react-native";
 import { Screen } from "../components/Screen";
 import { LoadingState } from "../components/LoadingState";
@@ -13,6 +13,12 @@ import { useCurrentWorkout } from "../features/workout/hooks/useCurrentWorkout";
 import { useLogSet } from "../features/workout/hooks/useLogSet";
 import { useCompleteWorkout } from "../features/workout/hooks/useCompleteWorkout";
 import { useActiveWorkoutStore } from "../features/workout/store/active-workout-store";
+import {
+  buildCompleteWorkoutRequest,
+  getFinishWorkoutPressAction,
+  getWorkoutCompletionErrorMessage,
+  getWorkoutCompletionUiState
+} from "../features/workout/utils/active-workout-screen.shared";
 import { buildLogSetRequestFromDraft, type SetLogDraft } from "../features/workout/utils/set-logging.shared";
 import { colors, spacing } from "../theme/tokens";
 
@@ -29,6 +35,7 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
   const setSetLogDraft = useActiveWorkoutStore((state) => state.setSetLogDraft);
   const [lastAction, setLastAction] = useState<string | null>(null);
   const [submittingSetIds, setSubmittingSetIds] = useState<Record<string, boolean>>({});
+  const [showFinishEarlyConfirmation, setShowFinishEarlyConfirmation] = useState(false);
 
   if (currentWorkoutQuery.isLoading) {
     return (
@@ -67,13 +74,7 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
 
   const workout = activeWorkout;
 
-  const hasPendingSets = workout.exercises.some((exercise) =>
-    exercise.sets.some((set) => set.status === "pending")
-  );
-
-  const hasCompleteFeedback = workout.exercises.every(
-    (exercise) => feedbackByEntryId[exercise.id] !== undefined
-  );
+  const completionUiState = getWorkoutCompletionUiState(workout, feedbackByEntryId);
 
   function handleLogSet(set: SetDto, draft: SetLogDraft) {
     if (submittingSetIds[set.id]) {
@@ -109,12 +110,10 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
 
   function handleCompleteWorkout() {
     setLastAction("complete_workout");
-    const request: CompleteWorkoutSessionRequest = {
-      exerciseFeedback: workout.exercises.map((exercise) => ({
-        exerciseEntryId: exercise.id,
-        effortFeedback: feedbackByEntryId[exercise.id]!
-      }))
-    };
+    setShowFinishEarlyConfirmation(false);
+    const request = buildCompleteWorkoutRequest(workout, feedbackByEntryId, {
+      finishEarly: completionUiState.hasPendingSets
+    });
 
     completeWorkoutMutation.mutate(
       {
@@ -129,6 +128,24 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
         }
       }
     );
+  }
+
+  function handleFinishPress() {
+    const action = getFinishWorkoutPressAction({
+      hasPendingSets: completionUiState.hasPendingSets,
+      finishButtonDisabled: completionUiState.finishButtonDisabled
+    });
+
+    if (action === "blocked") {
+      return;
+    }
+
+    if (action === "complete_workout") {
+      handleCompleteWorkout();
+      return;
+    }
+
+    setShowFinishEarlyConfirmation(true);
   }
 
   return (
@@ -163,15 +180,38 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
         {logSetMutation.isError ? (
           <Text style={styles.errorText}>Set not saved. Check the values and try again.</Text>
         ) : null}
-        <Text style={styles.footerText}>
-          {!hasPendingSets && hasCompleteFeedback
-            ? "All sets are logged and feedback is ready."
-            : "Finish all sets and choose feedback for every exercise to complete the workout."}
-        </Text>
+        {completeWorkoutMutation.isError ? (
+          <Text style={styles.errorText}>
+            {getWorkoutCompletionErrorMessage(completeWorkoutMutation.error)}
+          </Text>
+        ) : null}
+        <Text style={styles.footerText}>{completionUiState.footerMessage}</Text>
+        {showFinishEarlyConfirmation ? (
+          <View style={styles.confirmation}>
+            <Text style={styles.confirmationTitle}>Finish early?</Text>
+            <Text style={styles.footerText}>
+              You haven't completed all planned sets. Finish this workout anyway?
+            </Text>
+            <View style={styles.confirmationActions}>
+              <PrimaryButton
+                label="Keep working out"
+                tone="secondary"
+                onPress={() => setShowFinishEarlyConfirmation(false)}
+                disabled={completeWorkoutMutation.isPending}
+              />
+              <PrimaryButton
+                label="Finish workout"
+                tone="danger"
+                onPress={handleCompleteWorkout}
+                loading={completeWorkoutMutation.isPending}
+              />
+            </View>
+          </View>
+        ) : null}
         <PrimaryButton
-          label="Complete workout"
-          onPress={handleCompleteWorkout}
-          disabled={hasPendingSets || !hasCompleteFeedback}
+          label={completionUiState.finishButtonLabel}
+          onPress={handleFinishPress}
+          disabled={completionUiState.finishButtonDisabled}
           loading={completeWorkoutMutation.isPending}
         />
         <FeedbackButton
@@ -214,5 +254,20 @@ const styles = StyleSheet.create({
     color: "#9c3b31",
     fontSize: 14,
     fontWeight: "700"
+  },
+  confirmation: {
+    borderColor: colors.border,
+    borderRadius: 18,
+    borderWidth: 1,
+    gap: spacing.md,
+    padding: spacing.md
+  },
+  confirmationTitle: {
+    color: colors.textPrimary,
+    fontSize: 18,
+    fontWeight: "800"
+  },
+  confirmationActions: {
+    gap: spacing.sm
   }
 });

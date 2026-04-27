@@ -122,6 +122,40 @@ export const mobileApiTestCases: MobileTestCase[] = [
     }
   },
   {
+    name: "Workout API sends partial completion payloads",
+    run: async () => {
+      let requestBody: string | undefined;
+
+      setMockFetch(async (_input, init) => {
+        requestBody = init?.body as string | undefined;
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            data: {},
+            meta: {
+              replayed: false
+            }
+          })
+        };
+      });
+
+      await completeWorkoutSession({
+        sessionId: "session-1",
+        request: {
+          exerciseFeedback: [],
+          finishEarly: true
+        },
+        idempotencyKey: "complete-partial-key"
+      });
+
+      assert.deepEqual(JSON.parse(requestBody ?? "{}"), {
+        exerciseFeedback: [],
+        finishEarly: true
+      });
+    }
+  },
+  {
     name: "Stable idempotency keys are reused only for the same payload",
     run: () => {
       const first = resolveStableIdempotencyKey({

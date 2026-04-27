@@ -159,7 +159,8 @@ export function createWorkoutHandlers(dependencies: {
       const useCaseRequest: CompleteWorkoutSessionRequest = {
         exerciseFeedback: body.exerciseFeedback,
         ...(body.completedAt ? { completedAt: body.completedAt } : {}),
-        ...(body.userEffortFeedback ? { userEffortFeedback: body.userEffortFeedback } : {})
+        ...(body.userEffortFeedback ? { userEffortFeedback: body.userEffortFeedback } : {}),
+        ...(body.finishEarly !== undefined ? { finishEarly: body.finishEarly } : {})
       };
 
       const result = await dependencies.completeWorkoutSessionUseCase.execute({

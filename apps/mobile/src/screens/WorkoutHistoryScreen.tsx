@@ -83,8 +83,10 @@ export function WorkoutHistoryScreen({ navigation }: Props) {
             <Text style={styles.cardTitle}>{item.workoutName}</Text>
             <Text style={styles.cardBody}>{item.programName}</Text>
             <Text style={styles.metaLine}>
-              {formatDuration(item.durationSeconds)} - {item.exerciseCount} exercises - {item.completedSetCount} sets
+              {formatDuration(item.durationSeconds)} - {item.exerciseCount} exercises - {item.completedSetCount}/
+              {item.plannedSetCount} sets
             </Text>
+            {item.isPartial ? <Text style={styles.warningText}>Finished early</Text> : null}
             {item.failedSetCount > 0 ? (
               <Text style={styles.warningText}>{item.failedSetCount} failed sets</Text>
             ) : null}

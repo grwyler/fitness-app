@@ -27,11 +27,18 @@ export class WorkoutValidationService {
     }
 
     for (const exercise of input.exercises) {
-      if (exercise.setStatuses.some((status) => status === "pending")) {
+      const hasIncompleteSets = exercise.setStatuses.some(
+        (status) => status === "pending" || status === "skipped"
+      );
+      if (hasIncompleteSets && !input.allowPartialCompletion) {
         throw new WorkoutDomainError(
           "INCOMPLETE_WORKOUT",
-          `Exercise entry ${exercise.exerciseEntryId} still has pending sets.`
+          `Exercise entry ${exercise.exerciseEntryId} still has incomplete sets.`
         );
+      }
+
+      if (hasIncompleteSets) {
+        continue;
       }
 
       const feedback = input.exerciseFeedback[exercise.exerciseEntryId];
@@ -44,4 +51,3 @@ export class WorkoutValidationService {
     }
   }
 }
-

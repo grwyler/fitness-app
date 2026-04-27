@@ -33,6 +33,7 @@ function createBaseWorkoutSessionGraph(): WorkoutSessionGraph {
       startedAt: new Date("2026-04-24T10:00:00.000Z"),
       completedAt: null,
       durationSeconds: null,
+      isPartial: false,
       userEffortFeedback: null,
       programNameSnapshot: "Beginner Full Body V1",
       workoutNameSnapshot: "Workout A",
@@ -645,6 +646,7 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
             status: "completed",
             completedAt: input.completedAt,
             durationSeconds: input.durationSeconds,
+            isPartial: input.isPartial,
             userEffortFeedback: input.userEffortFeedback
           };
         },
@@ -1003,8 +1005,10 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
               completedAt: new Date("2026-04-24T10:45:00.000Z"),
               durationSeconds: 2700,
               exerciseCount: 1,
+              plannedSetCount: 3,
               completedSetCount: 3,
-              failedSetCount: 0
+              failedSetCount: 0,
+              isPartial: false
             }
           ];
         },

@@ -80,6 +80,7 @@ export function mapWorkoutSessionDto(graph: WorkoutSessionGraph): WorkoutSession
   return {
     id: graph.session.id,
     status: graph.session.status,
+    isPartial: graph.session.isPartial,
     programId: graph.session.programId,
     workoutTemplateId: graph.session.workoutTemplateId,
     programName: graph.session.programNameSnapshot,
@@ -224,10 +225,12 @@ export function mapWorkoutHistoryItemDto(input: {
     workoutName: input.history.workoutName,
     programName: input.history.programName,
     status: input.history.status,
+    isPartial: input.history.isPartial,
     startedAt: toIsoString(input.history.startedAt),
     completedAt: toIsoString(input.history.completedAt),
     durationSeconds: input.history.durationSeconds,
     exerciseCount: input.history.exerciseCount,
+    plannedSetCount: input.history.plannedSetCount,
     completedSetCount: input.history.completedSetCount,
     failedSetCount: input.history.failedSetCount,
     highlights: input.progressMetrics.map((progressMetric) => progressMetric.displayText)

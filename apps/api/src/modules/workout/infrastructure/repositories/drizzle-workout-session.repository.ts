@@ -39,6 +39,7 @@ function mapWorkoutSessionRecord(row: typeof workoutSessions.$inferSelect): Work
     startedAt: row.startedAt,
     completedAt: row.completedAt,
     durationSeconds: row.durationSeconds,
+    isPartial: row.isPartial,
     userEffortFeedback: row.userEffortFeedback,
     programNameSnapshot: row.programNameSnapshot,
     workoutNameSnapshot: row.workoutNameSnapshot,
@@ -315,6 +316,7 @@ export class DrizzleWorkoutSessionRepository implements WorkoutSessionRepository
         status: "completed",
         completedAt: input.completedAt,
         durationSeconds: input.durationSeconds,
+        isPartial: input.isPartial,
         userEffortFeedback: input.userEffortFeedback,
         updatedAt: new Date()
       })
@@ -350,6 +352,7 @@ export class DrizzleWorkoutSessionRepository implements WorkoutSessionRepository
 
       const setCountRows = await executor
         .select({
+          plannedCount: sql<number>`count(*)`,
           completedCount: sql<number>`count(*) filter (where ${sets.status} = 'completed')`,
           failedCount: sql<number>`count(*) filter (where ${sets.status} = 'failed')`
         })
@@ -365,7 +368,9 @@ export class DrizzleWorkoutSessionRepository implements WorkoutSessionRepository
         startedAt: row.startedAt,
         completedAt: row.completedAt,
         durationSeconds: row.durationSeconds,
+        isPartial: row.isPartial,
         exerciseCount: Number(exerciseCountRows[0]?.count ?? 0),
+        plannedSetCount: Number(setCountRows[0]?.plannedCount ?? 0),
         completedSetCount: Number(setCountRows[0]?.completedCount ?? 0),
         failedSetCount: Number(setCountRows[0]?.failedCount ?? 0)
       });

@@ -55,6 +55,7 @@ export type ExerciseEntryDto = {
 export type WorkoutSessionDto = {
   id: UUID;
   status: WorkoutSessionStatus;
+  isPartial: boolean;
   programId: UUID;
   workoutTemplateId: UUID;
   programName: string;
@@ -116,10 +117,12 @@ export type WorkoutHistoryItemDto = {
   workoutName: string;
   programName: string;
   status: WorkoutSessionStatus;
+  isPartial: boolean;
   startedAt: ISODateTime | null;
   completedAt: ISODateTime | null;
   durationSeconds: number | null;
   exerciseCount: number;
+  plannedSetCount: number;
   completedSetCount: number;
   failedSetCount: number;
   highlights: string[];
@@ -223,6 +226,7 @@ export type CompleteWorkoutSessionRequest = {
   completedAt?: ISODateTime;
   exerciseFeedback: ExerciseFeedbackInput[];
   userEffortFeedback?: EffortFeedback;
+  finishEarly?: boolean;
 };
 
 export type CompleteWorkoutSessionResponse = {

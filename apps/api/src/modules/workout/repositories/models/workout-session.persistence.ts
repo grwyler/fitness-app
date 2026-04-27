@@ -9,6 +9,7 @@ export type WorkoutSessionRecord = {
   startedAt: Date | null;
   completedAt: Date | null;
   durationSeconds: number | null;
+  isPartial: boolean;
   userEffortFeedback: EffortFeedback | null;
   programNameSnapshot: string;
   workoutNameSnapshot: string;
@@ -78,6 +79,7 @@ export type CompleteWorkoutSessionPersistenceInput = {
   sessionId: string;
   completedAt: Date;
   durationSeconds: number;
+  isPartial: boolean;
   userEffortFeedback: EffortFeedback | null;
 };
 
@@ -96,8 +98,10 @@ export type WorkoutHistorySummaryRecord = {
   completedAt: Date | null;
   durationSeconds: number | null;
   exerciseCount: number;
+  plannedSetCount: number;
   completedSetCount: number;
   failedSetCount: number;
+  isPartial: boolean;
 };
 
 export type CompletedWorkoutProgressionRecord = {
