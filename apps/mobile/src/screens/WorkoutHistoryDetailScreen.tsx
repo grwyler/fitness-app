@@ -4,7 +4,9 @@ import { ErrorState } from "../components/ErrorState";
 import { LoadingState } from "../components/LoadingState";
 import { Screen } from "../components/Screen";
 import type { RootStackParamList } from "../core/navigation/navigation-types";
+import { useProgression } from "../features/workout/hooks/useProgression";
 import { useWorkoutHistoryDetail } from "../features/workout/hooks/useWorkoutHistoryDetail";
+import { buildWorkoutDetailProgressHighlights } from "../features/workout/utils/history-detail.shared";
 import { colors, spacing } from "../theme/tokens";
 
 type Props = NativeStackScreenProps<RootStackParamList, "WorkoutHistoryDetail">;
@@ -50,6 +52,7 @@ function formatSetStatus(status: string) {
 
 export function WorkoutHistoryDetailScreen({ route, navigation }: Props) {
   const detailQuery = useWorkoutHistoryDetail(route.params.sessionId);
+  const progressionQuery = useProgression();
 
   if (detailQuery.isLoading) {
     return (
@@ -73,6 +76,14 @@ export function WorkoutHistoryDetailScreen({ route, navigation }: Props) {
   }
 
   const workout = detailQuery.data;
+  const progressHighlights = buildWorkoutDetailProgressHighlights({
+    workout,
+    progression: progressionQuery.data
+  });
+  const progressHighlightsByEntryId = progressHighlights.reduce<Record<string, string>>((accumulator, item) => {
+    accumulator[item.exerciseEntryId] = item.text;
+    return accumulator;
+  }, {});
   const completedSets = workout.exercises.reduce(
     (count, exercise) => count + exercise.sets.filter((set) => set.status === "completed").length,
     0
@@ -100,42 +111,58 @@ export function WorkoutHistoryDetailScreen({ route, navigation }: Props) {
         </Text>
         {workout.isPartial ? <Text style={styles.warningText}>Finished early</Text> : null}
         {failedSets > 0 ? <Text style={styles.warningText}>{failedSets} missed sets</Text> : null}
+        {progressHighlights.length > 0 ? (
+          <View style={styles.highlightList}>
+            {progressHighlights.slice(0, 4).map((highlight) => (
+              <Text key={highlight.exerciseEntryId} style={styles.highlightPill}>
+                {highlight.text}
+              </Text>
+            ))}
+          </View>
+        ) : null}
       </View>
 
-      {workout.exercises.map((exercise) => (
-        <View key={exercise.id} style={styles.exerciseCard}>
-          <View style={styles.exerciseHeader}>
-            <Text style={styles.exerciseTitle}>{exercise.exerciseName}</Text>
-            <Text style={styles.exerciseMeta}>
-              {exercise.targetSets} x {exercise.targetReps} at {exercise.targetWeight.value} lb
-            </Text>
-          </View>
+      {workout.exercises.map((exercise) => {
+        const highlight = progressHighlightsByEntryId[exercise.id];
 
-          {exercise.sets.map((set) => (
-            <View key={set.id} style={styles.setRow}>
-              <Text style={styles.setTitle}>Set {set.setNumber}</Text>
-              <Text style={styles.setMeta}>
-                {set.status === "pending"
-                  ? `Planned ${set.targetReps} reps at ${set.targetWeight.value} lb`
-                  : `${set.actualReps ?? 0} reps at ${set.actualWeight?.value ?? set.targetWeight.value} lb`}
-              </Text>
-              <Text
-                style={[
-                  styles.setStatus,
-                  set.status === "completed" && styles.setStatusComplete,
-                  set.status === "failed" && styles.setStatusFailed
-                ]}
-              >
-                {formatSetStatus(set.status)}
+        return (
+          <View key={exercise.id} style={styles.exerciseCard}>
+            <View style={styles.exerciseHeader}>
+              <View style={styles.exerciseTitleRow}>
+                <Text style={styles.exerciseTitle}>{exercise.exerciseName}</Text>
+                {highlight ? <Text style={styles.exerciseHighlight}>{highlight}</Text> : null}
+              </View>
+              <Text style={styles.exerciseMeta}>
+                {exercise.targetSets} x {exercise.targetReps} at {exercise.targetWeight.value} lb
               </Text>
             </View>
-          ))}
 
-          <Text style={styles.feedbackText}>
-            Feedback: {exercise.effortFeedback ? exercise.effortFeedback.replace("_", " ") : "Not recorded"}
-          </Text>
-        </View>
-      ))}
+            {exercise.sets.map((set) => (
+              <View key={set.id} style={styles.setRow}>
+                <Text style={styles.setTitle}>Set {set.setNumber}</Text>
+                <Text style={styles.setMeta}>
+                  {set.status === "pending"
+                    ? `Planned ${set.targetReps} reps at ${set.targetWeight.value} lb`
+                    : `${set.actualReps ?? 0} reps at ${set.actualWeight?.value ?? set.targetWeight.value} lb`}
+                </Text>
+                <Text
+                  style={[
+                    styles.setStatus,
+                    set.status === "completed" && styles.setStatusComplete,
+                    set.status === "failed" && styles.setStatusFailed
+                  ]}
+                >
+                  {formatSetStatus(set.status)}
+                </Text>
+              </View>
+            ))}
+
+            <Text style={styles.feedbackText}>
+              Feedback: {exercise.effortFeedback ? exercise.effortFeedback.replace("_", " ") : "Not recorded"}
+            </Text>
+          </View>
+        );
+      })}
     </Screen>
   );
 }
@@ -191,6 +218,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700"
   },
+  highlightList: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.xs
+  },
+  highlightPill: {
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: 999,
+    color: colors.textPrimary,
+    fontSize: 12,
+    fontWeight: "800",
+    overflow: "hidden",
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6
+  },
   exerciseCard: {
     backgroundColor: colors.surface,
     borderColor: colors.border,
@@ -202,10 +244,30 @@ const styles = StyleSheet.create({
   exerciseHeader: {
     gap: spacing.xs
   },
+  exerciseTitleRow: {
+    alignItems: "flex-start",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+    justifyContent: "space-between"
+  },
   exerciseTitle: {
     color: colors.textPrimary,
+    flex: 1,
     fontSize: 22,
-    fontWeight: "800"
+    fontWeight: "800",
+    minWidth: 150
+  },
+  exerciseHighlight: {
+    backgroundColor: colors.success,
+    borderRadius: 999,
+    color: colors.surface,
+    flexShrink: 1,
+    fontSize: 12,
+    fontWeight: "800",
+    overflow: "hidden",
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6
   },
   exerciseMeta: {
     color: colors.textSecondary,

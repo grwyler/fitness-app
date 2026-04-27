@@ -49,8 +49,8 @@ A user can:
 - [x] Fix layout issues (reps + button overflow)
 - [x] Reps input polish (fast numeric entry, no friction)
 - [x] Weight input polish (quick adjust, previous value autofill)
-- [ ] Prevent mis-taps / duplicate sets
-- [ ] Add rest timer (simple, optional, non-blocking)
+- [x] Prevent mis-taps / duplicate sets
+- [x] Add rest timer (simple, optional, non-blocking)
 - [ ] Improve completion feedback (make it feel rewarding)
 
 ---

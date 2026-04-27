@@ -36,7 +36,7 @@ export function WorkoutExerciseCard(props: {
   submittingSetIds?: Record<string, boolean>;
   setLogDraftsBySetId: Record<string, SetLogDraft>;
   onChangeSetLogDraft: (setId: string, draft: SetLogDraft) => void;
-  onLogSet: (set: SetDto, draft: SetLogDraft) => void;
+  onLogSet: (exercise: ExerciseEntryDto, set: SetDto, draft: SetLogDraft) => void;
   onSelectFeedback: (feedback: EffortFeedback) => void;
 }) {
   return (
@@ -112,12 +112,18 @@ export function WorkoutExerciseCard(props: {
                           editable={!isLogging}
                           inputMode="numeric"
                           keyboardType="number-pad"
+                          maxLength={3}
                           onChangeText={(value) =>
                             props.onChangeSetLogDraft(set.id, {
                               ...draft,
                               repsText: normalizeRepsInput(value)
                             })
                           }
+                          onSubmitEditing={() => {
+                            if (canSubmit) {
+                              props.onLogSet(props.exercise, set, draft);
+                            }
+                          }}
                           returnKeyType="done"
                           selectTextOnFocus
                           style={styles.setInput}
@@ -152,12 +158,18 @@ export function WorkoutExerciseCard(props: {
                           editable={!isLogging}
                           inputMode="decimal"
                           keyboardType="decimal-pad"
+                          maxLength={7}
                           onChangeText={(value) =>
                             props.onChangeSetLogDraft(set.id, {
                               ...draft,
                               weightText: normalizeWeightInput(value)
                             })
                           }
+                          onSubmitEditing={() => {
+                            if (canSubmit) {
+                              props.onLogSet(props.exercise, set, draft);
+                            }
+                          }}
                           returnKeyType="done"
                           selectTextOnFocus
                           style={styles.weightInput}
@@ -193,8 +205,14 @@ export function WorkoutExerciseCard(props: {
                     {validation.error ?? outcomeText}
                   </Text>
                   <PrimaryButton
-                    label={isLogging ? "Saving..." : "Log set"}
-                    onPress={() => props.onLogSet(set, draft)}
+                    label={
+                      isLogging
+                        ? "Saving..."
+                        : request
+                          ? `Log ${request.actualReps} @ ${request.actualWeight?.value ?? set.targetWeight.value} lb`
+                          : "Log set"
+                    }
+                    onPress={() => props.onLogSet(props.exercise, set, draft)}
                     disabled={!canSubmit}
                     loading={isLogging}
                   />

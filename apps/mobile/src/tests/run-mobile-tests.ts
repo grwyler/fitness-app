@@ -5,6 +5,8 @@ import { feedbackTestCases } from "./feedback.test.js";
 import { progressionScreenTestCases } from "./progression-screen.test.js";
 import { setLoggingTestCases } from "./set-logging.test.js";
 import { activeWorkoutScreenTestCases } from "./active-workout-screen.test.js";
+import { workoutSummaryTestCases } from "./workout-summary.test.js";
+import { historyDetailTestCases } from "./history-detail.test.js";
 
 void runMobileTestCases([
   ...mobileApiTestCases,
@@ -12,5 +14,7 @@ void runMobileTestCases([
   ...feedbackTestCases,
   ...progressionScreenTestCases,
   ...setLoggingTestCases,
-  ...activeWorkoutScreenTestCases
+  ...activeWorkoutScreenTestCases,
+  ...workoutSummaryTestCases,
+  ...historyDetailTestCases
 ]);

@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import type { SetDto } from "@fitness/shared";
+import type { ExerciseEntryDto, SetDto } from "@fitness/shared";
 import { StyleSheet, Text, View } from "react-native";
 import { Screen } from "../components/Screen";
 import { LoadingState } from "../components/LoadingState";
@@ -19,10 +19,21 @@ import {
   getWorkoutCompletionErrorMessage,
   getWorkoutCompletionUiState
 } from "../features/workout/utils/active-workout-screen.shared";
-import { buildLogSetRequestFromDraft, type SetLogDraft } from "../features/workout/utils/set-logging.shared";
+import {
+  buildLogSetRequestFromDraft,
+  formatRestTimer,
+  getRestDurationSeconds,
+  type SetLogDraft
+} from "../features/workout/utils/set-logging.shared";
 import { colors, spacing } from "../theme/tokens";
 
 type Props = NativeStackScreenProps<RootStackParamList, "ActiveWorkout">;
+
+type RestTimerState = {
+  exerciseName: string;
+  secondsRemaining: number;
+  setNumber: number;
+} | null;
 
 export function ActiveWorkoutScreen({ navigation }: Props) {
   const currentWorkoutQuery = useCurrentWorkout();
@@ -36,6 +47,34 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
   const [lastAction, setLastAction] = useState<string | null>(null);
   const [submittingSetIds, setSubmittingSetIds] = useState<Record<string, boolean>>({});
   const [showFinishEarlyConfirmation, setShowFinishEarlyConfirmation] = useState(false);
+  const [restTimer, setRestTimer] = useState<RestTimerState>(null);
+  const inFlightSetIds = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!restTimer) {
+      return undefined;
+    }
+
+    if (restTimer.secondsRemaining <= 0) {
+      return undefined;
+    }
+
+    const interval = setInterval(() => {
+      setRestTimer((current) => {
+        if (!current) {
+          return null;
+        }
+
+        const nextSeconds = Math.max(0, current.secondsRemaining - 1);
+        return {
+          ...current,
+          secondsRemaining: nextSeconds
+        };
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [restTimer]);
 
   if (currentWorkoutQuery.isLoading) {
     return (
@@ -76,8 +115,8 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
 
   const completionUiState = getWorkoutCompletionUiState(workout, feedbackByEntryId);
 
-  function handleLogSet(set: SetDto, draft: SetLogDraft) {
-    if (submittingSetIds[set.id]) {
+  function handleLogSet(exercise: ExerciseEntryDto, set: SetDto, draft: SetLogDraft) {
+    if (submittingSetIds[set.id] || inFlightSetIds.current.has(set.id) || set.status !== "pending") {
       return;
     }
 
@@ -86,11 +125,28 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
       return;
     }
 
+    inFlightSetIds.current.add(set.id);
     setSubmittingSetIds((current) => ({
       ...current,
       [set.id]: true
     }));
     setLastAction(request.actualReps >= set.targetReps ? `completed_set:${set.id}` : `missed_set:${set.id}`);
+    const hasAnotherPendingSet = exercise.sets.some(
+      (candidate) => candidate.setNumber > set.setNumber && candidate.status === "pending"
+    );
+    const restSeconds = getRestDurationSeconds({
+      restSeconds: exercise.restSeconds,
+      exerciseCategory: exercise.category
+    });
+    if (hasAnotherPendingSet) {
+      setRestTimer({
+        exerciseName: exercise.exerciseName,
+        secondsRemaining: restSeconds,
+        setNumber: set.setNumber
+      });
+    } else {
+      setRestTimer(null);
+    }
     logSetMutation.mutate(
       {
         setId: set.id,
@@ -98,6 +154,7 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
       },
       {
         onSettled: () => {
+          inFlightSetIds.current.delete(set.id);
           setSubmittingSetIds((current) => {
             const next = { ...current };
             delete next[set.id];
@@ -156,6 +213,25 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
           {workout.exercises.length} exercises in {workout.programName}
         </Text>
       </View>
+
+      {restTimer ? (
+        <View style={styles.restTimerCard}>
+          <View style={styles.restTimerTextGroup}>
+            <Text style={styles.restTimerLabel}>
+              {restTimer.secondsRemaining > 0 ? "Rest timer" : "Rest done"}
+            </Text>
+            <Text style={styles.restTimerTitle}>
+              {restTimer.exerciseName} after set {restTimer.setNumber}
+            </Text>
+          </View>
+          <View style={styles.restTimerValueGroup}>
+            <Text style={styles.restTimerValue}>{formatRestTimer(restTimer.secondsRemaining)}</Text>
+            <Text style={styles.restTimerSkip} onPress={() => setRestTimer(null)}>
+              Skip
+            </Text>
+          </View>
+        </View>
+      ) : null}
 
       {workout.exercises.map((exercise) => (
         <WorkoutExerciseCard
@@ -236,6 +312,45 @@ const styles = StyleSheet.create({
   subtitle: {
     color: colors.textSecondary,
     fontSize: 16
+  },
+  restTimerCard: {
+    alignItems: "center",
+    backgroundColor: colors.textPrimary,
+    borderRadius: 18,
+    flexDirection: "row",
+    gap: spacing.md,
+    justifyContent: "space-between",
+    padding: spacing.md
+  },
+  restTimerTextGroup: {
+    flex: 1,
+    gap: 4
+  },
+  restTimerLabel: {
+    color: colors.surfaceMuted,
+    fontSize: 12,
+    fontWeight: "800",
+    textTransform: "uppercase"
+  },
+  restTimerTitle: {
+    color: colors.surface,
+    fontSize: 15,
+    fontWeight: "700",
+    lineHeight: 20
+  },
+  restTimerValueGroup: {
+    alignItems: "flex-end",
+    gap: 2
+  },
+  restTimerValue: {
+    color: colors.surface,
+    fontSize: 26,
+    fontWeight: "800"
+  },
+  restTimerSkip: {
+    color: colors.surfaceMuted,
+    fontSize: 13,
+    fontWeight: "800"
   },
   footer: {
     backgroundColor: colors.surface,

@@ -3,7 +3,9 @@ import type { SetDto } from "@fitness/shared";
 import {
   adjustWeightText,
   buildLogSetRequestFromDraft,
+  formatRestTimer,
   getPreviousLoggedSet,
+  getRestDurationSeconds,
   getSetLogDefaultDraft,
   getSetOutcomeText,
   getSetStatusLabel,
@@ -127,6 +129,16 @@ export const setLoggingTestCases: MobileTestCase[] = [
       assert.equal(getSetStatusLabel(createSet({ status: "failed" })), "Missed reps");
       assert.equal(getSetOutcomeText({ actualReps: 8, targetReps: 8 }), "Meets target");
       assert.equal(getSetOutcomeText({ actualReps: 7, targetReps: 8 }), "Below target");
+    }
+  },
+  {
+    name: "Rest timer helpers use exercise rest targets and fallback defaults",
+    run: () => {
+      assert.equal(getRestDurationSeconds({ restSeconds: 90, exerciseCategory: "compound" }), 90);
+      assert.equal(getRestDurationSeconds({ restSeconds: null, exerciseCategory: "accessory" }), 75);
+      assert.equal(getRestDurationSeconds({ restSeconds: null, exerciseCategory: "compound" }), 120);
+      assert.equal(formatRestTimer(75), "1:15");
+      assert.equal(formatRestTimer(0), "0:00");
     }
   }
 ];

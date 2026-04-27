@@ -90,6 +90,15 @@ export function WorkoutHistoryScreen({ navigation }: Props) {
             {item.failedSetCount > 0 ? (
               <Text style={styles.warningText}>{item.failedSetCount} failed sets</Text>
             ) : null}
+            {item.highlights.length > 0 ? (
+              <View style={styles.highlightList}>
+                {item.highlights.slice(0, 3).map((highlight) => (
+                  <Text key={highlight} style={styles.highlightPill}>
+                    {highlight}
+                  </Text>
+                ))}
+              </View>
+            ) : null}
             <Text style={styles.detailHint}>View details</Text>
           </Pressable>
         ))
@@ -164,6 +173,21 @@ const styles = StyleSheet.create({
     color: colors.accentStrong,
     fontSize: 14,
     fontWeight: "700"
+  },
+  highlightList: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.xs
+  },
+  highlightPill: {
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: 999,
+    color: colors.textPrimary,
+    fontSize: 12,
+    fontWeight: "800",
+    overflow: "hidden",
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6
   },
   detailHint: {
     color: colors.accentStrong,

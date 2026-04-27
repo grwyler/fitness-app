@@ -6,6 +6,10 @@ import { Screen } from "../components/Screen";
 import { PrimaryButton } from "../components/PrimaryButton";
 import type { RootStackParamList } from "../core/navigation/navigation-types";
 import { FeedbackButton } from "../features/feedback/components/FeedbackButton";
+import {
+  getWorkoutSummaryHeadline,
+  getWorkoutSummaryStats
+} from "../features/workout/utils/workout-summary.shared";
 import { colors, spacing } from "../theme/tokens";
 
 type Props = NativeStackScreenProps<RootStackParamList, "WorkoutSummary">;
@@ -13,35 +17,64 @@ type Props = NativeStackScreenProps<RootStackParamList, "WorkoutSummary">;
 export function WorkoutSummaryScreen({ navigation, route }: Props) {
   const { summary } = route.params;
   const [lastAction, setLastAction] = useState<string | null>("completed_workout");
+  const stats = getWorkoutSummaryStats(summary.workoutSession);
+  const headline = getWorkoutSummaryHeadline(summary);
 
   return (
     <Screen>
       <View style={styles.hero}>
         <Text style={styles.eyebrow}>Workout complete</Text>
         <Text style={styles.title}>{summary.workoutSession.workoutName}</Text>
-        <Text style={styles.subtitle}>
+        <Text style={styles.subtitle}>{headline}</Text>
+      </View>
+
+      <View style={styles.successCard}>
+        <Text style={styles.successTitle}>Saved to your training history.</Text>
+        <Text style={styles.successBody}>
+          {stats.completedSetCount}/{stats.plannedSetCount} sets completed
+          {stats.failedSetCount > 0 ? ` - ${stats.failedSetCount} missed` : ""}.
+        </Text>
+        <View style={styles.statGrid}>
+          <View style={styles.statBlock}>
+            <Text style={styles.successLabel}>Volume</Text>
+            <Text style={styles.statValue}>{Math.round(stats.totalVolume).toLocaleString()} lb</Text>
+          </View>
+          <View style={styles.statBlock}>
+            <Text style={styles.successLabel}>Duration</Text>
+            <Text style={styles.statValue}>{stats.durationMinutes ? `${stats.durationMinutes} min` : "Saved"}</Text>
+          </View>
+        </View>
+        <Text style={styles.successBody}>
           Next workout: {summary.nextWorkoutTemplate?.name ?? "No next workout queued"}
         </Text>
       </View>
 
       <View style={styles.card}>
         <Text style={styles.cardLabel}>Progression updates</Text>
-        {summary.progressionUpdates.map((update: ProgressionUpdateDto) => (
-          <View key={update.exerciseId} style={styles.row}>
-            <Text style={styles.rowTitle}>{update.exerciseName}</Text>
-            <Text style={styles.rowBody}>{`${update.previousWeight.value} lb -> ${update.nextWeight.value} lb`}</Text>
-            <Text style={styles.rowBody}>{update.reason}</Text>
-          </View>
-        ))}
+        {summary.progressionUpdates.length === 0 ? (
+          <Text style={styles.rowBody}>No progression changes for this workout.</Text>
+        ) : (
+          summary.progressionUpdates.map((update: ProgressionUpdateDto) => (
+            <View key={update.exerciseId} style={styles.row}>
+              <Text style={styles.rowTitle}>{update.exerciseName}</Text>
+              <Text style={styles.rowBody}>{`${update.previousWeight.value} lb -> ${update.nextWeight.value} lb`}</Text>
+              <Text style={styles.rowBody}>{update.reason}</Text>
+            </View>
+          ))
+        )}
       </View>
 
       <View style={styles.card}>
         <Text style={styles.cardLabel}>Recorded metrics</Text>
-        {summary.progressMetrics.map((metric: ProgressMetricDto) => (
-          <Text key={metric.id} style={styles.rowBody}>
-            {metric.displayText}
-          </Text>
-        ))}
+        {summary.progressMetrics.length === 0 ? (
+          <Text style={styles.rowBody}>Workout completed.</Text>
+        ) : (
+          summary.progressMetrics.map((metric: ProgressMetricDto) => (
+            <Text key={metric.id} style={styles.rowBody}>
+              {metric.displayText}
+            </Text>
+          ))
+        )}
       </View>
 
       <FeedbackButton
@@ -87,6 +120,46 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     gap: spacing.sm,
     padding: spacing.lg
+  },
+  successCard: {
+    backgroundColor: colors.textPrimary,
+    borderRadius: 22,
+    gap: spacing.md,
+    padding: spacing.lg
+  },
+  successTitle: {
+    color: colors.surface,
+    fontSize: 22,
+    fontWeight: "800"
+  },
+  successBody: {
+    color: colors.surfaceMuted,
+    fontSize: 15,
+    lineHeight: 21
+  },
+  successLabel: {
+    color: colors.surfaceMuted,
+    fontSize: 12,
+    fontWeight: "800",
+    textTransform: "uppercase"
+  },
+  statGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm
+  },
+  statBlock: {
+    backgroundColor: "rgba(255, 250, 242, 0.12)",
+    borderRadius: 16,
+    flexGrow: 1,
+    gap: spacing.xs,
+    minWidth: 120,
+    padding: spacing.md
+  },
+  statValue: {
+    color: colors.surface,
+    fontSize: 22,
+    fontWeight: "800"
   },
   cardLabel: {
     color: colors.accentStrong,

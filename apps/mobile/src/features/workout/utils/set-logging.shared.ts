@@ -113,6 +113,24 @@ export function buildLogSetRequestFromDraft(draft: SetLogDraft): LogSetRequest |
   };
 }
 
+export function getRestDurationSeconds(input: {
+  restSeconds: number | null;
+  exerciseCategory?: string;
+}) {
+  if (typeof input.restSeconds === "number" && input.restSeconds > 0) {
+    return input.restSeconds;
+  }
+
+  return input.exerciseCategory === "accessory" ? 75 : 120;
+}
+
+export function formatRestTimer(secondsRemaining: number) {
+  const safeSeconds = Math.max(0, Math.ceil(secondsRemaining));
+  const minutes = Math.floor(safeSeconds / 60);
+  const seconds = safeSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
+
 export function getSetStatusLabel(set: SetDto) {
   if (set.status === "completed") {
     return "Done";
