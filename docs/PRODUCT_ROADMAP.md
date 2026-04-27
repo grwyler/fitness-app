@@ -47,8 +47,8 @@ A user can:
 
 - [x] Improve set logging UX
 - [x] Fix layout issues (reps + button overflow)
-- [ ] Reps input polish (fast numeric entry, no friction)
-- [ ] Weight input polish (quick adjust, previous value autofill)
+- [x] Reps input polish (fast numeric entry, no friction)
+- [x] Weight input polish (quick adjust, previous value autofill)
 - [ ] Prevent mis-taps / duplicate sets
 - [ ] Add rest timer (simple, optional, non-blocking)
 - [ ] Improve completion feedback (make it feel rewarding)
