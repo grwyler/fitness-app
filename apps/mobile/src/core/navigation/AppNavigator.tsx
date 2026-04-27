@@ -11,6 +11,7 @@ import { FeedbackDebugScreen } from "../../screens/FeedbackDebugScreen";
 import { AuthLoadingScreen } from "../../screens/AuthLoadingScreen";
 import { SignInScreen } from "../../screens/SignInScreen";
 import { SignUpScreen } from "../../screens/SignUpScreen";
+import { logSafeAuthDiagnostic } from "../auth/auth-debug";
 import { colors } from "../../theme/tokens";
 import { useAppAuth } from "../auth/AuthProvider";
 
@@ -19,12 +20,17 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 export function AppNavigator() {
   const auth = useAppAuth();
 
+  logSafeAuthDiagnostic("navigator_auth_status", {
+    status: auth.status
+  });
+
   if (auth.status === "checking_session") {
     return <AuthLoadingScreen />;
   }
 
   return (
     <Stack.Navigator
+      key={auth.status}
       id="root-stack"
       initialRouteName={auth.status === "authenticated" ? "Dashboard" : "SignIn"}
       screenOptions={{

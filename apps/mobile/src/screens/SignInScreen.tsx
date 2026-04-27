@@ -9,7 +9,8 @@ import {
   appendAuthDebugTimeline,
   getAuthDebugTimeline,
   getLastAuthDebugMessage,
-  isDevAuthDebugEnabled
+  isDevAuthDebugEnabled,
+  logSafeAuthDiagnostic
 } from "../core/auth/auth-debug";
 import { colors, spacing } from "../theme/tokens";
 
@@ -31,6 +32,10 @@ async function resolveSessionToken(getToken: ReturnType<typeof useAuth>["getToke
       token = await getToken({ skipCache: true });
     }
 
+    logSafeAuthDiagnostic("sign_in_get_token_result", {
+      attempt: String(attempt + 1),
+      tokenPresent: Boolean(token)
+    });
     appendAuthDebugTimeline("sign_in_get_token_result", `attempt=${attempt + 1}; tokenPresent=${token ? "yes" : "no"}`);
     if (token) {
       return token;
@@ -79,25 +84,42 @@ export function SignInScreen({ navigation }: Props) {
 
   const activateCompletedSession = async () => {
     if (!signIn?.createdSessionId) {
+      logSafeAuthDiagnostic("sign_in_created_session_missing", {
+        signInStatus: signIn?.status ?? "unknown"
+      });
       appendAuthDebugTimeline("sign_in_created_session_missing", `status=${signIn?.status ?? "unknown"}`);
       setErrorMessage("Sign in completed without creating a session.");
       return;
     }
 
+    logSafeAuthDiagnostic("sign_in_set_active_started", {
+      createdSessionPresent: true,
+      signInStatus: signIn.status
+    });
     appendAuthDebugTimeline("sign_in_set_active_called", `status=${signIn.status}; createdSessionId=${signIn.createdSessionId}`);
 
     try {
       await setActive({
         session: signIn.createdSessionId
       });
+      logSafeAuthDiagnostic("sign_in_set_active_resolved", {
+        createdSessionPresent: true
+      });
       appendAuthDebugTimeline("sign_in_set_active_resolved", `session=${signIn.createdSessionId}`);
 
       const resolvedToken = await resolveSessionToken(getToken);
       if (!resolvedToken) {
+        logSafeAuthDiagnostic("sign_in_token_missing_after_set_active", {
+          createdSessionPresent: true,
+          tokenPresent: false
+        });
         appendAuthDebugTimeline("sign_in_token_missing_after_set_active");
         setErrorMessage("Sign in completed, but no auth token was available afterward.");
       }
     } catch (error) {
+      logSafeAuthDiagnostic("sign_in_set_active_threw", {
+        createdSessionPresent: true
+      });
       appendAuthDebugTimeline("sign_in_set_active_threw", getErrorMessage(error));
       setErrorMessage(getErrorMessage(error));
     }
@@ -148,6 +170,10 @@ export function SignInScreen({ navigation }: Props) {
       }
 
       if (signIn.status === "complete") {
+        logSafeAuthDiagnostic("sign_in_password_complete", {
+          createdSessionPresent: Boolean(signIn.createdSessionId),
+          signInStatus: signIn.status
+        });
         appendAuthDebugTimeline("sign_in_complete_before_dashboard_navigation");
         await activateCompletedSession();
       }
@@ -180,6 +206,10 @@ export function SignInScreen({ navigation }: Props) {
       );
 
       if (signIn.status === "complete") {
+        logSafeAuthDiagnostic("sign_in_verification_complete", {
+          createdSessionPresent: Boolean(signIn.createdSessionId),
+          signInStatus: signIn.status
+        });
         appendAuthDebugTimeline("sign_in_verification_complete_before_dashboard_navigation");
         await activateCompletedSession();
       } else {

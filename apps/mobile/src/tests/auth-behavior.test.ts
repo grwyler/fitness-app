@@ -38,6 +38,19 @@ export const authBehaviorTestCases: MobileTestCase[] = [
     }
   },
   {
+    name: "Auth status waits for Clerk before showing signed-out routes",
+    run: () => {
+      const status = deriveAuthStatus({
+        isLoaded: false,
+        isSignedIn: false,
+        tokenPresent: false,
+        tokenStatus: "idle"
+      });
+
+      assert.equal(status, "checking_session");
+    }
+  },
+  {
     name: "Auth status stays authenticated when token is already present during refresh",
     run: () => {
       const status = deriveAuthStatus({

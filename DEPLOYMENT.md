@@ -81,6 +81,12 @@ Optional diagnostic flag:
 
 - `EXPO_PUBLIC_AUTH_DIAGNOSTICS=1`: logs safe auth state diagnostics such as Clerk key type, masked key suffix, Clerk loaded, signed-in state, session presence, user-id presence, and token presence. It does not log secrets or token values.
 
+When diagnosing production sign-in loops, enable `EXPO_PUBLIC_AUTH_DIAGNOSTICS=1` on the web Vercel project and redeploy. In the browser console:
+
+- `auth_clerk_signed_out` after verification means Clerk loaded but did not restore a signed-in session; verify the Vercel publishable key and the Clerk DEVELOPMENT instance origin/redirect settings.
+- `auth_get_token_ready` followed by `navigator_auth_status` with `authenticated` means Clerk session persistence worked and the app should render the dashboard.
+- `auth_get_token_unavailable` or repeated `auth_get_token_missing` means Clerk reported a session but did not return a token.
+
 Do not point the production web app at localhost or at a preview-only API.
 If the deployed MVP uses Clerk development keys, production web builds log a warning but still allow the deploy. The key must be a real Clerk publishable key starting with `pk_test_` or `pk_live_`; do not edit key prefixes by hand.
 

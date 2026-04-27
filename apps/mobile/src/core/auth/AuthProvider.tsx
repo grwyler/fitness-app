@@ -109,6 +109,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
         setGetTokenState("idle");
         setTimeoutReached(false);
         setLoadingReason("Waiting for Clerk to load.");
+        logSafeAuthDiagnostic("auth_waiting_for_clerk", {
+          isClerkLoaded: false,
+          isSignedIn: Boolean(isSignedIn)
+        });
         appendAuthDebugTimeline("auth_provider_waiting_for_clerk");
         return;
       }
@@ -120,6 +124,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
         setTimeoutReached(false);
         setLoadingReason("User is signed out.");
         lastReadySessionIdRef.current = null;
+        logSafeAuthDiagnostic("auth_clerk_signed_out", {
+          isClerkLoaded: true,
+          isSignedIn: false,
+          sessionPresent: Boolean(session?.id),
+          userIdPresent: Boolean(user?.id)
+        });
         appendAuthDebugTimeline("auth_provider_signed_out");
         return;
       }
@@ -129,6 +139,13 @@ export function AuthProvider({ children }: PropsWithChildren) {
         setGetTokenState("resolved");
         setTimeoutReached(false);
         setLoadingReason(null);
+        logSafeAuthDiagnostic("auth_reusing_validated_session", {
+          isClerkLoaded: true,
+          isSignedIn: true,
+          sessionPresent: Boolean(session?.id),
+          tokenPresent: true,
+          userIdPresent: Boolean(user?.id)
+        });
         appendAuthDebugTimeline("auth_provider_reusing_validated_session", `session=${currentSessionId}`);
         return;
       }
@@ -172,6 +189,13 @@ export function AuthProvider({ children }: PropsWithChildren) {
             setGetTokenState("threw");
             setTokenStatusWithReason("unavailable", "getToken threw while checking session.");
             setLoadingReason("getToken threw while checking session.");
+            logSafeAuthDiagnostic("auth_get_token_threw", {
+              attempt: String(attempt + 1),
+              isClerkLoaded: isLoaded,
+              isSignedIn: Boolean(isSignedIn),
+              sessionPresent: Boolean(session?.id),
+              userIdPresent: Boolean(user?.id)
+            });
             appendAuthDebugTimeline(
               "auth_provider_get_token_threw",
               error instanceof Error ? error.message : "Unknown getToken error."
@@ -195,6 +219,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
           setLoadingReason(null);
           lastReadySessionIdRef.current = currentSessionId;
           setLastKnownAuthToken(token, "auth_provider_ready");
+          logSafeAuthDiagnostic("auth_get_token_ready", {
+            attempt: String(attempt + 1),
+            isClerkLoaded: isLoaded,
+            isSignedIn: Boolean(isSignedIn),
+            sessionPresent: Boolean(session?.id),
+            tokenPresent: true,
+            userIdPresent: Boolean(user?.id)
+          });
           appendAuthDebugTimeline("auth_client_token_stored", "source=auth_provider_ready");
           appendAuthDebugTimeline("auth_provider_token_ready", `attempt=${attempt + 1}`);
           return;
@@ -204,6 +236,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
           setTokenPresent(false);
         }
         setLoadingReason(`Token unavailable after attempt ${attempt + 1}.`);
+        logSafeAuthDiagnostic("auth_get_token_missing", {
+          attempt: String(attempt + 1),
+          isClerkLoaded: isLoaded,
+          isSignedIn: Boolean(isSignedIn),
+          sessionPresent: Boolean(session?.id),
+          tokenPresent: false,
+          userIdPresent: Boolean(user?.id)
+        });
         appendAuthDebugTimeline("auth_provider_token_missing_attempt", `attempt=${attempt + 1}`);
 
         await new Promise(resolve => setTimeout(resolve, 250));
@@ -216,6 +256,13 @@ export function AuthProvider({ children }: PropsWithChildren) {
         setGetTokenState("resolved");
         setTokenStatusWithReason("unavailable", "Clerk returned no token for a signed-in user.");
         setLoadingReason("Clerk returned no token for a signed-in user.");
+        logSafeAuthDiagnostic("auth_get_token_unavailable", {
+          isClerkLoaded: isLoaded,
+          isSignedIn: Boolean(isSignedIn),
+          sessionPresent: Boolean(session?.id),
+          tokenPresent: false,
+          userIdPresent: Boolean(user?.id)
+        });
         appendAuthDebugTimeline("auth_provider_token_unavailable");
       }
     }
@@ -228,7 +275,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         clearTimeout(timeoutId);
       }
     };
-  }, [isLoaded, isSignedIn, resolveTokenWithTimeout, session?.id, setTokenStatusWithReason, tokenPresent]);
+  }, [isLoaded, isSignedIn, resolveTokenWithTimeout, session?.id, setTokenStatusWithReason, tokenPresent, user?.id]);
 
   useEffect(() => {
     const unregister = registerAuthBridge({
