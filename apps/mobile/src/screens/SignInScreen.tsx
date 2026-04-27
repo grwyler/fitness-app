@@ -1,10 +1,16 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { StyleSheet, Text, TextInput, View } from "react-native";
-import { useSignIn } from "@clerk/expo";
+import { useAuth, useClerk, useSignIn } from "@clerk/expo";
 import { Screen } from "../components/Screen";
 import { PrimaryButton } from "../components/PrimaryButton";
 import type { RootStackParamList } from "../core/navigation/navigation-types";
+import {
+  appendAuthDebugTimeline,
+  getAuthDebugTimeline,
+  getLastAuthDebugMessage,
+  isDevAuthDebugEnabled
+} from "../core/auth/auth-debug";
 import { colors, spacing } from "../theme/tokens";
 
 type Props = NativeStackScreenProps<RootStackParamList, "SignIn">;
@@ -18,78 +24,175 @@ function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Unable to sign in.";
 }
 
+async function resolveSessionToken(getToken: ReturnType<typeof useAuth>["getToken"]) {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    let token = await getToken();
+    if (!token) {
+      token = await getToken({ skipCache: true });
+    }
+
+    appendAuthDebugTimeline("sign_in_get_token_result", `attempt=${attempt + 1}; tokenPresent=${token ? "yes" : "no"}`);
+    if (token) {
+      return token;
+    }
+
+    await new Promise(resolve => setTimeout(resolve, 250));
+  }
+
+  return null;
+}
+
 export function SignInScreen({ navigation }: Props) {
+  const showDevAuthDebug = isDevAuthDebugEnabled();
+  const { getToken } = useAuth();
+  const { setActive } = useClerk();
   const { fetchStatus, signIn } = useSignIn();
   const [emailAddress, setEmailAddress] = useState("");
   const [password, setPassword] = useState("");
   const [verificationCode, setVerificationCode] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [needsVerification, setNeedsVerification] = useState(false);
+  const [devAuthMessage, setDevAuthMessage] = useState<string | null>(null);
 
-  const handleSubmit = async () => {
-    if (!signIn || fetchStatus === "fetching") {
+  useEffect(() => {
+    const authDebugMessage = getLastAuthDebugMessage();
+    if (authDebugMessage) {
+      setDevAuthMessage(authDebugMessage);
+      appendAuthDebugTimeline("sign_in_screen_consumed_auth_debug", authDebugMessage);
+    }
+  }, []);
+
+  const handleEmailChange = (value: string) => {
+    setEmailAddress(value);
+    setErrorMessage(null);
+  };
+
+  const handlePasswordChange = (value: string) => {
+    setPassword(value);
+    setErrorMessage(null);
+  };
+
+  const handleVerificationCodeChange = (value: string) => {
+    setVerificationCode(value);
+    setErrorMessage(null);
+  };
+
+  const activateCompletedSession = async () => {
+    if (!signIn?.createdSessionId) {
+      appendAuthDebugTimeline("sign_in_created_session_missing", `status=${signIn?.status ?? "unknown"}`);
+      setErrorMessage("Sign in completed without creating a session.");
       return;
     }
 
+    appendAuthDebugTimeline("sign_in_set_active_called", `status=${signIn.status}; createdSessionId=${signIn.createdSessionId}`);
+
+    try {
+      await setActive({
+        session: signIn.createdSessionId
+      });
+      appendAuthDebugTimeline("sign_in_set_active_resolved", `session=${signIn.createdSessionId}`);
+
+      const resolvedToken = await resolveSessionToken(getToken);
+      if (!resolvedToken) {
+        appendAuthDebugTimeline("sign_in_token_missing_after_set_active");
+        setErrorMessage("Sign in completed, but no auth token was available afterward.");
+      }
+    } catch (error) {
+      appendAuthDebugTimeline("sign_in_set_active_threw", getErrorMessage(error));
+      setErrorMessage(getErrorMessage(error));
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!signIn || fetchStatus === "fetching") {
+      appendAuthDebugTimeline(
+        "sign_in_submit_skipped",
+        `signInPresent=${signIn ? "yes" : "no"}; fetchStatus=${fetchStatus}`
+      );
+      return;
+    }
+
+    appendAuthDebugTimeline("sign_in_submit_entered");
     setErrorMessage(null);
 
     try {
+      appendAuthDebugTimeline("clerk_sign_in_password_started", `email=${emailAddress.trim()}`);
       const { error } = await signIn.password({
         emailAddress: emailAddress.trim(),
         password
       });
+      appendAuthDebugTimeline(
+        "clerk_sign_in_password_finished",
+        `status=${signIn.status}; createdSessionId=${signIn.createdSessionId ?? "none"}; error=${error ? "yes" : "no"}`
+      );
 
       if (error) {
+        appendAuthDebugTimeline("sign_in_password_error", getErrorMessage(error));
         setErrorMessage(getErrorMessage(error));
         return;
       }
 
       if (signIn.status === "needs_second_factor" || signIn.status === "needs_client_trust") {
         const emailCodeFactor = signIn.supportedSecondFactors.find(
-          (factor) => factor.strategy === "email_code"
+          factor => factor.strategy === "email_code"
         );
 
         if (emailCodeFactor) {
+          appendAuthDebugTimeline("sign_in_second_factor_email_code_sending");
           await signIn.mfa.sendEmailCode();
         }
 
+        appendAuthDebugTimeline("sign_in_second_factor_required");
         setNeedsVerification(true);
         return;
       }
 
       if (signIn.status === "complete") {
-        await signIn.finalize({
-          navigate: () => {}
-        });
+        appendAuthDebugTimeline("sign_in_complete_before_dashboard_navigation");
+        await activateCompletedSession();
       }
     } catch (error) {
+      appendAuthDebugTimeline("sign_in_submit_threw", getErrorMessage(error));
       setErrorMessage(getErrorMessage(error));
     }
   };
 
   const handleVerification = async () => {
     if (!signIn || fetchStatus === "fetching") {
+      appendAuthDebugTimeline(
+        "sign_in_verification_skipped",
+        `signInPresent=${signIn ? "yes" : "no"}; fetchStatus=${fetchStatus}`
+      );
       return;
     }
 
+    appendAuthDebugTimeline("sign_in_verification_entered");
     setErrorMessage(null);
 
     try {
+      appendAuthDebugTimeline("clerk_sign_in_verify_email_code_started");
       await signIn.mfa.verifyEmailCode({
         code: verificationCode.trim()
       });
+      appendAuthDebugTimeline(
+        "clerk_sign_in_verify_email_code_finished",
+        `status=${signIn.status}; createdSessionId=${signIn.createdSessionId ?? "none"}`
+      );
 
       if (signIn.status === "complete") {
-        await signIn.finalize({
-          navigate: () => {}
-        });
+        appendAuthDebugTimeline("sign_in_verification_complete_before_dashboard_navigation");
+        await activateCompletedSession();
       } else {
+        appendAuthDebugTimeline("sign_in_verification_incomplete", `status=${signIn.status}`);
         setErrorMessage("Sign in verification is not complete yet.");
       }
     } catch (error) {
+      appendAuthDebugTimeline("sign_in_verification_threw", getErrorMessage(error));
       setErrorMessage(getErrorMessage(error));
     }
   };
+
+  const devTimeline = showDevAuthDebug ? getAuthDebugTimeline().slice(-12) : [];
 
   return (
     <Screen>
@@ -107,7 +210,7 @@ export function SignInScreen({ navigation }: Props) {
               autoCapitalize="none"
               autoComplete="email"
               keyboardType="email-address"
-              onChangeText={setEmailAddress}
+              onChangeText={handleEmailChange}
               placeholder="you@example.com"
               placeholderTextColor={colors.textSecondary}
               style={styles.input}
@@ -118,7 +221,7 @@ export function SignInScreen({ navigation }: Props) {
             <TextInput
               autoCapitalize="none"
               autoComplete="password"
-              onChangeText={setPassword}
+              onChangeText={handlePasswordChange}
               placeholder="Password"
               placeholderTextColor={colors.textSecondary}
               secureTextEntry
@@ -132,7 +235,7 @@ export function SignInScreen({ navigation }: Props) {
             <TextInput
               autoCapitalize="none"
               keyboardType="number-pad"
-              onChangeText={setVerificationCode}
+              onChangeText={handleVerificationCodeChange}
               placeholder="Enter your verification code"
               placeholderTextColor={colors.textSecondary}
               style={styles.input}
@@ -154,6 +257,19 @@ export function SignInScreen({ navigation }: Props) {
           tone="secondary"
         />
       </View>
+
+      {showDevAuthDebug && (devAuthMessage || devTimeline.length > 0) ? (
+        <View style={styles.devCard}>
+          <Text style={styles.devTitle}>Auth Debug</Text>
+          {devAuthMessage ? <Text style={styles.devLine}>{devAuthMessage}</Text> : null}
+          {devTimeline.map((entry, index) => (
+            <Text key={`${entry.at}-${index}`} style={styles.devLine}>
+              {entry.at} | {entry.event}
+              {entry.details ? ` | ${entry.details}` : ""}
+            </Text>
+          ))}
+        </View>
+      ) : null}
     </Screen>
   );
 }
@@ -207,5 +323,21 @@ const styles = StyleSheet.create({
     color: "#9c3b31",
     fontSize: 14,
     lineHeight: 20
+  },
+  devCard: {
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: 16,
+    gap: spacing.xs,
+    padding: spacing.md
+  },
+  devTitle: {
+    color: colors.textPrimary,
+    fontSize: 13,
+    fontWeight: "700"
+  },
+  devLine: {
+    color: colors.textSecondary,
+    fontSize: 11,
+    lineHeight: 16
   }
 });

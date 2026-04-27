@@ -20,13 +20,10 @@ function resolvePlatformOs() {
   }
 }
 
-const hostedApiBaseUrl = "https://fitness-app-hazel-nine.vercel.app/api/v1";
 const platformOs = resolvePlatformOs();
 
 const defaultApiBaseUrl =
-  platformOs === "web"
-    ? hostedApiBaseUrl
-    : platformOs === "android"
+  platformOs === "android"
       ? "http://10.0.2.2:4000/api/v1"
       : "http://127.0.0.1:4000/api/v1";
 

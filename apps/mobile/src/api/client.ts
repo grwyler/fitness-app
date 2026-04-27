@@ -1,13 +1,16 @@
 import type { ApiErrorEnvelope, ApiSuccessEnvelope } from "@fitness/shared";
 import { apiConfig } from "./config";
 import { MobileApiError } from "./errors";
-import { getAuthToken, handleUnauthorizedResponse } from "../core/auth/auth-bridge";
+import { getAuthToken, getLastKnownAuthTokenSource, handleUnauthorizedResponse } from "../core/auth/auth-bridge";
+import { appendAuthDebugTimeline, setLastAuthDebugMessage } from "../core/auth/auth-debug";
 
 type RequestOptions = {
   method?: "GET" | "POST";
   body?: unknown;
   idempotencyKey?: string;
 };
+
+const isDevEnvironment = typeof __DEV__ !== "undefined" && __DEV__;
 
 function isApiErrorEnvelope(value: unknown): value is ApiErrorEnvelope {
   return (
@@ -29,6 +32,23 @@ export async function apiRequest<TData, TMeta extends Record<string, unknown> = 
   options?: RequestOptions
 ): Promise<ApiSuccessEnvelope<TData, TMeta>> {
   const token = await getAuthToken();
+  const tokenSource = token ? getLastKnownAuthTokenSource() ?? "live_bridge" : "none";
+  const requestUrl = `${apiConfig.baseUrl}${path}`;
+  appendAuthDebugTimeline(
+    "api_request_prepared",
+    `path=${path}; url=${requestUrl}; tokenPresent=${token ? "yes" : "no"}; tokenSource=${tokenSource}`
+  );
+  if (!token) {
+    appendAuthDebugTimeline("api_request_blocked_token_not_ready", `path=${path}; tokenSource=${tokenSource}`);
+  }
+  if (isDevEnvironment) {
+    console.info("[mobile-api] request", {
+      authorizationHeaderSet: Boolean(token),
+      path,
+      tokenSource,
+      url: requestUrl
+    });
+  }
   const response = await fetch(`${apiConfig.baseUrl}${path}`, {
     method: options?.method ?? "GET",
     headers: {
@@ -44,7 +64,16 @@ export async function apiRequest<TData, TMeta extends Record<string, unknown> = 
 
   if (!response.ok) {
     if (response.status === 401) {
-      await handleUnauthorizedResponse();
+      const debugMessage = isApiErrorEnvelope(payload)
+        ? `Authenticated API request failed with 401 on ${path}. Token present: ${token ? "yes" : "no"}. Backend code: ${payload.error.code}. Message: ${payload.error.message}.`
+        : `Authenticated API request failed with 401 on ${path}. Token present: ${token ? "yes" : "no"}.`;
+      appendAuthDebugTimeline("api_request_401", debugMessage);
+      setLastAuthDebugMessage(debugMessage);
+      if (token) {
+        await handleUnauthorizedResponse();
+      } else {
+        appendAuthDebugTimeline("api_request_401_without_token_skipped_sign_out", `path=${path}`);
+      }
     }
 
     if (isApiErrorEnvelope(payload)) {

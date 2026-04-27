@@ -75,6 +75,18 @@ Optional:
 
 ## Deploy the API
 
+### GitHub Actions flow
+
+Merges to `main` deploy to Vercel automatically via [`.github/workflows/vercel-production.yml`](C:\Users\Grwyl\repos\fitness-app\.github\workflows\vercel-production.yml).
+
+Add these repository secrets in GitHub before relying on the workflow:
+
+- `VERCEL_TOKEN`
+- `VERCEL_ORG_ID`
+- `VERCEL_PROJECT_ID`
+
+The workflow can also be started manually from the GitHub Actions tab with `workflow_dispatch`.
+
 ### Dashboard flow
 
 1. Push the repo to GitHub.

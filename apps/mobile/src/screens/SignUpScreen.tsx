@@ -1,13 +1,29 @@
-import { useState } from "react";
+import { createElement, useState } from "react";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { StyleSheet, Text, TextInput, View } from "react-native";
-import { useSignUp } from "@clerk/expo";
+import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { useClerk, useSignUp } from "@clerk/expo";
 import { Screen } from "../components/Screen";
 import { PrimaryButton } from "../components/PrimaryButton";
 import type { RootStackParamList } from "../core/navigation/navigation-types";
 import { colors, spacing } from "../theme/tokens";
 
 type Props = NativeStackScreenProps<RootStackParamList, "SignUp">;
+
+function CaptchaMount() {
+  if (Platform.OS === "web") {
+    return createElement("div", {
+      id: "clerk-captcha",
+      "data-cl-theme": "light",
+      "data-cl-size": "flexible",
+      style: {
+        minHeight: 78,
+        width: "100%"
+      }
+    });
+  }
+
+  return <View nativeID="clerk-captcha" style={styles.captchaMount} />;
+}
 
 function getErrorMessage(error: unknown) {
   if (typeof error === "object" && error !== null && "errors" in error) {
@@ -18,13 +34,64 @@ function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Unable to sign up.";
 }
 
+function formatFieldLabel(field: string) {
+  return field
+    .split("_")
+    .map(part => part.replace(/^./, char => char.toUpperCase()))
+    .join(" ");
+}
+
 export function SignUpScreen({ navigation }: Props) {
+  const { setActive } = useClerk();
   const { fetchStatus, signUp } = useSignUp();
   const [emailAddress, setEmailAddress] = useState("");
   const [password, setPassword] = useState("");
   const [verificationCode, setVerificationCode] = useState("");
-  const [awaitingVerification, setAwaitingVerification] = useState(false);
+  const [legalAccepted, setLegalAccepted] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [verificationStarted, setVerificationStarted] = useState(false);
+  const awaitingVerification =
+    verificationStarted ||
+    (signUp?.status === "missing_requirements" &&
+      signUp.unverifiedFields.includes("email_address") &&
+      signUp.missingFields.length === 0);
+  const requiredFieldsSummary =
+    signUp?.requiredFields.map(formatFieldLabel).join(", ") || "unknown";
+  const missingFieldsSummary =
+    signUp?.missingFields.map(formatFieldLabel).join(", ") || "none";
+  const unverifiedFieldsSummary =
+    signUp?.unverifiedFields.map(formatFieldLabel).join(", ") || "none";
+
+  const buildSignUpDiagnostics = (message: string) => {
+    if (!signUp) {
+      return message;
+    }
+
+    const emailVerification = signUp.verifications.emailAddress;
+    const emailVerificationStatus = emailVerification.status ?? "unknown";
+    const verifiedOnSameClient = emailVerification.verifiedFromTheSameClient() ? "yes" : "no";
+
+    return `${message} Current sign-up status: ${signUp.status}. Required fields: ${requiredFieldsSummary}. Missing fields: ${missingFieldsSummary}. Unverified fields: ${unverifiedFieldsSummary}. Email verification status: ${emailVerificationStatus}. Verified on same client: ${verifiedOnSameClient}.`;
+  };
+
+  const activateCompletedSession = async () => {
+    if (!signUp) {
+      return;
+    }
+
+    if (!signUp.createdSessionId) {
+      setErrorMessage(buildSignUpDiagnostics("Sign up completed without creating a session."));
+      return;
+    }
+
+    await setActive({
+      session: signUp.createdSessionId
+    });
+  };
+
+  const validateSignUpInputs = () => {
+    return null;
+  };
 
   const handleCreateAccount = async () => {
     if (!signUp || fetchStatus === "fetching") {
@@ -33,21 +100,33 @@ export function SignUpScreen({ navigation }: Props) {
 
     setErrorMessage(null);
 
+    const validationError = validateSignUpInputs();
+    if (validationError) {
+      setErrorMessage(validationError);
+      return;
+    }
+
     try {
       const { error } = await signUp.password({
         emailAddress: emailAddress.trim(),
+        legalAccepted,
         password
       });
 
       if (error) {
-        setErrorMessage(getErrorMessage(error));
+        setErrorMessage(buildSignUpDiagnostics(getErrorMessage(error)));
         return;
       }
 
       await signUp.verifications.sendEmailCode();
-      setAwaitingVerification(true);
+      setVerificationStarted(true);
+      setVerificationCode("");
+
+      if (signUp.status === "complete") {
+        await activateCompletedSession();
+      }
     } catch (error) {
-      setErrorMessage(getErrorMessage(error));
+      setErrorMessage(buildSignUpDiagnostics(getErrorMessage(error)));
     }
   };
 
@@ -59,19 +138,22 @@ export function SignUpScreen({ navigation }: Props) {
     setErrorMessage(null);
 
     try {
-      await signUp.verifications.verifyEmailCode({
+      const verificationResult = await signUp.verifications.verifyEmailCode({
         code: verificationCode.trim()
       });
 
+      if (verificationResult.error) {
+        setErrorMessage(buildSignUpDiagnostics(getErrorMessage(verificationResult.error)));
+        return;
+      }
+
       if (signUp.status === "complete") {
-        await signUp.finalize({
-          navigate: () => {}
-        });
+        await activateCompletedSession();
       } else {
-        setErrorMessage("Email verification is not complete yet.");
+        setErrorMessage(buildSignUpDiagnostics("Email verification is not complete yet."));
       }
     } catch (error) {
-      setErrorMessage(getErrorMessage(error));
+      setErrorMessage(buildSignUpDiagnostics(getErrorMessage(error)));
     }
   };
 
@@ -114,13 +196,31 @@ export function SignUpScreen({ navigation }: Props) {
               value={password}
             />
 
+            <Pressable
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: legalAccepted }}
+              onPress={() => setLegalAccepted(current => !current)}
+              style={styles.checkboxRow}
+            >
+              <View style={[styles.checkbox, legalAccepted ? styles.checkboxChecked : null]}>
+                {legalAccepted ? <Text style={styles.checkboxMark}>✓</Text> : null}
+              </View>
+              <Text style={styles.checkboxLabel}>I agree to the terms required by authentication.</Text>
+            </Pressable>
+
             {errorMessage ? <Text style={styles.error}>{errorMessage}</Text> : null}
+
+            {signUp?.missingFields.length ? (
+              <Text style={styles.hint}>Clerk still requires: {missingFieldsSummary}.</Text>
+            ) : null}
 
             <PrimaryButton
               label="Create account"
               loading={fetchStatus === "fetching"}
               onPress={() => void handleCreateAccount()}
             />
+
+            <CaptchaMount />
           </>
         ) : (
           <>
@@ -141,6 +241,15 @@ export function SignUpScreen({ navigation }: Props) {
               label="Verify email"
               loading={fetchStatus === "fetching"}
               onPress={() => void handleVerify()}
+            />
+            <PrimaryButton
+              label="Send a new code"
+              onPress={() => {
+                setErrorMessage(null);
+                setVerificationStarted(true);
+                void signUp?.verifications.sendEmailCode();
+              }}
+              tone="secondary"
             />
           </>
         )}
@@ -204,5 +313,42 @@ const styles = StyleSheet.create({
     color: "#9c3b31",
     fontSize: 14,
     lineHeight: 20
+  },
+  hint: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    lineHeight: 18
+  },
+  checkboxRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: spacing.sm
+  },
+  checkbox: {
+    alignItems: "center",
+    borderColor: colors.border,
+    borderRadius: 6,
+    borderWidth: 1,
+    height: 22,
+    justifyContent: "center",
+    width: 22
+  },
+  checkboxChecked: {
+    backgroundColor: colors.accentStrong,
+    borderColor: colors.accentStrong
+  },
+  checkboxLabel: {
+    color: colors.textSecondary,
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 20
+  },
+  checkboxMark: {
+    color: colors.surface,
+    fontSize: 14,
+    fontWeight: "800"
+  },
+  captchaMount: {
+    minHeight: 78
   }
 });

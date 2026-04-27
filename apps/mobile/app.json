@@ -12,6 +12,10 @@
     },
     "assetBundlePatterns": [
       "**/*"
-    ]
+    ],
+    "extra": {
+      "clerkPublishableKey": "pk_test_Y29tcGxldGUtc3VuYmVhbS0zOS5jbGVyay5hY2NvdW50cy5kZXYk",
+      "apiBaseUrl": "https://fitness-app-hazel-nine.vercel.app/api/v1"
+    }
   }
 }

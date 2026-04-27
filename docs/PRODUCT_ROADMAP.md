@@ -1,12 +1,12 @@
-# Fitness App – Product Roadmap
+# Fitness App - Product Roadmap
 
-## 🎯 Vision
+## Vision
 
 A mobile-first training system that tells users exactly what to do in the gym and helps them progress over time with minimal friction.
 
 ---
 
-## ✅ Current State
+## Current State
 
 ### Backend
 
@@ -15,9 +15,11 @@ A mobile-first training system that tells users exactly what to do in the gym an
 - [x] Transactions + idempotency
 - [x] HTTP API
 - [x] Tests
+- [x] Clerk bearer-token auth boundary
 
 ### Mobile
 
+- [x] Clerk auth flow
 - [x] Dashboard
 - [x] Start workout
 - [x] Active workout flow
@@ -27,11 +29,11 @@ A mobile-first training system that tells users exactly what to do in the gym an
 
 ---
 
-## 🚧 MVP Definition
+## MVP Definition
 
 A user can:
 
-- [ ] Create an account (auth)
+- [x] Create an account (auth)
 - [ ] Follow a predefined program
 - [ ] Log workouts easily
 - [ ] See past workouts
@@ -39,29 +41,20 @@ A user can:
 
 ---
 
-## 🔥 Current Focus
+## Current Focus
 
-### Priority 1 – Auth
-
-- [ ] Integrate auth provider (Clerk/Supabase/etc)
-- [ ] Replace placeholder headers
-- [ ] Persist user identity
-- [ ] Secure API endpoints
-
----
-
-### Priority 2 – Workout UX
+### Priority 1 - Workout UX
 
 - [ ] Improve set logging UX
-  - [ ] reps input
-  - [ ] weight input or quick adjust
+- [ ] Add reps input polish
+- [ ] Add weight input or quick adjust
 - [ ] Add rest timer
 - [ ] Improve feedback selection UX
 - [ ] Improve completion feedback
 
 ---
 
-### Priority 3 – Basic History
+### Priority 2 - Basic History
 
 - [ ] View past workouts
 - [ ] Show exercises + weights
@@ -69,7 +62,7 @@ A user can:
 
 ---
 
-### Priority 4 – Program Visibility
+### Priority 3 - Program Visibility
 
 - [ ] Show current program
 - [ ] Show next workout clearly
@@ -77,23 +70,35 @@ A user can:
 
 ---
 
-## 🔁 Feedback Loop (Auto-fed)
+### Priority 4 - Auth Hardening
 
-### 🔥 High Priority
+- [x] Integrate Clerk
+- [x] Replace placeholder headers
+- [x] Persist signed-in identity in mobile
+- [x] Secure API endpoints with bearer auth
+- [ ] Add password reset / account recovery flow
+- [ ] Verify production Clerk environment and deploy config
+- [ ] Add auth smoke-test coverage for sign-in and session restore
+
+---
+
+## Feedback Loop (Auto-fed)
+
+### High Priority
 
 - [ ]
 
-### ⚠️ Medium Priority
+### Medium Priority
 
 - [ ]
 
-### 💡 Ideas
+### Ideas
 
 - [ ]
 
 ---
 
-## 🧪 Validation Checklist
+## Validation Checklist
 
 - [ ] Can I run 3+ real workouts without friction?
 - [ ] Does progression feel correct?
@@ -102,7 +107,7 @@ A user can:
 
 ---
 
-## 🚫 Not MVP
+## Not MVP
 
 - [ ] Template builder UI
 - [ ] Exercise CRUD system
@@ -113,7 +118,7 @@ A user can:
 
 ---
 
-## 🚀 Future Ideas
+## Future Ideas
 
 - [ ] Custom programs
 - [ ] Coaching features
@@ -122,7 +127,7 @@ A user can:
 
 ---
 
-## 🧠 Key Principles
+## Key Principles
 
 - Progression logic is the core product
 - Simplicity > flexibility
@@ -131,8 +136,13 @@ A user can:
 
 ---
 
-## 📌 Current Status
+## Current Status
 
-👉 Right now I am working on:  
-👉 Next task is:  
-👉 Blockers:
+Right now I am working on:
+Workout UX polish and basic history after local mobile auth completion.
+
+Next task is:
+Improve set logging UX and add history screens.
+
+Blockers:
+No blocker on the local auth flow. Production Clerk environment verification is still pending.
