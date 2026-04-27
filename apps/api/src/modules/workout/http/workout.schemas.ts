@@ -21,6 +21,11 @@ export const programParamsSchema = z.object({
   programId: z.string().min(1)
 });
 
+export const workoutHistoryQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+  status: z.literal("completed").optional()
+});
+
 export const setParamsSchema = z.object({
   setId: z.string().min(1)
 });
@@ -52,6 +57,7 @@ export const completeWorkoutSessionBodySchema = z.object({
 export type WorkoutHeaders = z.infer<typeof workoutHeadersSchema>;
 export type WorkoutSessionParams = z.infer<typeof workoutSessionParamsSchema>;
 export type ProgramParams = z.infer<typeof programParamsSchema>;
+export type WorkoutHistoryQuery = z.infer<typeof workoutHistoryQuerySchema>;
 export type SetParams = z.infer<typeof setParamsSchema>;
 export type StartWorkoutSessionBody = z.infer<typeof startWorkoutSessionBodySchema>;
 export type LogSetBody = z.infer<typeof logSetBodySchema>;

@@ -36,7 +36,7 @@ A user can:
 - [x] Create an account (auth)
 - [x] Follow a predefined program
 - [x] Log workouts easily
-- [ ] See past workouts
+- [x] See past workouts
 - [ ] See basic progression
 
 ---

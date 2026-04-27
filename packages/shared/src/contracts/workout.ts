@@ -125,6 +125,11 @@ export type WorkoutHistoryItemDto = {
   highlights: string[];
 };
 
+export type GetWorkoutHistoryResponse = {
+  items: WorkoutHistoryItemDto[];
+  nextCursor: string | null;
+};
+
 export type ProgressMetricDto = {
   id: UUID;
   metricType: ProgressMetricType;

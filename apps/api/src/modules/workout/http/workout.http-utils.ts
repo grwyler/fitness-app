@@ -10,6 +10,10 @@ export function validateParams<TSchema extends z.ZodTypeAny>(schema: TSchema, re
   return schema.parse(request.params);
 }
 
+export function validateQuery<TSchema extends z.ZodTypeAny>(schema: TSchema, request: Request) {
+  return schema.parse(request.query);
+}
+
 export function requireIdempotencyKey(request: Request): string {
   const idempotencyKey = request.header("Idempotency-Key");
   if (!idempotencyKey) {

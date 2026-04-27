@@ -4,6 +4,7 @@ import type {
   FollowProgramResponse,
   GetCurrentWorkoutSessionResponse,
   GetDashboardResponse,
+  GetWorkoutHistoryResponse,
   ListProgramsResponse,
   LogSetRequest,
   LogSetResponse,
@@ -25,6 +26,10 @@ export async function followProgram(programId: string) {
     method: "POST",
     body: {}
   });
+}
+
+export async function fetchWorkoutHistory(limit = 20) {
+  return apiRequest<GetWorkoutHistoryResponse>(`/workout-history?limit=${limit}&status=completed`);
 }
 
 export async function fetchCurrentWorkoutSession() {

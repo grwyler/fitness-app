@@ -176,6 +176,26 @@ export function DashboardScreen({ navigation }: Props) {
         </Text>
       </View>
 
+      <View style={styles.card}>
+        <Text style={styles.cardLabel}>Recent workouts</Text>
+        <Text style={styles.cardTitle}>
+          {dashboard.recentWorkoutHistory[0]?.workoutName ?? "No completed workouts yet"}
+        </Text>
+        <Text style={styles.cardBody}>
+          {dashboard.recentWorkoutHistory[0]
+            ? `${dashboard.recentWorkoutHistory[0].programName} - ${dashboard.recentWorkoutHistory[0].completedSetCount} sets completed`
+            : "Finish a workout to build your history."}
+        </Text>
+        <PrimaryButton
+          label="View history"
+          tone="secondary"
+          onPress={() => {
+            setLastAction("view_history");
+            navigation.navigate("WorkoutHistory");
+          }}
+        />
+      </View>
+
       <View style={styles.actions}>
         <FeedbackButton
           screenName="DashboardScreen"

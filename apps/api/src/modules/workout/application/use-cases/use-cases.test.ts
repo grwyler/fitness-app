@@ -16,6 +16,7 @@ import { CompleteWorkoutSessionUseCase } from "./complete-workout-session.use-ca
 import { FollowProgramUseCase } from "./follow-program.use-case.js";
 import { GetCurrentWorkoutSessionUseCase } from "./get-current-workout-session.use-case.js";
 import { GetDashboardUseCase } from "./get-dashboard.use-case.js";
+import { GetWorkoutHistoryUseCase } from "./get-workout-history.use-case.js";
 import { ListProgramsUseCase } from "./list-programs.use-case.js";
 import { LogSetUseCase } from "./log-set.use-case.js";
 import { StartWorkoutSessionUseCase } from "./start-workout-session.use-case.js";
@@ -1052,6 +1053,7 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
       };
 
       const currentWorkoutUseCase = new GetCurrentWorkoutSessionUseCase(workoutSessionRepository);
+      const historyUseCase = new GetWorkoutHistoryUseCase(workoutSessionRepository);
       const dashboardUseCase = new GetDashboardUseCase(
         workoutSessionRepository,
         enrollmentRepository,
@@ -1066,12 +1068,19 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
       const dashboardResult = await dashboardUseCase.execute({
         context: { userId: "user-1", unitSystem: "imperial" }
       });
+      const historyResult = await historyUseCase.execute({
+        context: { userId: "user-1", unitSystem: "imperial" },
+        limit: 10
+      });
 
       assert.equal(currentWorkoutResult.data.activeWorkoutSession?.id, "session-1");
       assert.equal(dashboardResult.data.activeProgram?.program.name, "Beginner Full Body V1");
       assert.equal(dashboardResult.data.activeProgram?.completedWorkoutCount, 1);
       assert.equal(currentWorkoutResult.meta.replayed, false);
       assert.equal(dashboardResult.data.recentWorkoutHistory[0]?.highlights[0], "Workout completed");
+      assert.equal(historyResult.data.items[0]?.workoutName, "Workout A");
+      assert.equal(historyResult.data.items[0]?.completedSetCount, 3);
+      assert.equal(historyResult.data.nextCursor, null);
       assert.equal(dashboardResult.meta.replayed, false);
     }
   }

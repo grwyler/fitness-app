@@ -4,6 +4,7 @@ import type { RootStackParamList } from "./navigation-types";
 import { DashboardScreen } from "../../screens/DashboardScreen";
 import { ActiveWorkoutScreen } from "../../screens/ActiveWorkoutScreen";
 import { WorkoutSummaryScreen } from "../../screens/WorkoutSummaryScreen";
+import { WorkoutHistoryScreen } from "../../screens/WorkoutHistoryScreen";
 import { FeedbackDebugScreen } from "../../screens/FeedbackDebugScreen";
 import { AuthLoadingScreen } from "../../screens/AuthLoadingScreen";
 import { SignInScreen } from "../../screens/SignInScreen";
@@ -57,6 +58,11 @@ export function AppNavigator() {
             name="ActiveWorkout"
             component={ActiveWorkoutScreen}
             options={{ title: "Active Workout" }}
+          />
+          <Stack.Screen
+            name="WorkoutHistory"
+            component={WorkoutHistoryScreen}
+            options={{ title: "Workout History" }}
           />
           <Stack.Screen
             name="WorkoutSummary"

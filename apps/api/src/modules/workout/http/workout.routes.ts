@@ -4,6 +4,7 @@ import type { CompleteWorkoutSessionUseCase } from "../application/use-cases/com
 import type { FollowProgramUseCase } from "../application/use-cases/follow-program.use-case.js";
 import type { GetCurrentWorkoutSessionUseCase } from "../application/use-cases/get-current-workout-session.use-case.js";
 import type { GetDashboardUseCase } from "../application/use-cases/get-dashboard.use-case.js";
+import type { GetWorkoutHistoryUseCase } from "../application/use-cases/get-workout-history.use-case.js";
 import type { ListProgramsUseCase } from "../application/use-cases/list-programs.use-case.js";
 import type { LogSetUseCase } from "../application/use-cases/log-set.use-case.js";
 import type { StartWorkoutSessionUseCase } from "../application/use-cases/start-workout-session.use-case.js";
@@ -12,6 +13,7 @@ export function createWorkoutRouter(dependencies: {
   listProgramsUseCase: ListProgramsUseCase;
   followProgramUseCase: FollowProgramUseCase;
   getDashboardUseCase: GetDashboardUseCase;
+  getWorkoutHistoryUseCase: GetWorkoutHistoryUseCase;
   getCurrentWorkoutSessionUseCase: GetCurrentWorkoutSessionUseCase;
   startWorkoutSessionUseCase: StartWorkoutSessionUseCase;
   logSetUseCase: LogSetUseCase;
@@ -23,6 +25,7 @@ export function createWorkoutRouter(dependencies: {
   router.get("/programs", handlers.listPrograms);
   router.post("/programs/:programId/follow", handlers.followProgram);
   router.get("/dashboard", handlers.getDashboard);
+  router.get("/workout-history", handlers.getWorkoutHistory);
   router.get("/workout-sessions/current", handlers.getCurrentWorkoutSession);
   router.post("/workout-sessions/start", handlers.startWorkoutSession);
   router.post("/sets/:setId/log", handlers.logSet);

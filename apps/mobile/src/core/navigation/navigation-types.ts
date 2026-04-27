@@ -5,6 +5,7 @@ export type RootStackParamList = {
   SignUp: undefined;
   Dashboard: undefined;
   ActiveWorkout: undefined;
+  WorkoutHistory: undefined;
   WorkoutSummary: {
     summary: CompleteWorkoutSessionResponse;
   };
