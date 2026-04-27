@@ -38,7 +38,7 @@ function parseEnvFile(filePath) {
   return entries;
 }
 
-function resolveEnvValue(name) {
+function resolveEnvValue(name, options = {}) {
   const envFiles = [
     path.resolve(__dirname, ".env.local"),
     path.resolve(__dirname, ".env"),
@@ -47,50 +47,125 @@ function resolveEnvValue(name) {
   ];
 
   if (process.env[name]) {
-    return process.env[name];
+    return {
+      source: "process.env",
+      value: process.env[name]
+    };
+  }
+
+  if (options.skipEnvFiles) {
+    return {
+      source: null,
+      value: undefined
+    };
   }
 
   for (const filePath of envFiles) {
     const parsed = parseEnvFile(filePath);
 
     if (parsed[name]) {
-      return parsed[name];
+      return {
+        source: filePath,
+        value: parsed[name]
+      };
     }
   }
 
-  return undefined;
+  return {
+    source: null,
+    value: undefined
+  };
 }
 
 function isLiveClerkPublishableKey(value) {
   return typeof value === "string" && value.startsWith("pk_live_");
 }
 
+function maskValue(value) {
+  if (!value) {
+    return "<missing>";
+  }
+
+  if (value.length <= 12) {
+    return `${value.slice(0, 4)}...`;
+  }
+
+  return `${value.slice(0, 8)}...${value.slice(-4)}`;
+}
+
+function failConfig(message) {
+  const errorMessage = `[mobile-config] ${message}`;
+  console.error(errorMessage);
+  throw new Error(errorMessage);
+}
+
+function assertProductionApiBaseUrl(apiBaseUrl, source) {
+  const sourceLabel = source ? ` Source: ${source}.` : "";
+
+  if (!apiBaseUrl) {
+    failConfig(
+      `Missing EXPO_PUBLIC_API_BASE_URL.${sourceLabel} Production web builds require https://setwiseapi.vercel.app/api/v1. Add it to the Vercel web project Production environment.`
+    );
+  }
+
+  let parsedUrl;
+  try {
+    parsedUrl = new URL(apiBaseUrl);
+  } catch {
+    failConfig(
+      `Invalid EXPO_PUBLIC_API_BASE_URL.${sourceLabel} Expected https URL ending in /api/v1; received ${apiBaseUrl}.`
+    );
+  }
+
+  if (parsedUrl.protocol !== "https:") {
+    failConfig(
+      `Invalid EXPO_PUBLIC_API_BASE_URL.${sourceLabel} Expected https URL ending in /api/v1; received ${apiBaseUrl}.`
+    );
+  }
+
+  if (["localhost", "127.0.0.1", "10.0.2.2"].includes(parsedUrl.hostname)) {
+    failConfig(
+      `Invalid EXPO_PUBLIC_API_BASE_URL.${sourceLabel} Production web builds must not point to localhost; received ${apiBaseUrl}.`
+    );
+  }
+
+  if (!parsedUrl.pathname.replace(/\/+$/, "").endsWith("/api/v1")) {
+    failConfig(
+      `Invalid EXPO_PUBLIC_API_BASE_URL.${sourceLabel} Expected URL path to end in /api/v1; received ${apiBaseUrl}.`
+    );
+  }
+}
+
+function assertProductionClerkPublishableKey(clerkPublishableKey, source) {
+  const sourceLabel = source ? ` Source: ${source}.` : "";
+
+  if (!clerkPublishableKey) {
+    failConfig(
+      `Missing EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY.${sourceLabel} Production web builds require a Clerk production publishable key starting with pk_live_. Add it to the Vercel web project Production environment.`
+    );
+  }
+
+  if (!isLiveClerkPublishableKey(clerkPublishableKey)) {
+    failConfig(
+      `Invalid EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY.${sourceLabel} Expected pk_live_...; received ${maskValue(clerkPublishableKey)}. Do not use pk_test_ keys in production.`
+    );
+  }
+}
+
 module.exports = () => {
   const expoConfig = baseConfig.expo ?? {};
+  const isProductionBuild = process.env.VERCEL_ENV === "production";
+  const resolveOptions = { skipEnvFiles: isProductionBuild };
+  const clerkPublishableKeyResult = resolveEnvValue("EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY", resolveOptions);
+  const legacyClerkPublishableKeyResult = resolveEnvValue("CLERK_PUBLISHABLE_KEY", resolveOptions);
+  const apiBaseUrlResult = resolveEnvValue("EXPO_PUBLIC_API_BASE_URL", resolveOptions);
   const clerkPublishableKey =
-    resolveEnvValue("EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY") ??
-    resolveEnvValue("CLERK_PUBLISHABLE_KEY");
-  const apiBaseUrl = resolveEnvValue("EXPO_PUBLIC_API_BASE_URL");
-  const isProductionBuild =
-    process.env.NODE_ENV === "production" || process.env.VERCEL_ENV === "production";
+    clerkPublishableKeyResult.value ?? legacyClerkPublishableKeyResult.value;
+  const apiBaseUrl = apiBaseUrlResult.value;
 
-  if (isProductionBuild && !apiBaseUrl) {
-    throw new Error("EXPO_PUBLIC_API_BASE_URL is required for production mobile web builds.");
-  }
-
-  if (
-    isProductionBuild &&
-    /^https?:\/\/(localhost|127\.0\.0\.1|10\.0\.2\.2)(:|\/|$)/.test(apiBaseUrl ?? "")
-  ) {
-    throw new Error("EXPO_PUBLIC_API_BASE_URL must not point to localhost in production mobile web builds.");
-  }
-
-  if (isProductionBuild && !clerkPublishableKey) {
-    throw new Error("EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY is required for production mobile web builds.");
-  }
-
-  if (isProductionBuild && !isLiveClerkPublishableKey(clerkPublishableKey)) {
-    throw new Error("EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY must be a production Clerk key that starts with pk_live_.");
+  if (isProductionBuild) {
+    assertProductionApiBaseUrl(apiBaseUrl, apiBaseUrlResult.source);
+    assertProductionClerkPublishableKey(clerkPublishableKeyResult.value, clerkPublishableKeyResult.source);
   }
 
   if (apiBaseUrl) {
