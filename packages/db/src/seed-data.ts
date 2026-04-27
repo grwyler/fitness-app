@@ -125,6 +125,106 @@ export const seedExercises: SeedExercise[] = [
     equipmentType: "cable",
     defaultStartingWeightLbs: 50,
     defaultIncrementLbs: 2.5
+  },
+  {
+    slug: "pull-ups",
+    name: "Pull-Ups",
+    category: "compound",
+    movementPattern: "pull",
+    primaryMuscleGroup: "lats",
+    equipmentType: "bodyweight",
+    defaultStartingWeightLbs: 0,
+    defaultIncrementLbs: 2.5
+  },
+  {
+    slug: "db-row",
+    name: "DB Row",
+    category: "compound",
+    movementPattern: "pull",
+    primaryMuscleGroup: "back",
+    equipmentType: "dumbbell",
+    defaultStartingWeightLbs: 35,
+    defaultIncrementLbs: 5
+  },
+  {
+    slug: "db-curl",
+    name: "DB Curl",
+    category: "accessory",
+    movementPattern: "pull",
+    primaryMuscleGroup: "biceps",
+    equipmentType: "dumbbell",
+    defaultStartingWeightLbs: 20,
+    defaultIncrementLbs: 2.5
+  },
+  {
+    slug: "overhead-db-tricep-extension",
+    name: "Overhead DB Tricep Extension",
+    category: "accessory",
+    movementPattern: "push",
+    primaryMuscleGroup: "triceps",
+    equipmentType: "dumbbell",
+    defaultStartingWeightLbs: 25,
+    defaultIncrementLbs: 2.5
+  },
+  {
+    slug: "romanian-deadlift",
+    name: "Romanian Deadlift",
+    category: "compound",
+    movementPattern: "hinge",
+    primaryMuscleGroup: "hamstrings",
+    equipmentType: "barbell",
+    defaultStartingWeightLbs: 95,
+    defaultIncrementLbs: 5
+  },
+  {
+    slug: "lunges",
+    name: "Lunges",
+    category: "accessory",
+    movementPattern: "lunge",
+    primaryMuscleGroup: "quads",
+    equipmentType: "dumbbell",
+    defaultStartingWeightLbs: 25,
+    defaultIncrementLbs: 5
+  },
+  {
+    slug: "incline-db-press",
+    name: "Incline DB Press",
+    category: "compound",
+    movementPattern: "push",
+    primaryMuscleGroup: "chest",
+    equipmentType: "dumbbell",
+    defaultStartingWeightLbs: 35,
+    defaultIncrementLbs: 5
+  },
+  {
+    slug: "incline-db-curl",
+    name: "Incline DB Curl",
+    category: "accessory",
+    movementPattern: "pull",
+    primaryMuscleGroup: "biceps",
+    equipmentType: "dumbbell",
+    defaultStartingWeightLbs: 15,
+    defaultIncrementLbs: 2.5
+  },
+  {
+    slug: "skull-crushers",
+    name: "Skull Crushers",
+    category: "accessory",
+    movementPattern: "push",
+    primaryMuscleGroup: "triceps",
+    equipmentType: "barbell",
+    defaultStartingWeightLbs: 35,
+    defaultIncrementLbs: 2.5
+  },
+  {
+    slug: "hammer-curl",
+    name: "Hammer Curl",
+    category: "accessory",
+    movementPattern: "pull",
+    primaryMuscleGroup: "biceps",
+    equipmentType: "dumbbell",
+    defaultStartingWeightLbs: 20,
+    defaultIncrementLbs: 2.5
   }
 ];
 
@@ -162,4 +262,70 @@ export const beginnerFullBodyV1: SeedProgram = {
   ]
 };
 
-export const seedPrograms = [beginnerFullBodyV1];
+export const upperLowerArms4Day: SeedProgram = {
+  name: "4-Day Upper/Lower + Arms",
+  description: "Four weekly upper/lower sessions with extra arm volume and simple progression targets.",
+  daysPerWeek: 4,
+  sessionDurationMinutes: 55,
+  difficultyLevel: "beginner",
+  templates: [
+    {
+      name: "Day 1 - Upper Strength",
+      sequenceOrder: 1,
+      estimatedDurationMinutes: 60,
+      exercises: [
+        { exerciseSlug: "bench-press", sequenceOrder: 1, targetSets: 3, targetReps: 5, restSeconds: 120 },
+        { exerciseSlug: "pull-ups", sequenceOrder: 2, targetSets: 3, targetReps: 8, restSeconds: 120 },
+        { exerciseSlug: "db-row", sequenceOrder: 3, targetSets: 2, targetReps: 8, restSeconds: 90 },
+        { exerciseSlug: "db-curl", sequenceOrder: 4, targetSets: 2, targetReps: 12, restSeconds: 75 },
+        {
+          exerciseSlug: "overhead-db-tricep-extension",
+          sequenceOrder: 5,
+          targetSets: 2,
+          targetReps: 12,
+          restSeconds: 75
+        }
+      ]
+    },
+    {
+      name: "Day 2 - Lower",
+      sequenceOrder: 2,
+      estimatedDurationMinutes: 55,
+      exercises: [
+        { exerciseSlug: "back-squat", sequenceOrder: 1, targetSets: 3, targetReps: 5, restSeconds: 120 },
+        {
+          exerciseSlug: "romanian-deadlift",
+          sequenceOrder: 2,
+          targetSets: 2,
+          targetReps: 8,
+          restSeconds: 120
+        },
+        { exerciseSlug: "lunges", sequenceOrder: 3, targetSets: 2, targetReps: 8, restSeconds: 90 }
+      ]
+    },
+    {
+      name: "Day 3 - Upper Arms Focus",
+      sequenceOrder: 3,
+      estimatedDurationMinutes: 55,
+      exercises: [
+        { exerciseSlug: "incline-db-press", sequenceOrder: 1, targetSets: 3, targetReps: 8, restSeconds: 120 },
+        { exerciseSlug: "pull-ups", sequenceOrder: 2, targetSets: 3, targetReps: 8, restSeconds: 120 },
+        { exerciseSlug: "incline-db-curl", sequenceOrder: 3, targetSets: 3, targetReps: 10, restSeconds: 75 },
+        { exerciseSlug: "skull-crushers", sequenceOrder: 4, targetSets: 3, targetReps: 10, restSeconds: 75 },
+        { exerciseSlug: "hammer-curl", sequenceOrder: 5, targetSets: 2, targetReps: 10, restSeconds: 75 }
+      ]
+    },
+    {
+      name: "Day 4 - Arms Quick",
+      sequenceOrder: 4,
+      estimatedDurationMinutes: 35,
+      exercises: [
+        { exerciseSlug: "db-curl", sequenceOrder: 1, targetSets: 3, targetReps: 10, restSeconds: 75 },
+        { exerciseSlug: "skull-crushers", sequenceOrder: 2, targetSets: 3, targetReps: 10, restSeconds: 75 },
+        { exerciseSlug: "hammer-curl", sequenceOrder: 3, targetSets: 2, targetReps: 10, restSeconds: 75 }
+      ]
+    }
+  ]
+};
+
+export const seedPrograms = [beginnerFullBodyV1, upperLowerArms4Day];

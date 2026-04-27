@@ -59,7 +59,7 @@ export function DashboardScreen({ navigation }: Props) {
         <Text style={styles.subtitle}>
           {activeProgram
             ? "Follow the program, log the work, and let progression handle the details."
-            : "Pick the predefined beginner program to queue your first workout."}
+            : "Pick a predefined program to queue your first workout."}
         </Text>
       </View>
 

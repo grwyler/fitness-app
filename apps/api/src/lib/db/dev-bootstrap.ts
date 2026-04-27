@@ -1,7 +1,12 @@
 export const DEV_USER_ID = "11111111-1111-1111-1111-111111111111";
 const PROGRAM_ID = "22222222-2222-2222-2222-222222222222";
+const UPPER_LOWER_ARMS_PROGRAM_ID = "22222222-2222-2222-2222-222222222223";
 const TEMPLATE_A_ID = "33333333-3333-3333-3333-333333333333";
 const TEMPLATE_B_ID = "44444444-4444-4444-4444-444444444444";
+const UPPER_LOWER_DAY_1_TEMPLATE_ID = "33333333-3333-3333-3333-333333333341";
+const UPPER_LOWER_DAY_2_TEMPLATE_ID = "33333333-3333-3333-3333-333333333342";
+const UPPER_LOWER_DAY_3_TEMPLATE_ID = "33333333-3333-3333-3333-333333333343";
+const UPPER_LOWER_DAY_4_TEMPLATE_ID = "33333333-3333-3333-3333-333333333344";
 const ENROLLMENT_ID = "55555555-5555-5555-5555-555555555555";
 
 const seedExercises = [
@@ -13,7 +18,17 @@ const seedExercises = [
   { slug: "bicep-curl", name: "Bicep Curl", category: "accessory", movementPattern: "pull", primaryMuscleGroup: "biceps", equipmentType: "dumbbell", defaultStartingWeightLbs: 20, defaultIncrementLbs: 2.5 },
   { slug: "tricep-pushdown", name: "Tricep Pushdown", category: "accessory", movementPattern: "push", primaryMuscleGroup: "triceps", equipmentType: "cable", defaultStartingWeightLbs: 30, defaultIncrementLbs: 2.5 },
   { slug: "leg-curl", name: "Leg Curl", category: "accessory", movementPattern: "hinge", primaryMuscleGroup: "hamstrings", equipmentType: "machine", defaultStartingWeightLbs: 40, defaultIncrementLbs: 2.5 },
-  { slug: "lat-pulldown", name: "Lat Pulldown", category: "accessory", movementPattern: "pull", primaryMuscleGroup: "lats", equipmentType: "cable", defaultStartingWeightLbs: 50, defaultIncrementLbs: 2.5 }
+  { slug: "lat-pulldown", name: "Lat Pulldown", category: "accessory", movementPattern: "pull", primaryMuscleGroup: "lats", equipmentType: "cable", defaultStartingWeightLbs: 50, defaultIncrementLbs: 2.5 },
+  { slug: "pull-ups", name: "Pull-Ups", category: "compound", movementPattern: "pull", primaryMuscleGroup: "lats", equipmentType: "bodyweight", defaultStartingWeightLbs: 0, defaultIncrementLbs: 2.5 },
+  { slug: "db-row", name: "DB Row", category: "compound", movementPattern: "pull", primaryMuscleGroup: "back", equipmentType: "dumbbell", defaultStartingWeightLbs: 35, defaultIncrementLbs: 5 },
+  { slug: "db-curl", name: "DB Curl", category: "accessory", movementPattern: "pull", primaryMuscleGroup: "biceps", equipmentType: "dumbbell", defaultStartingWeightLbs: 20, defaultIncrementLbs: 2.5 },
+  { slug: "overhead-db-tricep-extension", name: "Overhead DB Tricep Extension", category: "accessory", movementPattern: "push", primaryMuscleGroup: "triceps", equipmentType: "dumbbell", defaultStartingWeightLbs: 25, defaultIncrementLbs: 2.5 },
+  { slug: "romanian-deadlift", name: "Romanian Deadlift", category: "compound", movementPattern: "hinge", primaryMuscleGroup: "hamstrings", equipmentType: "barbell", defaultStartingWeightLbs: 95, defaultIncrementLbs: 5 },
+  { slug: "lunges", name: "Lunges", category: "accessory", movementPattern: "lunge", primaryMuscleGroup: "quads", equipmentType: "dumbbell", defaultStartingWeightLbs: 25, defaultIncrementLbs: 5 },
+  { slug: "incline-db-press", name: "Incline DB Press", category: "compound", movementPattern: "push", primaryMuscleGroup: "chest", equipmentType: "dumbbell", defaultStartingWeightLbs: 35, defaultIncrementLbs: 5 },
+  { slug: "incline-db-curl", name: "Incline DB Curl", category: "accessory", movementPattern: "pull", primaryMuscleGroup: "biceps", equipmentType: "dumbbell", defaultStartingWeightLbs: 15, defaultIncrementLbs: 2.5 },
+  { slug: "skull-crushers", name: "Skull Crushers", category: "accessory", movementPattern: "push", primaryMuscleGroup: "triceps", equipmentType: "barbell", defaultStartingWeightLbs: 35, defaultIncrementLbs: 2.5 },
+  { slug: "hammer-curl", name: "Hammer Curl", category: "accessory", movementPattern: "pull", primaryMuscleGroup: "biceps", equipmentType: "dumbbell", defaultStartingWeightLbs: 20, defaultIncrementLbs: 2.5 }
 ] as const;
 
 const EXERCISE_IDS: Record<string, string> = {
@@ -25,8 +40,27 @@ const EXERCISE_IDS: Record<string, string> = {
   "bicep-curl": "66666666-6666-6666-6666-666666666606",
   "tricep-pushdown": "66666666-6666-6666-6666-666666666607",
   "leg-curl": "66666666-6666-6666-6666-666666666608",
-  "lat-pulldown": "66666666-6666-6666-6666-666666666609"
+  "lat-pulldown": "66666666-6666-6666-6666-666666666609",
+  "pull-ups": "66666666-6666-6666-6666-666666666610",
+  "db-row": "66666666-6666-6666-6666-666666666611",
+  "db-curl": "66666666-6666-6666-6666-666666666612",
+  "overhead-db-tricep-extension": "66666666-6666-6666-6666-666666666613",
+  "romanian-deadlift": "66666666-6666-6666-6666-666666666614",
+  lunges: "66666666-6666-6666-6666-666666666615",
+  "incline-db-press": "66666666-6666-6666-6666-666666666616",
+  "incline-db-curl": "66666666-6666-6666-6666-666666666617",
+  "skull-crushers": "66666666-6666-6666-6666-666666666618",
+  "hammer-curl": "66666666-6666-6666-6666-666666666619"
 };
+
+const templateDefinitions = [
+  { id: TEMPLATE_A_ID, programId: PROGRAM_ID, name: "Workout A", order: 1, duration: 60 },
+  { id: TEMPLATE_B_ID, programId: PROGRAM_ID, name: "Workout B", order: 2, duration: 55 },
+  { id: UPPER_LOWER_DAY_1_TEMPLATE_ID, programId: UPPER_LOWER_ARMS_PROGRAM_ID, name: "Day 1 - Upper Strength", order: 1, duration: 60 },
+  { id: UPPER_LOWER_DAY_2_TEMPLATE_ID, programId: UPPER_LOWER_ARMS_PROGRAM_ID, name: "Day 2 - Lower", order: 2, duration: 55 },
+  { id: UPPER_LOWER_DAY_3_TEMPLATE_ID, programId: UPPER_LOWER_ARMS_PROGRAM_ID, name: "Day 3 - Upper Arms Focus", order: 3, duration: 55 },
+  { id: UPPER_LOWER_DAY_4_TEMPLATE_ID, programId: UPPER_LOWER_ARMS_PROGRAM_ID, name: "Day 4 - Arms Quick", order: 4, duration: 35 }
+] as const;
 
 const templateEntries = [
   { id: "77777777-7777-7777-7777-777777777701", templateId: TEMPLATE_A_ID, exerciseSlug: "back-squat", order: 1, sets: 3, reps: 8, rest: 120 },
@@ -38,7 +72,23 @@ const templateEntries = [
   { id: "77777777-7777-7777-7777-777777777707", templateId: TEMPLATE_B_ID, exerciseSlug: "overhead-press", order: 2, sets: 3, reps: 8, rest: 120 },
   { id: "77777777-7777-7777-7777-777777777708", templateId: TEMPLATE_B_ID, exerciseSlug: "lat-pulldown", order: 3, sets: 3, reps: 8, rest: 90 },
   { id: "77777777-7777-7777-7777-777777777709", templateId: TEMPLATE_B_ID, exerciseSlug: "leg-curl", order: 4, sets: 3, reps: 8, rest: 75 },
-  { id: "77777777-7777-7777-7777-777777777710", templateId: TEMPLATE_B_ID, exerciseSlug: "bicep-curl", order: 5, sets: 3, reps: 8, rest: 75 }
+  { id: "77777777-7777-7777-7777-777777777710", templateId: TEMPLATE_B_ID, exerciseSlug: "bicep-curl", order: 5, sets: 3, reps: 8, rest: 75 },
+  { id: "77777777-7777-7777-7777-777777777711", templateId: UPPER_LOWER_DAY_1_TEMPLATE_ID, exerciseSlug: "bench-press", order: 1, sets: 3, reps: 5, rest: 120 },
+  { id: "77777777-7777-7777-7777-777777777712", templateId: UPPER_LOWER_DAY_1_TEMPLATE_ID, exerciseSlug: "pull-ups", order: 2, sets: 3, reps: 8, rest: 120 },
+  { id: "77777777-7777-7777-7777-777777777713", templateId: UPPER_LOWER_DAY_1_TEMPLATE_ID, exerciseSlug: "db-row", order: 3, sets: 2, reps: 8, rest: 90 },
+  { id: "77777777-7777-7777-7777-777777777714", templateId: UPPER_LOWER_DAY_1_TEMPLATE_ID, exerciseSlug: "db-curl", order: 4, sets: 2, reps: 12, rest: 75 },
+  { id: "77777777-7777-7777-7777-777777777715", templateId: UPPER_LOWER_DAY_1_TEMPLATE_ID, exerciseSlug: "overhead-db-tricep-extension", order: 5, sets: 2, reps: 12, rest: 75 },
+  { id: "77777777-7777-7777-7777-777777777716", templateId: UPPER_LOWER_DAY_2_TEMPLATE_ID, exerciseSlug: "back-squat", order: 1, sets: 3, reps: 5, rest: 120 },
+  { id: "77777777-7777-7777-7777-777777777717", templateId: UPPER_LOWER_DAY_2_TEMPLATE_ID, exerciseSlug: "romanian-deadlift", order: 2, sets: 2, reps: 8, rest: 120 },
+  { id: "77777777-7777-7777-7777-777777777718", templateId: UPPER_LOWER_DAY_2_TEMPLATE_ID, exerciseSlug: "lunges", order: 3, sets: 2, reps: 8, rest: 90 },
+  { id: "77777777-7777-7777-7777-777777777719", templateId: UPPER_LOWER_DAY_3_TEMPLATE_ID, exerciseSlug: "incline-db-press", order: 1, sets: 3, reps: 8, rest: 120 },
+  { id: "77777777-7777-7777-7777-777777777720", templateId: UPPER_LOWER_DAY_3_TEMPLATE_ID, exerciseSlug: "pull-ups", order: 2, sets: 3, reps: 8, rest: 120 },
+  { id: "77777777-7777-7777-7777-777777777721", templateId: UPPER_LOWER_DAY_3_TEMPLATE_ID, exerciseSlug: "incline-db-curl", order: 3, sets: 3, reps: 10, rest: 75 },
+  { id: "77777777-7777-7777-7777-777777777722", templateId: UPPER_LOWER_DAY_3_TEMPLATE_ID, exerciseSlug: "skull-crushers", order: 4, sets: 3, reps: 10, rest: 75 },
+  { id: "77777777-7777-7777-7777-777777777723", templateId: UPPER_LOWER_DAY_3_TEMPLATE_ID, exerciseSlug: "hammer-curl", order: 5, sets: 2, reps: 10, rest: 75 },
+  { id: "77777777-7777-7777-7777-777777777724", templateId: UPPER_LOWER_DAY_4_TEMPLATE_ID, exerciseSlug: "db-curl", order: 1, sets: 3, reps: 10, rest: 75 },
+  { id: "77777777-7777-7777-7777-777777777725", templateId: UPPER_LOWER_DAY_4_TEMPLATE_ID, exerciseSlug: "skull-crushers", order: 2, sets: 3, reps: 10, rest: 75 },
+  { id: "77777777-7777-7777-7777-777777777726", templateId: UPPER_LOWER_DAY_4_TEMPLATE_ID, exerciseSlug: "hammer-curl", order: 3, sets: 2, reps: 10, rest: 75 }
 ] as const;
 
 const schemaSql = `
@@ -99,6 +149,22 @@ export async function bootstrapDevelopmentDatabase(executor: SqlExecutor) {
     [PROGRAM_ID, "Beginner Full Body V1", "Three full-body sessions per week with deterministic weight progression.", 3, 60, "beginner", true]
   );
 
+  await executor.query(
+    `insert into programs (id, name, description, days_per_week, session_duration_minutes, difficulty_level, is_active)
+     values ($1, $2, $3, $4, $5, $6, $7)
+     on conflict (id) do update
+     set name = excluded.name, description = excluded.description, days_per_week = excluded.days_per_week, session_duration_minutes = excluded.session_duration_minutes, difficulty_level = excluded.difficulty_level, is_active = excluded.is_active, updated_at = now()`,
+    [
+      UPPER_LOWER_ARMS_PROGRAM_ID,
+      "4-Day Upper/Lower + Arms",
+      "Four weekly upper/lower sessions with extra arm volume and simple progression targets.",
+      4,
+      55,
+      "beginner",
+      true
+    ]
+  );
+
   for (const exercise of seedExercises) {
     await executor.query(
       `insert into exercises (id, name, category, movement_pattern, primary_muscle_group, equipment_type, default_starting_weight_lbs, default_increment_lbs, is_active)
@@ -109,13 +175,15 @@ export async function bootstrapDevelopmentDatabase(executor: SqlExecutor) {
     );
   }
 
-  await executor.query(
-    `insert into workout_templates (id, program_id, name, sequence_order, estimated_duration_minutes, is_active)
-     values ($1, $3, $5, $7, $9, $11), ($2, $4, $6, $8, $10, $12)
-     on conflict (id) do update
-     set program_id = excluded.program_id, name = excluded.name, sequence_order = excluded.sequence_order, estimated_duration_minutes = excluded.estimated_duration_minutes, is_active = excluded.is_active, updated_at = now()`,
-    [TEMPLATE_A_ID, TEMPLATE_B_ID, PROGRAM_ID, PROGRAM_ID, "Workout A", "Workout B", 1, 2, 60, 55, true, true]
-  );
+  for (const template of templateDefinitions) {
+    await executor.query(
+      `insert into workout_templates (id, program_id, name, sequence_order, estimated_duration_minutes, is_active)
+       values ($1, $2, $3, $4, $5, $6)
+       on conflict (id) do update
+       set program_id = excluded.program_id, name = excluded.name, sequence_order = excluded.sequence_order, estimated_duration_minutes = excluded.estimated_duration_minutes, is_active = excluded.is_active, updated_at = now()`,
+      [template.id, template.programId, template.name, template.order, template.duration, true]
+    );
+  }
 
   for (const entry of templateEntries) {
     await executor.query(

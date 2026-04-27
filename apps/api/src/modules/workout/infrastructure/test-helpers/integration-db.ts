@@ -325,6 +325,230 @@ export async function seedBaseWorkoutProgram(context: WorkoutInfrastructureTestC
   });
 }
 
+export async function seedUpperLowerArmsProgram(context: WorkoutInfrastructureTestContext) {
+  const now = new Date("2026-04-24T10:00:00.000Z");
+
+  await context.db.insert(programs).values({
+    id: "program-2",
+    name: "4-Day Upper/Lower + Arms",
+    description: "Four weekly upper/lower sessions with extra arm volume and simple progression targets.",
+    daysPerWeek: 4,
+    sessionDurationMinutes: 55,
+    difficultyLevel: "beginner",
+    isActive: true,
+    createdAt: now,
+    updatedAt: now
+  });
+
+  await context.db.insert(workoutTemplates).values([
+    {
+      id: "template-3",
+      programId: "program-2",
+      name: "Day 1 - Upper Strength",
+      sequenceOrder: 1,
+      estimatedDurationMinutes: 60,
+      isActive: true,
+      createdAt: now,
+      updatedAt: now
+    },
+    {
+      id: "template-4",
+      programId: "program-2",
+      name: "Day 2 - Lower",
+      sequenceOrder: 2,
+      estimatedDurationMinutes: 55,
+      isActive: true,
+      createdAt: now,
+      updatedAt: now
+    },
+    {
+      id: "template-5",
+      programId: "program-2",
+      name: "Day 3 - Upper Arms Focus",
+      sequenceOrder: 3,
+      estimatedDurationMinutes: 55,
+      isActive: true,
+      createdAt: now,
+      updatedAt: now
+    },
+    {
+      id: "template-6",
+      programId: "program-2",
+      name: "Day 4 - Arms Quick",
+      sequenceOrder: 4,
+      estimatedDurationMinutes: 35,
+      isActive: true,
+      createdAt: now,
+      updatedAt: now
+    }
+  ]);
+
+  await context.db.insert(exercises).values([
+    {
+      id: "exercise-2",
+      name: "Squat",
+      category: "compound",
+      movementPattern: "squat",
+      primaryMuscleGroup: "quads",
+      equipmentType: "barbell",
+      defaultStartingWeightLbs: "95.00",
+      defaultIncrementLbs: "5.00",
+      isActive: true,
+      createdAt: now,
+      updatedAt: now
+    },
+    {
+      id: "exercise-3",
+      name: "Pull-Ups",
+      category: "compound",
+      movementPattern: "pull",
+      primaryMuscleGroup: "lats",
+      equipmentType: "bodyweight",
+      defaultStartingWeightLbs: "0.00",
+      defaultIncrementLbs: "2.50",
+      isActive: true,
+      createdAt: now,
+      updatedAt: now
+    },
+    {
+      id: "exercise-4",
+      name: "DB Row",
+      category: "compound",
+      movementPattern: "pull",
+      primaryMuscleGroup: "back",
+      equipmentType: "dumbbell",
+      defaultStartingWeightLbs: "35.00",
+      defaultIncrementLbs: "5.00",
+      isActive: true,
+      createdAt: now,
+      updatedAt: now
+    },
+    {
+      id: "exercise-5",
+      name: "DB Curl",
+      category: "accessory",
+      movementPattern: "pull",
+      primaryMuscleGroup: "biceps",
+      equipmentType: "dumbbell",
+      defaultStartingWeightLbs: "20.00",
+      defaultIncrementLbs: "2.50",
+      isActive: true,
+      createdAt: now,
+      updatedAt: now
+    },
+    {
+      id: "exercise-6",
+      name: "Overhead DB Tricep Extension",
+      category: "accessory",
+      movementPattern: "push",
+      primaryMuscleGroup: "triceps",
+      equipmentType: "dumbbell",
+      defaultStartingWeightLbs: "25.00",
+      defaultIncrementLbs: "2.50",
+      isActive: true,
+      createdAt: now,
+      updatedAt: now
+    },
+    {
+      id: "exercise-7",
+      name: "Romanian Deadlift",
+      category: "compound",
+      movementPattern: "hinge",
+      primaryMuscleGroup: "hamstrings",
+      equipmentType: "barbell",
+      defaultStartingWeightLbs: "95.00",
+      defaultIncrementLbs: "5.00",
+      isActive: true,
+      createdAt: now,
+      updatedAt: now
+    },
+    {
+      id: "exercise-8",
+      name: "Lunges",
+      category: "accessory",
+      movementPattern: "lunge",
+      primaryMuscleGroup: "quads",
+      equipmentType: "dumbbell",
+      defaultStartingWeightLbs: "25.00",
+      defaultIncrementLbs: "5.00",
+      isActive: true,
+      createdAt: now,
+      updatedAt: now
+    },
+    {
+      id: "exercise-9",
+      name: "Incline DB Press",
+      category: "compound",
+      movementPattern: "push",
+      primaryMuscleGroup: "chest",
+      equipmentType: "dumbbell",
+      defaultStartingWeightLbs: "35.00",
+      defaultIncrementLbs: "5.00",
+      isActive: true,
+      createdAt: now,
+      updatedAt: now
+    },
+    {
+      id: "exercise-10",
+      name: "Incline DB Curl",
+      category: "accessory",
+      movementPattern: "pull",
+      primaryMuscleGroup: "biceps",
+      equipmentType: "dumbbell",
+      defaultStartingWeightLbs: "15.00",
+      defaultIncrementLbs: "2.50",
+      isActive: true,
+      createdAt: now,
+      updatedAt: now
+    },
+    {
+      id: "exercise-11",
+      name: "Skull Crushers",
+      category: "accessory",
+      movementPattern: "push",
+      primaryMuscleGroup: "triceps",
+      equipmentType: "barbell",
+      defaultStartingWeightLbs: "35.00",
+      defaultIncrementLbs: "2.50",
+      isActive: true,
+      createdAt: now,
+      updatedAt: now
+    },
+    {
+      id: "exercise-12",
+      name: "Hammer Curl",
+      category: "accessory",
+      movementPattern: "pull",
+      primaryMuscleGroup: "biceps",
+      equipmentType: "dumbbell",
+      defaultStartingWeightLbs: "20.00",
+      defaultIncrementLbs: "2.50",
+      isActive: true,
+      createdAt: now,
+      updatedAt: now
+    }
+  ]);
+
+  await context.db.insert(workoutTemplateExerciseEntries).values([
+    { id: "template-entry-2", workoutTemplateId: "template-3", exerciseId: "exercise-1", sequenceOrder: 1, targetSets: 3, targetReps: 5, restSeconds: 120, createdAt: now, updatedAt: now },
+    { id: "template-entry-3", workoutTemplateId: "template-3", exerciseId: "exercise-3", sequenceOrder: 2, targetSets: 3, targetReps: 8, restSeconds: 120, createdAt: now, updatedAt: now },
+    { id: "template-entry-4", workoutTemplateId: "template-3", exerciseId: "exercise-4", sequenceOrder: 3, targetSets: 2, targetReps: 8, restSeconds: 90, createdAt: now, updatedAt: now },
+    { id: "template-entry-5", workoutTemplateId: "template-3", exerciseId: "exercise-5", sequenceOrder: 4, targetSets: 2, targetReps: 12, restSeconds: 75, createdAt: now, updatedAt: now },
+    { id: "template-entry-6", workoutTemplateId: "template-3", exerciseId: "exercise-6", sequenceOrder: 5, targetSets: 2, targetReps: 12, restSeconds: 75, createdAt: now, updatedAt: now },
+    { id: "template-entry-7", workoutTemplateId: "template-4", exerciseId: "exercise-2", sequenceOrder: 1, targetSets: 3, targetReps: 5, restSeconds: 120, createdAt: now, updatedAt: now },
+    { id: "template-entry-8", workoutTemplateId: "template-4", exerciseId: "exercise-7", sequenceOrder: 2, targetSets: 2, targetReps: 8, restSeconds: 120, createdAt: now, updatedAt: now },
+    { id: "template-entry-9", workoutTemplateId: "template-4", exerciseId: "exercise-8", sequenceOrder: 3, targetSets: 2, targetReps: 8, restSeconds: 90, createdAt: now, updatedAt: now },
+    { id: "template-entry-10", workoutTemplateId: "template-5", exerciseId: "exercise-9", sequenceOrder: 1, targetSets: 3, targetReps: 8, restSeconds: 120, createdAt: now, updatedAt: now },
+    { id: "template-entry-11", workoutTemplateId: "template-5", exerciseId: "exercise-3", sequenceOrder: 2, targetSets: 3, targetReps: 8, restSeconds: 120, createdAt: now, updatedAt: now },
+    { id: "template-entry-12", workoutTemplateId: "template-5", exerciseId: "exercise-10", sequenceOrder: 3, targetSets: 3, targetReps: 10, restSeconds: 75, createdAt: now, updatedAt: now },
+    { id: "template-entry-13", workoutTemplateId: "template-5", exerciseId: "exercise-11", sequenceOrder: 4, targetSets: 3, targetReps: 10, restSeconds: 75, createdAt: now, updatedAt: now },
+    { id: "template-entry-14", workoutTemplateId: "template-5", exerciseId: "exercise-12", sequenceOrder: 5, targetSets: 2, targetReps: 10, restSeconds: 75, createdAt: now, updatedAt: now },
+    { id: "template-entry-15", workoutTemplateId: "template-6", exerciseId: "exercise-5", sequenceOrder: 1, targetSets: 3, targetReps: 10, restSeconds: 75, createdAt: now, updatedAt: now },
+    { id: "template-entry-16", workoutTemplateId: "template-6", exerciseId: "exercise-11", sequenceOrder: 2, targetSets: 3, targetReps: 10, restSeconds: 75, createdAt: now, updatedAt: now },
+    { id: "template-entry-17", workoutTemplateId: "template-6", exerciseId: "exercise-12", sequenceOrder: 3, targetSets: 2, targetReps: 10, restSeconds: 75, createdAt: now, updatedAt: now }
+  ]);
+}
+
 export async function seedInProgressWorkout(context: WorkoutInfrastructureTestContext, options?: {
   progressionFailures?: number;
   setStatuses?: Array<"pending" | "completed" | "failed">;

@@ -9,6 +9,7 @@ import {
   createWorkoutInfrastructureTestContext,
   disposeWorkoutInfrastructureTestContext,
   seedBaseWorkoutProgram,
+  seedUpperLowerArmsProgram,
   seedInProgressWorkout
 } from "../infrastructure/test-helpers/integration-db.js";
 
@@ -121,6 +122,7 @@ export const workoutHttpTestCases: HttpTestCase[] = [
 
       try {
         await seedBaseWorkoutProgram(context);
+        await seedUpperLowerArmsProgram(context);
         const server = await startHttpServer(context.db);
 
         try {
@@ -148,6 +150,7 @@ export const workoutHttpTestCases: HttpTestCase[] = [
 
       try {
         await seedBaseWorkoutProgram(context);
+        await seedUpperLowerArmsProgram(context);
         const server = await startHttpServer(context.db);
 
         try {
@@ -157,9 +160,18 @@ export const workoutHttpTestCases: HttpTestCase[] = [
           const payload = await readJson(response);
 
           assert.equal(response.status, 200);
+          assert.equal(payload.data.programs.length, 2);
           assert.equal(payload.data.programs[0].name, "Beginner Full Body V1");
           assert.equal(payload.data.programs[0].workouts[0].name, "Workout A");
           assert.equal(payload.data.programs[0].workouts[0].exercises[0].exerciseName, "Bench Press");
+          assert.equal(payload.data.programs[1].name, "4-Day Upper/Lower + Arms");
+          assert.equal(payload.data.programs[1].daysPerWeek, 4);
+          assert.equal(payload.data.programs[1].workouts.length, 4);
+          assert.equal(payload.data.programs[1].workouts[0].name, "Day 1 - Upper Strength");
+          assert.equal(payload.data.programs[1].workouts[0].exercises[1].exerciseName, "Pull-Ups");
+          assert.equal(payload.data.programs[1].workouts[0].exercises[1].targetReps, 8);
+          assert.equal(payload.data.programs[1].workouts[3].exercises[0].exerciseName, "DB Curl");
+          assert.equal(payload.data.programs[1].workouts[3].exercises[0].targetSets, 3);
         } finally {
           await server.close();
         }
@@ -189,6 +201,120 @@ export const workoutHttpTestCases: HttpTestCase[] = [
           assert.equal(response.status, 201);
           assert.equal(payload.data.activeProgram.program.id, "program-1");
           assert.equal(payload.data.activeProgram.nextWorkoutTemplate.id, "template-1");
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "POST /api/v1/programs/:programId/follow can select upper/lower arms program",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        await seedUpperLowerArmsProgram(context);
+        const server = await startHttpServer(context.db);
+
+        try {
+          const followResponse = await fetch(`${server.baseUrl}/api/v1/programs/program-2/follow`, {
+            method: "POST",
+            headers: {
+              Authorization: "Bearer valid-new-user-token"
+            }
+          });
+          const followPayload = await readJson(followResponse);
+
+          assert.equal(followResponse.status, 201);
+          assert.equal(followPayload.data.activeProgram.program.id, "program-2");
+          assert.equal(followPayload.data.activeProgram.program.name, "4-Day Upper/Lower + Arms");
+          assert.equal(followPayload.data.activeProgram.nextWorkoutTemplate.id, "template-3");
+
+          const startResponse = await fetch(`${server.baseUrl}/api/v1/workout-sessions/start`, {
+            method: "POST",
+            headers: {
+              Authorization: "Bearer valid-new-user-token",
+              "content-type": "application/json",
+              "Idempotency-Key": "start-upper-lower-arms-key"
+            },
+            body: JSON.stringify({})
+          });
+          const startPayload = await readJson(startResponse);
+
+          assert.equal(startResponse.status, 201);
+          assert.equal(startPayload.data.programName, "4-Day Upper/Lower + Arms");
+          assert.equal(startPayload.data.workoutName, "Day 1 - Upper Strength");
+          assert.equal(startPayload.data.exercises.length, 5);
+          assert.equal(startPayload.data.exercises[1].exerciseName, "Pull-Ups");
+          assert.equal(startPayload.data.exercises[1].targetSets, 3);
+          assert.equal(startPayload.data.exercises[1].targetReps, 8);
+          assert.equal(startPayload.data.exercises[1].sets.length, 3);
+          assert.equal(startPayload.data.exercises[3].exerciseName, "DB Curl");
+          assert.equal(startPayload.data.exercises[3].targetSets, 2);
+          assert.equal(startPayload.data.exercises[3].targetReps, 12);
+
+          let logIndex = 0;
+          for (const exercise of startPayload.data.exercises) {
+            for (const set of exercise.sets) {
+              logIndex += 1;
+              const logResponse = await fetch(`${server.baseUrl}/api/v1/sets/${set.id}/log`, {
+                method: "POST",
+                headers: {
+                  Authorization: "Bearer valid-new-user-token",
+                  "content-type": "application/json",
+                  "Idempotency-Key": `log-upper-lower-arms-key-${logIndex}`
+                },
+                body: JSON.stringify({
+                  actualReps: set.targetReps
+                })
+              });
+              const logPayload = await readJson(logResponse);
+
+              assert.equal(logResponse.status, 200);
+              assert.equal(logPayload.data.set.status, "completed");
+            }
+          }
+
+          const completeResponse = await fetch(
+            `${server.baseUrl}/api/v1/workout-sessions/${startPayload.data.id}/complete`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: "Bearer valid-new-user-token",
+                "content-type": "application/json",
+                "Idempotency-Key": "complete-upper-lower-arms-key"
+              },
+              body: JSON.stringify({
+                completedAt: "2026-04-24T11:00:00.000Z",
+                exerciseFeedback: startPayload.data.exercises.map((exercise: any) => ({
+                  exerciseEntryId: exercise.id,
+                  effortFeedback: "just_right"
+                })),
+                userEffortFeedback: "just_right"
+              })
+            }
+          );
+          const completePayload = await readJson(completeResponse);
+
+          assert.equal(completeResponse.status, 200);
+          assert.equal(completePayload.data.workoutSession.status, "completed");
+
+          const historyResponse = await fetch(
+            `${server.baseUrl}/api/v1/workout-history?limit=20&status=completed`,
+            {
+              headers: {
+                Authorization: "Bearer valid-new-user-token"
+              }
+            }
+          );
+          const historyPayload = await readJson(historyResponse);
+
+          assert.equal(historyResponse.status, 200);
+          assert.equal(historyPayload.data.items[0].programName, "4-Day Upper/Lower + Arms");
+          assert.equal(historyPayload.data.items[0].completedSetCount, 12);
         } finally {
           await server.close();
         }
