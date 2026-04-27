@@ -340,7 +340,7 @@ export class DrizzleWorkoutSessionRepository implements WorkoutSessionRepository
       .select()
       .from(workoutSessions)
       .where(and(eq(workoutSessions.userId, userId), eq(workoutSessions.status, "completed")))
-      .orderBy(desc(workoutSessions.startedAt))
+      .orderBy(desc(workoutSessions.completedAt), desc(workoutSessions.startedAt))
       .limit(limit);
 
     const result: WorkoutHistorySummaryRecord[] = [];

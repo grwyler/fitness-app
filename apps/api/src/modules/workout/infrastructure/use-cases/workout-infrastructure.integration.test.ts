@@ -207,6 +207,61 @@ export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[]
     }
   },
   {
+    name: "Workout history orders completed workouts by completion time",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+
+        await context.db.insert(workoutSessions).values([
+          {
+            id: "session-started-later",
+            userId: "user-1",
+            programId: "program-1",
+            workoutTemplateId: "template-1",
+            status: "completed",
+            startedAt: new Date("2026-04-25T10:00:00.000Z"),
+            completedAt: new Date("2026-04-25T10:45:00.000Z"),
+            durationSeconds: 2700,
+            isPartial: false,
+            userEffortFeedback: "just_right",
+            programNameSnapshot: "Beginner Full Body V1",
+            workoutNameSnapshot: "Workout A",
+            createdAt: new Date("2026-04-25T10:00:00.000Z"),
+            updatedAt: new Date("2026-04-25T10:45:00.000Z")
+          },
+          {
+            id: "session-completed-later",
+            userId: "user-1",
+            programId: "program-1",
+            workoutTemplateId: "template-1",
+            status: "completed",
+            startedAt: new Date("2026-04-24T10:00:00.000Z"),
+            completedAt: new Date("2026-04-26T10:45:00.000Z"),
+            durationSeconds: 2700,
+            isPartial: false,
+            userEffortFeedback: "just_right",
+            programNameSnapshot: "Beginner Full Body V1",
+            workoutNameSnapshot: "Workout A",
+            createdAt: new Date("2026-04-24T10:00:00.000Z"),
+            updatedAt: new Date("2026-04-26T10:45:00.000Z")
+          }
+        ]);
+
+        const history = await context.repositories.workoutSessionRepository.listRecentCompletedByUserId(
+          "user-1",
+          10
+        );
+
+        assert.equal(history[0]?.id, "session-completed-later");
+        assert.equal(history[1]?.id, "session-started-later");
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
     name: "Idempotency persists replay behavior and rejects conflicting payloads",
     run: async () => {
       const context = await createWorkoutInfrastructureTestContext();

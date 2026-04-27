@@ -51,7 +51,7 @@ function formatSetStatus(status: string) {
     return "Skipped";
   }
 
-  return "Pending";
+  return "Not logged";
 }
 
 export function WorkoutHistoryDetailScreen({ route, navigation }: Props) {
@@ -156,7 +156,7 @@ export function WorkoutHistoryDetailScreen({ route, navigation }: Props) {
                 <Text style={styles.setTitle}>Set {set.setNumber}</Text>
                 <Text style={styles.setMeta}>
                   {set.status === "pending"
-                    ? `Planned ${set.targetReps} reps at ${set.targetWeight.value} lb`
+                    ? `Not logged - planned ${set.targetReps} reps at ${set.targetWeight.value} lb`
                     : `${set.actualReps ?? 0} reps at ${set.actualWeight?.value ?? set.targetWeight.value} lb`}
                 </Text>
                 <Text

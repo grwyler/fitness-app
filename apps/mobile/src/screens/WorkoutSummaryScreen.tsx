@@ -9,7 +9,8 @@ import { FeedbackButton } from "../features/feedback/components/FeedbackButton";
 import {
   getWorkoutSummaryEncouragement,
   getWorkoutSummaryHeadline,
-  getWorkoutSummaryOutcomes
+  getWorkoutSummaryOutcomes,
+  getProgressionUpdateSummaryText
 } from "../features/workout/utils/workout-summary.shared";
 import { colors, spacing } from "../theme/tokens";
 
@@ -56,11 +57,7 @@ export function WorkoutSummaryScreen({ navigation, route }: Props) {
           summary.progressionUpdates.map((update: ProgressionUpdateDto) => (
             <View key={update.exerciseId} style={styles.row}>
               <Text style={styles.rowTitle}>{update.exerciseName}</Text>
-              <Text style={styles.rowBody}>
-                {update.result === "increased"
-                  ? `+${update.nextWeight.value - update.previousWeight.value} lb next time`
-                  : `${update.previousWeight.value} lb -> ${update.nextWeight.value} lb`}
-              </Text>
+              <Text style={styles.rowBody}>{getProgressionUpdateSummaryText(update)}</Text>
               <Text style={styles.rowBody}>{update.reason}</Text>
             </View>
           ))

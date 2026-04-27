@@ -61,7 +61,7 @@ A user can:
 - [x] Workout detail screen (sets, weights, exercises)
 - [x] Show simple progression (already started)
 - [x] Highlight improvements (e.g., "+10 lbs from last time")
-- [ ] Show streak or consistency metric (optional, simple)
+- [x] Show streak or consistency metric (optional, simple)
 
 ---
 

@@ -7,6 +7,7 @@ import { setLoggingTestCases } from "./set-logging.test.js";
 import { activeWorkoutScreenTestCases } from "./active-workout-screen.test.js";
 import { workoutSummaryTestCases } from "./workout-summary.test.js";
 import { historyDetailTestCases } from "./history-detail.test.js";
+import { completionCacheTestCases } from "./completion-cache.test.js";
 
 void runMobileTestCases([
   ...mobileApiTestCases,
@@ -16,5 +17,6 @@ void runMobileTestCases([
   ...setLoggingTestCases,
   ...activeWorkoutScreenTestCases,
   ...workoutSummaryTestCases,
+  ...completionCacheTestCases,
   ...historyDetailTestCases
 ]);

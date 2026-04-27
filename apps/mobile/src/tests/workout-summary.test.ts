@@ -4,7 +4,8 @@ import {
   getWorkoutSummaryEncouragement,
   getWorkoutSummaryHeadline,
   getWorkoutSummaryOutcomes,
-  getWorkoutSummaryStats
+  getWorkoutSummaryStats,
+  getProgressionUpdateSummaryText
 } from "../features/workout/utils/workout-summary.shared.js";
 import type { MobileTestCase } from "./mobile-test-case.js";
 
@@ -121,6 +122,22 @@ export const workoutSummaryTestCases: MobileTestCase[] = [
           detail: "lift moving up"
         }
       ]);
+    }
+  },
+  {
+    name: "Workout summary progression copy avoids misleading no-change arrows",
+    run: () => {
+      assert.equal(
+        getProgressionUpdateSummaryText({
+          exerciseId: "exercise-1",
+          exerciseName: "Bench Press",
+          previousWeight: { value: 135, unit: "lb" },
+          nextWeight: { value: 135, unit: "lb" },
+          result: "repeated",
+          reason: "Keep the same weight."
+        }),
+        "Stays at 135 lb next time"
+      );
     }
   }
 ];

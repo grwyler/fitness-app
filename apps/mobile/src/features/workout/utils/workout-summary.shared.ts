@@ -16,6 +16,10 @@ export type WorkoutSummaryOutcome = {
   detail: string;
 };
 
+function formatDelta(value: number) {
+  return Number.isInteger(value) ? value.toString() : value.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+}
+
 function formatNumber(value: number) {
   return Math.round(value).toLocaleString();
 }
@@ -81,6 +85,22 @@ export function getWorkoutSummaryEncouragement(summary: CompleteWorkoutSessionRe
   }
 
   return "That one is in the books.";
+}
+
+export function getProgressionUpdateSummaryText(update: CompleteWorkoutSessionResponse["progressionUpdates"][number]) {
+  const previousWeight = update.previousWeight.value;
+  const nextWeight = update.nextWeight.value;
+  const delta = nextWeight - previousWeight;
+
+  if (update.result === "increased" && delta > 0) {
+    return `+${formatDelta(delta)} lb next time`;
+  }
+
+  if (update.result === "reduced" && delta < 0) {
+    return `${formatDelta(Math.abs(delta))} lb lighter next time`;
+  }
+
+  return `Stays at ${formatDelta(nextWeight)} lb next time`;
 }
 
 export function getWorkoutSummaryOutcomes(summary: CompleteWorkoutSessionResponse): WorkoutSummaryOutcome[] {

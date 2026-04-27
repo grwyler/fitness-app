@@ -49,6 +49,7 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
   const [showFinishEarlyConfirmation, setShowFinishEarlyConfirmation] = useState(false);
   const [restTimer, setRestTimer] = useState<RestTimerState>(null);
   const inFlightSetIds = useRef<Set<string>>(new Set());
+  const completionInFlight = useRef(false);
 
   useEffect(() => {
     if (!restTimer) {
@@ -166,6 +167,11 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
   }
 
   function handleCompleteWorkout() {
+    if (completionInFlight.current || completeWorkoutMutation.isPending) {
+      return;
+    }
+
+    completionInFlight.current = true;
     setLastAction("complete_workout");
     setShowFinishEarlyConfirmation(false);
     const request = buildCompleteWorkoutRequest(workout, feedbackByEntryId, {
@@ -182,6 +188,9 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
           navigation.replace("WorkoutSummary", {
             summary: result.response.data
           });
+        },
+        onError: () => {
+          completionInFlight.current = false;
         }
       }
     );
@@ -287,7 +296,7 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
         <PrimaryButton
           label={completionUiState.finishButtonLabel}
           onPress={handleFinishPress}
-          disabled={completionUiState.finishButtonDisabled}
+          disabled={completionUiState.finishButtonDisabled || completionInFlight.current}
           loading={completeWorkoutMutation.isPending}
         />
         <FeedbackButton
