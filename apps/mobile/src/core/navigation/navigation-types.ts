@@ -6,6 +6,7 @@ export type RootStackParamList = {
   Dashboard: undefined;
   ActiveWorkout: undefined;
   WorkoutHistory: undefined;
+  Progression: undefined;
   WorkoutSummary: {
     summary: CompleteWorkoutSessionResponse;
   };

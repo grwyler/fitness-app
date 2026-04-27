@@ -3,6 +3,7 @@ import type { ApiErrorEnvelope } from "@fitness/shared";
 import { apiRequest } from "../api/client.js";
 import {
   fetchDashboard,
+  fetchProgression,
   fetchWorkoutHistory,
   startWorkoutSession,
   logSet,
@@ -83,6 +84,7 @@ export const mobileApiTestCases: MobileTestCase[] = [
       });
 
       await fetchDashboard();
+      await fetchProgression();
       await fetchWorkoutHistory(20);
       await startWorkoutSession({
         request: {},
@@ -110,9 +112,10 @@ export const mobileApiTestCases: MobileTestCase[] = [
 
       assert.equal((calls[0]?.headers as Record<string, string>)["Idempotency-Key"], undefined);
       assert.equal((calls[1]?.headers as Record<string, string>)["Idempotency-Key"], undefined);
-      assert.equal((calls[2]?.headers as Record<string, string>)["Idempotency-Key"], "start-key");
-      assert.equal((calls[3]?.headers as Record<string, string>)["Idempotency-Key"], "log-key");
-      assert.equal((calls[4]?.headers as Record<string, string>)["Idempotency-Key"], "complete-key");
+      assert.equal((calls[2]?.headers as Record<string, string>)["Idempotency-Key"], undefined);
+      assert.equal((calls[3]?.headers as Record<string, string>)["Idempotency-Key"], "start-key");
+      assert.equal((calls[4]?.headers as Record<string, string>)["Idempotency-Key"], "log-key");
+      assert.equal((calls[5]?.headers as Record<string, string>)["Idempotency-Key"], "complete-key");
     }
   },
   {

@@ -174,6 +174,14 @@ export function DashboardScreen({ navigation }: Props) {
         <Text style={styles.cardBody}>
           Recent activity: {dashboard.recentProgressMetrics[0]?.displayText ?? "No progress metrics yet."}
         </Text>
+        <PrimaryButton
+          label="View progress"
+          tone="secondary"
+          onPress={() => {
+            setLastAction("view_progress");
+            navigation.navigate("Progression");
+          }}
+        />
       </View>
 
       <View style={styles.card}>

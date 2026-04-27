@@ -37,7 +37,7 @@ A user can:
 - [x] Follow a predefined program
 - [x] Log workouts easily
 - [x] See past workouts
-- [ ] See basic progression
+- [x] See basic progression
 
 ---
 

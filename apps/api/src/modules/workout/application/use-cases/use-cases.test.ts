@@ -16,6 +16,7 @@ import { CompleteWorkoutSessionUseCase } from "./complete-workout-session.use-ca
 import { FollowProgramUseCase } from "./follow-program.use-case.js";
 import { GetCurrentWorkoutSessionUseCase } from "./get-current-workout-session.use-case.js";
 import { GetDashboardUseCase } from "./get-dashboard.use-case.js";
+import { GetProgressionUseCase } from "./get-progression.use-case.js";
 import { GetWorkoutHistoryUseCase } from "./get-workout-history.use-case.js";
 import { ListProgramsUseCase } from "./list-programs.use-case.js";
 import { LogSetUseCase } from "./log-set.use-case.js";
@@ -285,8 +286,14 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         async countCompletedByUserIdWithinRange() {
           return 0;
         },
+        async countCompletedByUserId() {
+          return 0;
+        },
         async countCompletedByUserIdAndProgramId() {
           return 0;
+        },
+        async listCompletedProgressionByUserId() {
+          return [];
         }
       };
 
@@ -346,8 +353,14 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         async countCompletedByUserIdWithinRange() {
           return 0;
         },
+        async countCompletedByUserId() {
+          return 0;
+        },
         async countCompletedByUserIdAndProgramId() {
           return 0;
+        },
+        async listCompletedProgressionByUserId() {
+          return [];
         }
       };
 
@@ -526,8 +539,14 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         async countCompletedByUserIdWithinRange() {
           return 0;
         },
+        async countCompletedByUserId() {
+          return 0;
+        },
         async countCompletedByUserIdAndProgramId() {
           return 0;
+        },
+        async listCompletedProgressionByUserId() {
+          return [];
         }
       };
 
@@ -629,8 +648,14 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         async countCompletedByUserIdWithinRange() {
           return 0;
         },
+        async countCompletedByUserId() {
+          return 0;
+        },
         async countCompletedByUserIdAndProgramId() {
           return 0;
+        },
+        async listCompletedProgressionByUserId() {
+          return [];
         }
       };
 
@@ -820,8 +845,14 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         async countCompletedByUserIdWithinRange() {
           return 0;
         },
+        async countCompletedByUserId() {
+          return 0;
+        },
         async countCompletedByUserIdAndProgramId() {
           return 0;
+        },
+        async listCompletedProgressionByUserId() {
+          return [];
         }
       };
 
@@ -968,8 +999,27 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         async countCompletedByUserIdWithinRange() {
           return 1;
         },
+        async countCompletedByUserId() {
+          return 1;
+        },
         async countCompletedByUserIdAndProgramId() {
           return 1;
+        },
+        async listCompletedProgressionByUserId() {
+          return [
+            {
+              workoutSessionId: "session-1",
+              workoutName: "Workout A",
+              completedAt: new Date("2026-04-24T10:45:00.000Z"),
+              exerciseId: "exercise-1",
+              exerciseName: "Bench Press",
+              exerciseCategory: "compound",
+              setId: "set-1",
+              actualReps: 8,
+              actualWeightLbs: 135,
+              setStatus: "completed"
+            }
+          ];
         }
       };
 
@@ -1054,6 +1104,7 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
 
       const currentWorkoutUseCase = new GetCurrentWorkoutSessionUseCase(workoutSessionRepository);
       const historyUseCase = new GetWorkoutHistoryUseCase(workoutSessionRepository);
+      const progressionUseCase = new GetProgressionUseCase(workoutSessionRepository);
       const dashboardUseCase = new GetDashboardUseCase(
         workoutSessionRepository,
         enrollmentRepository,
@@ -1072,6 +1123,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         context: { userId: "user-1", unitSystem: "imperial" },
         limit: 10
       });
+      const progressionResult = await progressionUseCase.execute({
+        context: { userId: "user-1", unitSystem: "imperial" }
+      });
 
       assert.equal(currentWorkoutResult.data.activeWorkoutSession?.id, "session-1");
       assert.equal(dashboardResult.data.activeProgram?.program.name, "Beginner Full Body V1");
@@ -1081,6 +1135,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
       assert.equal(historyResult.data.items[0]?.workoutName, "Workout A");
       assert.equal(historyResult.data.items[0]?.completedSetCount, 3);
       assert.equal(historyResult.data.nextCursor, null);
+      assert.equal(progressionResult.data.totalCompletedWorkouts, 1);
+      assert.equal(progressionResult.data.exercises[0]?.exerciseName, "Bench Press");
+      assert.equal(progressionResult.data.exercises[0]?.recentBestWeight?.value, 135);
       assert.equal(dashboardResult.meta.replayed, false);
     }
   }

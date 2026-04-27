@@ -1,5 +1,6 @@
 import type { RepositoryOptions } from "../models/persistence-context.js";
 import type {
+  CompletedWorkoutProgressionRecord,
   CompleteWorkoutSessionPersistenceInput,
   CreateWorkoutSessionGraphInput,
   PersistExerciseEntryFeedbackInput,
@@ -69,9 +70,17 @@ export interface WorkoutSessionRepository {
     options?: RepositoryOptions
   ): Promise<number>;
 
+  countCompletedByUserId(userId: string, options?: RepositoryOptions): Promise<number>;
+
   countCompletedByUserIdAndProgramId(
     userId: string,
     programId: string,
     options?: RepositoryOptions
   ): Promise<number>;
+
+  listCompletedProgressionByUserId(
+    userId: string,
+    limit: number,
+    options?: RepositoryOptions
+  ): Promise<CompletedWorkoutProgressionRecord[]>;
 }

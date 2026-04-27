@@ -99,3 +99,16 @@ export type WorkoutHistorySummaryRecord = {
   completedSetCount: number;
   failedSetCount: number;
 };
+
+export type CompletedWorkoutProgressionRecord = {
+  workoutSessionId: string;
+  workoutName: string;
+  completedAt: Date;
+  exerciseId: string;
+  exerciseName: string;
+  exerciseCategory: ExerciseCategory;
+  setId: string;
+  actualReps: number | null;
+  actualWeightLbs: number | null;
+  setStatus: SetStatus;
+};

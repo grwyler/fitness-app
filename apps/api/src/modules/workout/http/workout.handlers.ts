@@ -26,6 +26,7 @@ import type { CompleteWorkoutSessionUseCase } from "../application/use-cases/com
 import type { FollowProgramUseCase } from "../application/use-cases/follow-program.use-case.js";
 import type { GetCurrentWorkoutSessionUseCase } from "../application/use-cases/get-current-workout-session.use-case.js";
 import type { GetDashboardUseCase } from "../application/use-cases/get-dashboard.use-case.js";
+import type { GetProgressionUseCase } from "../application/use-cases/get-progression.use-case.js";
 import type { GetWorkoutHistoryUseCase } from "../application/use-cases/get-workout-history.use-case.js";
 import type { ListProgramsUseCase } from "../application/use-cases/list-programs.use-case.js";
 import type { LogSetUseCase } from "../application/use-cases/log-set.use-case.js";
@@ -35,6 +36,7 @@ export type WorkoutHttpHandlers = {
   listPrograms: RequestHandler;
   followProgram: RequestHandler;
   getDashboard: RequestHandler;
+  getProgression: RequestHandler;
   getWorkoutHistory: RequestHandler;
   getCurrentWorkoutSession: RequestHandler;
   startWorkoutSession: RequestHandler;
@@ -46,6 +48,7 @@ export function createWorkoutHandlers(dependencies: {
   listProgramsUseCase: ListProgramsUseCase;
   followProgramUseCase: FollowProgramUseCase;
   getDashboardUseCase: GetDashboardUseCase;
+  getProgressionUseCase: GetProgressionUseCase;
   getWorkoutHistoryUseCase: GetWorkoutHistoryUseCase;
   getCurrentWorkoutSessionUseCase: GetCurrentWorkoutSessionUseCase;
   startWorkoutSessionUseCase: StartWorkoutSessionUseCase;
@@ -71,6 +74,12 @@ export function createWorkoutHandlers(dependencies: {
     getDashboard: asyncHandler(async (request, response) => {
       const context = getRequestContext(request);
       const result = await dependencies.getDashboardUseCase.execute({ context });
+      response.json(success(result.data, result.meta));
+    }),
+
+    getProgression: asyncHandler(async (request, response) => {
+      const context = getRequestContext(request);
+      const result = await dependencies.getProgressionUseCase.execute({ context });
       response.json(success(result.data, result.meta));
     }),
 

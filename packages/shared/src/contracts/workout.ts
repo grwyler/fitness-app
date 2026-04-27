@@ -147,6 +147,43 @@ export type ProgressionUpdateDto = {
   reason: string;
 };
 
+export type ProgressionVolumePointDto = {
+  workoutSessionId: UUID;
+  workoutName: string;
+  completedAt: ISODateTime;
+  totalVolume: WeightValueDto;
+};
+
+export type ExerciseProgressionPointDto = {
+  workoutSessionId: UUID;
+  completedAt: ISODateTime;
+  bestWeight: WeightValueDto | null;
+  bestReps: number | null;
+  totalVolume: WeightValueDto;
+};
+
+export type ExerciseProgressionSummaryDto = {
+  exerciseId: UUID;
+  exerciseName: string;
+  category: ExerciseCategory;
+  completedWorkoutCount: number;
+  recentBestWeight: WeightValueDto | null;
+  recentBestReps: number | null;
+  lastPerformedAt: ISODateTime | null;
+  points: ExerciseProgressionPointDto[];
+};
+
+export type ProgressionSummaryDto = {
+  totalCompletedWorkouts: number;
+  workoutsCompletedThisWeek: number;
+  currentStreakDays: number;
+  recentWorkoutVolume: ProgressionVolumePointDto[];
+  exercises: ExerciseProgressionSummaryDto[];
+  assumptions: string[];
+};
+
+export type GetProgressionResponse = ProgressionSummaryDto;
+
 export type StartWorkoutSessionRequest = {
   workoutTemplateId?: UUID;
   startedAt?: ISODateTime;

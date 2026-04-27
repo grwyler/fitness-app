@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import type { WorkoutSessionRepository } from "../../repositories/interfaces/workout-session.repository.js";
 import type { RepositoryOptions } from "../../repositories/models/persistence-context.js";
 import type {
+  CompletedWorkoutProgressionRecord,
   CompleteWorkoutSessionPersistenceInput,
   CreateWorkoutSessionGraphInput,
   ExerciseEntryRecord,
@@ -394,6 +395,16 @@ export class DrizzleWorkoutSessionRepository implements WorkoutSessionRepository
     return Number(rows[0]?.count ?? 0);
   }
 
+  public async countCompletedByUserId(userId: string, options?: RepositoryOptions): Promise<number> {
+    const executor = resolveExecutor(this.db, options);
+    const rows = await executor
+      .select({ count: sql<number>`count(*)` })
+      .from(workoutSessions)
+      .where(and(eq(workoutSessions.userId, userId), eq(workoutSessions.status, "completed")));
+
+    return Number(rows[0]?.count ?? 0);
+  }
+
   public async countCompletedByUserIdAndProgramId(
     userId: string,
     programId: string,
@@ -412,5 +423,62 @@ export class DrizzleWorkoutSessionRepository implements WorkoutSessionRepository
       );
 
     return Number(rows[0]?.count ?? 0);
+  }
+
+  public async listCompletedProgressionByUserId(
+    userId: string,
+    limit: number,
+    options?: RepositoryOptions
+  ): Promise<CompletedWorkoutProgressionRecord[]> {
+    const executor = resolveExecutor(this.db, options);
+    const recentSessions = await executor
+      .select({
+        id: workoutSessions.id,
+        workoutName: workoutSessions.workoutNameSnapshot,
+        completedAt: workoutSessions.completedAt
+      })
+      .from(workoutSessions)
+      .where(and(eq(workoutSessions.userId, userId), eq(workoutSessions.status, "completed")))
+      .orderBy(desc(workoutSessions.completedAt))
+      .limit(limit);
+
+    const sessionIds = recentSessions.map((session: any) => session.id);
+    if (sessionIds.length === 0) {
+      return [];
+    }
+
+    const rows = await executor
+      .select({
+        workoutSessionId: workoutSessions.id,
+        workoutName: workoutSessions.workoutNameSnapshot,
+        completedAt: workoutSessions.completedAt,
+        exerciseId: exerciseEntries.exerciseId,
+        exerciseName: exerciseEntries.exerciseNameSnapshot,
+        exerciseCategory: exerciseEntries.exerciseCategorySnapshot,
+        setId: sets.id,
+        actualReps: sets.actualReps,
+        actualWeightLbs: sets.actualWeightLbs,
+        setStatus: sets.status
+      })
+      .from(workoutSessions)
+      .innerJoin(exerciseEntries, eq(exerciseEntries.workoutSessionId, workoutSessions.id))
+      .innerJoin(sets, eq(sets.exerciseEntryId, exerciseEntries.id))
+      .where(inArray(workoutSessions.id, sessionIds))
+      .orderBy(desc(workoutSessions.completedAt), asc(exerciseEntries.sequenceOrder), asc(sets.setNumber));
+
+    return rows
+      .filter((row: any) => row.completedAt)
+      .map((row: any) => ({
+        workoutSessionId: row.workoutSessionId,
+        workoutName: row.workoutName,
+        completedAt: row.completedAt,
+        exerciseId: row.exerciseId,
+        exerciseName: row.exerciseName,
+        exerciseCategory: row.exerciseCategory,
+        setId: row.setId,
+        actualReps: row.actualReps,
+        actualWeightLbs: normalizeNullableNumeric(row.actualWeightLbs),
+        setStatus: row.setStatus
+      }));
   }
 }
