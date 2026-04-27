@@ -17,15 +17,24 @@ if (resolvedEnvPath) {
   loadDotEnv({ path: resolvedEnvPath });
 }
 
+const trimmedOptionalString = z.preprocess(
+  (value) => (typeof value === "string" ? value.trim() : value),
+  z.string().optional()
+);
+
 const envSchema = z.object({
-  CORS_ALLOWED_ORIGINS: z.string().optional(),
-  DATABASE_URL: z.string().min(1, "DATABASE_URL is required").optional(),
-  JWT_SECRET: z.string().min(32, "JWT_SECRET must be at least 32 characters").optional(),
-  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  CORS_ALLOWED_ORIGINS: trimmedOptionalString,
+  DATABASE_URL: trimmedOptionalString.pipe(z.string().min(1, "DATABASE_URL is required").optional()),
+  JWT_SECRET: trimmedOptionalString.pipe(z.string().min(32, "JWT_SECRET must be at least 32 characters").optional()),
+  NODE_ENV: z
+    .preprocess((value) => (typeof value === "string" ? value.trim() : value), z.enum(["development", "test", "production"]))
+    .default("development"),
   PORT: z.coerce.number().int().positive().default(4000),
   USE_PGLITE_DEV: z
-    .enum(["true", "false"])
-    .optional()
+    .preprocess(
+      (value) => (typeof value === "string" ? value.trim() : value),
+      z.enum(["true", "false"]).optional()
+    )
     .transform((value) => value === "true")
     .default(false)
 });
