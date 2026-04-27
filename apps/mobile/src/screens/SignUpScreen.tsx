@@ -5,6 +5,7 @@ import { useClerk, useSignUp } from "@clerk/expo";
 import { Screen } from "../components/Screen";
 import { PrimaryButton } from "../components/PrimaryButton";
 import type { RootStackParamList } from "../core/navigation/navigation-types";
+import { getAuthErrorMessage } from "../core/auth/auth-errors";
 import { colors, spacing } from "../theme/tokens";
 
 type Props = NativeStackScreenProps<RootStackParamList, "SignUp">;
@@ -26,12 +27,7 @@ function CaptchaMount() {
 }
 
 function getErrorMessage(error: unknown) {
-  if (typeof error === "object" && error !== null && "errors" in error) {
-    const errors = (error as { errors?: Array<{ longMessage?: string; message?: string }> }).errors;
-    return errors?.[0]?.longMessage ?? errors?.[0]?.message ?? "Unable to sign up.";
-  }
-
-  return error instanceof Error ? error.message : "Unable to sign up.";
+  return getAuthErrorMessage(error, "Unable to sign up.");
 }
 
 function formatFieldLabel(field: string) {

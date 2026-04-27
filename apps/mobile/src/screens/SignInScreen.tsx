@@ -12,17 +12,13 @@ import {
   isDevAuthDebugEnabled,
   logSafeAuthDiagnostic
 } from "../core/auth/auth-debug";
+import { getAuthErrorMessage, getSafeAuthErrorDiagnostic } from "../core/auth/auth-errors";
 import { colors, spacing } from "../theme/tokens";
 
 type Props = NativeStackScreenProps<RootStackParamList, "SignIn">;
 
 function getErrorMessage(error: unknown) {
-  if (typeof error === "object" && error !== null && "errors" in error) {
-    const errors = (error as { errors?: Array<{ longMessage?: string; message?: string }> }).errors;
-    return errors?.[0]?.longMessage ?? errors?.[0]?.message ?? "Unable to sign in.";
-  }
-
-  return error instanceof Error ? error.message : "Unable to sign in.";
+  return getAuthErrorMessage(error, "Unable to sign in.");
 }
 
 async function resolveSessionToken(getToken: ReturnType<typeof useAuth>["getToken"]) {
@@ -118,7 +114,8 @@ export function SignInScreen({ navigation }: Props) {
       }
     } catch (error) {
       logSafeAuthDiagnostic("sign_in_set_active_threw", {
-        createdSessionPresent: true
+        createdSessionPresent: true,
+        errorKind: getSafeAuthErrorDiagnostic(error)
       });
       appendAuthDebugTimeline("sign_in_set_active_threw", getErrorMessage(error));
       setErrorMessage(getErrorMessage(error));
@@ -178,6 +175,9 @@ export function SignInScreen({ navigation }: Props) {
         await activateCompletedSession();
       }
     } catch (error) {
+      logSafeAuthDiagnostic("sign_in_submit_threw", {
+        errorKind: getSafeAuthErrorDiagnostic(error)
+      });
       appendAuthDebugTimeline("sign_in_submit_threw", getErrorMessage(error));
       setErrorMessage(getErrorMessage(error));
     }
@@ -217,6 +217,9 @@ export function SignInScreen({ navigation }: Props) {
         setErrorMessage("Sign in verification is not complete yet.");
       }
     } catch (error) {
+      logSafeAuthDiagnostic("sign_in_verification_threw", {
+        errorKind: getSafeAuthErrorDiagnostic(error)
+      });
       appendAuthDebugTimeline("sign_in_verification_threw", getErrorMessage(error));
       setErrorMessage(getErrorMessage(error));
     }

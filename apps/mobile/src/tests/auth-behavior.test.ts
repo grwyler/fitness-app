@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { apiRequest } from "../api/client.js";
+import { getAuthErrorMessage } from "../core/auth/auth-errors.js";
 import { registerAuthBridge, setLastKnownAuthToken } from "../core/auth/auth-bridge.js";
 import { deriveAuthStatus } from "../core/auth/auth-state.js";
 import { getPrimaryButtonDisabledState, handleWebPrimaryButtonClick } from "../components/primary-button.shared.js";
@@ -17,6 +18,34 @@ function setMockFetch(implementation: (input: RequestInfo | URL, init?: RequestI
 }
 
 export const authBehaviorTestCases: MobileTestCase[] = [
+  {
+    name: "Auth HTML service errors show a friendly message",
+    run: () => {
+      const message = getAuthErrorMessage(
+        new Error(`Unexpected token '<', "<html><hea"... is not valid JSON`),
+        "Unable to sign in."
+      );
+
+      assert.equal(message, "Authentication service is temporarily unavailable. Please try again.");
+    }
+  },
+  {
+    name: "Clerk JSON errors still show their message",
+    run: () => {
+      const message = getAuthErrorMessage(
+        {
+          errors: [
+            {
+              message: "Password is incorrect."
+            }
+          ]
+        },
+        "Unable to sign in."
+      );
+
+      assert.equal(message, "Password is incorrect.");
+    }
+  },
   {
     name: "PrimaryButton web click calls handler",
     run: () => {
