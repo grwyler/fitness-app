@@ -34,8 +34,8 @@ A mobile-first training system that tells users exactly what to do in the gym an
 A user can:
 
 - [x] Create an account (auth)
-- [ ] Follow a predefined program
-- [ ] Log workouts easily
+- [x] Follow a predefined program
+- [x] Log workouts easily
 - [ ] See past workouts
 - [ ] See basic progression
 
