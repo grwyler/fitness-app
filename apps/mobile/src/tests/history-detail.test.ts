@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import type { ProgressionSummaryDto, WorkoutSessionDto } from "@fitness/shared";
-import { buildWorkoutDetailProgressHighlights } from "../features/workout/utils/history-detail.shared.js";
+import {
+  buildWorkoutDetailProgressHighlights,
+  getWorkoutDetailStats
+} from "../features/workout/utils/history-detail.shared.js";
 import type { MobileTestCase } from "./mobile-test-case.js";
 
 const workout: WorkoutSessionDto = {
@@ -24,12 +27,46 @@ const workout: WorkoutSessionDto = {
       targetSets: 1,
       targetReps: 8,
       targetWeight: { value: 145, unit: "lb" },
-      restSeconds: 120,
-      effortFeedback: "just_right",
-      completedAt: "2026-04-24T10:20:00.000Z",
-      sets: []
-    }
-  ]
+        restSeconds: 120,
+        effortFeedback: "just_right",
+        completedAt: "2026-04-24T10:20:00.000Z",
+        sets: [
+          {
+            id: "set-1",
+            exerciseEntryId: "entry-1",
+            setNumber: 1,
+            targetReps: 8,
+            actualReps: 8,
+            targetWeight: { value: 145, unit: "lb" },
+            actualWeight: { value: 145, unit: "lb" },
+            status: "completed",
+            completedAt: "2026-04-24T10:10:00.000Z"
+          },
+          {
+            id: "set-2",
+            exerciseEntryId: "entry-1",
+            setNumber: 2,
+            targetReps: 8,
+            actualReps: 6,
+            targetWeight: { value: 145, unit: "lb" },
+            actualWeight: { value: 145, unit: "lb" },
+            status: "failed",
+            completedAt: "2026-04-24T10:15:00.000Z"
+          },
+          {
+            id: "set-3",
+            exerciseEntryId: "entry-1",
+            setNumber: 3,
+            targetReps: 8,
+            actualReps: null,
+            targetWeight: { value: 145, unit: "lb" },
+            actualWeight: null,
+            status: "pending",
+            completedAt: null
+          }
+        ]
+      }
+    ]
 };
 
 const progression: ProgressionSummaryDto = {
@@ -77,6 +114,17 @@ export const historyDetailTestCases: MobileTestCase[] = [
           text: "+10 lb from last time"
         }
       ]);
+    }
+  },
+  {
+    name: "History detail stats summarize completed sets and volume",
+    run: () => {
+      assert.deepEqual(getWorkoutDetailStats(workout), {
+        completedSetCount: 1,
+        failedSetCount: 1,
+        plannedSetCount: 3,
+        totalVolume: 2030
+      });
     }
   }
 ];

@@ -57,6 +57,7 @@ export function WorkoutHistoryScreen({ navigation }: Props) {
   }
 
   const items = historyQuery.data.items;
+  const completedSetTotal = items.reduce((sum, item) => sum + item.completedSetCount, 0);
 
   return (
     <Screen>
@@ -72,36 +73,53 @@ export function WorkoutHistoryScreen({ navigation }: Props) {
           <Text style={styles.cardBody}>Finish a workout and it will show up here.</Text>
         </View>
       ) : (
-        items.map((item) => (
-          <Pressable
-            key={item.id}
-            accessibilityRole="button"
-            onPress={() => navigation.navigate("WorkoutHistoryDetail", { sessionId: item.id })}
-            style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
-          >
-            <Text style={styles.cardLabel}>{formatCompletedDate(item.completedAt)}</Text>
-            <Text style={styles.cardTitle}>{item.workoutName}</Text>
-            <Text style={styles.cardBody}>{item.programName}</Text>
-            <Text style={styles.metaLine}>
-              {formatDuration(item.durationSeconds)} - {item.exerciseCount} exercises - {item.completedSetCount}/
-              {item.plannedSetCount} sets
-            </Text>
-            {item.isPartial ? <Text style={styles.warningText}>Finished early</Text> : null}
-            {item.failedSetCount > 0 ? (
-              <Text style={styles.warningText}>{item.failedSetCount} failed sets</Text>
-            ) : null}
-            {item.highlights.length > 0 ? (
-              <View style={styles.highlightList}>
-                {item.highlights.slice(0, 3).map((highlight) => (
-                  <Text key={highlight} style={styles.highlightPill}>
-                    {highlight}
-                  </Text>
-                ))}
+        <>
+          <View style={styles.summaryStrip}>
+            <View style={styles.summaryStat}>
+              <Text style={styles.summaryLabel}>Workouts</Text>
+              <Text style={styles.summaryValue}>{items.length}</Text>
+            </View>
+            <View style={styles.summaryStat}>
+              <Text style={styles.summaryLabel}>Sets</Text>
+              <Text style={styles.summaryValue}>{completedSetTotal}</Text>
+            </View>
+          </View>
+
+          {items.map((item) => (
+            <Pressable
+              key={item.id}
+              accessibilityRole="button"
+              onPress={() => navigation.navigate("WorkoutHistoryDetail", { sessionId: item.id })}
+              style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+            >
+              <View style={styles.cardHeader}>
+                <View style={styles.cardHeaderText}>
+                  <Text style={styles.cardLabel}>{formatCompletedDate(item.completedAt)}</Text>
+                  <Text style={styles.cardTitle}>{item.workoutName}</Text>
+                </View>
+                <Text style={styles.detailHint}>Details</Text>
               </View>
-            ) : null}
-            <Text style={styles.detailHint}>View details</Text>
-          </Pressable>
-        ))
+              <Text style={styles.cardBody}>{item.programName}</Text>
+              <Text style={styles.metaLine}>
+                {item.exerciseCount} exercises - {item.completedSetCount}/{item.plannedSetCount} sets -{" "}
+                {formatDuration(item.durationSeconds)}
+              </Text>
+              {item.isPartial ? <Text style={styles.warningText}>Finished early</Text> : null}
+              {item.failedSetCount > 0 ? (
+                <Text style={styles.warningText}>{item.failedSetCount} failed sets</Text>
+              ) : null}
+              {item.highlights.length > 0 ? (
+                <View style={styles.highlightList}>
+                  {item.highlights.slice(0, 3).map((highlight) => (
+                    <Text key={highlight} style={styles.highlightPill}>
+                      {highlight}
+                    </Text>
+                  ))}
+                </View>
+              ) : null}
+            </Pressable>
+          ))}
+        </>
       )}
 
       <PrimaryButton
@@ -122,7 +140,6 @@ const styles = StyleSheet.create({
     color: colors.accentStrong,
     fontSize: 14,
     fontWeight: "700",
-    letterSpacing: 1.1,
     textTransform: "uppercase"
   },
   title: {
@@ -146,6 +163,38 @@ const styles = StyleSheet.create({
   },
   cardPressed: {
     opacity: 0.72
+  },
+  summaryStrip: {
+    flexDirection: "row",
+    gap: spacing.sm
+  },
+  summaryStat: {
+    backgroundColor: colors.textPrimary,
+    borderRadius: 18,
+    flex: 1,
+    gap: spacing.xs,
+    padding: spacing.md
+  },
+  summaryValue: {
+    color: colors.surface,
+    fontSize: 24,
+    fontWeight: "800"
+  },
+  summaryLabel: {
+    color: colors.surfaceMuted,
+    fontSize: 12,
+    fontWeight: "800",
+    textTransform: "uppercase"
+  },
+  cardHeader: {
+    alignItems: "flex-start",
+    flexDirection: "row",
+    gap: spacing.sm,
+    justifyContent: "space-between"
+  },
+  cardHeaderText: {
+    flex: 1,
+    gap: spacing.xs
   },
   cardLabel: {
     color: colors.accentStrong,

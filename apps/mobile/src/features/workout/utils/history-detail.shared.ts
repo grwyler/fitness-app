@@ -5,8 +5,39 @@ export type ExerciseProgressHighlight = {
   text: string;
 };
 
+export type WorkoutDetailStats = {
+  completedSetCount: number;
+  failedSetCount: number;
+  plannedSetCount: number;
+  totalVolume: number;
+};
+
 function formatDelta(value: number) {
   return Number.isInteger(value) ? value.toString() : value.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+}
+
+export function getCompletedSetVolume(input: {
+  actualReps: number | null;
+  actualWeight?: { value: number } | null;
+  status: string;
+  targetWeight: { value: number };
+}) {
+  if (input.status !== "completed" && input.status !== "failed") {
+    return 0;
+  }
+
+  return (input.actualReps ?? 0) * (input.actualWeight?.value ?? input.targetWeight.value);
+}
+
+export function getWorkoutDetailStats(workout: WorkoutSessionDto): WorkoutDetailStats {
+  const sets = workout.exercises.flatMap((exercise) => exercise.sets);
+
+  return {
+    completedSetCount: sets.filter((set) => set.status === "completed").length,
+    failedSetCount: sets.filter((set) => set.status === "failed").length,
+    plannedSetCount: sets.length,
+    totalVolume: sets.reduce((sum, set) => sum + getCompletedSetVolume(set), 0)
+  };
 }
 
 export function buildWorkoutDetailProgressHighlights(input: {
@@ -51,4 +82,3 @@ export function buildWorkoutDetailProgressHighlights(input: {
     ];
   });
 }
-

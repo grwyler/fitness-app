@@ -57,7 +57,10 @@ export function createWorkoutHttpRouter(database: WorkoutDatabase) {
   );
 
   const getCurrentWorkoutSessionUseCase = new GetCurrentWorkoutSessionUseCase(workoutSessionRepository);
-  const getWorkoutHistoryUseCase = new GetWorkoutHistoryUseCase(workoutSessionRepository);
+  const getWorkoutHistoryUseCase = new GetWorkoutHistoryUseCase(
+    workoutSessionRepository,
+    progressMetricRepository
+  );
   const getWorkoutHistoryDetailUseCase = new GetWorkoutHistoryDetailUseCase(workoutSessionRepository);
   const getProgressionUseCase = new GetProgressionUseCase(workoutSessionRepository);
   const listProgramsUseCase = new ListProgramsUseCase(programRepository);

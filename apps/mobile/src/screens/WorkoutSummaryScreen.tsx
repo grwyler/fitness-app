@@ -7,8 +7,9 @@ import { PrimaryButton } from "../components/PrimaryButton";
 import type { RootStackParamList } from "../core/navigation/navigation-types";
 import { FeedbackButton } from "../features/feedback/components/FeedbackButton";
 import {
+  getWorkoutSummaryEncouragement,
   getWorkoutSummaryHeadline,
-  getWorkoutSummaryStats
+  getWorkoutSummaryOutcomes
 } from "../features/workout/utils/workout-summary.shared";
 import { colors, spacing } from "../theme/tokens";
 
@@ -17,8 +18,9 @@ type Props = NativeStackScreenProps<RootStackParamList, "WorkoutSummary">;
 export function WorkoutSummaryScreen({ navigation, route }: Props) {
   const { summary } = route.params;
   const [lastAction, setLastAction] = useState<string | null>("completed_workout");
-  const stats = getWorkoutSummaryStats(summary.workoutSession);
   const headline = getWorkoutSummaryHeadline(summary);
+  const encouragement = getWorkoutSummaryEncouragement(summary);
+  const outcomes = getWorkoutSummaryOutcomes(summary);
 
   return (
     <Screen>
@@ -29,20 +31,17 @@ export function WorkoutSummaryScreen({ navigation, route }: Props) {
       </View>
 
       <View style={styles.successCard}>
-        <Text style={styles.successTitle}>Saved to your training history.</Text>
-        <Text style={styles.successBody}>
-          {stats.completedSetCount}/{stats.plannedSetCount} sets completed
-          {stats.failedSetCount > 0 ? ` - ${stats.failedSetCount} missed` : ""}.
-        </Text>
+        <Text style={styles.successLabel}>Saved</Text>
+        <Text style={styles.successTitle}>Strong work.</Text>
+        <Text style={styles.successBody}>{encouragement}</Text>
         <View style={styles.statGrid}>
-          <View style={styles.statBlock}>
-            <Text style={styles.successLabel}>Volume</Text>
-            <Text style={styles.statValue}>{Math.round(stats.totalVolume).toLocaleString()} lb</Text>
-          </View>
-          <View style={styles.statBlock}>
-            <Text style={styles.successLabel}>Duration</Text>
-            <Text style={styles.statValue}>{stats.durationMinutes ? `${stats.durationMinutes} min` : "Saved"}</Text>
-          </View>
+          {outcomes.map((outcome) => (
+            <View key={outcome.label} style={styles.statBlock}>
+              <Text style={styles.successLabel}>{outcome.label}</Text>
+              <Text style={styles.statValue}>{outcome.value}</Text>
+              <Text style={styles.statDetail}>{outcome.detail}</Text>
+            </View>
+          ))}
         </View>
         <Text style={styles.successBody}>
           Next workout: {summary.nextWorkoutTemplate?.name ?? "No next workout queued"}
@@ -57,7 +56,11 @@ export function WorkoutSummaryScreen({ navigation, route }: Props) {
           summary.progressionUpdates.map((update: ProgressionUpdateDto) => (
             <View key={update.exerciseId} style={styles.row}>
               <Text style={styles.rowTitle}>{update.exerciseName}</Text>
-              <Text style={styles.rowBody}>{`${update.previousWeight.value} lb -> ${update.nextWeight.value} lb`}</Text>
+              <Text style={styles.rowBody}>
+                {update.result === "increased"
+                  ? `+${update.nextWeight.value - update.previousWeight.value} lb next time`
+                  : `${update.previousWeight.value} lb -> ${update.nextWeight.value} lb`}
+              </Text>
               <Text style={styles.rowBody}>{update.reason}</Text>
             </View>
           ))
@@ -81,6 +84,15 @@ export function WorkoutSummaryScreen({ navigation, route }: Props) {
         screenName="WorkoutSummaryScreen"
         workoutSessionId={summary.workoutSession.id}
         lastAction={lastAction}
+      />
+
+      <PrimaryButton
+        label="View workout detail"
+        tone="secondary"
+        onPress={() => {
+          setLastAction("view_completed_workout_detail");
+          navigation.navigate("WorkoutHistoryDetail", { sessionId: summary.workoutSession.id });
+        }}
       />
 
       <PrimaryButton
@@ -160,6 +172,11 @@ const styles = StyleSheet.create({
     color: colors.surface,
     fontSize: 22,
     fontWeight: "800"
+  },
+  statDetail: {
+    color: colors.surfaceMuted,
+    fontSize: 13,
+    fontWeight: "700"
   },
   cardLabel: {
     color: colors.accentStrong,

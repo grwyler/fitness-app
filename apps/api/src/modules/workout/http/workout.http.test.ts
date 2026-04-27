@@ -704,6 +704,7 @@ export const workoutHttpTestCases: HttpTestCase[] = [
           assert.equal(historyPayload.data.items[0].programName, "Beginner Full Body V1");
           assert.equal(historyPayload.data.items[0].exerciseCount, 1);
           assert.equal(historyPayload.data.items[0].completedSetCount, 3);
+          assert.ok(historyPayload.data.items[0].highlights.includes("Workout completed"));
           assert.equal(historyPayload.data.nextCursor, null);
           assert.equal(historyDetailResponse.status, 200);
           assert.equal(historyDetailPayload.data.workoutSession.id, "session-1");

@@ -1122,7 +1122,10 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
       };
 
       const currentWorkoutUseCase = new GetCurrentWorkoutSessionUseCase(workoutSessionRepository);
-      const historyUseCase = new GetWorkoutHistoryUseCase(workoutSessionRepository);
+      const historyUseCase = new GetWorkoutHistoryUseCase(
+        workoutSessionRepository,
+        progressMetricRepository
+      );
       const progressionUseCase = new GetProgressionUseCase(workoutSessionRepository);
       const dashboardUseCase = new GetDashboardUseCase(
         workoutSessionRepository,
@@ -1153,6 +1156,7 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
       assert.equal(dashboardResult.data.recentWorkoutHistory[0]?.highlights[0], "Workout completed");
       assert.equal(historyResult.data.items[0]?.workoutName, "Workout A");
       assert.equal(historyResult.data.items[0]?.completedSetCount, 3);
+      assert.equal(historyResult.data.items[0]?.highlights[0], "Workout completed");
       assert.equal(historyResult.data.nextCursor, null);
       assert.equal(progressionResult.data.totalCompletedWorkouts, 1);
       assert.equal(progressionResult.data.exercises[0]?.exerciseName, "Bench Press");

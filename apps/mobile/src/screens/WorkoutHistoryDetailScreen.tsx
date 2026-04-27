@@ -6,7 +6,11 @@ import { Screen } from "../components/Screen";
 import type { RootStackParamList } from "../core/navigation/navigation-types";
 import { useProgression } from "../features/workout/hooks/useProgression";
 import { useWorkoutHistoryDetail } from "../features/workout/hooks/useWorkoutHistoryDetail";
-import { buildWorkoutDetailProgressHighlights } from "../features/workout/utils/history-detail.shared";
+import {
+  buildWorkoutDetailProgressHighlights,
+  getCompletedSetVolume,
+  getWorkoutDetailStats
+} from "../features/workout/utils/history-detail.shared";
 import { colors, spacing } from "../theme/tokens";
 
 type Props = NativeStackScreenProps<RootStackParamList, "WorkoutHistoryDetail">;
@@ -84,15 +88,7 @@ export function WorkoutHistoryDetailScreen({ route, navigation }: Props) {
     accumulator[item.exerciseEntryId] = item.text;
     return accumulator;
   }, {});
-  const completedSets = workout.exercises.reduce(
-    (count, exercise) => count + exercise.sets.filter((set) => set.status === "completed").length,
-    0
-  );
-  const failedSets = workout.exercises.reduce(
-    (count, exercise) => count + exercise.sets.filter((set) => set.status === "failed").length,
-    0
-  );
-  const plannedSets = workout.exercises.reduce((count, exercise) => count + exercise.sets.length, 0);
+  const stats = getWorkoutDetailStats(workout);
 
   return (
     <Screen>
@@ -106,11 +102,25 @@ export function WorkoutHistoryDetailScreen({ route, navigation }: Props) {
         <Text style={styles.cardLabel}>Completed</Text>
         <Text style={styles.cardTitle}>{formatCompletedDate(workout.completedAt)}</Text>
         <Text style={styles.cardBody}>
-          {formatDuration(workout.durationSeconds)} - {workout.exercises.length} exercises - {completedSets}/
-          {plannedSets} sets
+          {formatDuration(workout.durationSeconds)} - {workout.exercises.length} exercises -{" "}
+          {stats.completedSetCount}/{stats.plannedSetCount} sets
         </Text>
         {workout.isPartial ? <Text style={styles.warningText}>Finished early</Text> : null}
-        {failedSets > 0 ? <Text style={styles.warningText}>{failedSets} missed sets</Text> : null}
+        {stats.failedSetCount > 0 ? (
+          <Text style={styles.warningText}>{stats.failedSetCount} missed sets</Text>
+        ) : null}
+        <View style={styles.summaryGrid}>
+          <View style={styles.summaryStat}>
+            <Text style={styles.cardLabel}>Volume</Text>
+            <Text style={styles.summaryValue}>{Math.round(stats.totalVolume).toLocaleString()} lb</Text>
+          </View>
+          <View style={styles.summaryStat}>
+            <Text style={styles.cardLabel}>Outcome</Text>
+            <Text style={styles.summaryValue}>
+              {progressHighlights.length > 0 ? `${progressHighlights.length} improved` : "Saved"}
+            </Text>
+          </View>
+        </View>
         {progressHighlights.length > 0 ? (
           <View style={styles.highlightList}>
             {progressHighlights.slice(0, 4).map((highlight) => (
@@ -124,6 +134,7 @@ export function WorkoutHistoryDetailScreen({ route, navigation }: Props) {
 
       {workout.exercises.map((exercise) => {
         const highlight = progressHighlightsByEntryId[exercise.id];
+        const exerciseVolume = exercise.sets.reduce((sum, set) => sum + getCompletedSetVolume(set), 0);
 
         return (
           <View key={exercise.id} style={styles.exerciseCard}>
@@ -134,6 +145,9 @@ export function WorkoutHistoryDetailScreen({ route, navigation }: Props) {
               </View>
               <Text style={styles.exerciseMeta}>
                 {exercise.targetSets} x {exercise.targetReps} at {exercise.targetWeight.value} lb
+              </Text>
+              <Text style={styles.exerciseMeta}>
+                {Math.round(exerciseVolume).toLocaleString()} lb volume
               </Text>
             </View>
 
@@ -175,7 +189,6 @@ const styles = StyleSheet.create({
     color: colors.accentStrong,
     fontSize: 14,
     fontWeight: "700",
-    letterSpacing: 1.1,
     textTransform: "uppercase"
   },
   title: {
@@ -217,6 +230,24 @@ const styles = StyleSheet.create({
     color: colors.accentStrong,
     fontSize: 14,
     fontWeight: "700"
+  },
+  summaryGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm
+  },
+  summaryStat: {
+    backgroundColor: colors.background,
+    borderRadius: 16,
+    flexGrow: 1,
+    gap: spacing.xs,
+    minWidth: 120,
+    padding: spacing.md
+  },
+  summaryValue: {
+    color: colors.textPrimary,
+    fontSize: 20,
+    fontWeight: "800"
   },
   highlightList: {
     flexDirection: "row",

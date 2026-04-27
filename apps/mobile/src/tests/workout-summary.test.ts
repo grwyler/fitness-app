@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import type { CompleteWorkoutSessionResponse, WorkoutSessionDto } from "@fitness/shared";
 import {
+  getWorkoutSummaryEncouragement,
   getWorkoutSummaryHeadline,
+  getWorkoutSummaryOutcomes,
   getWorkoutSummaryStats
 } from "../features/workout/utils/workout-summary.shared.js";
 import type { MobileTestCase } from "./mobile-test-case.js";
@@ -67,7 +69,9 @@ export const workoutSummaryTestCases: MobileTestCase[] = [
       const workout = createWorkout();
       const stats = getWorkoutSummaryStats(workout);
 
+      assert.equal(stats.completedExerciseCount, 1);
       assert.equal(stats.completedSetCount, 1);
+      assert.equal(stats.exerciseCount, 1);
       assert.equal(stats.failedSetCount, 1);
       assert.equal(stats.plannedSetCount, 2);
       assert.equal(stats.totalVolume, 2025);
@@ -94,7 +98,29 @@ export const workoutSummaryTestCases: MobileTestCase[] = [
       };
 
       assert.equal(getWorkoutSummaryHeadline(summary), "1 lift moving up next time");
+      assert.equal(getWorkoutSummaryEncouragement(summary), "Bench Press moves to 140 lb next time.");
+      assert.deepEqual(getWorkoutSummaryOutcomes(summary), [
+        {
+          label: "Exercises",
+          value: "1/1",
+          detail: "completed"
+        },
+        {
+          label: "Sets",
+          value: "1/2",
+          detail: "1 missed"
+        },
+        {
+          label: "Volume",
+          value: "2,025 lb",
+          detail: "total work"
+        },
+        {
+          label: "Progress",
+          value: "1",
+          detail: "lift moving up"
+        }
+      ]);
     }
   }
 ];
-

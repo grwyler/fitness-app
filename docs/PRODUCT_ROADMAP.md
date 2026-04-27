@@ -51,16 +51,16 @@ A user can:
 - [x] Weight input polish (quick adjust, previous value autofill)
 - [x] Prevent mis-taps / duplicate sets
 - [x] Add rest timer (simple, optional, non-blocking)
-- [ ] Improve completion feedback (make it feel rewarding)
+- [x] Improve completion feedback (make it feel rewarding)
 
 ---
 
 ### Priority 2 — Progress & History (High Impact)
 
 - [x] View past workouts
-- [ ] Workout detail screen (sets, weights, exercises)
-- [ ] Show simple progression (already started)
-- [ ] Highlight improvements (e.g., "↑ +10 lbs from last time")
+- [x] Workout detail screen (sets, weights, exercises)
+- [x] Show simple progression (already started)
+- [x] Highlight improvements (e.g., "+10 lbs from last time")
 - [ ] Show streak or consistency metric (optional, simple)
 
 ---
@@ -155,7 +155,7 @@ Right now I am working on:
 Workout UX polish and basic history after local mobile auth completion.
 
 Next task is:
-Improve set logging UX and add history screens.
+Validate completion feedback and history/detail screens with real workouts.
 
 Blockers:
 No blocker on the local auth flow. Production now uses first-party MVP auth.
