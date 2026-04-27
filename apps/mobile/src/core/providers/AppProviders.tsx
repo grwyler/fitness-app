@@ -34,6 +34,10 @@ if (missingEnvVars.length > 0 && !isDevelopment) {
   );
 }
 
+if (!isDevelopment && !publishableKey?.startsWith("pk_live_")) {
+  throw new Error("EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY must be a production Clerk key that starts with pk_live_.");
+}
+
 export function AppProviders({ children }: PropsWithChildren) {
   if (missingEnvVars.length > 0) {
     return (

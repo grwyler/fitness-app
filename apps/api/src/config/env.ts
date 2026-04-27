@@ -81,6 +81,16 @@ function parseEnv() {
     );
   }
 
+  if (parsedEnv.data.NODE_ENV === "production") {
+    if (!parsedEnv.data.CLERK_PUBLISHABLE_KEY?.startsWith("pk_live_")) {
+      throw new Error("Invalid API environment configuration. CLERK_PUBLISHABLE_KEY must start with pk_live_ in production.");
+    }
+
+    if (!parsedEnv.data.CLERK_SECRET_KEY?.startsWith("sk_live_")) {
+      throw new Error("Invalid API environment configuration. CLERK_SECRET_KEY must start with sk_live_ in production.");
+    }
+  }
+
   return parsedEnv.data;
 }
 

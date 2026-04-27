@@ -75,9 +75,21 @@ Create or update the production web Vercel project with:
 Set these environment variables on the production web Vercel project:
 
 - `EXPO_PUBLIC_API_BASE_URL`: `https://setwiseapi.vercel.app/api/v1`
-- `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY`: Clerk publishable key for the same Clerk environment used by the API
+- `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY`: production Clerk publishable key for the same Clerk environment used by the API; it must start with `pk_live_`
+
+Optional diagnostic flag:
+
+- `EXPO_PUBLIC_AUTH_DIAGNOSTICS=1`: logs safe auth state diagnostics such as Clerk loaded, signed-in state, user-id presence, and token presence. It does not log secrets or token values.
 
 Do not point the production web app at localhost or at a preview-only API.
+Do not use Clerk development keys in production; production web builds fail when the publishable key does not start with `pk_live_`.
+
+In the Clerk dashboard for the production Clerk application, configure:
+
+- Allowed origin: `https://setwisefit.vercel.app`
+- Sign-in redirect or fallback URL: `https://setwisefit.vercel.app`
+- Sign-up redirect or fallback URL: `https://setwisefit.vercel.app`
+- OAuth callback URLs for any enabled social providers, if applicable
 
 ## API Vercel project setup
 
@@ -91,8 +103,8 @@ This repo includes [apps/api/vercel.json](C:\Users\Grwyl\repos\fitness-app\apps\
 Set these environment variables in the Vercel project:
 
 - `DATABASE_URL`: your hosted Postgres connection string
-- `CLERK_PUBLISHABLE_KEY`: Clerk publishable key
-- `CLERK_SECRET_KEY`: Clerk backend secret key
+- `CLERK_PUBLISHABLE_KEY`: matching production Clerk publishable key, starting with `pk_live_`
+- `CLERK_SECRET_KEY`: matching production Clerk backend secret key, starting with `sk_live_`
 - `CORS_ALLOWED_ORIGINS`: comma-separated web origins allowed to call the API, for example `http://localhost:8081,https://setwisefit.vercel.app`
 - `NODE_ENV=production`
 

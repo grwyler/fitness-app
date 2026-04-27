@@ -18,6 +18,24 @@ export function isDevAuthDebugEnabled() {
   );
 }
 
+export function isAuthDiagnosticsEnabled() {
+  return (
+    isDevAuthDebugEnabled() ||
+    (typeof process !== "undefined" && process.env?.EXPO_PUBLIC_AUTH_DIAGNOSTICS === "1")
+  );
+}
+
+export function logSafeAuthDiagnostic(event: string, details: Record<string, boolean | string | null>) {
+  if (!isAuthDiagnosticsEnabled()) {
+    return;
+  }
+
+  console.info("[auth-diagnostics]", {
+    details,
+    event
+  });
+}
+
 export function setLastAuthDebugMessage(message: string) {
   if (!isDevAuthDebugEnabled()) {
     return;

@@ -1,7 +1,7 @@
 import type { PropsWithChildren } from "react";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth, useClerk, useSession, useUser } from "@clerk/expo";
-import { appendAuthDebugTimeline } from "./auth-debug";
+import { appendAuthDebugTimeline, logSafeAuthDiagnostic } from "./auth-debug";
 import { deriveAuthStatus, type AuthStatus, type TokenStatus } from "./auth-state";
 import { hasLastKnownAuthToken, registerAuthBridge, setLastKnownAuthToken } from "./auth-bridge";
 import { queryClient } from "../providers/query-client";
@@ -283,7 +283,18 @@ export function AuthProvider({ children }: PropsWithChildren) {
       );
       previousDerivedStatusRef.current = status;
     }
-  }, [isLoaded, isSignedIn, status, tokenPresent, tokenStatus]);
+
+    logSafeAuthDiagnostic("auth_state", {
+      getTokenState,
+      isClerkLoaded: isLoaded,
+      isSignedIn: Boolean(isSignedIn),
+      sessionPresent: Boolean(session?.id),
+      status,
+      tokenPresent,
+      tokenStatus,
+      userIdPresent: Boolean(user?.id)
+    });
+  }, [getTokenState, isLoaded, isSignedIn, session?.id, status, tokenPresent, tokenStatus, user?.id]);
 
   const value = useMemo<AuthContextValue>(() => {
     return {

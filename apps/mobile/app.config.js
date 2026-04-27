@@ -61,6 +61,10 @@ function resolveEnvValue(name) {
   return undefined;
 }
 
+function isLiveClerkPublishableKey(value) {
+  return typeof value === "string" && value.startsWith("pk_live_");
+}
+
 module.exports = () => {
   const expoConfig = baseConfig.expo ?? {};
   const clerkPublishableKey =
@@ -83,6 +87,10 @@ module.exports = () => {
 
   if (isProductionBuild && !clerkPublishableKey) {
     throw new Error("EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY is required for production mobile web builds.");
+  }
+
+  if (isProductionBuild && !isLiveClerkPublishableKey(clerkPublishableKey)) {
+    throw new Error("EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY must be a production Clerk key that starts with pk_live_.");
   }
 
   if (apiBaseUrl) {
