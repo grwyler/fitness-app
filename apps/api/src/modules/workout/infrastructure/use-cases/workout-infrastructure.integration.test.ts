@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { bootstrapDevelopmentDatabase, DEV_USER_ID } from "../../../../lib/db/dev-bootstrap.js";
+import { createPgliteClient } from "../../../../lib/db/connection.js";
 import { WorkoutApplicationError } from "../../application/errors/workout-application.error.js";
 import { CompleteWorkoutSessionUseCase } from "../../application/use-cases/complete-workout-session.use-case.js";
 import { LogSetUseCase } from "../../application/use-cases/log-set.use-case.js";
@@ -18,6 +20,60 @@ import {
 } from "../test-helpers/integration-db.js";
 
 export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[] = [
+  {
+    name: "Development bootstrap syncs all predefined programs without replacing active enrollment",
+    run: async () => {
+      const client = createPgliteClient();
+
+      try {
+        await bootstrapDevelopmentDatabase(client as any);
+
+        let programRows = (await client.query(
+          "select name from programs where is_active = true and deleted_at is null order by created_at"
+        )) as { rows: Array<{ name: string }> };
+
+        assert.deepEqual(
+          programRows.rows.map((row) => row.name),
+          ["Beginner Full Body V1", "4-Day Upper/Lower + Arms"]
+        );
+
+        await client.query(
+          "update user_program_enrollments set status = 'cancelled', completed_at = now() where user_id = $1",
+          [DEV_USER_ID]
+        );
+        await client.query(
+          `insert into user_program_enrollments
+           (id, user_id, program_id, status, started_at, current_workout_template_id)
+           values ($1, $2, $3, 'active', now(), $4)`,
+          [
+            "55555555-5555-5555-5555-555555555556",
+            DEV_USER_ID,
+            "22222222-2222-2222-2222-222222222223",
+            "33333333-3333-3333-3333-333333333341"
+          ]
+        );
+
+        await bootstrapDevelopmentDatabase(client as any);
+
+        programRows = (await client.query(
+          "select name from programs where is_active = true and deleted_at is null order by created_at"
+        )) as { rows: Array<{ name: string }> };
+        const activeEnrollmentRows = (await client.query(
+          "select program_id from user_program_enrollments where user_id = $1 and status = 'active'",
+          [DEV_USER_ID]
+        )) as { rows: Array<{ program_id: string }> };
+
+        assert.deepEqual(
+          programRows.rows.map((row) => row.name),
+          ["Beginner Full Body V1", "4-Day Upper/Lower + Arms"]
+        );
+        assert.equal(activeEnrollmentRows.rows.length, 1);
+        assert.equal(activeEnrollmentRows.rows[0]?.program_id, "22222222-2222-2222-2222-222222222223");
+      } finally {
+        await client.close();
+      }
+    }
+  },
   {
     name: "Start workout persists a full session graph and creates progression state",
     run: async () => {

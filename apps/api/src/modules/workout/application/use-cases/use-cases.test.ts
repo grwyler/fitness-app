@@ -227,6 +227,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         },
         async updateNextWorkoutTemplate() {
           throw new Error("Not implemented.");
+        },
+        async cancelEnrollment() {
+          throw new Error("Not implemented.");
         }
       };
 
@@ -379,6 +382,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
           };
         },
         async updateNextWorkoutTemplate() {
+          throw new Error("Not implemented.");
+        },
+        async cancelEnrollment() {
           throw new Error("Not implemented.");
         }
       };
@@ -686,6 +692,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
             createdAt: new Date("2026-04-01T00:00:00.000Z"),
             updatedAt: new Date("2026-04-24T10:45:00.000Z")
           };
+        },
+        async cancelEnrollment() {
+          throw new Error("Not implemented.");
         }
       };
 
@@ -872,6 +881,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         },
         async updateNextWorkoutTemplate() {
           throw new Error("Not implemented.");
+        },
+        async cancelEnrollment() {
+          throw new Error("Not implemented.");
         }
       };
 
@@ -1038,6 +1050,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
           };
         },
         async updateNextWorkoutTemplate() {
+          throw new Error("Not implemented.");
+        },
+        async cancelEnrollment() {
           throw new Error("Not implemented.");
         }
       };

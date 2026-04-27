@@ -141,6 +141,28 @@ export async function bootstrapDevelopmentDatabase(executor: SqlExecutor) {
     [DEV_USER_ID, "dev-user-1", "dev-user@example.com", "Development User", "America/New_York", "imperial", "beginner"]
   );
 
+  await syncPredefinedProgramCatalog(executor);
+
+  await executor.query(
+    `insert into user_program_enrollments (id, user_id, program_id, status, started_at, current_workout_template_id)
+     select $1, $2, $3, $4, now(), $5
+     where not exists (
+       select 1 from user_program_enrollments where user_id = $2 and status = 'active'
+     )
+     on conflict (id) do update
+     set user_id = excluded.user_id,
+         program_id = excluded.program_id,
+         status = excluded.status,
+         current_workout_template_id = excluded.current_workout_template_id,
+         updated_at = now()
+     where not exists (
+       select 1 from user_program_enrollments where user_id = $2 and status = 'active'
+     )`,
+    [ENROLLMENT_ID, DEV_USER_ID, PROGRAM_ID, "active", TEMPLATE_A_ID]
+  );
+}
+
+export async function syncPredefinedProgramCatalog(executor: SqlExecutor) {
   await executor.query(
     `insert into programs (id, name, description, days_per_week, session_duration_minutes, difficulty_level, is_active)
      values ($1, $2, $3, $4, $5, $6, $7)
@@ -194,12 +216,4 @@ export async function bootstrapDevelopmentDatabase(executor: SqlExecutor) {
       [entry.id, entry.templateId, EXERCISE_IDS[entry.exerciseSlug], entry.order, entry.sets, entry.reps, entry.rest]
     );
   }
-
-  await executor.query(
-    `insert into user_program_enrollments (id, user_id, program_id, status, started_at, current_workout_template_id)
-     values ($1, $2, $3, $4, now(), $5)
-     on conflict (id) do update
-     set user_id = excluded.user_id, program_id = excluded.program_id, status = excluded.status, current_workout_template_id = excluded.current_workout_template_id, updated_at = now()`,
-    [ENROLLMENT_ID, DEV_USER_ID, PROGRAM_ID, "active", TEMPLATE_A_ID]
-  );
 }

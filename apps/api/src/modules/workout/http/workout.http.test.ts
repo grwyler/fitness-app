@@ -3,6 +3,8 @@ import { createServer } from "node:http";
 import { users } from "@fitness/db";
 import type { Request } from "express";
 import { createApp } from "../../../app.js";
+import { bootstrapDevelopmentDatabase } from "../../../lib/db/dev-bootstrap.js";
+import { createPgliteClient, createPgliteDatabase } from "../../../lib/db/connection.js";
 import type { HttpTestCase } from "./test-helpers/http-test-case.js";
 import { createWorkoutHttpRouter } from "./workout.module.js";
 import {
@@ -181,6 +183,38 @@ export const workoutHttpTestCases: HttpTestCase[] = [
     }
   },
   {
+    name: "GET /api/v1/programs returns development bootstrap catalog",
+    run: async () => {
+      const client = createPgliteClient();
+
+      try {
+        await bootstrapDevelopmentDatabase(client as any);
+        const database = createPgliteDatabase(client);
+        const server = await startHttpServer(database);
+
+        try {
+          const response = await fetch(`${server.baseUrl}/api/v1/programs`, {
+            headers: {
+              Authorization: "Bearer valid-new-user-token"
+            }
+          });
+          const payload = await readJson(response);
+
+          assert.equal(response.status, 200);
+          assert.deepEqual(
+            payload.data.programs.map((program: { name: string }) => program.name),
+            ["Beginner Full Body V1", "4-Day Upper/Lower + Arms"]
+          );
+          assert.equal(payload.data.programs[1].workouts.length, 4);
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await client.close();
+      }
+    }
+  },
+  {
     name: "POST /api/v1/programs/:programId/follow starts a program for a new user",
     run: async () => {
       const context = await createWorkoutInfrastructureTestContext();
@@ -315,6 +349,95 @@ export const workoutHttpTestCases: HttpTestCase[] = [
           assert.equal(historyResponse.status, 200);
           assert.equal(historyPayload.data.items[0].programName, "4-Day Upper/Lower + Arms");
           assert.equal(historyPayload.data.items[0].completedSetCount, 12);
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "POST /api/v1/programs/:programId/follow switches active program when no workout is in progress",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        await seedUpperLowerArmsProgram(context);
+        const server = await startHttpServer(context.db);
+
+        try {
+          const switchResponse = await fetch(`${server.baseUrl}/api/v1/programs/program-2/follow`, {
+            method: "POST",
+            headers: createAuthHeaders()
+          });
+          const switchPayload = await readJson(switchResponse);
+
+          const dashboardResponse = await fetch(`${server.baseUrl}/api/v1/dashboard`, {
+            headers: createAuthHeaders()
+          });
+          const dashboardPayload = await readJson(dashboardResponse);
+
+          const startResponse = await fetch(`${server.baseUrl}/api/v1/workout-sessions/start`, {
+            method: "POST",
+            headers: createAuthHeaders({
+              "content-type": "application/json",
+              "Idempotency-Key": "start-after-program-switch-key"
+            }),
+            body: JSON.stringify({})
+          });
+          const startPayload = await readJson(startResponse);
+
+          assert.equal(switchResponse.status, 201);
+          assert.equal(switchPayload.data.activeProgram.program.name, "4-Day Upper/Lower + Arms");
+          assert.equal(switchPayload.data.activeProgram.nextWorkoutTemplate.id, "template-3");
+          assert.equal(dashboardResponse.status, 200);
+          assert.equal(dashboardPayload.data.activeProgram.program.name, "4-Day Upper/Lower + Arms");
+          assert.equal(dashboardPayload.data.nextWorkoutTemplate.id, "template-3");
+          assert.equal(startResponse.status, 201);
+          assert.equal(startPayload.data.programName, "4-Day Upper/Lower + Arms");
+          assert.equal(startPayload.data.workoutName, "Day 1 - Upper Strength");
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "POST /api/v1/programs/:programId/follow prevents switching with an active workout",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        await seedUpperLowerArmsProgram(context);
+        await seedInProgressWorkout(context, {
+          setStatuses: ["pending", "pending", "pending"],
+          actualReps: [0, 0, 0]
+        });
+        const server = await startHttpServer(context.db);
+
+        try {
+          const response = await fetch(`${server.baseUrl}/api/v1/programs/program-2/follow`, {
+            method: "POST",
+            headers: createAuthHeaders()
+          });
+          const payload = await readJson(response);
+
+          const dashboardResponse = await fetch(`${server.baseUrl}/api/v1/dashboard`, {
+            headers: createAuthHeaders()
+          });
+          const dashboardPayload = await readJson(dashboardResponse);
+
+          assert.equal(response.status, 409);
+          assert.equal(payload.error.code, "CONFLICT");
+          assert.match(payload.error.message, /active workout/i);
+          assert.equal(dashboardResponse.status, 200);
+          assert.equal(dashboardPayload.data.activeProgram.program.name, "Beginner Full Body V1");
+          assert.equal(dashboardPayload.data.activeWorkoutSession.id, "session-1");
         } finally {
           await server.close();
         }

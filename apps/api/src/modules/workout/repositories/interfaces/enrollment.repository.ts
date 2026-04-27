@@ -1,4 +1,8 @@
-import type { EnrollmentRecord, UpdateEnrollmentNextTemplateInput } from "../models/enrollment.persistence.js";
+import type {
+  CancelEnrollmentInput,
+  EnrollmentRecord,
+  UpdateEnrollmentNextTemplateInput
+} from "../models/enrollment.persistence.js";
 import type { RepositoryOptions } from "../models/persistence-context.js";
 
 export interface EnrollmentRepository {
@@ -11,5 +15,6 @@ export interface EnrollmentRepository {
     input: UpdateEnrollmentNextTemplateInput,
     options?: RepositoryOptions
   ): Promise<EnrollmentRecord>;
-}
 
+  cancelEnrollment(input: CancelEnrollmentInput, options?: RepositoryOptions): Promise<EnrollmentRecord>;
+}

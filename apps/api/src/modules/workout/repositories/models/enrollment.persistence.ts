@@ -17,3 +17,7 @@ export type UpdateEnrollmentNextTemplateInput = {
   nextWorkoutTemplateId: string;
 };
 
+export type CancelEnrollmentInput = {
+  enrollmentId: string;
+  completedAt: Date;
+};

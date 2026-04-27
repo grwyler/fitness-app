@@ -29,11 +29,20 @@ export async function createRuntimeApp(): Promise<ApiRuntime> {
     };
   }
 
-  return createPostgresRuntimeApp();
+  const pool = createPostgresPool(env.DATABASE_URL!);
+  if (env.NODE_ENV === "development") {
+    await bootstrapDevelopmentDatabase(pool);
+  }
+
+  return createPostgresRuntimeAppFromPool(pool);
 }
 
 export function createPostgresRuntimeApp(connectionString = env.DATABASE_URL!): ApiRuntime {
-  const database = createPostgresDatabase(createPostgresPool(connectionString));
+  return createPostgresRuntimeAppFromPool(createPostgresPool(connectionString));
+}
+
+function createPostgresRuntimeAppFromPool(pool: ReturnType<typeof createPostgresPool>): ApiRuntime {
+  const database = createPostgresDatabase(pool);
 
   return {
     app: createApp({
