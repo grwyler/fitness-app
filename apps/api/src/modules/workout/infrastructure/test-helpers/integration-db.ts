@@ -26,6 +26,7 @@ create table users (
   id text primary key,
   auth_provider_id text not null unique,
   email text not null unique,
+  password_hash text,
   display_name text,
   timezone text not null default 'America/New_York',
   unit_system text not null default 'imperial',

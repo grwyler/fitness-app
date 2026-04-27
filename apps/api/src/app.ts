@@ -1,5 +1,4 @@
 import cors, { type CorsOptions } from "cors";
-import { clerkClient, clerkMiddleware, getAuth } from "@clerk/express";
 import express, {
   type NextFunction,
   type Request,
@@ -14,8 +13,8 @@ import { errorReporter } from "./lib/observability/error-reporter.js";
 import { logger } from "./lib/observability/logger.js";
 import { toAppError } from "./modules/workout/http/workout.http-errors.js";
 import { createAuthenticateRequestMiddleware } from "./lib/auth/auth.middleware.js";
-import type { ClerkAuthGetter, ClerkClientLike } from "./lib/auth/auth.types.js";
 import { createRequestContextMiddleware } from "./lib/auth/request-context.middleware.js";
+import { createProtectedAuthRouter, createPublicAuthRouter } from "./lib/auth/auth.routes.js";
 import { env } from "./config/env.js";
 
 type DatabaseLike = {
@@ -59,9 +58,7 @@ export function createCorsOptions(): CorsOptions {
 
 export function createApp(options?: {
   auth?: {
-    clerkClient?: ClerkClientLike;
-    clerkGetAuth?: ClerkAuthGetter;
-    clerkMiddleware?: () => RequestHandler;
+    authenticateRequest?: RequestHandler;
   };
   database?: DatabaseLike;
   workoutRouter?: Router;
@@ -75,16 +72,14 @@ export function createApp(options?: {
   app.use("/api/v1", healthRouter);
   if (options?.workoutRouter) {
     if (options.database) {
-      const authMiddlewareFactory = options.auth?.clerkMiddleware ?? clerkMiddleware;
-      const authClient = options.auth?.clerkClient ?? clerkClient;
-      const authGetter = options.auth?.clerkGetAuth ?? getAuth;
+      const authenticateRequest = options.auth?.authenticateRequest ?? createAuthenticateRequestMiddleware();
 
-      app.use("/api/v1", authMiddlewareFactory());
-      app.use("/api/v1", createAuthenticateRequestMiddleware(authGetter));
+      app.use("/api/v1", createPublicAuthRouter(options.database));
+      app.use("/api/v1", authenticateRequest);
+      app.use("/api/v1", createProtectedAuthRouter(options.database));
       app.use(
         "/api/v1",
         createRequestContextMiddleware({
-          clerkClient: authClient,
           database: options.database
         })
       );

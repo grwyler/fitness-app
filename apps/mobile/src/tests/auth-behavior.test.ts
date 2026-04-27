@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { apiRequest } from "../api/client.js";
-import { getAuthErrorMessage } from "../core/auth/auth-errors.js";
 import { registerAuthBridge, setLastKnownAuthToken } from "../core/auth/auth-bridge.js";
 import { deriveAuthStatus } from "../core/auth/auth-state.js";
 import { getPrimaryButtonDisabledState, handleWebPrimaryButtonClick } from "../components/primary-button.shared.js";
@@ -18,34 +17,6 @@ function setMockFetch(implementation: (input: RequestInfo | URL, init?: RequestI
 }
 
 export const authBehaviorTestCases: MobileTestCase[] = [
-  {
-    name: "Auth HTML service errors show a friendly message",
-    run: () => {
-      const message = getAuthErrorMessage(
-        new Error(`Unexpected token '<', "<html><hea"... is not valid JSON`),
-        "Unable to sign in."
-      );
-
-      assert.equal(message, "Authentication service is temporarily unavailable. Please try again.");
-    }
-  },
-  {
-    name: "Clerk JSON errors still show their message",
-    run: () => {
-      const message = getAuthErrorMessage(
-        {
-          errors: [
-            {
-              message: "Password is incorrect."
-            }
-          ]
-        },
-        "Unable to sign in."
-      );
-
-      assert.equal(message, "Password is incorrect.");
-    }
-  },
   {
     name: "PrimaryButton web click calls handler",
     run: () => {
@@ -67,52 +38,36 @@ export const authBehaviorTestCases: MobileTestCase[] = [
     }
   },
   {
-    name: "Auth status waits for Clerk before showing signed-out routes",
+    name: "Auth status waits for session restore before showing signed-out routes",
     run: () => {
       const status = deriveAuthStatus({
-        isLoaded: false,
-        isSignedIn: false,
+        restoreComplete: false,
         tokenPresent: false,
-        tokenStatus: "idle"
+        userPresent: false
       });
 
       assert.equal(status, "checking_session");
     }
   },
   {
-    name: "Auth status stays authenticated when token is already present during refresh",
+    name: "Auth status stays authenticated when restored token and user are present",
     run: () => {
       const status = deriveAuthStatus({
-        isLoaded: true,
-        isSignedIn: true,
+        restoreComplete: true,
         tokenPresent: true,
-        tokenStatus: "loading"
+        userPresent: true
       });
 
       assert.equal(status, "authenticated");
     }
   },
   {
-    name: "Token retrieval failure does not switch to signed-out navigator",
+    name: "Missing restored token moves to signed-out routes only after restore completes",
     run: () => {
       const status = deriveAuthStatus({
-        isLoaded: true,
-        isSignedIn: true,
+        restoreComplete: true,
         tokenPresent: false,
-        tokenStatus: "unavailable"
-      });
-
-      assert.equal(status, "checking_session");
-    }
-  },
-  {
-    name: "Only Clerk signed-out state moves to SignIn",
-    run: () => {
-      const status = deriveAuthStatus({
-        isLoaded: true,
-        isSignedIn: false,
-        tokenPresent: false,
-        tokenStatus: "idle"
+        userPresent: false
       });
 
       assert.equal(status, "unauthenticated");
@@ -145,7 +100,7 @@ export const authBehaviorTestCases: MobileTestCase[] = [
     }
   },
   {
-    name: "Authenticated dashboard 401 does not force Clerk sign-out",
+    name: "Authenticated dashboard 401 does not force app sign-out",
     run: async () => {
       let unauthorizedCallCount = 0;
       const unregister = registerAuthBridge({

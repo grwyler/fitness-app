@@ -75,29 +75,9 @@ Create or update the production web Vercel project with:
 Set these environment variables on the production web Vercel project:
 
 - `EXPO_PUBLIC_API_BASE_URL`: `https://setwiseapi.vercel.app/api/v1`
-- `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY`: Clerk publishable key for the same Clerk environment used by the API; `pk_test_` is allowed for MVP testing, and `pk_live_` should be used after Clerk production keys are available
-
-Optional diagnostic flag:
-
-- `EXPO_PUBLIC_AUTH_DIAGNOSTICS=1`: logs safe auth state diagnostics such as Clerk key type, masked key suffix, Clerk loaded, signed-in state, session presence, user-id presence, and token presence. It does not log secrets or token values.
-
-When diagnosing production sign-in loops, enable `EXPO_PUBLIC_AUTH_DIAGNOSTICS=1` on the web Vercel project and redeploy. In the browser console:
-
-- `auth_clerk_signed_out` after verification means Clerk loaded but did not restore a signed-in session; verify the Vercel publishable key and the Clerk DEVELOPMENT instance origin/redirect settings.
-- `auth_get_token_ready` followed by `navigator_auth_status` with `authenticated` means Clerk session persistence worked and the app should render the dashboard.
-- `auth_get_token_unavailable` or repeated `auth_get_token_missing` means Clerk reported a session but did not return a token.
 
 Do not point the production web app at localhost or at a preview-only API.
-If the deployed MVP uses Clerk development keys, production web builds log a warning but still allow the deploy. The key must be a real Clerk publishable key starting with `pk_test_` or `pk_live_`; do not edit key prefixes by hand.
-
-In the Clerk dashboard for the Clerk application that owns the deployed publishable key, configure:
-
-- Allowed origin: `https://setwisefit.vercel.app`
-- Sign-in redirect or fallback URL: `https://setwisefit.vercel.app`
-- Sign-up redirect or fallback URL: `https://setwisefit.vercel.app`
-- OAuth callback URLs for any enabled social providers, if applicable
-
-For MVP deployments that use `pk_test_` / `sk_test_`, make these changes in the Clerk DEVELOPMENT instance, not a separate production instance. A browser request to a domain like `*.clerk.accounts.dev` means the deployed app is using a Clerk development publishable key; that exact development instance must allow `https://setwisefit.vercel.app`.
+The web app stores the MVP bearer token in browser `localStorage` and sends it to the API on protected requests.
 
 ## API Vercel project setup
 
@@ -111,8 +91,7 @@ This repo includes [apps/api/vercel.json](C:\Users\Grwyl\repos\fitness-app\apps\
 Set these environment variables in the Vercel project:
 
 - `DATABASE_URL`: your hosted Postgres connection string
-- `CLERK_PUBLISHABLE_KEY`: matching Clerk publishable key, starting with `pk_test_` for MVP testing or `pk_live_` after Clerk production keys are available
-- `CLERK_SECRET_KEY`: matching Clerk backend secret key, starting with `sk_test_` for MVP testing or `sk_live_` after Clerk production keys are available
+- `JWT_SECRET`: unique random secret, at least 32 characters, used to sign app auth tokens
 - `CORS_ALLOWED_ORIGINS`: comma-separated web origins allowed to call the API, for example `http://localhost:8081,https://setwisefit.vercel.app`
 - `NODE_ENV=production`
 
@@ -155,10 +134,14 @@ npm run setup:dev --workspace @fitness/api
 
 4. Import the repository into Vercel.
 5. Set the project `Root Directory` to `apps/api`.
-6. Add `DATABASE_URL` in the Vercel project environment variables.
+6. Add `DATABASE_URL`, `JWT_SECRET`, `CORS_ALLOWED_ORIGINS`, and `NODE_ENV=production` in the Vercel project environment variables.
 7. Deploy.
 
-That setup command currently creates the schema and inserts the seeded development user/program that the mobile app expects.
+That setup command currently creates the schema and inserts the seeded development user/program that the mobile app expects. The first-party auth migration adds `users.password_hash`; existing hosted-auth users can be ignored for MVP testing, but they cannot sign in until they sign up through the new email/password flow or the user table is reset. If a production database already exists, apply this schema change before deploying the API:
+
+```sql
+alter table users add column if not exists password_hash text;
+```
 
 ## API CLI flow
 
@@ -260,7 +243,6 @@ The checked-in mobile Vercel config:
 Set these environment variables on the tester web Vercel project:
 
 - `EXPO_PUBLIC_API_BASE_URL`
-- `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY`
 
 To redeploy the tester web app manually from the repo:
 

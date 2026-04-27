@@ -12,7 +12,6 @@
     "test": "node dist/modules/workout/run-tests.js"
   },
   "dependencies": {
-    "@clerk/express": "^2.1.9",
     "@electric-sql/pglite": "^0.2.17",
     "@fitness/db": "file:../../packages/db",
     "@fitness/shared": "file:../../packages/shared",

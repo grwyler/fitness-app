@@ -14,7 +14,7 @@ async function main() {
     console.log("");
     console.log("Development database is ready.");
     console.log(`Seeded internal user id: ${DEV_USER_ID}`);
-    console.log("Backend auth now resolves this user from Clerk via auth_provider_id.");
+    console.log("Backend auth resolves app-issued JWTs to internal users.");
   } finally {
     await pool.end();
   }

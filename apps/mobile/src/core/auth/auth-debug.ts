@@ -19,10 +19,7 @@ export function isDevAuthDebugEnabled() {
 }
 
 export function isAuthDiagnosticsEnabled() {
-  return (
-    isDevAuthDebugEnabled() ||
-    (typeof process !== "undefined" && process.env?.EXPO_PUBLIC_AUTH_DIAGNOSTICS === "1")
-  );
+  return isDevAuthDebugEnabled();
 }
 
 export function logSafeAuthDiagnostic(event: string, details: Record<string, boolean | string | null>) {

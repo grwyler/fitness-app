@@ -13,8 +13,6 @@
     "assetBundlePatterns": [
       "**/*"
     ],
-    "extra": {
-      "clerkPublishableKey": ""
-    }
+    "extra": {}
   }
 }

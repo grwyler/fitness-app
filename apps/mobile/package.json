@@ -12,7 +12,6 @@
     "test": "tsc -p tsconfig.test.json && node dist/src/tests/run-mobile-tests.js"
   },
   "dependencies": {
-    "@clerk/expo": "^3.2.4",
     "@fitness/shared": "file:../../packages/shared",
     "@react-native-async-storage/async-storage": "^3.0.2",
     "@react-navigation/native": "^7.2.2",

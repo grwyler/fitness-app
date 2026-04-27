@@ -158,21 +158,21 @@ ProgressionState
 
 ### **Options**
 
-* Clerk (recommended)  
+* First-party MVP auth (current)
 * Supabase Auth  
 * Custom auth
 
-### **Recommendation: Clerk**
+### **Recommendation: First-party MVP auth**
 
 Reasons:
 
-* Fastest to implement  
-* Excellent mobile support  
-* Handles sessions, JWTs, social login
+* Owned by the app for MVP reliability
+* Minimal email/password flow
+* Backend issues and verifies app JWTs
 
 ### **Flow**
 
-Client → Clerk → JWT → Backend verifies → Access granted
+Client sign-in → API verifies password → API issues JWT → Client sends bearer token → Backend verifies → Access granted
 
 ---
 
@@ -349,7 +349,7 @@ If progression feels wrong, users lose trust quickly
 
 **Auth**
 
-* Clerk
+* First-party email/password with app-issued JWTs
 
 **Storage**
 
@@ -377,4 +377,3 @@ This stack is optimized for:
 It directly supports the product philosophy:
 
 Reduce friction, increase trust, and make workouts effortless.
-

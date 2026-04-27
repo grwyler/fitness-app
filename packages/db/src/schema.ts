@@ -45,6 +45,7 @@ export const users = pgTable(
     id: uuid("id").defaultRandom().primaryKey(),
     authProviderId: text("auth_provider_id").notNull(),
     email: text("email").notNull(),
+    passwordHash: text("password_hash"),
     displayName: text("display_name"),
     timezone: text("timezone").notNull().default("America/New_York"),
     unitSystem: unitSystemEnum("unit_system").notNull().default("imperial"),

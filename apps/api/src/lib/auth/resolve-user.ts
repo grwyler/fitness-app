@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { users } from "@fitness/db";
 import { eq } from "drizzle-orm";
 import type { UnitSystem } from "@fitness/shared";
-import type { ClerkClientLike } from "./auth.types.js";
+import type { AppAuthState } from "./auth.types.js";
 
 type DatabaseLike = {
   select: (...args: any[]) => any;
@@ -14,23 +14,9 @@ export type ResolvedAppUser = {
   unitSystem: UnitSystem;
 };
 
-function getPreferredEmail(user: Awaited<ReturnType<ClerkClientLike["users"]["getUser"]>>) {
-  const primaryEmail = user.emailAddresses?.find(
-    (emailAddress) => emailAddress.id === user.primaryEmailAddressId
-  );
-
-  return primaryEmail?.emailAddress ?? user.emailAddresses?.[0]?.emailAddress ?? `${user.id}@clerk.local`;
-}
-
-function getDisplayName(user: Awaited<ReturnType<ClerkClientLike["users"]["getUser"]>>) {
-  const parts = [user.firstName, user.lastName].filter((value): value is string => Boolean(value?.trim()));
-
-  return parts.length > 0 ? parts.join(" ") : user.username ?? null;
-}
-
-async function findUserByAuthProviderId(
+async function findUserById(
   database: DatabaseLike,
-  clerkUserId: string
+  userId: string
 ): Promise<ResolvedAppUser | null> {
   const rows = await database
     .select({
@@ -38,37 +24,34 @@ async function findUserByAuthProviderId(
       unitSystem: users.unitSystem
     })
     .from(users)
-    .where(eq(users.authProviderId, clerkUserId))
+    .where(eq(users.id, userId))
     .limit(1);
 
   return rows[0] ?? null;
 }
 
 export async function resolveUser(input: {
-  clerkClient: ClerkClientLike;
-  clerkUserId: string;
+  authUser: AppAuthState;
   database: DatabaseLike;
 }): Promise<ResolvedAppUser> {
-  const existingUser = await findUserByAuthProviderId(input.database, input.clerkUserId);
+  const existingUser = await findUserById(input.database, input.authUser.userId);
   if (existingUser) {
     return existingUser;
   }
 
-  const clerkUser = await input.clerkClient.users.getUser(input.clerkUserId);
-
   await input.database
     .insert(users)
     .values({
-      id: randomUUID(),
-      authProviderId: clerkUser.id,
-      email: getPreferredEmail(clerkUser),
-      displayName: getDisplayName(clerkUser)
+      id: input.authUser.userId || randomUUID(),
+      authProviderId: input.authUser.userId,
+      email: input.authUser.email,
+      displayName: input.authUser.email.split("@")[0] ?? null
     })
     .onConflictDoNothing({
-      target: users.authProviderId
+      target: users.id
     });
 
-  const resolvedUser = await findUserByAuthProviderId(input.database, input.clerkUserId);
+  const resolvedUser = await findUserById(input.database, input.authUser.userId);
   if (!resolvedUser) {
     throw new Error("Unable to resolve authenticated user.");
   }

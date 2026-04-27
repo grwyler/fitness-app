@@ -1,6 +1,6 @@
 import type { Request, RequestHandler } from "express";
 import { AppError } from "../http/errors.js";
-import type { ClerkClientLike } from "./auth.types.js";
+import type { AppAuthState } from "./auth.types.js";
 import { resolveUser, type ResolvedAppUser } from "./resolve-user.js";
 
 type DatabaseLike = {
@@ -17,25 +17,22 @@ export function getRequestContext(request: Request) {
 }
 
 export function createRequestContextMiddleware(dependencies: {
-  clerkClient: ClerkClientLike;
   database: DatabaseLike;
   resolveAuthenticatedUser?: (input: {
-    clerkClient: ClerkClientLike;
-    clerkUserId: string;
+    authUser: AppAuthState;
     database: DatabaseLike;
   }) => Promise<ResolvedAppUser>;
 }): RequestHandler {
   const resolveAuthenticatedUser = dependencies.resolveAuthenticatedUser ?? resolveUser;
 
   return (request, _response, next) => {
-    if (!request.clerkUserId) {
+    if (!request.authUser) {
       next(new AppError(401, "UNAUTHENTICATED", "Authentication is required."));
       return;
     }
 
     void resolveAuthenticatedUser({
-      clerkClient: dependencies.clerkClient,
-      clerkUserId: request.clerkUserId,
+      authUser: request.authUser,
       database: dependencies.database
     })
       .then((user) => {

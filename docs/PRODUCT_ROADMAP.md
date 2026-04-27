@@ -15,11 +15,11 @@ A mobile-first training system that tells users exactly what to do in the gym an
 - [x] Transactions + idempotency
 - [x] HTTP API
 - [x] Tests
-- [x] Clerk bearer-token auth boundary
+- [x] First-party bearer-token auth boundary
 
 ### Mobile
 
-- [x] Clerk auth flow
+- [x] Email/password auth flow
 - [x] Dashboard
 - [x] Start workout
 - [x] Active workout flow
@@ -89,7 +89,7 @@ A user can:
 
 ## Priority 5 — Auth & Stability
 
-- [ ] Verify production Clerk setup
+- [x] Replace hosted dev auth with first-party MVP auth
 - [ ] Add session restore test
 - [ ] Add basic error boundaries in mobile
 
@@ -158,4 +158,4 @@ Next task is:
 Improve set logging UX and add history screens.
 
 Blockers:
-No blocker on the local auth flow. Production Clerk environment verification is still pending.
+No blocker on the local auth flow. Production now uses first-party MVP auth.

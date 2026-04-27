@@ -77,34 +77,6 @@ function resolveEnvValue(name, options = {}) {
   };
 }
 
-function getClerkPublishableKeyType(value) {
-  if (typeof value !== "string") {
-    return "invalid";
-  }
-
-  if (value.startsWith("pk_live_")) {
-    return "live";
-  }
-
-  if (value.startsWith("pk_test_")) {
-    return "test";
-  }
-
-  return "invalid";
-}
-
-function maskValue(value) {
-  if (!value) {
-    return "<missing>";
-  }
-
-  if (value.length <= 12) {
-    return `${value.slice(0, 4)}...`;
-  }
-
-  return `${value.slice(0, 8)}...${value.slice(-4)}`;
-}
-
 function failConfig(message) {
   const errorMessage = `[mobile-config] ${message}`;
   console.error(errorMessage);
@@ -148,58 +120,25 @@ function assertProductionApiBaseUrl(apiBaseUrl, source) {
   }
 }
 
-function assertProductionClerkPublishableKey(clerkPublishableKey, source) {
-  const sourceLabel = source ? ` Source: ${source}.` : "";
-  const keyType = getClerkPublishableKeyType(clerkPublishableKey);
-
-  if (!clerkPublishableKey) {
-    failConfig(
-      `Missing EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY.${sourceLabel} Production web builds require a Clerk publishable key starting with pk_live_ or pk_test_. Add it to the Vercel web project Production environment.`
-    );
-  }
-
-  if (keyType === "invalid") {
-    failConfig(
-      `Invalid EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY.${sourceLabel} Expected pk_live_... or pk_test_...; received ${maskValue(clerkPublishableKey)}.`
-    );
-  }
-
-  if (keyType === "test") {
-    console.warn(
-      `[mobile-config] EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY is using a Clerk development key (pk_test_...) in a deployed build. This is allowed for MVP testing; configure the matching Clerk DEVELOPMENT instance for https://setwisefit.vercel.app.`
-    );
-  }
-}
-
 module.exports = () => {
   const expoConfig = baseConfig.expo ?? {};
   const isProductionBuild = process.env.VERCEL_ENV === "production";
   const resolveOptions = { skipEnvFiles: isProductionBuild };
-  const clerkPublishableKeyResult = resolveEnvValue("EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY", resolveOptions);
-  const legacyClerkPublishableKeyResult = resolveEnvValue("CLERK_PUBLISHABLE_KEY", resolveOptions);
   const apiBaseUrlResult = resolveEnvValue("EXPO_PUBLIC_API_BASE_URL", resolveOptions);
-  const clerkPublishableKey =
-    clerkPublishableKeyResult.value ?? legacyClerkPublishableKeyResult.value;
   const apiBaseUrl = apiBaseUrlResult.value;
 
   if (isProductionBuild) {
     assertProductionApiBaseUrl(apiBaseUrl, apiBaseUrlResult.source);
-    assertProductionClerkPublishableKey(clerkPublishableKeyResult.value, clerkPublishableKeyResult.source);
   }
 
   if (apiBaseUrl) {
     process.env.EXPO_PUBLIC_API_BASE_URL = apiBaseUrl;
   }
 
-  if (clerkPublishableKey) {
-    process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY = clerkPublishableKey;
-  }
-
   return {
     ...expoConfig,
     extra: {
       ...expoConfig.extra,
-      clerkPublishableKey,
       apiBaseUrl
     }
   };

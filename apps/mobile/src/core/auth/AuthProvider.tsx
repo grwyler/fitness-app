@@ -1,27 +1,21 @@
 import type { PropsWithChildren } from "react";
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { useAuth, useClerk, useSession, useUser } from "@clerk/expo";
-import { appendAuthDebugTimeline, logSafeAuthDiagnostic } from "./auth-debug";
-import { deriveAuthStatus, type AuthStatus, type TokenStatus } from "./auth-state";
-import { hasLastKnownAuthToken, registerAuthBridge, setLastKnownAuthToken } from "./auth-bridge";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import type { AuthUser } from "../../api/auth";
+import { fetchCurrentUser } from "../../api/auth";
+import { registerAuthBridge, setLastKnownAuthToken } from "./auth-bridge";
+import { clearStoredAuthToken, readStoredAuthToken, writeStoredAuthToken } from "./token-storage";
 import { queryClient } from "../providers/query-client";
 import { useActiveWorkoutStore } from "../../features/workout/store/active-workout-store";
 
 type AuthContextValue = {
   authDebug: {
-    getTokenState: "idle" | "pending" | "resolved" | "threw";
-    isClerkLoaded: boolean;
-    isSignedIn: boolean;
-    loadingReason: string | null;
-    sessionId: string | null;
-    timeoutReached: boolean;
+    isLoaded: boolean;
     tokenPresent: boolean;
-    tokenStatus: TokenStatus;
-    userId: string | null;
   };
-  status: AuthStatus;
-  userEmail: string | null;
+  completeSignIn: (input: { token: string; user: AuthUser }) => Promise<void>;
   signOut: () => Promise<void>;
+  status: "checking_session" | "authenticated" | "unauthenticated";
+  userEmail: string | null;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -35,344 +29,87 @@ function resetClientState() {
 }
 
 export function AuthProvider({ children }: PropsWithChildren) {
-  const { getToken, isLoaded, isSignedIn } = useAuth();
-  const { signOut } = useClerk();
-  const { session } = useSession();
-  const { user } = useUser();
-  const isSigningOutRef = useRef(false);
-  const getTokenRef = useRef(getToken);
-  const authStateRef = useRef({
-    isLoaded,
-    isSignedIn: Boolean(isSignedIn)
-  });
-  const lastReadySessionIdRef = useRef<string | null>(null);
-  const previousDerivedStatusRef = useRef<AuthStatus | null>(null);
-  const [tokenStatus, setTokenStatus] = useState<TokenStatus>("idle");
-  const [tokenPresent, setTokenPresent] = useState(hasLastKnownAuthToken());
-  const [loadingReason, setLoadingReason] = useState<string | null>("Waiting for Clerk to load.");
-  const [getTokenState, setGetTokenState] = useState<"idle" | "pending" | "resolved" | "threw">("idle");
-  const [timeoutReached, setTimeoutReached] = useState(false);
+  const [token, setToken] = useState<string | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [status, setStatus] = useState<AuthContextValue["status"]>("checking_session");
 
-  useEffect(() => {
-    getTokenRef.current = getToken;
-    authStateRef.current = {
-      isLoaded,
-      isSignedIn: Boolean(isSignedIn)
-    };
-  }, [getToken, isLoaded, isSignedIn]);
-
-  const setTokenStatusWithReason = useCallback((nextStatus: TokenStatus, reason: string) => {
-    setTokenStatus((currentStatus) => {
-      if (currentStatus !== nextStatus) {
-        appendAuthDebugTimeline("token_status_transition", `from=${currentStatus}; to=${nextStatus}; reason=${reason}`);
-      }
-      return currentStatus === nextStatus ? currentStatus : nextStatus;
-    });
+  const completeSignIn = useCallback(async (input: { token: string; user: AuthUser }) => {
+    await writeStoredAuthToken(input.token);
+    setLastKnownAuthToken(input.token, "app_auth");
+    setToken(input.token);
+    setUser(input.user);
+    setStatus("authenticated");
   }, []);
 
-  const resolveTokenWithTimeout = useCallback(async (mode: "default" | "skipCache", timeoutMs = 1_500) => {
-    const tokenPromise =
-      mode === "default" ? getTokenRef.current() : getTokenRef.current({ skipCache: true });
-    return Promise.race<string | null>([
-      tokenPromise,
-      new Promise<string | null>((resolve) => {
-        setTimeout(() => resolve(null), timeoutMs);
-      })
-    ]);
-  }, []);
-
-  const handleSignOut = useCallback(async () => {
-    if (isSigningOutRef.current) {
-      return;
-    }
-
-    appendAuthDebugTimeline("sign_out_started");
-    isSigningOutRef.current = true;
+  const signOut = useCallback(async () => {
+    await clearStoredAuthToken();
+    setLastKnownAuthToken(null, "app_sign_out");
+    setToken(null);
+    setUser(null);
+    setStatus("unauthenticated");
     resetClientState();
-
-    try {
-      await signOut();
-      appendAuthDebugTimeline("sign_out_resolved");
-    } finally {
-      isSigningOutRef.current = false;
-    }
-  }, [signOut]);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
-    let timeoutId: ReturnType<typeof setTimeout> | null = null;
-    const currentSessionId = session?.id ?? null;
 
-    async function ensureSessionToken() {
-      if (!isLoaded) {
-        setTokenStatusWithReason("loading", "Clerk not loaded yet.");
-        setGetTokenState("idle");
-        setTimeoutReached(false);
-        setLoadingReason("Waiting for Clerk to load.");
-        logSafeAuthDiagnostic("auth_waiting_for_clerk", {
-          isClerkLoaded: false,
-          isSignedIn: Boolean(isSignedIn)
-        });
-        appendAuthDebugTimeline("auth_provider_waiting_for_clerk");
+    async function restoreSession() {
+      const storedToken = await readStoredAuthToken();
+      if (!storedToken) {
+        if (!cancelled) {
+          setStatus("unauthenticated");
+        }
         return;
       }
 
-      if (!isSignedIn) {
-        setTokenStatusWithReason("idle", "User is signed out.");
-        setTokenPresent(false);
-        setGetTokenState("idle");
-        setTimeoutReached(false);
-        setLoadingReason("User is signed out.");
-        lastReadySessionIdRef.current = null;
-        logSafeAuthDiagnostic("auth_clerk_signed_out", {
-          isClerkLoaded: true,
-          isSignedIn: false,
-          sessionPresent: Boolean(session?.id),
-          userIdPresent: Boolean(user?.id)
-        });
-        appendAuthDebugTimeline("auth_provider_signed_out");
-        return;
-      }
+      setLastKnownAuthToken(storedToken, "stored_app_auth");
+      setToken(storedToken);
 
-      if (currentSessionId && lastReadySessionIdRef.current === currentSessionId && tokenPresent) {
-        setTokenStatusWithReason("ready", "Using previously validated session token.");
-        setGetTokenState("resolved");
-        setTimeoutReached(false);
-        setLoadingReason(null);
-        logSafeAuthDiagnostic("auth_reusing_validated_session", {
-          isClerkLoaded: true,
-          isSignedIn: true,
-          sessionPresent: Boolean(session?.id),
-          tokenPresent: true,
-          userIdPresent: Boolean(user?.id)
-        });
-        appendAuthDebugTimeline("auth_provider_reusing_validated_session", `session=${currentSessionId}`);
-        return;
-      }
-
-      if (!tokenPresent) {
-        setTokenStatusWithReason("loading", "Signed in and waiting for first session token.");
-      }
-      setGetTokenState("pending");
-      setTimeoutReached(false);
-      setLoadingReason(tokenPresent ? "Refreshing session token in background." : "Signed in, waiting for session token.");
-      appendAuthDebugTimeline("auth_provider_signed_in_waiting_for_token");
-      timeoutId = setTimeout(() => {
-        if (cancelled) {
-          return;
+      try {
+        const restoredUser = await fetchCurrentUser();
+        if (!cancelled) {
+          setUser(restoredUser);
+          setStatus("authenticated");
         }
-
-        setTimeoutReached(true);
-        setTokenStatusWithReason("unavailable", "Timed out waiting for Clerk session token.");
-        setLoadingReason("Timed out waiting for Clerk session token.");
-        appendAuthDebugTimeline("auth_provider_token_timeout");
-      }, 8_000);
-
-      for (let attempt = 0; attempt < 5; attempt += 1) {
-        let token: string | null = null;
-
-        try {
-          appendAuthDebugTimeline("auth_provider_get_token_attempt", `attempt=${attempt + 1}; mode=default`);
-          token = await resolveTokenWithTimeout("default");
-          if (!token) {
-            appendAuthDebugTimeline(
-              "auth_provider_get_token_attempt",
-              `attempt=${attempt + 1}; mode=skipCache`
-            );
-            token = await resolveTokenWithTimeout("skipCache");
-          }
-        } catch (error) {
-          if (!cancelled) {
-            if (timeoutId) {
-              clearTimeout(timeoutId);
-            }
-            setGetTokenState("threw");
-            setTokenStatusWithReason("unavailable", "getToken threw while checking session.");
-            setLoadingReason("getToken threw while checking session.");
-            logSafeAuthDiagnostic("auth_get_token_threw", {
-              attempt: String(attempt + 1),
-              isClerkLoaded: isLoaded,
-              isSignedIn: Boolean(isSignedIn),
-              sessionPresent: Boolean(session?.id),
-              userIdPresent: Boolean(user?.id)
-            });
-            appendAuthDebugTimeline(
-              "auth_provider_get_token_threw",
-              error instanceof Error ? error.message : "Unknown getToken error."
-            );
-          }
-          return;
+      } catch {
+        await clearStoredAuthToken();
+        setLastKnownAuthToken(null, "restore_failed");
+        if (!cancelled) {
+          setToken(null);
+          setUser(null);
+          setStatus("unauthenticated");
         }
-
-        if (cancelled) {
-          return;
-        }
-
-        if (token) {
-          if (timeoutId) {
-            clearTimeout(timeoutId);
-          }
-          setGetTokenState("resolved");
-          setTokenStatusWithReason("ready", "Clerk returned a session token.");
-          setTokenPresent(true);
-          setTimeoutReached(false);
-          setLoadingReason(null);
-          lastReadySessionIdRef.current = currentSessionId;
-          setLastKnownAuthToken(token, "auth_provider_ready");
-          logSafeAuthDiagnostic("auth_get_token_ready", {
-            attempt: String(attempt + 1),
-            isClerkLoaded: isLoaded,
-            isSignedIn: Boolean(isSignedIn),
-            sessionPresent: Boolean(session?.id),
-            tokenPresent: true,
-            userIdPresent: Boolean(user?.id)
-          });
-          appendAuthDebugTimeline("auth_client_token_stored", "source=auth_provider_ready");
-          appendAuthDebugTimeline("auth_provider_token_ready", `attempt=${attempt + 1}`);
-          return;
-        }
-
-        if (!tokenPresent) {
-          setTokenPresent(false);
-        }
-        setLoadingReason(`Token unavailable after attempt ${attempt + 1}.`);
-        logSafeAuthDiagnostic("auth_get_token_missing", {
-          attempt: String(attempt + 1),
-          isClerkLoaded: isLoaded,
-          isSignedIn: Boolean(isSignedIn),
-          sessionPresent: Boolean(session?.id),
-          tokenPresent: false,
-          userIdPresent: Boolean(user?.id)
-        });
-        appendAuthDebugTimeline("auth_provider_token_missing_attempt", `attempt=${attempt + 1}`);
-
-        await new Promise(resolve => setTimeout(resolve, 250));
-      }
-
-      if (!cancelled) {
-        if (timeoutId) {
-          clearTimeout(timeoutId);
-        }
-        setGetTokenState("resolved");
-        setTokenStatusWithReason("unavailable", "Clerk returned no token for a signed-in user.");
-        setLoadingReason("Clerk returned no token for a signed-in user.");
-        logSafeAuthDiagnostic("auth_get_token_unavailable", {
-          isClerkLoaded: isLoaded,
-          isSignedIn: Boolean(isSignedIn),
-          sessionPresent: Boolean(session?.id),
-          tokenPresent: false,
-          userIdPresent: Boolean(user?.id)
-        });
-        appendAuthDebugTimeline("auth_provider_token_unavailable");
       }
     }
 
-    void ensureSessionToken();
+    void restoreSession();
 
     return () => {
       cancelled = true;
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
     };
-  }, [isLoaded, isSignedIn, resolveTokenWithTimeout, session?.id, setTokenStatusWithReason, tokenPresent, user?.id]);
+  }, []);
 
   useEffect(() => {
     const unregister = registerAuthBridge({
-      getToken: async () => {
-        if (!authStateRef.current.isLoaded || !authStateRef.current.isSignedIn) {
-          appendAuthDebugTimeline(
-            "auth_bridge_get_token_skipped",
-            `isLoaded=${authStateRef.current.isLoaded ? "yes" : "no"}; isSignedIn=${authStateRef.current.isSignedIn ? "yes" : "no"}`
-          );
-          return null;
-        }
-
-        const token = (await resolveTokenWithTimeout("default")) ?? (await resolveTokenWithTimeout("skipCache"));
-        if (token) {
-          setLastKnownAuthToken(token, "auth_bridge_get_token");
-          setTokenPresent(currentValue => (currentValue ? currentValue : true));
-          appendAuthDebugTimeline("auth_client_token_stored", "source=auth_bridge_get_token");
-        }
-        appendAuthDebugTimeline("auth_bridge_get_token_result", `tokenPresent=${token ? "yes" : "no"}`);
-        return token;
-      },
-      handleUnauthorized: async () => {
-        appendAuthDebugTimeline("auth_bridge_handle_unauthorized");
-        await handleSignOut();
-      }
+      getToken: async () => token,
+      handleUnauthorized: async () => {}
     });
 
     return unregister;
-  }, [resolveTokenWithTimeout, handleSignOut]);
-
-  useEffect(() => {
-    if (isLoaded && !isSignedIn) {
-      setLastKnownAuthToken(null, "auth_provider_signed_out");
-      resetClientState();
-      appendAuthDebugTimeline("auth_provider_reset_client_state_signed_out");
-    }
-  }, [isLoaded, isSignedIn]);
-
-  const status = deriveAuthStatus({
-    isLoaded,
-    isSignedIn: Boolean(isSignedIn),
-    tokenPresent,
-    tokenStatus
-  });
-
-  useEffect(() => {
-    const previousStatus = previousDerivedStatusRef.current;
-    if (previousStatus !== status) {
-      appendAuthDebugTimeline(
-        "auth_state_transition",
-        `from=${previousStatus ?? "null"}; to=${status}; reason=isLoaded=${isLoaded ? "yes" : "no"}; isSignedIn=${isSignedIn ? "yes" : "no"}; tokenStatus=${tokenStatus}; tokenPresent=${tokenPresent ? "yes" : "no"}`
-      );
-      previousDerivedStatusRef.current = status;
-    }
-
-    logSafeAuthDiagnostic("auth_state", {
-      getTokenState,
-      isClerkLoaded: isLoaded,
-      isSignedIn: Boolean(isSignedIn),
-      sessionPresent: Boolean(session?.id),
-      status,
-      tokenPresent,
-      tokenStatus,
-      userIdPresent: Boolean(user?.id)
-    });
-  }, [getTokenState, isLoaded, isSignedIn, session?.id, status, tokenPresent, tokenStatus, user?.id]);
+  }, [token]);
 
   const value = useMemo<AuthContextValue>(() => {
     return {
       authDebug: {
-        getTokenState,
-        isClerkLoaded: isLoaded,
-        isSignedIn: Boolean(isSignedIn),
-        loadingReason,
-        sessionId: session?.id ?? null,
-        timeoutReached,
-        tokenPresent,
-        tokenStatus,
-        userId: user?.id ?? null
+        isLoaded: status !== "checking_session",
+        tokenPresent: Boolean(token)
       },
+      completeSignIn,
+      signOut,
       status,
-      userEmail: user?.primaryEmailAddress?.emailAddress ?? user?.emailAddresses[0]?.emailAddress ?? null,
-      signOut: handleSignOut
+      userEmail: user?.email ?? null
     };
-  }, [
-    getTokenState,
-    isLoaded,
-    isSignedIn,
-    loadingReason,
-    session?.id,
-    timeoutReached,
-    tokenPresent,
-    tokenStatus,
-    user,
-    status,
-    handleSignOut
-  ]);
+  }, [completeSignIn, signOut, status, token, user?.email]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

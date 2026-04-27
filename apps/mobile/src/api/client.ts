@@ -88,7 +88,7 @@ export async function apiRequest<TData, TMeta extends Record<string, unknown> = 
       appendAuthDebugTimeline("api_request_401", debugMessage);
       setLastAuthDebugMessage(debugMessage);
       if (token) {
-        appendAuthDebugTimeline("api_request_401_preserved_clerk_session", `path=${path}`);
+        appendAuthDebugTimeline("api_request_401_preserved_app_session", `path=${path}`);
       } else {
         appendAuthDebugTimeline("api_request_401_without_token_skipped_sign_out", `path=${path}`);
       }

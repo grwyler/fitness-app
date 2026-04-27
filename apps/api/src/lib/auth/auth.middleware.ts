@@ -1,57 +1,40 @@
 import type { RequestHandler } from "express";
-import { env, getClerkPublishableKeyType, getClerkSecretKeyType, getSafeKeySuffix } from "../../config/env.js";
 import { AppError } from "../http/errors.js";
 import { logger, type Logger } from "../observability/logger.js";
-import type { ClerkAuthGetter } from "./auth.types.js";
+import { verifyAuthToken } from "./token.js";
 
-function hasBearerToken(authorizationHeader: string | undefined) {
-  return typeof authorizationHeader === "string" && /^Bearer\s+\S+/i.test(authorizationHeader);
+function extractBearerToken(authorizationHeader: string | undefined) {
+  const match = authorizationHeader?.match(/^Bearer\s+(\S+)$/i);
+  return match?.[1] ?? null;
 }
 
-export function createAuthenticateRequestMiddleware(getAuth: ClerkAuthGetter): RequestHandler {
-  return createAuthenticateRequestMiddlewareWithDiagnostics(getAuth);
-}
-
-export function createAuthenticateRequestMiddlewareWithDiagnostics(
-  getAuth: ClerkAuthGetter,
-  dependencies?: {
-    logger?: Logger;
-  }
-): RequestHandler {
+export function createAuthenticateRequestMiddleware(dependencies?: {
+  logger?: Logger;
+  verifyToken?: typeof verifyAuthToken;
+}): RequestHandler {
   const authLogger = dependencies?.logger ?? logger;
+  const verifyToken = dependencies?.verifyToken ?? verifyAuthToken;
 
   return (request, _response, next) => {
     const authorizationHeader = request.header("authorization");
-    const authorizationHeaderPresent = Boolean(authorizationHeader);
-    const bearerTokenPresent = hasBearerToken(authorizationHeader);
+    const token = extractBearerToken(authorizationHeader);
     const diagnosticContext = {
-      authorizationHeaderPresent,
-      bearerTokenPresent,
-      clerkPublishableKeySuffix: getSafeKeySuffix(env.CLERK_PUBLISHABLE_KEY),
-      clerkPublishableKeyType: getClerkPublishableKeyType(env.CLERK_PUBLISHABLE_KEY),
-      clerkSecretKeySuffix: getSafeKeySuffix(env.CLERK_SECRET_KEY),
-      clerkSecretKeyType: getClerkSecretKeyType(env.CLERK_SECRET_KEY)
+      authorizationHeaderPresent: Boolean(authorizationHeader),
+      bearerTokenPresent: Boolean(token)
     };
 
-    if (!bearerTokenPresent) {
+    if (!token) {
       authLogger.warn("API auth rejected request without bearer token", diagnosticContext);
       next(new AppError(401, "UNAUTHENTICATED", "Authentication is required."));
       return;
     }
 
     try {
-      const auth = getAuth(request, { acceptsToken: "session_token" });
-
-      if (!auth.userId) {
-        authLogger.warn("API auth rejected bearer token without Clerk user", {
-          ...diagnosticContext,
-          clerkAuthenticated: Boolean(auth.isAuthenticated)
-        });
-        next(new AppError(401, "UNAUTHENTICATED", "Authentication is required."));
-        return;
-      }
-
-      request.clerkUserId = auth.userId;
+      const payload = verifyToken(token);
+      request.authUser = {
+        email: payload.email,
+        userId: payload.sub
+      };
       next();
     } catch (error) {
       authLogger.warn("API auth token verification failed", {

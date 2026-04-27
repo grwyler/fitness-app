@@ -127,12 +127,12 @@ Runtime auth is isolated in:
 
 Protected requests must include:
 
-- `Authorization: Bearer <clerk-session-token>`
+- `Authorization: Bearer <app-issued-jwt>`
 
 The backend:
 
-1. verifies the Clerk bearer token at the HTTP boundary
-2. resolves the current app user through `users.auth_provider_id`
+1. verifies the app-issued bearer token at the HTTP boundary
+2. resolves the current app user through `users.id`
 3. loads the user's internal `id` and `unit_system`
 4. returns the same `RequestContext` shape used by the use-cases
 
@@ -140,7 +140,7 @@ For local development, the seeded default internal user id is:
 
 - `11111111-1111-1111-1111-111111111111`
 
-No domain, repository, or use-case code should need to change when real auth is introduced.
+The MVP auth endpoints are `POST /api/v1/auth/signup`, `POST /api/v1/auth/signin`, and `GET /api/v1/auth/me`.
 
 ## Idempotency
 

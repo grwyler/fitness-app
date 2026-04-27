@@ -3,9 +3,10 @@ import { createServer } from "node:http";
 import { progressionStates, sets, users } from "@fitness/db";
 import type { Request } from "express";
 import { createApp } from "../../../app.js";
-import { getClerkPublishableKeyType, getClerkSecretKeyType } from "../../../config/env.js";
-import { createAuthenticateRequestMiddlewareWithDiagnostics } from "../../../lib/auth/auth.middleware.js";
-import { bootstrapDevelopmentDatabase } from "../../../lib/db/dev-bootstrap.js";
+import { createAuthenticateRequestMiddleware } from "../../../lib/auth/auth.middleware.js";
+import { issueAuthToken } from "../../../lib/auth/token.js";
+import { AppError } from "../../../lib/http/errors.js";
+import { DEV_USER_ID, bootstrapDevelopmentDatabase } from "../../../lib/db/dev-bootstrap.js";
 import { createPgliteClient, createPgliteDatabase } from "../../../lib/db/connection.js";
 import type { HttpTestCase } from "./test-helpers/http-test-case.js";
 import { createWorkoutHttpRouter } from "./workout.module.js";
@@ -18,72 +19,45 @@ import {
 } from "../infrastructure/test-helpers/integration-db.js";
 
 function createTestAuth() {
-  const clerkUsers = new Map([
-    [
-      "auth-user-1",
-      {
-        id: "auth-user-1",
-        emailAddresses: [{ id: "email-auth-user-1", emailAddress: "user-1@example.com" }],
-        firstName: "User",
-        lastName: "One",
-        primaryEmailAddressId: "email-auth-user-1",
-        username: "user-one"
-      }
-    ],
-    [
-      "auth-user-new",
-      {
-        id: "auth-user-new",
-        emailAddresses: [{ id: "email-auth-user-new", emailAddress: "new-user@example.com" }],
-        firstName: "New",
-        lastName: "User",
-        primaryEmailAddressId: "email-auth-user-new",
-        username: "new-user"
-      }
-    ]
-  ]);
-
   return {
-    clerkClient: {
-      users: {
-        async getUser(userId: string) {
-          const user = clerkUsers.get(userId);
-          if (!user) {
-            throw new Error("Unknown Clerk user.");
-          }
-
-          return user;
-        }
-      }
-    },
-    clerkGetAuth(request: Request) {
+    authenticateRequest(request: Request, _response: unknown, next: (error?: unknown) => void) {
       const authorization = request.header("authorization");
       if (!authorization?.startsWith("Bearer ")) {
-        return { userId: null, isAuthenticated: false };
+        next(new AppError(401, "UNAUTHENTICATED", "Authentication is required."));
+        return;
       }
 
       const token = authorization.slice("Bearer ".length);
       if (token === "valid-user-1-token") {
-        return { userId: "auth-user-1", isAuthenticated: true };
+        request.authUser = { email: "user-1@example.com", userId: "user-1" };
+        next();
+        return;
       }
 
       if (token === "valid-new-user-token") {
-        return { userId: "auth-user-new", isAuthenticated: true };
+        request.authUser = { email: "new-user@example.com", userId: "auth-user-new" };
+        next();
+        return;
+      }
+
+      if (token === "valid-dev-user-token") {
+        request.authUser = { email: "dev-user@example.com", userId: DEV_USER_ID };
+        next();
+        return;
       }
 
       if (token === "exploding-token") {
         throw new Error("Token verification failed.");
       }
 
-      return { userId: null, isAuthenticated: false };
-    },
-    clerkMiddleware: () => (_request: unknown, _response: unknown, next: () => void) => next()
+      next(new AppError(401, "UNAUTHENTICATED", "Authentication is required."));
+    }
   };
 }
 
-async function startHttpServer(database: any) {
+async function startHttpServer(database: any, auth: ReturnType<typeof createTestAuth> | null = createTestAuth()) {
   const app = createApp({
-    auth: createTestAuth(),
+    ...(auth ? { auth } : {}),
     database,
     workoutRouter: createWorkoutHttpRouter(database)
   });
@@ -120,18 +94,11 @@ async function readJson(response: Response) {
 
 export const workoutHttpTestCases: HttpTestCase[] = [
   {
-    name: "API env accepts Clerk test key shapes",
-    run: () => {
-      assert.equal(getClerkPublishableKeyType("pk_test_example"), "test");
-      assert.equal(getClerkSecretKeyType("sk_test_example"), "test");
-    }
-  },
-  {
-    name: "Auth middleware accepts a valid mocked Clerk auth result",
+    name: "Auth middleware accepts a valid app token",
     run: async () => {
       const warnings: Array<Record<string, unknown>> = [];
-      const middleware = createAuthenticateRequestMiddlewareWithDiagnostics(
-        () => ({ userId: "auth-user-1", isAuthenticated: true }),
+      const token = issueAuthToken({ email: "user-1@example.com", userId: "user-1" });
+      const middleware = createAuthenticateRequestMiddleware(
         {
           logger: {
             error: () => {},
@@ -142,10 +109,9 @@ export const workoutHttpTestCases: HttpTestCase[] = [
           }
         }
       );
-      const request = {
-        clerkUserId: undefined,
+      const request: { authUser?: { email: string; userId: string }; header: (name: string) => string | undefined } = {
         header(name: string) {
-          return name.toLowerCase() === "authorization" ? "Bearer valid-token" : undefined;
+          return name.toLowerCase() === "authorization" ? `Bearer ${token}` : undefined;
         }
       };
 
@@ -160,7 +126,7 @@ export const workoutHttpTestCases: HttpTestCase[] = [
         });
       });
 
-      assert.equal(request.clerkUserId, "auth-user-1");
+      assert.equal(request.authUser?.userId, "user-1");
       assert.equal(warnings.length, 0);
     }
   },
@@ -168,10 +134,7 @@ export const workoutHttpTestCases: HttpTestCase[] = [
     name: "Auth middleware logs safe diagnostics on token verification failure",
     run: async () => {
       const warnings: Array<{ message: string; context?: Record<string, unknown> }> = [];
-      const middleware = createAuthenticateRequestMiddlewareWithDiagnostics(
-        () => {
-          throw new Error("Token verification failed.");
-        },
+      const middleware = createAuthenticateRequestMiddleware(
         {
           logger: {
             error: () => {},
@@ -200,8 +163,53 @@ export const workoutHttpTestCases: HttpTestCase[] = [
       assert.equal(warnings[0]?.context?.authorizationHeaderPresent, true);
       assert.equal(warnings[0]?.context?.bearerTokenPresent, true);
       assert.equal(warnings[0]?.context?.verificationErrorName, "Error");
-      assert.equal(warnings[0]?.context?.verificationErrorMessage, "Token verification failed.");
+      assert.equal(typeof warnings[0]?.context?.verificationErrorMessage, "string");
       assert.equal("token" in (warnings[0]?.context ?? {}), false);
+    }
+  },
+  {
+    name: "POST /api/v1/auth/signup, signin, and me work",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        const server = await startHttpServer(context.db, null);
+
+        try {
+          const signupResponse = await fetch(`${server.baseUrl}/api/v1/auth/signup`, {
+            body: JSON.stringify({ email: "mvp@example.com", password: "password123" }),
+            headers: { "Content-Type": "application/json" },
+            method: "POST"
+          });
+          const signupPayload = await readJson(signupResponse);
+
+          assert.equal(signupResponse.status, 201);
+          assert.equal(signupPayload.data.user.email, "mvp@example.com");
+          assert.equal(typeof signupPayload.data.token, "string");
+
+          const signinResponse = await fetch(`${server.baseUrl}/api/v1/auth/signin`, {
+            body: JSON.stringify({ email: "mvp@example.com", password: "password123" }),
+            headers: { "Content-Type": "application/json" },
+            method: "POST"
+          });
+          const signinPayload = await readJson(signinResponse);
+
+          assert.equal(signinResponse.status, 200);
+          assert.equal(typeof signinPayload.data.token, "string");
+
+          const meResponse = await fetch(`${server.baseUrl}/api/v1/auth/me`, {
+            headers: { Authorization: `Bearer ${signinPayload.data.token}` }
+          });
+          const mePayload = await readJson(meResponse);
+
+          assert.equal(meResponse.status, 200);
+          assert.equal(mePayload.data.user.email, "mvp@example.com");
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
     }
   },
   {
@@ -282,7 +290,7 @@ export const workoutHttpTestCases: HttpTestCase[] = [
         try {
           const response = await fetch(`${server.baseUrl}/api/v1/programs`, {
             headers: {
-              Authorization: "Bearer valid-new-user-token"
+              Authorization: "Bearer valid-dev-user-token"
             }
           });
           const payload = await readJson(response);

@@ -1,20 +1,13 @@
 export type AuthStatus = "checking_session" | "authenticated" | "unauthenticated";
 
-export type TokenStatus = "idle" | "loading" | "ready" | "unavailable";
-
 export function deriveAuthStatus(input: {
-  isLoaded: boolean;
-  isSignedIn: boolean;
+  restoreComplete: boolean;
   tokenPresent: boolean;
-  tokenStatus: TokenStatus;
+  userPresent: boolean;
 }): AuthStatus {
-  if (!input.isLoaded) {
+  if (!input.restoreComplete) {
     return "checking_session";
   }
 
-  if (!input.isSignedIn) {
-    return "unauthenticated";
-  }
-
-  return input.tokenStatus === "ready" || input.tokenPresent ? "authenticated" : "checking_session";
+  return input.tokenPresent && input.userPresent ? "authenticated" : "unauthenticated";
 }

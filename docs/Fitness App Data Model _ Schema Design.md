@@ -99,8 +99,9 @@ Stores application user profile and account-level settings.
 | Field | Type | Required | Notes |
 | ----- | ----- | ----- | ----- |
 | `id` | UUID | Yes | Primary key |
-| `auth_provider_id` | Text | Yes | Clerk/Supabase external user ID |
+| `auth_provider_id` | Text | Yes | Legacy external auth field; app auth mirrors `id` here for compatibility |
 | `email` | Text | Yes | Unique |
+| `password_hash` | Text | No | Hashed app password for first-party MVP auth; nullable only for legacy/reset users |
 | `display_name` | Text | No | User-facing name |
 | `timezone` | Text | Yes | Default: `America/New_York` |
 | `unit_system` | Text | Yes | `imperial` or `metric` |
@@ -802,4 +803,3 @@ sets
 The most important design rule is:
 
 The app should never make the user think during the workout. The data model should support fast, predictable, pre-filled workout execution.
-

@@ -18,12 +18,11 @@ if (resolvedEnvPath) {
 }
 
 const envSchema = z.object({
-  CLERK_PUBLISHABLE_KEY: z.string().min(1, "CLERK_PUBLISHABLE_KEY is required").optional(),
-  CLERK_SECRET_KEY: z.string().min(1, "CLERK_SECRET_KEY is required").optional(),
   CORS_ALLOWED_ORIGINS: z.string().optional(),
+  DATABASE_URL: z.string().min(1, "DATABASE_URL is required").optional(),
+  JWT_SECRET: z.string().min(32, "JWT_SECRET must be at least 32 characters").optional(),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().positive().default(4000),
-  DATABASE_URL: z.string().min(1, "DATABASE_URL is required").optional(),
   USE_PGLITE_DEV: z
     .enum(["true", "false"])
     .optional()
@@ -31,56 +30,23 @@ const envSchema = z.object({
     .default(false)
 });
 
-export type AppEnv = z.infer<typeof envSchema>;
+export type AppEnv = z.infer<typeof envSchema> & {
+  JWT_SECRET: string;
+};
 
-export function getClerkPublishableKeyType(value: string | undefined) {
-  if (!value) {
-    return "missing";
-  }
-
-  if (value.startsWith("pk_live_")) {
-    return "live";
-  }
-
-  if (value.startsWith("pk_test_")) {
-    return "test";
-  }
-
-  return "invalid";
+function getEnvHint() {
+  return resolvedEnvPath
+    ? `Loaded environment from ${resolvedEnvPath}.`
+    : `No .env file found. Checked: ${envCandidatePaths.join(", ")}. Copy .env.example to .env at the repo root.`;
 }
 
-export function getClerkSecretKeyType(value: string | undefined) {
-  if (!value) {
-    return "missing";
-  }
-
-  if (value.startsWith("sk_live_")) {
-    return "live";
-  }
-
-  if (value.startsWith("sk_test_")) {
-    return "test";
-  }
-
-  return "invalid";
-}
-
-export function getSafeKeySuffix(value: string | undefined) {
-  if (!value) {
-    return "missing";
-  }
-
-  return `...${value.slice(-4)}`;
-}
-
-function parseEnv() {
+function parseEnv(): AppEnv {
   const parsedEnv = envSchema.safeParse({
-    NODE_ENV: process.env.NODE_ENV,
-    CLERK_PUBLISHABLE_KEY: process.env.CLERK_PUBLISHABLE_KEY,
-    CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY,
     CORS_ALLOWED_ORIGINS: process.env.CORS_ALLOWED_ORIGINS,
-    PORT: process.env.PORT,
     DATABASE_URL: process.env.DATABASE_URL,
+    JWT_SECRET: process.env.JWT_SECRET,
+    NODE_ENV: process.env.NODE_ENV,
+    PORT: process.env.PORT,
     USE_PGLITE_DEV: process.env.USE_PGLITE_DEV
   });
 
@@ -88,65 +54,27 @@ function parseEnv() {
     const details = parsedEnv.error.issues
       .map((issue) => `${issue.path.join(".") || "env"}: ${issue.message}`)
       .join("; ");
-    const envHint = resolvedEnvPath
-      ? `Loaded environment from ${resolvedEnvPath}.`
-      : `No .env file found. Checked: ${envCandidatePaths.join(", ")}. Copy .env.example to .env at the repo root and set DATABASE_URL.`;
-    throw new Error(`Invalid API environment configuration. ${details} ${envHint}`);
+    throw new Error(`Invalid API environment configuration. ${details} ${getEnvHint()}`);
   }
 
   if (!parsedEnv.data.USE_PGLITE_DEV && !parsedEnv.data.DATABASE_URL) {
-    const envHint = resolvedEnvPath
-      ? `Loaded environment from ${resolvedEnvPath}.`
-      : `No .env file found. Checked: ${envCandidatePaths.join(", ")}.`;
     throw new Error(
-      `Invalid API environment configuration. DATABASE_URL is required unless USE_PGLITE_DEV=true. ${envHint}`
+      `Invalid API environment configuration. DATABASE_URL is required unless USE_PGLITE_DEV=true. ${getEnvHint()}`
     );
   }
 
-  if (parsedEnv.data.NODE_ENV !== "test" && !parsedEnv.data.CLERK_SECRET_KEY) {
-    const envHint = resolvedEnvPath
-      ? `Loaded environment from ${resolvedEnvPath}.`
-      : `No .env file found. Checked: ${envCandidatePaths.join(", ")}.`;
+  if (parsedEnv.data.NODE_ENV === "production" && !parsedEnv.data.JWT_SECRET) {
     throw new Error(
-      `Invalid API environment configuration. CLERK_SECRET_KEY is required outside tests. ${envHint}`
+      "Invalid API environment configuration. JWT_SECRET is required in production and must be at least 32 characters."
     );
   }
 
-  if (parsedEnv.data.NODE_ENV !== "test" && !parsedEnv.data.CLERK_PUBLISHABLE_KEY) {
-    const envHint = resolvedEnvPath
-      ? `Loaded environment from ${resolvedEnvPath}.`
-      : `No .env file found. Checked: ${envCandidatePaths.join(", ")}.`;
-    throw new Error(
-      `Invalid API environment configuration. CLERK_PUBLISHABLE_KEY is required outside tests. ${envHint}`
-    );
-  }
-
-  if (parsedEnv.data.NODE_ENV === "production") {
-    const publishableKeyType = getClerkPublishableKeyType(parsedEnv.data.CLERK_PUBLISHABLE_KEY);
-    const secretKeyType = getClerkSecretKeyType(parsedEnv.data.CLERK_SECRET_KEY);
-
-    if (publishableKeyType === "invalid") {
-      throw new Error("Invalid API environment configuration. CLERK_PUBLISHABLE_KEY must start with pk_live_ or pk_test_ in production.");
-    }
-
-    if (secretKeyType === "invalid") {
-      throw new Error("Invalid API environment configuration. CLERK_SECRET_KEY must start with sk_live_ or sk_test_ in production.");
-    }
-
-    if (publishableKeyType === "test") {
-      console.warn(
-        "API is using a Clerk development publishable key (pk_test_...) in production. This is allowed for MVP testing; use the matching Clerk DEVELOPMENT instance."
-      );
-    }
-
-    if (secretKeyType === "test") {
-      console.warn(
-        "API is using a Clerk development secret key (sk_test_...) in production. This is allowed for MVP testing; use the matching Clerk DEVELOPMENT instance."
-      );
-    }
-  }
-
-  return parsedEnv.data;
+  return {
+    ...parsedEnv.data,
+    JWT_SECRET:
+      parsedEnv.data.JWT_SECRET ??
+      "development-only-jwt-secret-change-before-production"
+  };
 }
 
 export const env = parseEnv();

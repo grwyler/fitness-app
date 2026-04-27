@@ -17,7 +17,7 @@ Open app -> start workout -> log sets -> complete workout -> review progress
 - Mobile: Expo + React Native + React Query + Zustand
 - API: Express + Zod
 - Database: PostgreSQL + Drizzle ORM
-- Auth: Clerk-compatible bearer token boundary
+- Auth: first-party email/password with app-issued bearer tokens
 
 ## Current status
 
