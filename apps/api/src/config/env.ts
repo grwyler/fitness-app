@@ -20,6 +20,7 @@ if (resolvedEnvPath) {
 const envSchema = z.object({
   CLERK_PUBLISHABLE_KEY: z.string().min(1, "CLERK_PUBLISHABLE_KEY is required").optional(),
   CLERK_SECRET_KEY: z.string().min(1, "CLERK_SECRET_KEY is required").optional(),
+  CORS_ALLOWED_ORIGINS: z.string().optional(),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().positive().default(4000),
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required").optional(),
@@ -37,6 +38,7 @@ function parseEnv() {
     NODE_ENV: process.env.NODE_ENV,
     CLERK_PUBLISHABLE_KEY: process.env.CLERK_PUBLISHABLE_KEY,
     CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY,
+    CORS_ALLOWED_ORIGINS: process.env.CORS_ALLOWED_ORIGINS,
     PORT: process.env.PORT,
     DATABASE_URL: process.env.DATABASE_URL,
     USE_PGLITE_DEV: process.env.USE_PGLITE_DEV

@@ -12,6 +12,13 @@ type RequestOptions = {
 
 const isDevEnvironment = typeof __DEV__ !== "undefined" && __DEV__;
 
+export function buildApiUrl(baseUrl: string, path: string) {
+  const normalizedBaseUrl = baseUrl.replace(/\/+$/, "");
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+
+  return `${normalizedBaseUrl}${normalizedPath}`;
+}
+
 function isApiErrorEnvelope(value: unknown): value is ApiErrorEnvelope {
   return (
     typeof value === "object" &&
@@ -33,7 +40,7 @@ export async function apiRequest<TData, TMeta extends Record<string, unknown> = 
 ): Promise<ApiSuccessEnvelope<TData, TMeta>> {
   const token = await getAuthToken();
   const tokenSource = token ? getLastKnownAuthTokenSource() ?? "live_bridge" : "none";
-  const requestUrl = `${apiConfig.baseUrl}${path}`;
+  const requestUrl = buildApiUrl(apiConfig.baseUrl, path);
   appendAuthDebugTimeline(
     "api_request_prepared",
     `path=${path}; url=${requestUrl}; tokenPresent=${token ? "yes" : "no"}; tokenSource=${tokenSource}`
@@ -49,7 +56,7 @@ export async function apiRequest<TData, TMeta extends Record<string, unknown> = 
       url: requestUrl
     });
   }
-  const response = await fetch(`${apiConfig.baseUrl}${path}`, {
+  const response = await fetch(requestUrl, {
     method: options?.method ?? "GET",
     headers: {
       Accept: "application/json",

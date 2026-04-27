@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import type { ApiErrorEnvelope } from "@fitness/shared";
-import { apiRequest } from "../api/client.js";
+import { apiRequest, buildApiUrl } from "../api/client.js";
+import { normalizeApiBaseUrl } from "../api/config.js";
 import {
   fetchDashboard,
   fetchProgression,
@@ -25,6 +26,36 @@ function setMockFetch(implementation: (input: RequestInfo | URL, init?: RequestI
 }
 
 export const mobileApiTestCases: MobileTestCase[] = [
+  {
+    name: "API base URL is normalized to include /api/v1 without trailing slashes",
+    run: () => {
+      assert.equal(
+        normalizeApiBaseUrl("https://setwiseapi.vercel.app/"),
+        "https://setwiseapi.vercel.app/api/v1"
+      );
+      assert.equal(
+        normalizeApiBaseUrl("https://setwiseapi.vercel.app/api/v1/"),
+        "https://setwiseapi.vercel.app/api/v1"
+      );
+      assert.equal(
+        normalizeApiBaseUrl("http://localhost:4000/api/v1"),
+        "http://localhost:4000/api/v1"
+      );
+    }
+  },
+  {
+    name: "API client joins URLs without double slashes",
+    run: () => {
+      assert.equal(
+        buildApiUrl("https://setwiseapi.vercel.app/api/v1/", "/dashboard"),
+        "https://setwiseapi.vercel.app/api/v1/dashboard"
+      );
+      assert.equal(
+        buildApiUrl("http://localhost:4000/api/v1", "dashboard"),
+        "http://localhost:4000/api/v1/dashboard"
+      );
+    }
+  },
   {
     name: "API client unwraps success envelopes",
     run: async () => {

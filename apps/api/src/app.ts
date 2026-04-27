@@ -1,4 +1,4 @@
-import cors from "cors";
+import cors, { type CorsOptions } from "cors";
 import { clerkClient, clerkMiddleware, getAuth } from "@clerk/express";
 import express, {
   type NextFunction,
@@ -16,11 +16,46 @@ import { toAppError } from "./modules/workout/http/workout.http-errors.js";
 import { createAuthenticateRequestMiddleware } from "./lib/auth/auth.middleware.js";
 import type { ClerkAuthGetter, ClerkClientLike } from "./lib/auth/auth.types.js";
 import { createRequestContextMiddleware } from "./lib/auth/request-context.middleware.js";
+import { env } from "./config/env.js";
 
 type DatabaseLike = {
   select: (...args: any[]) => any;
   insert: (...args: any[]) => any;
 };
+
+const defaultAllowedOrigins = [
+  "http://localhost:8081",
+  "http://127.0.0.1:8081",
+  "https://setwisefit.vercel.app"
+];
+
+function resolveAllowedOrigins() {
+  const configuredOrigins =
+    env.CORS_ALLOWED_ORIGINS?.split(",")
+      .map((origin) => origin.trim())
+      .filter(Boolean) ?? [];
+
+  return new Set([...defaultAllowedOrigins, ...configuredOrigins]);
+}
+
+export function createCorsOptions(): CorsOptions {
+  const allowedOrigins = resolveAllowedOrigins();
+
+  return {
+    allowedHeaders: ["Authorization", "Content-Type", "Idempotency-Key", "Accept"],
+    credentials: true,
+    methods: ["GET", "POST", "OPTIONS"],
+    optionsSuccessStatus: 204,
+    origin(origin, callback) {
+      if (!origin || allowedOrigins.has(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(null, false);
+    }
+  };
+}
 
 export function createApp(options?: {
   auth?: {
@@ -33,7 +68,7 @@ export function createApp(options?: {
 }) {
   const app = express();
 
-  app.use(cors());
+  app.use(cors(createCorsOptions()));
   app.use(express.json());
 
   app.use(healthRouter);

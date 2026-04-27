@@ -40,7 +40,9 @@ function parseEnvFile(filePath) {
 
 function resolveEnvValue(name) {
   const envFiles = [
+    path.resolve(__dirname, ".env.local"),
     path.resolve(__dirname, ".env"),
+    path.resolve(__dirname, "..", "..", ".env.local"),
     path.resolve(__dirname, "..", "..", ".env")
   ];
 
@@ -81,6 +83,14 @@ module.exports = () => {
 
   if (isProductionBuild && !clerkPublishableKey) {
     throw new Error("EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY is required for production mobile web builds.");
+  }
+
+  if (apiBaseUrl) {
+    process.env.EXPO_PUBLIC_API_BASE_URL = apiBaseUrl;
+  }
+
+  if (clerkPublishableKey) {
+    process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY = clerkPublishableKey;
   }
 
   return {

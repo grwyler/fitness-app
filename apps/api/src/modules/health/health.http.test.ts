@@ -45,5 +45,51 @@ export const healthHttpTestCases: HttpTestCase[] = [
         await server.close();
       }
     }
+  },
+  {
+    name: "OPTIONS /api/v1/dashboard allows local web preflight",
+    run: async () => {
+      const server = await startHttpServer();
+
+      try {
+        const response = await fetch(`${server.baseUrl}/api/v1/dashboard`, {
+          method: "OPTIONS",
+          headers: {
+            Origin: "http://localhost:8081",
+            "Access-Control-Request-Headers": "authorization,content-type",
+            "Access-Control-Request-Method": "GET"
+          }
+        });
+
+        assert.equal(response.status, 204);
+        assert.equal(response.headers.get("access-control-allow-origin"), "http://localhost:8081");
+        assert.match(response.headers.get("access-control-allow-headers") ?? "", /Authorization/i);
+        assert.match(response.headers.get("access-control-allow-methods") ?? "", /GET/i);
+      } finally {
+        await server.close();
+      }
+    }
+  },
+  {
+    name: "OPTIONS /api/v1/dashboard allows production web preflight",
+    run: async () => {
+      const server = await startHttpServer();
+
+      try {
+        const response = await fetch(`${server.baseUrl}/api/v1/dashboard`, {
+          method: "OPTIONS",
+          headers: {
+            Origin: "https://setwisefit.vercel.app",
+            "Access-Control-Request-Headers": "authorization,content-type",
+            "Access-Control-Request-Method": "GET"
+          }
+        });
+
+        assert.equal(response.status, 204);
+        assert.equal(response.headers.get("access-control-allow-origin"), "https://setwisefit.vercel.app");
+      } finally {
+        await server.close();
+      }
+    }
   }
 ];

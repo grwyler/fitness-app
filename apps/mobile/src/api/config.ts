@@ -63,6 +63,7 @@ const defaultApiBaseUrl =
     : "http://127.0.0.1:4000/api/v1";
 
 const configuredApiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL ?? resolveExpoExtra("apiBaseUrl");
+export const isApiBaseUrlConfigured = Boolean(configuredApiBaseUrl);
 
 const isDevelopment =
   (typeof __DEV__ !== "undefined" && __DEV__) || process.env.NODE_ENV !== "production";
@@ -73,6 +74,24 @@ if (!configuredApiBaseUrl && !isDevelopment) {
   );
 }
 
+export function normalizeApiBaseUrl(input: string) {
+  const trimmedInput = input.trim();
+  const withoutTrailingSlashes = trimmedInput.replace(/\/+$/, "");
+
+  if (/\/api\/v1$/i.test(withoutTrailingSlashes)) {
+    return withoutTrailingSlashes;
+  }
+
+  return `${withoutTrailingSlashes}/api/v1`;
+}
+
 export const apiConfig = {
-  baseUrl: configuredApiBaseUrl ?? defaultApiBaseUrl
+  baseUrl: normalizeApiBaseUrl(configuredApiBaseUrl ?? defaultApiBaseUrl)
 } as const;
+
+if (isDevelopment) {
+  console.info("[mobile-api] baseUrl", {
+    baseUrl: apiConfig.baseUrl,
+    source: configuredApiBaseUrl ? "configured" : "development_default"
+  });
+}

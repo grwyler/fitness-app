@@ -6,22 +6,46 @@ import { NavigationContainer } from "@react-navigation/native";
 import Constants from "expo-constants";
 import { Platform } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { apiConfig, isApiBaseUrlConfigured } from "../../api/config";
 import { queryClient } from "./query-client";
 import { AuthProvider } from "../auth/AuthProvider";
+import { StartupConfigErrorScreen } from "./StartupConfigErrorScreen";
 
-const publishableKey =
+function resolveNonEmptyString(value: unknown) {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+const publishableKey = resolveNonEmptyString(
   process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ??
-  Constants.expoConfig?.extra?.clerkPublishableKey ??
-  Constants.manifest?.extra?.clerkPublishableKey ??
-  Constants.manifest2?.extra?.expoClient?.extra?.clerkPublishableKey;
+    Constants.expoConfig?.extra?.clerkPublishableKey ??
+    Constants.manifest?.extra?.clerkPublishableKey ??
+    Constants.manifest2?.extra?.expoClient?.extra?.clerkPublishableKey
+);
 
-if (!publishableKey) {
+const isDevelopment = typeof __DEV__ !== "undefined" ? __DEV__ : process.env.NODE_ENV !== "production";
+
+const missingEnvVars = [
+  publishableKey ? null : "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY"
+].filter((name): name is string => Boolean(name));
+
+if (missingEnvVars.length > 0 && !isDevelopment) {
   throw new Error(
-    "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY is required. Checked Expo public env and app config extra."
+    `${missingEnvVars.join(", ")} required. Checked Expo public env and app config extra.`
   );
 }
 
 export function AppProviders({ children }: PropsWithChildren) {
+  if (missingEnvVars.length > 0) {
+    return (
+      <SafeAreaProvider>
+        <StartupConfigErrorScreen
+          devApiBaseUrl={isApiBaseUrlConfigured ? undefined : apiConfig.baseUrl}
+          missingEnvVars={missingEnvVars}
+        />
+      </SafeAreaProvider>
+    );
+  }
+
   return (
     <SafeAreaProvider>
       <ClerkProvider

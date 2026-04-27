@@ -74,7 +74,7 @@ Create or update the production web Vercel project with:
 
 Set these environment variables on the production web Vercel project:
 
-- `EXPO_PUBLIC_API_BASE_URL`: deployed API origin plus `/api/v1`
+- `EXPO_PUBLIC_API_BASE_URL`: `https://setwiseapi.vercel.app/api/v1`
 - `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY`: Clerk publishable key for the same Clerk environment used by the API
 
 Do not point the production web app at localhost or at a preview-only API.
@@ -93,6 +93,7 @@ Set these environment variables in the Vercel project:
 - `DATABASE_URL`: your hosted Postgres connection string
 - `CLERK_PUBLISHABLE_KEY`: Clerk publishable key
 - `CLERK_SECRET_KEY`: Clerk backend secret key
+- `CORS_ALLOWED_ORIGINS`: comma-separated web origins allowed to call the API, for example `http://localhost:8081,https://setwisefit.vercel.app`
 - `NODE_ENV=production`
 
 Optional:
@@ -177,7 +178,7 @@ The mobile client reads its API base URL from `EXPO_PUBLIC_API_BASE_URL`.
 For testers, set:
 
 ```text
-EXPO_PUBLIC_API_BASE_URL=https://YOUR-PROJECT.vercel.app/api/v1
+EXPO_PUBLIC_API_BASE_URL=https://setwiseapi.vercel.app/api/v1
 ```
 
 You can place that in:
