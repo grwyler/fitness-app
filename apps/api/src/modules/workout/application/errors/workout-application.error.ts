@@ -1,6 +1,8 @@
 export const workoutApplicationErrorCodes = [
   "ACTIVE_WORKOUT_ALREADY_EXISTS",
   "ACTIVE_ENROLLMENT_NOT_FOUND",
+  "ACTIVE_ENROLLMENT_ALREADY_EXISTS",
+  "PROGRAM_NOT_FOUND",
   "WORKOUT_TEMPLATE_NOT_FOUND",
   "PROGRESSION_SEED_NOT_FOUND",
   "PROGRESSION_STATE_NOT_FOUND",
@@ -21,4 +23,3 @@ export class WorkoutApplicationError extends Error {
     this.code = code;
   }
 }
-

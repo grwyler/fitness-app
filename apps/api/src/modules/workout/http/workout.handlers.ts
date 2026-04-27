@@ -15,17 +15,22 @@ import {
 import {
   completeWorkoutSessionBodySchema,
   logSetBodySchema,
+  programParamsSchema,
   setParamsSchema,
   startWorkoutSessionBodySchema,
   workoutSessionParamsSchema
 } from "./workout.schemas.js";
 import type { CompleteWorkoutSessionUseCase } from "../application/use-cases/complete-workout-session.use-case.js";
+import type { FollowProgramUseCase } from "../application/use-cases/follow-program.use-case.js";
 import type { GetCurrentWorkoutSessionUseCase } from "../application/use-cases/get-current-workout-session.use-case.js";
 import type { GetDashboardUseCase } from "../application/use-cases/get-dashboard.use-case.js";
+import type { ListProgramsUseCase } from "../application/use-cases/list-programs.use-case.js";
 import type { LogSetUseCase } from "../application/use-cases/log-set.use-case.js";
 import type { StartWorkoutSessionUseCase } from "../application/use-cases/start-workout-session.use-case.js";
 
 export type WorkoutHttpHandlers = {
+  listPrograms: RequestHandler;
+  followProgram: RequestHandler;
   getDashboard: RequestHandler;
   getCurrentWorkoutSession: RequestHandler;
   startWorkoutSession: RequestHandler;
@@ -34,6 +39,8 @@ export type WorkoutHttpHandlers = {
 };
 
 export function createWorkoutHandlers(dependencies: {
+  listProgramsUseCase: ListProgramsUseCase;
+  followProgramUseCase: FollowProgramUseCase;
   getDashboardUseCase: GetDashboardUseCase;
   getCurrentWorkoutSessionUseCase: GetCurrentWorkoutSessionUseCase;
   startWorkoutSessionUseCase: StartWorkoutSessionUseCase;
@@ -41,6 +48,21 @@ export function createWorkoutHandlers(dependencies: {
   completeWorkoutSessionUseCase: CompleteWorkoutSessionUseCase;
 }): WorkoutHttpHandlers {
   return {
+    listPrograms: asyncHandler(async (_request, response) => {
+      const result = await dependencies.listProgramsUseCase.execute();
+      response.json(success(result.data, result.meta));
+    }),
+
+    followProgram: asyncHandler(async (request, response) => {
+      const context = getRequestContext(request);
+      const params = validateParams(programParamsSchema, request);
+      const result = await dependencies.followProgramUseCase.execute({
+        context,
+        programId: params.programId
+      });
+      response.status(201).json(success(result.data, result.meta));
+    }),
+
     getDashboard: asyncHandler(async (request, response) => {
       const context = getRequestContext(request);
       const result = await dependencies.getDashboardUseCase.execute({ context });

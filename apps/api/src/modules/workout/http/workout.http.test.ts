@@ -142,6 +142,62 @@ export const workoutHttpTestCases: HttpTestCase[] = [
     }
   },
   {
+    name: "GET /api/v1/programs returns predefined program details",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        const server = await startHttpServer(context.db);
+
+        try {
+          const response = await fetch(`${server.baseUrl}/api/v1/programs`, {
+            headers: createAuthHeaders()
+          });
+          const payload = await readJson(response);
+
+          assert.equal(response.status, 200);
+          assert.equal(payload.data.programs[0].name, "Beginner Full Body V1");
+          assert.equal(payload.data.programs[0].workouts[0].name, "Workout A");
+          assert.equal(payload.data.programs[0].workouts[0].exercises[0].exerciseName, "Bench Press");
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "POST /api/v1/programs/:programId/follow starts a program for a new user",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        const server = await startHttpServer(context.db);
+
+        try {
+          const response = await fetch(`${server.baseUrl}/api/v1/programs/program-1/follow`, {
+            method: "POST",
+            headers: {
+              Authorization: "Bearer valid-new-user-token"
+            }
+          });
+          const payload = await readJson(response);
+
+          assert.equal(response.status, 201);
+          assert.equal(payload.data.activeProgram.program.id, "program-1");
+          assert.equal(payload.data.activeProgram.nextWorkoutTemplate.id, "template-1");
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
     name: "GET /api/v1/workout-sessions/current returns the active session",
     run: async () => {
       const context = await createWorkoutInfrastructureTestContext();

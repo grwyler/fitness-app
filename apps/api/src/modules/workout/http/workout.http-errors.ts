@@ -31,9 +31,11 @@ export function toAppError(error: unknown): AppError {
     switch (error.code) {
       case "SESSION_NOT_FOUND":
       case "SET_NOT_FOUND":
+      case "PROGRAM_NOT_FOUND":
       case "WORKOUT_TEMPLATE_NOT_FOUND":
         return new AppError(404, "NOT_FOUND", error.message);
       case "ACTIVE_WORKOUT_ALREADY_EXISTS":
+      case "ACTIVE_ENROLLMENT_ALREADY_EXISTS":
       case "IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD":
         return new AppError(409, "CONFLICT", error.message);
       case "IDEMPOTENCY_REQUEST_IN_PROGRESS":

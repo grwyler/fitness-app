@@ -7,6 +7,8 @@ import { ErrorState } from "../components/ErrorState";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { FeedbackButton } from "../features/feedback/components/FeedbackButton";
 import { useDashboard } from "../features/workout/hooks/useDashboard";
+import { useFollowProgram } from "../features/workout/hooks/useFollowProgram";
+import { usePrograms } from "../features/workout/hooks/usePrograms";
 import { useStartWorkout } from "../features/workout/hooks/useStartWorkout";
 import type { RootStackParamList } from "../core/navigation/navigation-types";
 import { colors, spacing } from "../theme/tokens";
@@ -15,6 +17,8 @@ type Props = NativeStackScreenProps<RootStackParamList, "Dashboard">;
 
 export function DashboardScreen({ navigation }: Props) {
   const dashboardQuery = useDashboard();
+  const programsQuery = usePrograms(Boolean(dashboardQuery.data && !dashboardQuery.data.activeProgram));
+  const followProgramMutation = useFollowProgram();
   const startWorkoutMutation = useStartWorkout();
   const [lastAction, setLastAction] = useState<string | null>(null);
 
@@ -40,18 +44,84 @@ export function DashboardScreen({ navigation }: Props) {
   }
 
   const dashboard = dashboardQuery.data;
+  const activeProgram = dashboard.activeProgram;
   const activeWorkout = dashboard.activeWorkoutSession;
   const nextWorkout = dashboard.nextWorkoutTemplate;
+  const availablePrograms = programsQuery.data ?? [];
 
   return (
     <Screen>
       <View style={styles.hero}>
         <Text style={styles.eyebrow}>Fitness App</Text>
-        <Text style={styles.title}>Train with a clear next step.</Text>
+        <Text style={styles.title}>
+          {activeProgram ? "Train with a clear next step." : "Choose your starting plan."}
+        </Text>
         <Text style={styles.subtitle}>
-          Your dashboard is powered by the live workout API.
+          {activeProgram
+            ? "Follow the program, log the work, and let progression handle the details."
+            : "Pick the predefined beginner program to queue your first workout."}
         </Text>
       </View>
+
+      {activeProgram ? (
+        <View style={styles.card}>
+          <Text style={styles.cardLabel}>Current program</Text>
+          <Text style={styles.cardTitle}>{activeProgram.program.name}</Text>
+          <Text style={styles.cardBody}>{activeProgram.program.description}</Text>
+          <Text style={styles.metaLine}>
+            {activeProgram.program.daysPerWeek} days/week - {activeProgram.program.sessionDurationMinutes} min sessions - {activeProgram.completedWorkoutCount} completed
+          </Text>
+        </View>
+      ) : null}
+
+      {!activeProgram ? (
+        <View style={styles.card}>
+          <Text style={styles.cardLabel}>Predefined programs</Text>
+          {programsQuery.isLoading ? (
+            <Text style={styles.cardBody}>Loading programs...</Text>
+          ) : availablePrograms.length === 0 ? (
+            <Text style={styles.cardBody}>No active predefined programs are available yet.</Text>
+          ) : (
+            availablePrograms.map((program) => {
+              const workoutNames = program.workouts.map((workout) => workout.name).join(" / ");
+              const exerciseOverview =
+                program.workouts
+                  .map(
+                    (workout) =>
+                      `${workout.name}: ${workout.exercises
+                        .map((exercise) => exercise.exerciseName)
+                        .join(", ")}`
+                  )
+                  .join("\n") || "Workout overview unavailable";
+
+              return (
+                <View key={program.id} style={styles.programBlock}>
+                  <Text style={styles.cardTitle}>{program.name}</Text>
+                  <Text style={styles.cardBody}>{program.description}</Text>
+                  <Text style={styles.metaLine}>
+                    {program.daysPerWeek} days/week - {program.sessionDurationMinutes} minutes - {program.difficultyLevel}
+                  </Text>
+                  <Text style={styles.sectionTitle}>Weekly structure</Text>
+                  <Text style={styles.cardBody}>{workoutNames}</Text>
+                  <Text style={styles.sectionTitle}>Workout overview</Text>
+                  <Text style={styles.cardBody}>{exerciseOverview}</Text>
+                  <PrimaryButton
+                    label="Start this program"
+                    onPress={() => {
+                      setLastAction("follow_program");
+                      followProgramMutation.mutate(program.id);
+                    }}
+                    loading={followProgramMutation.isPending}
+                  />
+                </View>
+              );
+            })
+          )}
+          {programsQuery.isError ? (
+            <Text style={styles.errorText}>We couldn't load programs. Pull to refresh or try again.</Text>
+          ) : null}
+        </View>
+      ) : null}
 
       {activeWorkout ? (
         <View style={styles.card}>
@@ -76,7 +146,9 @@ export function DashboardScreen({ navigation }: Props) {
         <Text style={styles.cardBody}>
           {nextWorkout
             ? `Estimated ${nextWorkout.estimatedDurationMinutes ?? 0} minutes`
-            : "No active program enrollment is available."}
+            : activeProgram
+              ? "Your program does not have a workout queued."
+              : "Start a predefined program to queue your first workout."}
         </Text>
         <PrimaryButton
           label={activeWorkout ? "Workout already active" : "Start workout"}
@@ -91,7 +163,7 @@ export function DashboardScreen({ navigation }: Props) {
               }
             );
           }}
-          disabled={Boolean(activeWorkout || !nextWorkout)}
+          disabled={Boolean(activeWorkout || !nextWorkout || !activeProgram)}
           loading={startWorkoutMutation.isPending}
         />
       </View>
@@ -167,6 +239,25 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: 16,
     lineHeight: 22
+  },
+  metaLine: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    fontWeight: "700",
+    lineHeight: 20
+  },
+  programBlock: {
+    gap: spacing.sm
+  },
+  sectionTitle: {
+    color: colors.textPrimary,
+    fontSize: 15,
+    fontWeight: "700"
+  },
+  errorText: {
+    color: colors.accentStrong,
+    fontSize: 14,
+    fontWeight: "700"
   },
   actions: {
     gap: spacing.sm

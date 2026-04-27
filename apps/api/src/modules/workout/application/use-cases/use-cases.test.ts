@@ -3,6 +3,7 @@ import type { StartWorkoutSessionRequest } from "@fitness/shared";
 import type { EnrollmentRepository } from "../../repositories/interfaces/enrollment.repository.js";
 import type { ExerciseRepository } from "../../repositories/interfaces/exercise.repository.js";
 import type { IdempotencyRepository } from "../../repositories/interfaces/idempotency.repository.js";
+import type { ProgramRepository } from "../../repositories/interfaces/program.repository.js";
 import type { ProgressMetricRepository } from "../../repositories/interfaces/progress-metric.repository.js";
 import type { ProgressionStateRepository } from "../../repositories/interfaces/progression-state.repository.js";
 import type { WorkoutSessionRepository } from "../../repositories/interfaces/workout-session.repository.js";
@@ -12,8 +13,10 @@ import { WorkoutApplicationError } from "../errors/workout-application.error.js"
 import { MockTransactionManager } from "../test-helpers/mock-transaction-manager.js";
 import type { ApplicationTestCase } from "../test-helpers/application-test-case.js";
 import { CompleteWorkoutSessionUseCase } from "./complete-workout-session.use-case.js";
+import { FollowProgramUseCase } from "./follow-program.use-case.js";
 import { GetCurrentWorkoutSessionUseCase } from "./get-current-workout-session.use-case.js";
 import { GetDashboardUseCase } from "./get-dashboard.use-case.js";
+import { ListProgramsUseCase } from "./list-programs.use-case.js";
 import { LogSetUseCase } from "./log-set.use-case.js";
 import { StartWorkoutSessionUseCase } from "./start-workout-session.use-case.js";
 
@@ -150,7 +153,162 @@ function createMockIdempotencyRepository() {
   };
 }
 
+function createProgramDefinition() {
+  return {
+    program: {
+      id: "program-1",
+      name: "Beginner Full Body V1",
+      description: "A simple strength progression program.",
+      daysPerWeek: 3,
+      sessionDurationMinutes: 60,
+      difficultyLevel: "beginner" as const,
+      isActive: true,
+      createdAt: new Date("2026-04-01T00:00:00.000Z"),
+      updatedAt: new Date("2026-04-01T00:00:00.000Z")
+    },
+    templates: [
+      {
+        id: "template-1",
+        programId: "program-1",
+        name: "Workout A",
+        sequenceOrder: 1,
+        estimatedDurationMinutes: 60,
+        exercises: [
+          {
+            id: "template-entry-1",
+            exerciseId: "exercise-1",
+            exerciseName: "Bench Press",
+            category: "compound" as const,
+            sequenceOrder: 1,
+            targetSets: 3,
+            targetReps: 8,
+            restSeconds: 120
+          }
+        ]
+      }
+    ]
+  };
+}
+
 export const applicationUseCaseTestCases: ApplicationTestCase[] = [
+  {
+    name: "Program use-cases list active programs and create an enrollment",
+    run: async () => {
+      let createdEnrollmentTemplateId: string | null = null;
+
+      const programRepository: ProgramRepository = {
+        async listActive() {
+          return [createProgramDefinition()];
+        },
+        async findActiveById() {
+          return createProgramDefinition();
+        },
+        async createEnrollment(input) {
+          createdEnrollmentTemplateId = input.currentWorkoutTemplateId;
+          return {
+            id: "enrollment-1",
+            userId: input.userId,
+            programId: input.programId,
+            status: "active",
+            startedAt: input.startedAt,
+            completedAt: null,
+            currentWorkoutTemplateId: input.currentWorkoutTemplateId,
+            createdAt: input.startedAt,
+            updatedAt: input.startedAt
+          };
+        }
+      };
+
+      const enrollmentRepository: EnrollmentRepository = {
+        async findActiveByUserId() {
+          return null;
+        },
+        async updateNextWorkoutTemplate() {
+          throw new Error("Not implemented.");
+        }
+      };
+
+      const exerciseRepository: ExerciseRepository = {
+        async findTemplateDefinitionById() {
+          return null;
+        },
+        async findProgressionSeedsByExerciseIds() {
+          return [];
+        },
+        async findActiveTemplatesByProgramId() {
+          return [
+            {
+              id: "template-1",
+              programId: "program-1",
+              programName: "Beginner Full Body V1",
+              name: "Workout A",
+              sequenceOrder: 1,
+              estimatedDurationMinutes: 60,
+              isActive: true,
+              createdAt: new Date("2026-04-01T00:00:00.000Z"),
+              updatedAt: new Date("2026-04-01T00:00:00.000Z")
+            }
+          ];
+        },
+        async findByIds() {
+          return [];
+        }
+      };
+
+      const workoutSessionRepository: WorkoutSessionRepository = {
+        async findInProgressByUserId() {
+          return null;
+        },
+        async findOwnedById() {
+          return null;
+        },
+        async findOwnedSessionGraphById() {
+          return null;
+        },
+        async findOwnedSetForLogging() {
+          return null;
+        },
+        async createSessionGraph() {
+          throw new Error("Not implemented.");
+        },
+        async updateLoggedSet() {
+          throw new Error("Not implemented.");
+        },
+        async persistExerciseEntryFeedback() {},
+        async completeSession() {
+          throw new Error("Not implemented.");
+        },
+        async listRecentCompletedByUserId() {
+          return [];
+        },
+        async countCompletedByUserIdWithinRange() {
+          return 0;
+        },
+        async countCompletedByUserIdAndProgramId() {
+          return 0;
+        }
+      };
+
+      const listProgramsUseCase = new ListProgramsUseCase(programRepository);
+      const followProgramUseCase = new FollowProgramUseCase(
+        programRepository,
+        enrollmentRepository,
+        exerciseRepository,
+        workoutSessionRepository,
+        new MockTransactionManager()
+      );
+
+      const programsResult = await listProgramsUseCase.execute();
+      const followResult = await followProgramUseCase.execute({
+        context: { userId: "user-1", unitSystem: "imperial" },
+        programId: "program-1"
+      });
+
+      assert.equal(programsResult.data.programs[0]?.workouts[0]?.exercises[0]?.exerciseName, "Bench Press");
+      assert.equal(createdEnrollmentTemplateId, "template-1");
+      assert.equal(followResult.data.activeProgram.nextWorkoutTemplate?.id, "template-1");
+    }
+  },
   {
     name: "StartWorkoutSessionUseCase creates a session graph",
     run: async () => {
@@ -185,6 +343,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
           return [];
         },
         async countCompletedByUserIdWithinRange() {
+          return 0;
+        },
+        async countCompletedByUserIdAndProgramId() {
           return 0;
         }
       };
@@ -363,6 +524,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         },
         async countCompletedByUserIdWithinRange() {
           return 0;
+        },
+        async countCompletedByUserIdAndProgramId() {
+          return 0;
         }
       };
 
@@ -462,6 +626,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
           return [];
         },
         async countCompletedByUserIdWithinRange() {
+          return 0;
+        },
+        async countCompletedByUserIdAndProgramId() {
           return 0;
         }
       };
@@ -651,6 +818,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         },
         async countCompletedByUserIdWithinRange() {
           return 0;
+        },
+        async countCompletedByUserIdAndProgramId() {
+          return 0;
         }
       };
 
@@ -796,6 +966,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         },
         async countCompletedByUserIdWithinRange() {
           return 1;
+        },
+        async countCompletedByUserIdAndProgramId() {
+          return 1;
         }
       };
 
@@ -866,11 +1039,24 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         }
       };
 
+      const programRepository: ProgramRepository = {
+        async listActive() {
+          return [createProgramDefinition()];
+        },
+        async findActiveById() {
+          return createProgramDefinition();
+        },
+        async createEnrollment() {
+          throw new Error("Not implemented.");
+        }
+      };
+
       const currentWorkoutUseCase = new GetCurrentWorkoutSessionUseCase(workoutSessionRepository);
       const dashboardUseCase = new GetDashboardUseCase(
         workoutSessionRepository,
         enrollmentRepository,
         exerciseRepository,
+        programRepository,
         progressMetricRepository
       );
 
@@ -882,6 +1068,8 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
       });
 
       assert.equal(currentWorkoutResult.data.activeWorkoutSession?.id, "session-1");
+      assert.equal(dashboardResult.data.activeProgram?.program.name, "Beginner Full Body V1");
+      assert.equal(dashboardResult.data.activeProgram?.completedWorkoutCount, 1);
       assert.equal(currentWorkoutResult.meta.replayed, false);
       assert.equal(dashboardResult.data.recentWorkoutHistory[0]?.highlights[0], "Workout completed");
       assert.equal(dashboardResult.meta.replayed, false);

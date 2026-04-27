@@ -2,10 +2,12 @@ import type {
   CurrentWorkoutSessionDto,
   DashboardDto,
   ExerciseEntryDto,
+  ActiveProgramDto,
   GetCurrentWorkoutSessionResponse,
   GetDashboardResponse,
   LogSetResponse,
   NextWorkoutTemplateDto,
+  ProgramDto,
   ProgressMetricDto,
   ProgressionUpdateDto,
   WeightValueDto,
@@ -13,7 +15,9 @@ import type {
   WorkoutSessionDto
 } from "@fitness/shared";
 import type { UnitSystem } from "@fitness/shared";
+import type { EnrollmentRecord } from "../../repositories/models/enrollment.persistence.js";
 import type { WorkoutTemplateRecord } from "../../repositories/models/exercise.persistence.js";
+import type { ProgramDefinition } from "../../repositories/models/program.persistence.js";
 import type { ProgressMetricRecord } from "../../repositories/models/progress-metric.persistence.js";
 import type {
   ExerciseEntryRecord,
@@ -106,6 +110,54 @@ export function mapNextWorkoutTemplateDto(
   };
 }
 
+export function mapProgramDto(definition: ProgramDefinition): ProgramDto {
+  return {
+    id: definition.program.id,
+    name: definition.program.name,
+    description: definition.program.description,
+    daysPerWeek: definition.program.daysPerWeek,
+    sessionDurationMinutes: definition.program.sessionDurationMinutes,
+    difficultyLevel: definition.program.difficultyLevel,
+    workouts: [...definition.templates]
+      .sort((left, right) => left.sequenceOrder - right.sequenceOrder)
+      .map((template) => ({
+        id: template.id,
+        name: template.name,
+        sequenceOrder: template.sequenceOrder,
+        estimatedDurationMinutes: template.estimatedDurationMinutes,
+        exercises: [...template.exercises]
+          .sort((left, right) => left.sequenceOrder - right.sequenceOrder)
+          .map((exercise) => ({
+            id: exercise.id,
+            exerciseId: exercise.exerciseId,
+            exerciseName: exercise.exerciseName,
+            category: exercise.category,
+            sequenceOrder: exercise.sequenceOrder,
+            targetSets: exercise.targetSets,
+            targetReps: exercise.targetReps,
+            restSeconds: exercise.restSeconds
+          }))
+      }))
+  };
+}
+
+export function mapActiveProgramDto(input: {
+  enrollment: EnrollmentRecord;
+  programDefinition: ProgramDefinition;
+  nextWorkoutTemplate: WorkoutTemplateRecord | null;
+  completedWorkoutCount: number;
+}): ActiveProgramDto {
+  return {
+    enrollmentId: input.enrollment.id,
+    program: mapProgramDto(input.programDefinition),
+    status: input.enrollment.status,
+    startedAt: input.enrollment.startedAt.toISOString(),
+    completedAt: toIsoString(input.enrollment.completedAt),
+    nextWorkoutTemplate: mapNextWorkoutTemplateDto(input.nextWorkoutTemplate),
+    completedWorkoutCount: input.completedWorkoutCount
+  };
+}
+
 export function mapLogSetResponse(graph: WorkoutSessionGraph, updatedSetId: string): LogSetResponse {
   const updatedSet = graph.sets.find((set) => set.id === updatedSetId);
   if (!updatedSet) {
@@ -193,6 +245,7 @@ export function mapCurrentWorkoutSessionDto(
 }
 
 export function mapDashboardDto(input: {
+  activeProgram: ActiveProgramDto | null;
   activeWorkoutSessionGraph: WorkoutSessionGraph | null;
   nextWorkoutTemplate: WorkoutTemplateRecord | null;
   recentProgressMetrics: ProgressMetricRecord[];
@@ -213,6 +266,7 @@ export function mapDashboardDto(input: {
   }
 
   const response: DashboardDto = {
+    activeProgram: input.activeProgram,
     activeWorkoutSession: input.activeWorkoutSessionGraph
       ? mapWorkoutSessionDto(input.activeWorkoutSessionGraph)
       : null,

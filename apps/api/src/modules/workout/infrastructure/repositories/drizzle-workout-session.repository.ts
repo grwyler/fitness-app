@@ -393,4 +393,24 @@ export class DrizzleWorkoutSessionRepository implements WorkoutSessionRepository
 
     return Number(rows[0]?.count ?? 0);
   }
+
+  public async countCompletedByUserIdAndProgramId(
+    userId: string,
+    programId: string,
+    options?: RepositoryOptions
+  ): Promise<number> {
+    const executor = resolveExecutor(this.db, options);
+    const rows = await executor
+      .select({ count: sql<number>`count(*)` })
+      .from(workoutSessions)
+      .where(
+        and(
+          eq(workoutSessions.userId, userId),
+          eq(workoutSessions.programId, programId),
+          eq(workoutSessions.status, "completed")
+        )
+      );
+
+    return Number(rows[0]?.count ?? 0);
+  }
 }

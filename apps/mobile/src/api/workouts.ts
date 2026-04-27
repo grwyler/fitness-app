@@ -1,8 +1,10 @@
 import type {
   CompleteWorkoutSessionRequest,
   CompleteWorkoutSessionResponse,
+  FollowProgramResponse,
   GetCurrentWorkoutSessionResponse,
   GetDashboardResponse,
+  ListProgramsResponse,
   LogSetRequest,
   LogSetResponse,
   StartWorkoutSessionRequest,
@@ -12,6 +14,17 @@ import { apiRequest } from "./client";
 
 export async function fetchDashboard() {
   return apiRequest<GetDashboardResponse>("/dashboard");
+}
+
+export async function fetchPrograms() {
+  return apiRequest<ListProgramsResponse>("/programs");
+}
+
+export async function followProgram(programId: string) {
+  return apiRequest<FollowProgramResponse>(`/programs/${programId}/follow`, {
+    method: "POST",
+    body: {}
+  });
 }
 
 export async function fetchCurrentWorkoutSession() {

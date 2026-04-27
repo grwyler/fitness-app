@@ -1,8 +1,10 @@
 import type {
   EffortFeedback,
   ExerciseCategory,
+  DifficultyLevel,
   ProgressMetricType,
   ProgressionResult,
+  EnrollmentStatus,
   SetStatus,
   UnitSystem,
   WorkoutSessionStatus
@@ -68,6 +70,45 @@ export type NextWorkoutTemplateDto = {
   name: string;
   sequenceOrder: number;
   estimatedDurationMinutes: number | null;
+};
+
+export type ProgramWorkoutExerciseDto = {
+  id: UUID;
+  exerciseId: UUID;
+  exerciseName: string;
+  category: ExerciseCategory;
+  sequenceOrder: number;
+  targetSets: number;
+  targetReps: number;
+  restSeconds: number | null;
+};
+
+export type ProgramWorkoutTemplateDto = {
+  id: UUID;
+  name: string;
+  sequenceOrder: number;
+  estimatedDurationMinutes: number | null;
+  exercises: ProgramWorkoutExerciseDto[];
+};
+
+export type ProgramDto = {
+  id: UUID;
+  name: string;
+  description: string | null;
+  daysPerWeek: number;
+  sessionDurationMinutes: number;
+  difficultyLevel: DifficultyLevel;
+  workouts: ProgramWorkoutTemplateDto[];
+};
+
+export type ActiveProgramDto = {
+  enrollmentId: UUID;
+  program: ProgramDto;
+  status: EnrollmentStatus;
+  startedAt: ISODateTime;
+  completedAt: ISODateTime | null;
+  nextWorkoutTemplate: NextWorkoutTemplateDto | null;
+  completedWorkoutCount: number;
 };
 
 export type WorkoutHistoryItemDto = {
@@ -146,6 +187,7 @@ export type CompleteWorkoutSessionResponse = {
 };
 
 export type DashboardDto = {
+  activeProgram: ActiveProgramDto | null;
   activeWorkoutSession: WorkoutSessionDto | null;
   nextWorkoutTemplate: NextWorkoutTemplateDto | null;
   recentProgressMetrics: ProgressMetricDto[];
@@ -161,3 +203,11 @@ export type CurrentWorkoutSessionDto = {
 };
 
 export type GetCurrentWorkoutSessionResponse = CurrentWorkoutSessionDto;
+
+export type ListProgramsResponse = {
+  programs: ProgramDto[];
+};
+
+export type FollowProgramResponse = {
+  activeProgram: ActiveProgramDto;
+};

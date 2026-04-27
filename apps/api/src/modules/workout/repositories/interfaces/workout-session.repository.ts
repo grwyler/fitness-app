@@ -68,5 +68,10 @@ export interface WorkoutSessionRepository {
     },
     options?: RepositoryOptions
   ): Promise<number>;
-}
 
+  countCompletedByUserIdAndProgramId(
+    userId: string,
+    programId: string,
+    options?: RepositoryOptions
+  ): Promise<number>;
+}
