@@ -93,6 +93,32 @@ export const authBehaviorTestCases: MobileTestCase[] = [
     }
   },
   {
+    name: "Token retrieval failure does not switch to signed-out navigator",
+    run: () => {
+      const status = deriveAuthStatus({
+        isLoaded: true,
+        isSignedIn: true,
+        tokenPresent: false,
+        tokenStatus: "unavailable"
+      });
+
+      assert.equal(status, "checking_session");
+    }
+  },
+  {
+    name: "Only Clerk signed-out state moves to SignIn",
+    run: () => {
+      const status = deriveAuthStatus({
+        isLoaded: true,
+        isSignedIn: false,
+        tokenPresent: false,
+        tokenStatus: "idle"
+      });
+
+      assert.equal(status, "unauthenticated");
+    }
+  },
+  {
     name: "Dashboard query is disabled until authenticated with token",
     run: () => {
       assert.equal(
@@ -116,6 +142,41 @@ export const authBehaviorTestCases: MobileTestCase[] = [
         }),
         true
       );
+    }
+  },
+  {
+    name: "Authenticated dashboard 401 does not force Clerk sign-out",
+    run: async () => {
+      let unauthorizedCallCount = 0;
+      const unregister = registerAuthBridge({
+        getToken: async () => "live-token",
+        handleUnauthorized: async () => {
+          unauthorizedCallCount += 1;
+        }
+      });
+
+      try {
+        setMockFetch(async () => {
+          return {
+            ok: false,
+            status: 401,
+            json: async () => ({
+              error: {
+                code: "UNAUTHORIZED",
+                message: "Invalid token."
+              }
+            })
+          };
+        });
+
+        await assert.rejects(
+          () => apiRequest<{ ok: boolean }>("/dashboard"),
+          (error: unknown) => error instanceof Error && error.message === "Invalid token."
+        );
+        assert.equal(unauthorizedCallCount, 0);
+      } finally {
+        unregister();
+      }
     }
   },
   {

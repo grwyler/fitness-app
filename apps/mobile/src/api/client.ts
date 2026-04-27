@@ -1,7 +1,7 @@
 import type { ApiErrorEnvelope, ApiSuccessEnvelope } from "@fitness/shared";
 import { apiConfig } from "./config";
 import { MobileApiError } from "./errors";
-import { getAuthToken, getLastKnownAuthTokenSource, handleUnauthorizedResponse } from "../core/auth/auth-bridge";
+import { getAuthToken, getLastKnownAuthTokenSource } from "../core/auth/auth-bridge";
 import { appendAuthDebugTimeline, setLastAuthDebugMessage } from "../core/auth/auth-debug";
 
 type RequestOptions = {
@@ -77,7 +77,7 @@ export async function apiRequest<TData, TMeta extends Record<string, unknown> = 
       appendAuthDebugTimeline("api_request_401", debugMessage);
       setLastAuthDebugMessage(debugMessage);
       if (token) {
-        await handleUnauthorizedResponse();
+        appendAuthDebugTimeline("api_request_401_preserved_clerk_session", `path=${path}`);
       } else {
         appendAuthDebugTimeline("api_request_401_without_token_skipped_sign_out", `path=${path}`);
       }
