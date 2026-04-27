@@ -114,7 +114,11 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
 
   const workout = activeWorkout;
 
-  const completionUiState = getWorkoutCompletionUiState(workout, feedbackByEntryId);
+  const hasPendingSetSave =
+    logSetMutation.isPending || Object.keys(submittingSetIds).length > 0 || inFlightSetIds.current.size > 0;
+  const completionUiState = getWorkoutCompletionUiState(workout, feedbackByEntryId, {
+    hasPendingSetSave
+  });
 
   function handleLogSet(exercise: ExerciseEntryDto, set: SetDto, draft: SetLogDraft) {
     if (submittingSetIds[set.id] || inFlightSetIds.current.has(set.id) || set.status !== "pending") {

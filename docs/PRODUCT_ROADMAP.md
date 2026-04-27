@@ -52,6 +52,7 @@ A user can:
 - [x] Prevent mis-taps / duplicate sets
 - [x] Add rest timer (simple, optional, non-blocking)
 - [x] Improve completion feedback (make it feel rewarding)
+- [x] Prevent completing a workout while the final set save is still in flight
 
 ---
 
@@ -152,10 +153,10 @@ A user can:
 ## Current Status
 
 Right now I am working on:
-Workout UX polish and basic history after local mobile auth completion.
+Completion feedback and history/detail validation after realistic workout-flow review.
 
 Next task is:
-Validate completion feedback and history/detail screens with real workouts.
+Run 3+ real workouts and capture any remaining friction in completion, history, detail, and progression.
 
 Blockers:
 No blocker on the local auth flow. Production now uses first-party MVP auth.

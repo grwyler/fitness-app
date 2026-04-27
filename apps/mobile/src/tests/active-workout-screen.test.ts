@@ -121,6 +121,34 @@ export const activeWorkoutScreenTestCases: MobileTestCase[] = [
     }
   },
   {
+    name: "Completion waits for in-flight set saves before allowing finish",
+    run: () => {
+      const workout = createWorkout({
+        setStatuses: ["completed", "completed", "completed"]
+      });
+      const state = getWorkoutCompletionUiState(
+        workout,
+        {
+          "entry-1": "just_right"
+        },
+        {
+          hasPendingSetSave: true
+        }
+      );
+
+      assert.equal(state.finishButtonLabel, "Complete workout");
+      assert.equal(state.finishButtonDisabled, true);
+      assert.equal(state.footerMessage, "Saving your last set before finishing.");
+      assert.equal(
+        getFinishWorkoutPressAction({
+          hasPendingSets: state.hasPendingSets,
+          finishButtonDisabled: state.finishButtonDisabled
+        }),
+        "blocked"
+      );
+    }
+  },
+  {
     name: "Completion errors are converted to visible copy",
     run: () => {
       assert.equal(getWorkoutCompletionErrorMessage(new Error("Workout not saved yet.")), "Workout not saved yet.");

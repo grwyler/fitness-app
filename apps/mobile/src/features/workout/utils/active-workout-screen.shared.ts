@@ -10,8 +10,12 @@ export type WorkoutCompletionUiState = {
 
 export function getWorkoutCompletionUiState(
   workout: WorkoutSessionDto,
-  feedbackByEntryId: Record<string, EffortFeedback | undefined>
+  feedbackByEntryId: Record<string, EffortFeedback | undefined>,
+  input?: {
+    hasPendingSetSave?: boolean;
+  }
 ): WorkoutCompletionUiState {
+  const hasPendingSetSave = input?.hasPendingSetSave === true;
   const hasPendingSets = workout.exercises.some((exercise) =>
     exercise.sets.some((set) => set.status === "pending")
   );
@@ -23,9 +27,11 @@ export function getWorkoutCompletionUiState(
     hasPendingSets,
     hasCompleteFeedback,
     finishButtonLabel: hasPendingSets ? "End workout" : "Complete workout",
-    finishButtonDisabled: !hasPendingSets && !hasCompleteFeedback,
+    finishButtonDisabled: hasPendingSetSave || (!hasPendingSets && !hasCompleteFeedback),
     footerMessage:
-      !hasPendingSets && hasCompleteFeedback
+      hasPendingSetSave
+        ? "Saving your last set before finishing."
+        : !hasPendingSets && hasCompleteFeedback
         ? "All sets are logged and feedback is ready."
         : hasPendingSets
           ? "You can finish early. Only logged sets will count toward progression."
