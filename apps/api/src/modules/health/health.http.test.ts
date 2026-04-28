@@ -61,10 +61,11 @@ export const healthHttpTestCases: HttpTestCase[] = [
           }
         });
 
-        assert.equal(response.status, 204);
+        assert.equal(response.status, 200);
         assert.equal(response.headers.get("access-control-allow-origin"), "http://localhost:8081");
         assert.match(response.headers.get("access-control-allow-headers") ?? "", /Authorization/i);
         assert.match(response.headers.get("access-control-allow-methods") ?? "", /GET/i);
+        assert.equal(response.headers.get("access-control-allow-credentials"), "true");
       } finally {
         await server.close();
       }
@@ -85,8 +86,9 @@ export const healthHttpTestCases: HttpTestCase[] = [
           }
         });
 
-        assert.equal(response.status, 204);
+        assert.equal(response.status, 200);
         assert.equal(response.headers.get("access-control-allow-origin"), "https://setwisefit.vercel.app");
+        assert.equal(response.headers.get("access-control-allow-credentials"), "true");
       } finally {
         await server.close();
       }

@@ -348,6 +348,37 @@ export const workoutHttpTestCases: HttpTestCase[] = [
     }
   },
   {
+    name: "OPTIONS /api/v1/auth/signin returns production CORS preflight headers",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        const server = await startHttpServer(context.db, null);
+
+        try {
+          const response = await fetch(`${server.baseUrl}/api/v1/auth/signin`, {
+            method: "OPTIONS",
+            headers: {
+              Origin: "https://setwisefit.vercel.app",
+              "Access-Control-Request-Headers": "authorization,content-type",
+              "Access-Control-Request-Method": "POST"
+            }
+          });
+
+          assert.equal(response.status, 200);
+          assert.equal(response.headers.get("access-control-allow-origin"), "https://setwisefit.vercel.app");
+          assert.equal(response.headers.get("access-control-allow-credentials"), "true");
+          assert.match(response.headers.get("access-control-allow-methods") ?? "", /POST/i);
+          assert.match(response.headers.get("access-control-allow-headers") ?? "", /Content-Type/i);
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
     name: "POST /api/v1/auth/signup, signin, and me work",
     run: async () => {
       const context = await createWorkoutInfrastructureTestContext();
@@ -369,12 +400,17 @@ export const workoutHttpTestCases: HttpTestCase[] = [
 
           const signinResponse = await fetch(`${server.baseUrl}/api/v1/auth/signin`, {
             body: JSON.stringify({ email: "mvp@example.com", password: "password123" }),
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+              Origin: "https://setwisefit.vercel.app"
+            },
             method: "POST"
           });
           const signinPayload = await readJson(signinResponse);
 
           assert.equal(signinResponse.status, 200);
+          assert.equal(signinResponse.headers.get("access-control-allow-origin"), "https://setwisefit.vercel.app");
+          assert.equal(signinResponse.headers.get("access-control-allow-credentials"), "true");
           assert.equal(typeof signinPayload.data.token, "string");
 
           const meResponse = await fetch(`${server.baseUrl}/api/v1/auth/me`, {

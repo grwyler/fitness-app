@@ -24,13 +24,21 @@ type DatabaseLike = {
   transaction: <T>(operation: (tx: any) => Promise<T>) => Promise<T>;
 };
 
-const defaultAllowedOrigins = [
+const productionAllowedOrigins = ["https://setwisefit.vercel.app"];
+const developmentAllowedOrigins = [
+  "http://localhost:3000",
+  "http://127.0.0.1:3000",
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
   "http://localhost:8081",
-  "http://127.0.0.1:8081",
-  "https://setwisefit.vercel.app"
+  "http://127.0.0.1:8081"
 ];
 
 function resolveAllowedOrigins() {
+  const defaultAllowedOrigins =
+    env.NODE_ENV === "production"
+      ? productionAllowedOrigins
+      : [...developmentAllowedOrigins, ...productionAllowedOrigins];
   const configuredOrigins =
     env.CORS_ALLOWED_ORIGINS?.split(",")
       .map((origin) => origin.trim())
@@ -45,8 +53,9 @@ export function createCorsOptions(): CorsOptions {
   return {
     allowedHeaders: ["Authorization", "Content-Type", "Idempotency-Key", "Accept"],
     credentials: true,
-    methods: ["GET", "POST", "OPTIONS"],
-    optionsSuccessStatus: 204,
+    methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    optionsSuccessStatus: 200,
+    preflightContinue: true,
     origin(origin, callback) {
       if (!origin || allowedOrigins.has(origin)) {
         callback(null, true);
@@ -66,8 +75,17 @@ export function createApp(options?: {
   workoutRouter?: Router;
 }) {
   const app = express();
+  const corsOptions = createCorsOptions();
 
-  app.use(cors(createCorsOptions()));
+  app.use(cors(corsOptions));
+  app.use((request, response, next) => {
+    if (request.method === "OPTIONS") {
+      response.status(200).end();
+      return;
+    }
+
+    next();
+  });
   app.use(express.json());
 
   app.use(healthRouter);
