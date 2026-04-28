@@ -78,3 +78,11 @@ export function getWorkoutCompletionErrorMessage(error: unknown) {
 
   return "Workout not saved. Check your connection and try again.";
 }
+
+export function getWorkoutDiscardErrorMessage(error: unknown) {
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message;
+  }
+
+  return "Workout not discarded. Check your connection and try again.";
+}

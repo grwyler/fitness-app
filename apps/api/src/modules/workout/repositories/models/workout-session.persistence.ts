@@ -101,6 +101,10 @@ export type CompleteWorkoutSessionPersistenceInput = {
   userEffortFeedback: EffortFeedback | null;
 };
 
+export type CancelWorkoutSessionPersistenceInput = {
+  sessionId: string;
+};
+
 export type PersistExerciseEntryFeedbackInput = {
   exerciseEntryId: string;
   effortFeedback: EffortFeedback;

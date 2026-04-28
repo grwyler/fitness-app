@@ -12,6 +12,7 @@ import { FeedbackButton } from "../features/feedback/components/FeedbackButton";
 import { useCurrentWorkout } from "../features/workout/hooks/useCurrentWorkout";
 import { useLogSet } from "../features/workout/hooks/useLogSet";
 import { useCompleteWorkout } from "../features/workout/hooks/useCompleteWorkout";
+import { useCancelWorkout } from "../features/workout/hooks/useCancelWorkout";
 import { CustomExercisePickerModal } from "../features/workout/components/CustomExercisePickerModal";
 import { useAddCustomWorkoutExercise } from "../features/workout/hooks/useCustomWorkoutExercises";
 import { useExercises } from "../features/workout/hooks/useExercises";
@@ -20,6 +21,7 @@ import { useActiveWorkoutStore } from "../features/workout/store/active-workout-
 import {
   buildCompleteWorkoutRequest,
   getFinishWorkoutPressAction,
+  getWorkoutDiscardErrorMessage,
   getWorkoutCompletionErrorMessage,
   getWorkoutCompletionUiState
 } from "../features/workout/utils/active-workout-screen.shared";
@@ -46,6 +48,7 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
   const deleteWorkoutSetMutation = useDeleteWorkoutSet();
   const addCustomWorkoutExerciseMutation = useAddCustomWorkoutExercise();
   const completeWorkoutMutation = useCompleteWorkout();
+  const cancelWorkoutMutation = useCancelWorkout();
   const feedbackByEntryId = useActiveWorkoutStore((state) => state.exerciseFeedbackByEntryId);
   const setExerciseFeedback = useActiveWorkoutStore((state) => state.setExerciseFeedback);
   const activeSessionId = useActiveWorkoutStore((state) => state.activeSessionId);
@@ -55,12 +58,14 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
   const [submittingSetIds, setSubmittingSetIds] = useState<Record<string, boolean>>({});
   const [deletingSetIds, setDeletingSetIds] = useState<Record<string, boolean>>({});
   const [showFinishEarlyConfirmation, setShowFinishEarlyConfirmation] = useState(false);
+  const [showDiscardConfirmation, setShowDiscardConfirmation] = useState(false);
   const [isExercisePickerOpen, setIsExercisePickerOpen] = useState(false);
   const [selectedCustomExerciseIds, setSelectedCustomExerciseIds] = useState<string[]>([]);
   const [customExerciseError, setCustomExerciseError] = useState<string | null>(null);
   const [restTimer, setRestTimer] = useState<RestTimerState>(null);
   const inFlightSetIds = useRef<Set<string>>(new Set());
   const completionInFlight = useRef(false);
+  const discardInFlight = useRef(false);
   const promptedCustomExerciseSessionId = useRef<string | null>(null);
   const activeWorkout = currentWorkoutQuery.data?.activeWorkoutSession ?? null;
   const exercisesQuery = useExercises(isExercisePickerOpen);
@@ -288,6 +293,28 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
     setShowFinishEarlyConfirmation(true);
   }
 
+  function handleDiscardWorkout() {
+    if (discardInFlight.current || cancelWorkoutMutation.isPending) {
+      return;
+    }
+
+    discardInFlight.current = true;
+    setLastAction("discard_workout");
+    cancelWorkoutMutation.mutate(
+      {
+        sessionId: workout.id
+      },
+      {
+        onSuccess: () => {
+          navigation.replace("Dashboard");
+        },
+        onError: () => {
+          discardInFlight.current = false;
+        }
+      }
+    );
+  }
+
   function handleToggleCustomExercise(exerciseId: string) {
     setCustomExerciseError(null);
     setSelectedCustomExerciseIds((current) =>
@@ -426,6 +453,11 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
             {getWorkoutCompletionErrorMessage(completeWorkoutMutation.error)}
           </Text>
         ) : null}
+        {cancelWorkoutMutation.isError ? (
+          <Text style={styles.errorText}>
+            {getWorkoutDiscardErrorMessage(cancelWorkoutMutation.error)}
+          </Text>
+        ) : null}
         <Text style={styles.footerText}>{completionUiState.footerMessage}</Text>
         {showFinishEarlyConfirmation ? (
           <View style={styles.confirmation}>
@@ -449,12 +481,50 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
             </View>
           </View>
         ) : null}
+        {showDiscardConfirmation ? (
+          <View style={styles.confirmation}>
+            <Text style={styles.confirmationTitle}>Discard workout?</Text>
+            <Text style={styles.footerText}>
+              This workout will not be saved and your program will not advance.
+            </Text>
+            <View style={styles.confirmationActions}>
+              <PrimaryButton
+                label="Keep Workout"
+                tone="secondary"
+                onPress={() => setShowDiscardConfirmation(false)}
+                disabled={cancelWorkoutMutation.isPending}
+              />
+              <PrimaryButton
+                label="Discard"
+                tone="danger"
+                onPress={handleDiscardWorkout}
+                loading={cancelWorkoutMutation.isPending}
+              />
+            </View>
+          </View>
+        ) : null}
         <PrimaryButton
           label={completionUiState.finishButtonLabel}
           onPress={handleFinishPress}
-          disabled={completionUiState.finishButtonDisabled || completionInFlight.current}
+          disabled={
+            completionUiState.finishButtonDisabled ||
+            completionInFlight.current ||
+            cancelWorkoutMutation.isPending
+          }
           loading={completeWorkoutMutation.isPending}
         />
+        {!showDiscardConfirmation ? (
+          <PrimaryButton
+            label="Discard Workout"
+            tone="danger"
+            onPress={() => {
+              setShowFinishEarlyConfirmation(false);
+              setShowDiscardConfirmation(true);
+            }}
+            disabled={completeWorkoutMutation.isPending || cancelWorkoutMutation.isPending || hasPendingSetSave}
+            loading={cancelWorkoutMutation.isPending}
+          />
+        ) : null}
         <FeedbackButton
           screenName="ActiveWorkoutScreen"
           workoutSessionId={activeSessionId ?? workout.id}

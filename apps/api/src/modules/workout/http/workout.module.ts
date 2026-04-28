@@ -8,6 +8,7 @@ import { DrizzleProgressMetricRepository } from "../infrastructure/repositories/
 import { DrizzleProgressionStateRepository } from "../infrastructure/repositories/drizzle-progression-state.repository.js";
 import { DrizzleWorkoutSessionRepository } from "../infrastructure/repositories/drizzle-workout-session.repository.js";
 import { CompleteWorkoutSessionUseCase } from "../application/use-cases/complete-workout-session.use-case.js";
+import { CancelWorkoutSessionUseCase } from "../application/use-cases/cancel-workout-session.use-case.js";
 import { AddCustomWorkoutExerciseUseCase } from "../application/use-cases/add-custom-workout-exercise.use-case.js";
 import { AddWorkoutSetUseCase } from "../application/use-cases/add-workout-set.use-case.js";
 import { DeleteWorkoutSetUseCase } from "../application/use-cases/delete-workout-set.use-case.js";
@@ -81,6 +82,11 @@ export function createWorkoutHttpRouter(database: WorkoutDatabase) {
     transactionManager,
     idempotencyRepository
   );
+  const cancelWorkoutSessionUseCase = new CancelWorkoutSessionUseCase(
+    workoutSessionRepository,
+    transactionManager,
+    idempotencyRepository
+  );
 
   const getCurrentWorkoutSessionUseCase = new GetCurrentWorkoutSessionUseCase(workoutSessionRepository);
   const getWorkoutHistoryUseCase = new GetWorkoutHistoryUseCase(
@@ -128,6 +134,7 @@ export function createWorkoutHttpRouter(database: WorkoutDatabase) {
     addWorkoutSetUseCase,
     deleteWorkoutSetUseCase,
     logSetUseCase,
+    cancelWorkoutSessionUseCase,
     completeWorkoutSessionUseCase
   });
 }

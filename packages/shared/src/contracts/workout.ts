@@ -291,6 +291,12 @@ export type CompleteWorkoutSessionResponse = {
   nextWorkoutTemplate: NextWorkoutTemplateDto | null;
 };
 
+export type CancelWorkoutSessionRequest = Record<string, never>;
+
+export type CancelWorkoutSessionResponse = {
+  workoutSession: WorkoutSessionDto;
+};
+
 export type DashboardDto = {
   activeProgram: ActiveProgramDto | null;
   activeWorkoutSession: WorkoutSessionDto | null;

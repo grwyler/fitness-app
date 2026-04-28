@@ -32,6 +32,7 @@ import {
 import type { AddCustomWorkoutExerciseUseCase } from "../application/use-cases/add-custom-workout-exercise.use-case.js";
 import type { AddWorkoutSetUseCase } from "../application/use-cases/add-workout-set.use-case.js";
 import type { CompleteWorkoutSessionUseCase } from "../application/use-cases/complete-workout-session.use-case.js";
+import type { CancelWorkoutSessionUseCase } from "../application/use-cases/cancel-workout-session.use-case.js";
 import type { DeleteWorkoutSetUseCase } from "../application/use-cases/delete-workout-set.use-case.js";
 import type { FollowProgramUseCase } from "../application/use-cases/follow-program.use-case.js";
 import type { CreateCustomProgramUseCase } from "../application/use-cases/create-custom-program.use-case.js";
@@ -62,6 +63,7 @@ export type WorkoutHttpHandlers = {
   addWorkoutSet: RequestHandler;
   deleteWorkoutSet: RequestHandler;
   logSet: RequestHandler;
+  cancelWorkoutSession: RequestHandler;
   completeWorkoutSession: RequestHandler;
 };
 
@@ -81,6 +83,7 @@ export function createWorkoutHandlers(dependencies: {
   addWorkoutSetUseCase: AddWorkoutSetUseCase;
   deleteWorkoutSetUseCase: DeleteWorkoutSetUseCase;
   logSetUseCase: LogSetUseCase;
+  cancelWorkoutSessionUseCase: CancelWorkoutSessionUseCase;
   completeWorkoutSessionUseCase: CompleteWorkoutSessionUseCase;
 }): WorkoutHttpHandlers {
   return {
@@ -267,6 +270,20 @@ export function createWorkoutHandlers(dependencies: {
         context,
         setId: params.setId,
         request: useCaseRequest,
+        idempotencyKey
+      });
+
+      response.json(success(result.data, result.meta));
+    }),
+
+    cancelWorkoutSession: asyncHandler(async (request, response) => {
+      const context = getRequestContext(request);
+      const params = validateParams(workoutSessionParamsSchema, request);
+      const idempotencyKey = requireIdempotencyKey(request);
+
+      const result = await dependencies.cancelWorkoutSessionUseCase.execute({
+        context,
+        sessionId: params.sessionId,
         idempotencyKey
       });
 

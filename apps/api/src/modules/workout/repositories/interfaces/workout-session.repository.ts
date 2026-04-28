@@ -2,6 +2,7 @@ import type { RepositoryOptions } from "../models/persistence-context.js";
 import type {
   AppendCustomExerciseInput,
   AppendWorkoutSetInput,
+  CancelWorkoutSessionPersistenceInput,
   CompletedWorkoutProgressionRecord,
   CompleteWorkoutSessionPersistenceInput,
   CreateWorkoutSessionGraphInput,
@@ -64,6 +65,11 @@ export interface WorkoutSessionRepository {
 
   completeSession(
     input: CompleteWorkoutSessionPersistenceInput,
+    options?: RepositoryOptions
+  ): Promise<WorkoutSessionRecord>;
+
+  cancelSession(
+    input: CancelWorkoutSessionPersistenceInput,
     options?: RepositoryOptions
   ): Promise<WorkoutSessionRecord>;
 

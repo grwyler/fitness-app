@@ -5,6 +5,7 @@ import type { RepositoryOptions } from "../../repositories/models/persistence-co
 import type {
   AppendCustomExerciseInput,
   AppendWorkoutSetInput,
+  CancelWorkoutSessionPersistenceInput,
   CompletedWorkoutProgressionRecord,
   CompleteWorkoutSessionPersistenceInput,
   CreateWorkoutSessionGraphInput,
@@ -441,6 +442,30 @@ export class DrizzleWorkoutSessionRepository implements WorkoutSessionRepository
 
     if (!row) {
       throw new Error(`Workout session ${input.sessionId} was not found for completion.`);
+    }
+
+    return mapWorkoutSessionRecord(row);
+  }
+
+  public async cancelSession(
+    input: CancelWorkoutSessionPersistenceInput,
+    options?: RepositoryOptions
+  ): Promise<WorkoutSessionRecord> {
+    const executor = resolveExecutor(this.db, options);
+    const [row] = await executor
+      .update(workoutSessions)
+      .set({
+        status: "abandoned",
+        completedAt: null,
+        durationSeconds: null,
+        userEffortFeedback: null,
+        updatedAt: new Date()
+      })
+      .where(eq(workoutSessions.id, input.sessionId))
+      .returning();
+
+    if (!row) {
+      throw new Error(`Workout session ${input.sessionId} was not found for cancellation.`);
     }
 
     return mapWorkoutSessionRecord(row);

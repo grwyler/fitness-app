@@ -3,6 +3,7 @@ import type { WorkoutSessionDto } from "@fitness/shared";
 import {
   buildCompleteWorkoutRequest,
   getFinishWorkoutPressAction,
+  getWorkoutDiscardErrorMessage,
   getWorkoutCompletionErrorMessage,
   getWorkoutCompletionUiState
 } from "../features/workout/utils/active-workout-screen.shared.js";
@@ -156,6 +157,16 @@ export const activeWorkoutScreenTestCases: MobileTestCase[] = [
       assert.equal(
         getWorkoutCompletionErrorMessage(null),
         "Workout not saved. Check your connection and try again."
+      );
+    }
+  },
+  {
+    name: "Discard errors are converted to visible copy",
+    run: () => {
+      assert.equal(getWorkoutDiscardErrorMessage(new Error("Workout not discarded yet.")), "Workout not discarded yet.");
+      assert.equal(
+        getWorkoutDiscardErrorMessage(null),
+        "Workout not discarded. Check your connection and try again."
       );
     }
   },

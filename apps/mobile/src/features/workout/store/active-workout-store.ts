@@ -24,6 +24,7 @@ type ActiveWorkoutState = {
   clearAllMutationKeys(): void;
   setLatestSummary(summary: CompleteWorkoutSessionResponse | null): void;
   resetForCompletedWorkout(): void;
+  resetForDiscardedWorkout(): void;
 };
 
 export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
@@ -105,6 +106,15 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       activeSessionId: null,
       exerciseFeedbackByEntryId: {},
       idempotencyKeys: {},
+      setLogDraftsBySetId: {}
+    });
+  },
+  resetForDiscardedWorkout() {
+    set({
+      activeSessionId: null,
+      exerciseFeedbackByEntryId: {},
+      idempotencyKeys: {},
+      latestSummary: null,
       setLogDraftsBySetId: {}
     });
   }

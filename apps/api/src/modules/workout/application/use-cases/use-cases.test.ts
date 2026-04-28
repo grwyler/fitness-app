@@ -319,6 +319,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         async completeSession() {
           throw new Error("Not implemented.");
         },
+        async cancelSession() {
+          throw new Error("Not implemented.");
+        },
         async listRecentCompletedByUserId() {
           return [];
         },
@@ -396,6 +399,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         },
         async persistExerciseEntryFeedback() {},
         async completeSession() {
+          throw new Error("Not implemented.");
+        },
+        async cancelSession() {
           throw new Error("Not implemented.");
         },
         async listRecentCompletedByUserId() {
@@ -591,6 +597,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         async completeSession() {
           throw new Error("Not implemented.");
         },
+        async cancelSession() {
+          throw new Error("Not implemented.");
+        },
         async listRecentCompletedByUserId() {
           return [];
         },
@@ -711,6 +720,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         },
         async persistExerciseEntryFeedback() {},
         async completeSession() {
+          throw new Error("Not implemented.");
+        },
+        async cancelSession() {
           throw new Error("Not implemented.");
         },
         async listRecentCompletedByUserId() {
@@ -878,6 +890,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         async completeSession() {
           throw new Error("Not implemented.");
         },
+        async cancelSession() {
+          throw new Error("Not implemented.");
+        },
         async listRecentCompletedByUserId() {
           return [];
         },
@@ -996,6 +1011,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
             isPartial: input.isPartial,
             userEffortFeedback: input.userEffortFeedback
           };
+        },
+        async cancelSession() {
+          throw new Error("Not implemented.");
         },
         async listRecentCompletedByUserId() {
           return [];
@@ -1209,6 +1227,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         async completeSession() {
           throw new Error("Not implemented.");
         },
+        async cancelSession() {
+          throw new Error("Not implemented.");
+        },
         async listRecentCompletedByUserId() {
           return [];
         },
@@ -1363,6 +1384,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         },
         async persistExerciseEntryFeedback() {},
         async completeSession() {
+          throw new Error("Not implemented.");
+        },
+        async cancelSession() {
           throw new Error("Not implemented.");
         },
         async listRecentCompletedByUserId() {

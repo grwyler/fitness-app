@@ -1,6 +1,7 @@
 import type {
   AddCustomWorkoutExerciseRequest,
   AddWorkoutSetRequest,
+  CancelWorkoutSessionResponse,
   CompleteWorkoutSessionRequest,
   CompleteWorkoutSessionResponse,
   CreateCustomProgramRequest,
@@ -143,6 +144,20 @@ export async function completeWorkoutSession(input: {
     {
       method: "POST",
       body: input.request,
+      idempotencyKey: input.idempotencyKey
+    }
+  );
+}
+
+export async function cancelWorkoutSession(input: {
+  sessionId: string;
+  idempotencyKey: string;
+}) {
+  return apiRequest<CancelWorkoutSessionResponse, { replayed: boolean }>(
+    `/workout-sessions/${input.sessionId}/cancel`,
+    {
+      method: "POST",
+      body: {},
       idempotencyKey: input.idempotencyKey
     }
   );

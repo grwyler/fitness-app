@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
-import { progressionStates, sets, users } from "@fitness/db";
+import { progressMetrics, progressionStates, sets, userProgramEnrollments, users, workoutSessions } from "@fitness/db";
 import type { Request } from "express";
 import { createApp } from "../../../app.js";
 import { createAuthenticateRequestMiddleware } from "../../../lib/auth/auth.middleware.js";
@@ -1261,6 +1261,192 @@ export const workoutHttpTestCases: HttpTestCase[] = [
           assert.equal(setRows.filter((set) => set.status === "pending").length, 2);
           assert.equal(setRows.filter((set) => set.status === "skipped").length, 0);
           assert.equal(progressionRows[0]?.currentWeightLbs, "135.00");
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "POST /api/v1/workout-sessions/:sessionId/cancel discards an active workout without progression or history",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        await seedInProgressWorkout(context, {
+          setStatuses: ["completed", "pending", "pending"],
+          actualReps: [8, 0, 0]
+        });
+        const server = await startHttpServer(context.db);
+
+        try {
+          const cancelResponse = await fetch(`${server.baseUrl}/api/v1/workout-sessions/session-1/cancel`, {
+            method: "POST",
+            headers: createAuthHeaders({
+              "content-type": "application/json",
+              "Idempotency-Key": "cancel-http-key-1"
+            }),
+            body: JSON.stringify({})
+          });
+          const cancelPayload = await readJson(cancelResponse);
+
+          const replayResponse = await fetch(`${server.baseUrl}/api/v1/workout-sessions/session-1/cancel`, {
+            method: "POST",
+            headers: createAuthHeaders({
+              "content-type": "application/json",
+              "Idempotency-Key": "cancel-http-key-1"
+            }),
+            body: JSON.stringify({})
+          });
+          const replayPayload = await readJson(replayResponse);
+
+          const secondCancelResponse = await fetch(`${server.baseUrl}/api/v1/workout-sessions/session-1/cancel`, {
+            method: "POST",
+            headers: createAuthHeaders({
+              "content-type": "application/json",
+              "Idempotency-Key": "cancel-http-key-2"
+            }),
+            body: JSON.stringify({})
+          });
+          const secondCancelPayload = await readJson(secondCancelResponse);
+
+          const dashboardResponse = await fetch(`${server.baseUrl}/api/v1/dashboard`, {
+            headers: createAuthHeaders()
+          });
+          const dashboardPayload = await readJson(dashboardResponse);
+          const currentResponse = await fetch(`${server.baseUrl}/api/v1/workout-sessions/current`, {
+            headers: createAuthHeaders()
+          });
+          const currentPayload = await readJson(currentResponse);
+          const historyResponse = await fetch(`${server.baseUrl}/api/v1/workout-history?limit=20&status=completed`, {
+            headers: createAuthHeaders()
+          });
+          const historyPayload = await readJson(historyResponse);
+          const progressionResponse = await fetch(`${server.baseUrl}/api/v1/progression`, {
+            headers: createAuthHeaders()
+          });
+          const progressionPayload = await readJson(progressionResponse);
+
+          const sessionRows = await context.db.select().from(workoutSessions);
+          const enrollmentRows = await context.db.select().from(userProgramEnrollments);
+          const progressionRows = await context.db.select().from(progressionStates);
+          const progressMetricRows = await context.db.select().from(progressMetrics);
+
+          assert.equal(cancelResponse.status, 200);
+          assert.equal(cancelPayload.data.workoutSession.status, "abandoned");
+          assert.equal(cancelPayload.data.workoutSession.completedAt, null);
+          assert.equal(cancelPayload.data.workoutSession.durationSeconds, null);
+          assert.equal(replayResponse.status, 200);
+          assert.equal(replayPayload.meta.replayed, true);
+          assert.equal(secondCancelResponse.status, 200);
+          assert.equal(secondCancelPayload.data.workoutSession.status, "abandoned");
+          assert.equal(sessionRows[0]?.status, "abandoned");
+          assert.equal(enrollmentRows[0]?.currentWorkoutTemplateId, "template-1");
+          assert.equal(progressionRows[0]?.currentWeightLbs, "135.00");
+          assert.equal(progressMetricRows.length, 0);
+          assert.equal(dashboardResponse.status, 200);
+          assert.equal(dashboardPayload.data.activeWorkoutSession, null);
+          assert.equal(dashboardPayload.data.nextWorkoutTemplate.id, "template-1");
+          assert.equal(dashboardPayload.data.activeProgram.currentPosition.weekNumber, 1);
+          assert.equal(dashboardPayload.data.activeProgram.currentPosition.dayNumber, 1);
+          assert.equal(dashboardPayload.data.weeklyWorkoutCount, 0);
+          assert.equal(currentResponse.status, 200);
+          assert.equal(currentPayload.data.activeWorkoutSession, null);
+          assert.equal(historyResponse.status, 200);
+          assert.equal(historyPayload.data.items.length, 0);
+          assert.equal(progressionResponse.status, 200);
+          assert.equal(progressionPayload.data.totalCompletedWorkouts, 0);
+          assert.equal(progressionPayload.data.workoutsCompletedThisWeek, 0);
+          assert.equal(progressionPayload.data.currentStreakDays, 0);
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "POST /api/v1/workout-sessions/:sessionId/cancel rejects another user's workout",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        await seedInProgressWorkout(context);
+        const server = await startHttpServer(context.db);
+
+        try {
+          const response = await fetch(`${server.baseUrl}/api/v1/workout-sessions/session-1/cancel`, {
+            method: "POST",
+            headers: {
+              Authorization: "Bearer valid-new-user-token",
+              "content-type": "application/json",
+              "Idempotency-Key": "cancel-other-user-http-key"
+            },
+            body: JSON.stringify({})
+          });
+          const payload = await readJson(response);
+          const sessionRows = await context.db.select().from(workoutSessions);
+
+          assert.equal(response.status, 404);
+          assert.equal(payload.error.code, "NOT_FOUND");
+          assert.equal(sessionRows[0]?.status, "in_progress");
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "POST /api/v1/workout-sessions/:sessionId/cancel rejects completed workouts",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        await seedInProgressWorkout(context);
+        const server = await startHttpServer(context.db);
+
+        try {
+          const completeResponse = await fetch(`${server.baseUrl}/api/v1/workout-sessions/session-1/complete`, {
+            method: "POST",
+            headers: createAuthHeaders({
+              "content-type": "application/json",
+              "Idempotency-Key": "complete-before-cancel-http-key"
+            }),
+            body: JSON.stringify({
+              completedAt: "2026-04-24T10:45:00.000Z",
+              exerciseFeedback: [
+                {
+                  exerciseEntryId: "entry-1",
+                  effortFeedback: "just_right"
+                }
+              ],
+              userEffortFeedback: "just_right"
+            })
+          });
+
+          const cancelResponse = await fetch(`${server.baseUrl}/api/v1/workout-sessions/session-1/cancel`, {
+            method: "POST",
+            headers: createAuthHeaders({
+              "content-type": "application/json",
+              "Idempotency-Key": "cancel-completed-http-key"
+            }),
+            body: JSON.stringify({})
+          });
+          const cancelPayload = await readJson(cancelResponse);
+          const sessionRows = await context.db.select().from(workoutSessions);
+
+          assert.equal(completeResponse.status, 200);
+          assert.equal(cancelResponse.status, 409);
+          assert.equal(cancelPayload.error.code, "BUSINESS_RULE_VIOLATION");
+          assert.equal(sessionRows[0]?.status, "completed");
         } finally {
           await server.close();
         }
