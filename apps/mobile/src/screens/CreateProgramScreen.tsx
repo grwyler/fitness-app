@@ -1,299 +1,176 @@
 import { useMemo, useState } from "react";
-import type { CreateCustomProgramRequest, ExerciseCatalogItemDto } from "@fitness/shared";
+import type { ProgramWorkoutTemplateDto } from "@fitness/shared";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Screen } from "../components/Screen";
 import { PrimaryButton } from "../components/PrimaryButton";
 import type { RootStackParamList } from "../core/navigation/navigation-types";
 import { useCreateCustomProgram } from "../features/workout/hooks/useCreateCustomProgram";
-import { useExercises } from "../features/workout/hooks/useExercises";
 import { useFollowProgram } from "../features/workout/hooks/useFollowProgram";
+import { usePrograms } from "../features/workout/hooks/usePrograms";
+import {
+  buildAssignedProgramRequest,
+  createProgramDayAssignments,
+  getAssignableWorkoutChoices,
+  groupAssignableWorkoutChoices,
+  resizeProgramDayAssignments,
+  type AssignableWorkoutChoice,
+  type AssignableWorkoutGroup,
+  type ProgramDayAssignment
+} from "../features/workout/utils/program-creator.shared";
+import { getHiddenExerciseCount, getPlannedExerciseLines } from "../features/workout/utils/dashboard-program.shared";
 import { colors, spacing } from "../theme/tokens";
 
 type Props = NativeStackScreenProps<RootStackParamList, "CreateProgram">;
 
-type BuilderExercise = {
-  exerciseId: string;
-  targetSets: string;
-  targetReps: string;
-};
-
-type BuilderWorkout = {
-  id: string;
-  name: string;
-  exercises: BuilderExercise[];
-};
-
-function createBuilderWorkout(index: number): BuilderWorkout {
-  return {
-    id: `workout-${Date.now()}-${index}`,
-    name: index === 0 ? "Day 1" : `Day ${index + 1}`,
-    exercises: []
-  };
-}
-
-function normalizePositiveInteger(value: string) {
-  const parsed = Number(value);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
-}
+const dayOptions = [1, 2, 3, 4, 5, 6] as const;
 
 export function CreateProgramScreen({ navigation }: Props) {
   const [programName, setProgramName] = useState("");
-  const [workouts, setWorkouts] = useState<BuilderWorkout[]>([createBuilderWorkout(0)]);
-  const [exercisePickerWorkoutId, setExercisePickerWorkoutId] = useState<string | null>(null);
+  const [daysPerWeek, setDaysPerWeek] = useState(3);
+  const [days, setDays] = useState<ProgramDayAssignment[]>(createProgramDayAssignments(3));
+  const [pickerDayNumber, setPickerDayNumber] = useState<number | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [savedProgramId, setSavedProgramId] = useState<string | null>(null);
-  const exercisesQuery = useExercises(Boolean(exercisePickerWorkoutId));
+  const programsQuery = usePrograms();
   const createProgramMutation = useCreateCustomProgram();
   const followProgramMutation = useFollowProgram();
 
-  const exerciseById = useMemo(() => {
-    const map = new Map<string, ExerciseCatalogItemDto>();
-    for (const exercise of exercisesQuery.data ?? []) {
-      map.set(exercise.id, exercise);
-    }
-    return map;
-  }, [exercisesQuery.data]);
+  const workoutChoices = useMemo(
+    () => getAssignableWorkoutChoices(programsQuery.data ?? []),
+    [programsQuery.data]
+  );
+  const workoutGroups = useMemo(
+    () => groupAssignableWorkoutChoices(workoutChoices),
+    [workoutChoices]
+  );
+  const hasCustomWorkoutChoices = workoutChoices.some((choice) => choice.source === "custom");
 
-  function updateWorkoutName(workoutId: string, name: string) {
-    setWorkouts((current) =>
-      current.map((workout) => (workout.id === workoutId ? { ...workout, name } : workout))
-    );
-  }
-
-  function removeWorkout(workoutId: string) {
-    setWorkouts((current) => current.filter((workout) => workout.id !== workoutId));
-  }
-
-  function addExerciseToWorkout(workoutId: string, exerciseId: string) {
-    setWorkouts((current) =>
-      current.map((workout) => {
-        if (workout.id !== workoutId || workout.exercises.some((exercise) => exercise.exerciseId === exerciseId)) {
-          return workout;
-        }
-
-        return {
-          ...workout,
-          exercises: [
-            ...workout.exercises,
-            {
-              exerciseId,
-              targetSets: "3",
-              targetReps: "8"
-            }
-          ]
-        };
+  function updateDaysPerWeek(nextDaysPerWeek: number) {
+    setDaysPerWeek(nextDaysPerWeek);
+    setDays((current) =>
+      resizeProgramDayAssignments({
+        current,
+        daysPerWeek: nextDaysPerWeek
       })
     );
-    setExercisePickerWorkoutId(null);
+    setSavedProgramId(null);
   }
 
-  function updateExerciseTarget(
-    workoutId: string,
-    exerciseId: string,
-    field: "targetSets" | "targetReps",
-    value: string
-  ) {
-    setWorkouts((current) =>
-      current.map((workout) =>
-        workout.id === workoutId
-          ? {
-              ...workout,
-              exercises: workout.exercises.map((exercise) =>
-                exercise.exerciseId === exerciseId ? { ...exercise, [field]: value } : exercise
-              )
-            }
-          : workout
-      )
+  function assignWorkoutToDay(dayNumber: number, workout: ProgramWorkoutTemplateDto) {
+    setDays((current) =>
+      current.map((day) => (day.dayNumber === dayNumber ? { ...day, workout } : day))
     );
-  }
-
-  function removeExercise(workoutId: string, exerciseId: string) {
-    setWorkouts((current) =>
-      current.map((workout) =>
-        workout.id === workoutId
-          ? {
-              ...workout,
-              exercises: workout.exercises.filter((exercise) => exercise.exerciseId !== exerciseId)
-            }
-          : workout
-      )
-    );
-  }
-
-  function buildRequest(): CreateCustomProgramRequest | null {
-    const name = programName.trim();
-    if (!name) {
-      setValidationError("Program name is required.");
-      return null;
-    }
-
-    if (workouts.length === 0) {
-      setValidationError("Add at least one workout day.");
-      return null;
-    }
-
-    const requestWorkouts = [];
-    for (const workout of workouts) {
-      const workoutName = workout.name.trim();
-      if (!workoutName) {
-        setValidationError("Each workout day needs a name.");
-        return null;
-      }
-
-      if (workout.exercises.length === 0) {
-        setValidationError(`${workoutName} needs at least one exercise.`);
-        return null;
-      }
-
-      const requestExercises = [];
-      for (const exercise of workout.exercises) {
-        const targetSets = normalizePositiveInteger(exercise.targetSets);
-        const targetReps = normalizePositiveInteger(exercise.targetReps);
-        if (!targetSets || !targetReps) {
-          setValidationError("Sets and reps must be positive numbers.");
-          return null;
-        }
-
-        requestExercises.push({
-          exerciseId: exercise.exerciseId,
-          targetSets,
-          targetReps
-        });
-      }
-
-      requestWorkouts.push({
-        name: workoutName,
-        exercises: requestExercises
-      });
-    }
-
-    setValidationError(null);
-    return {
-      name,
-      workouts: requestWorkouts
-    };
+    setPickerDayNumber(null);
+    setSavedProgramId(null);
   }
 
   function handleSaveProgram() {
-    const request = buildRequest();
-    if (!request) {
+    const result = buildAssignedProgramRequest({
+      name: programName,
+      days
+    });
+
+    if (result.error) {
+      setValidationError(result.error);
       return;
     }
 
-    createProgramMutation.mutate(request, {
+    setValidationError(null);
+    createProgramMutation.mutate(result.request, {
       onSuccess: (response) => {
         setSavedProgramId(response.data.program.id);
       }
     });
   }
 
-  const selectedWorkout = workouts.find((workout) => workout.id === exercisePickerWorkoutId) ?? null;
-  const pickerExercises =
-    selectedWorkout && exercisesQuery.data
-      ? exercisesQuery.data.filter(
-          (exercise) => !selectedWorkout.exercises.some((selected) => selected.exerciseId === exercise.id)
-        )
-      : [];
-
   return (
     <Screen>
       <View style={styles.header}>
         <Text style={styles.eyebrow}>Create Program</Text>
-        <Text style={styles.title}>Build a reusable workout plan.</Text>
-        <Text style={styles.subtitle}>Name the program, add workout days, then choose exercises and targets.</Text>
+        <Text style={styles.title}>Build a weekly plan from workouts.</Text>
+        <Text style={styles.subtitle}>
+          Name the program, choose training days, then assign a workout to each day.
+        </Text>
       </View>
 
       <View style={styles.card}>
         <Text style={styles.label}>Program name</Text>
         <TextInput
           autoCapitalize="words"
-          onChangeText={setProgramName}
-          placeholder="Push Pull Legs"
+          onChangeText={(value) => {
+            setProgramName(value);
+            setSavedProgramId(null);
+          }}
+          placeholder="Upper Lower Strength"
           placeholderTextColor={colors.textSecondary}
           style={styles.input}
           value={programName}
         />
       </View>
 
-      {workouts.map((workout, workoutIndex) => (
-        <View key={workout.id} style={styles.card}>
-          <View style={styles.rowHeader}>
-            <Text style={styles.label}>Workout day</Text>
-            {workouts.length > 1 ? (
-              <Pressable accessibilityRole="button" onPress={() => removeWorkout(workout.id)}>
-                <Text style={styles.removeText}>Remove</Text>
+      <View style={styles.card}>
+        <Text style={styles.label}>Days per week</Text>
+        <View style={styles.dayOptionRow}>
+          {dayOptions.map((option) => {
+            const selected = option === daysPerWeek;
+
+            return (
+              <Pressable
+                accessibilityRole="button"
+                key={option}
+                onPress={() => updateDaysPerWeek(option)}
+                style={[styles.dayOption, selected && styles.selectedDayOption]}
+              >
+                <Text style={[styles.dayOptionText, selected && styles.selectedDayOptionText]}>
+                  {option}
+                </Text>
               </Pressable>
-            ) : null}
-          </View>
-          <TextInput
-            autoCapitalize="words"
-            onChangeText={(name) => updateWorkoutName(workout.id, name)}
-            placeholder={`Day ${workoutIndex + 1}`}
-            placeholderTextColor={colors.textSecondary}
-            style={styles.input}
-            value={workout.name}
-          />
-
-          {workout.exercises.length === 0 ? (
-            <Text style={styles.body}>Add at least one exercise to this day.</Text>
-          ) : (
-            workout.exercises.map((exercise) => {
-              const catalogExercise = exerciseById.get(exercise.exerciseId);
-
-              return (
-                <View key={exercise.exerciseId} style={styles.exerciseRow}>
-                  <View style={styles.exerciseTitleGroup}>
-                    <Text style={styles.exerciseName}>{catalogExercise?.name ?? "Exercise"}</Text>
-                    <Text style={styles.exerciseMeta}>
-                      {[catalogExercise?.category, catalogExercise?.primaryMuscleGroup].filter(Boolean).join(" - ")}
-                    </Text>
-                  </View>
-                  <View style={styles.targetInputs}>
-                    <TextInput
-                      keyboardType="number-pad"
-                      onChangeText={(value) =>
-                        updateExerciseTarget(workout.id, exercise.exerciseId, "targetSets", value)
-                      }
-                      style={styles.targetInput}
-                      value={exercise.targetSets}
-                    />
-                    <Text style={styles.targetSeparator}>x</Text>
-                    <TextInput
-                      keyboardType="number-pad"
-                      onChangeText={(value) =>
-                        updateExerciseTarget(workout.id, exercise.exerciseId, "targetReps", value)
-                      }
-                      style={styles.targetInput}
-                      value={exercise.targetReps}
-                    />
-                  </View>
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={() => removeExercise(workout.id, exercise.exerciseId)}
-                  >
-                    <Text style={styles.removeText}>Remove</Text>
-                  </Pressable>
-                </View>
-              );
-            })
-          )}
-
-          <PrimaryButton
-            label="Add exercise"
-            tone="secondary"
-            onPress={() => setExercisePickerWorkoutId(workout.id)}
-          />
+            );
+          })}
         </View>
-      ))}
+      </View>
 
-      <PrimaryButton
-        label="Add workout day"
-        tone="secondary"
-        onPress={() => setWorkouts((current) => [...current, createBuilderWorkout(current.length)])}
-      />
+      <View style={styles.card}>
+        <Text style={styles.label}>Program days</Text>
+        {programsQuery.isLoading ? (
+          <Text style={styles.body}>Loading workouts...</Text>
+        ) : workoutChoices.length === 0 ? (
+          <Text style={styles.body}>No reusable workouts are available yet.</Text>
+        ) : (
+          days.map((day) => (
+            <View key={day.dayNumber} style={styles.dayCard}>
+              <View style={styles.dayHeader}>
+                <View style={styles.dayTitleGroup}>
+                  <Text style={styles.dayLabel}>Day {day.dayNumber}</Text>
+                  <Text style={styles.workoutName}>{day.workout?.name ?? "No workout selected"}</Text>
+                </View>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => setPickerDayNumber(day.dayNumber)}
+                >
+                  <Text style={styles.addText}>{day.workout ? "Change" : "Choose"}</Text>
+                </Pressable>
+              </View>
+              {day.workout ? (
+                <WorkoutPreview workout={day.workout} />
+              ) : (
+                <Text style={styles.body}>Choose a predefined workout for this day.</Text>
+              )}
+            </View>
+          ))
+        )}
+        {!hasCustomWorkoutChoices ? (
+          <Text style={styles.body}>
+            Your Workouts will appear here after custom programs have reusable workout days.
+          </Text>
+        ) : null}
+      </View>
 
       {validationError ? <Text style={styles.errorText}>{validationError}</Text> : null}
+      {programsQuery.error instanceof Error ? (
+        <Text style={styles.errorText}>{programsQuery.error.message}</Text>
+      ) : null}
       {createProgramMutation.error instanceof Error ? (
         <Text style={styles.errorText}>{createProgramMutation.error.message}</Text>
       ) : null}
@@ -318,30 +195,54 @@ export function CreateProgramScreen({ navigation }: Props) {
       ) : (
         <PrimaryButton
           label="Save Program"
+          disabled={programsQuery.isLoading || workoutChoices.length === 0}
           loading={createProgramMutation.isPending}
           onPress={handleSaveProgram}
         />
       )}
 
-      <ExercisePickerModal
-        exercises={pickerExercises}
-        loading={exercisesQuery.isLoading}
-        visible={Boolean(exercisePickerWorkoutId)}
-        workoutId={exercisePickerWorkoutId}
-        onClose={() => setExercisePickerWorkoutId(null)}
-        onSelectExercise={addExerciseToWorkout}
+      <WorkoutPickerModal
+        groups={workoutGroups}
+        loading={programsQuery.isLoading}
+        visible={pickerDayNumber !== null}
+        onClose={() => setPickerDayNumber(null)}
+        onSelectWorkout={(choice) => {
+          if (pickerDayNumber !== null) {
+            assignWorkoutToDay(pickerDayNumber, choice.workout);
+          }
+        }}
       />
     </Screen>
   );
 }
 
-function ExercisePickerModal(props: {
-  exercises: ExerciseCatalogItemDto[];
+function WorkoutPreview(props: { workout: ProgramWorkoutTemplateDto }) {
+  const plannedExerciseLines = getPlannedExerciseLines(props.workout, 3);
+  const hiddenExerciseCount = getHiddenExerciseCount(props.workout, plannedExerciseLines.length);
+
+  return (
+    <View style={styles.exerciseList}>
+      <Text style={styles.exerciseMeta}>
+        {props.workout.category} - estimated {props.workout.estimatedDurationMinutes ?? 60} minutes
+      </Text>
+      {plannedExerciseLines.map((line) => (
+        <Text key={line} style={styles.exerciseLine}>
+          {line}
+        </Text>
+      ))}
+      {hiddenExerciseCount > 0 ? (
+        <Text style={styles.exerciseLine}>+{hiddenExerciseCount} more planned</Text>
+      ) : null}
+    </View>
+  );
+}
+
+function WorkoutPickerModal(props: {
+  groups: AssignableWorkoutGroup[];
   loading: boolean;
   visible: boolean;
-  workoutId: string | null;
   onClose: () => void;
-  onSelectExercise: (workoutId: string, exerciseId: string) => void;
+  onSelectWorkout: (choice: AssignableWorkoutChoice) => void;
 }) {
   return (
     <Modal animationType="slide" transparent visible={props.visible} onRequestClose={props.onClose}>
@@ -349,40 +250,40 @@ function ExercisePickerModal(props: {
         <View style={styles.modalSheet}>
           <View style={styles.rowHeader}>
             <View style={styles.modalTitleGroup}>
-              <Text style={styles.label}>Add exercise</Text>
-              <Text style={styles.modalTitle}>Exercise list</Text>
+              <Text style={styles.label}>Choose workout</Text>
+              <Text style={styles.modalTitle}>Workout library</Text>
             </View>
             <Pressable accessibilityRole="button" onPress={props.onClose}>
               <Text style={styles.removeText}>Close</Text>
             </Pressable>
           </View>
-          <ScrollView contentContainerStyle={styles.exerciseChoiceList}>
+
+          <ScrollView contentContainerStyle={styles.workoutChoiceList}>
             {props.loading ? (
-              <Text style={styles.body}>Loading exercises...</Text>
-            ) : props.exercises.length === 0 ? (
-              <Text style={styles.body}>No more exercises are available for this day.</Text>
+              <Text style={styles.body}>Loading workouts...</Text>
+            ) : props.groups.length === 0 ? (
+              <Text style={styles.body}>No reusable workouts are available yet.</Text>
             ) : (
-              props.exercises.map((exercise) => (
-                <Pressable
-                  accessibilityRole="button"
-                  key={exercise.id}
-                  onPress={() => {
-                    if (props.workoutId) {
-                      props.onSelectExercise(props.workoutId, exercise.id);
-                    }
-                  }}
-                  style={styles.exerciseChoice}
-                >
-                  <View style={styles.exerciseTitleGroup}>
-                    <Text style={styles.exerciseName}>{exercise.name}</Text>
-                    <Text style={styles.exerciseMeta}>
-                      {[exercise.category, exercise.primaryMuscleGroup, exercise.equipmentType]
-                        .filter(Boolean)
-                        .join(" - ")}
-                    </Text>
-                  </View>
-                  <Text style={styles.addText}>Add</Text>
-                </Pressable>
+              props.groups.map((group) => (
+                <View key={group.title} style={styles.workoutGroup}>
+                  <Text style={styles.groupTitle}>{group.title}</Text>
+                  {group.workouts.map((choice) => (
+                    <Pressable
+                      accessibilityRole="button"
+                      key={choice.id}
+                      onPress={() => props.onSelectWorkout(choice)}
+                      style={styles.workoutChoice}
+                    >
+                      <View style={styles.workoutTitleGroup}>
+                        <Text style={styles.workoutName}>{choice.workout.name}</Text>
+                        <Text style={styles.exerciseMeta}>
+                          {choice.programName} - {choice.workout.exercises.length} exercises
+                        </Text>
+                      </View>
+                      <Text style={styles.addText}>Use</Text>
+                    </Pressable>
+                  ))}
+                </View>
               ))
             )}
           </ScrollView>
@@ -443,57 +344,84 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 22
   },
-  rowHeader: {
-    alignItems: "flex-start",
+  dayOptionRow: {
     flexDirection: "row",
-    gap: spacing.md,
-    justifyContent: "space-between"
+    flexWrap: "wrap",
+    gap: spacing.sm
   },
-  exerciseRow: {
+  dayOption: {
+    alignItems: "center",
+    backgroundColor: colors.background,
+    borderColor: colors.border,
+    borderRadius: 16,
+    borderWidth: 1,
+    minWidth: 52,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm
+  },
+  selectedDayOption: {
+    backgroundColor: colors.accentStrong,
+    borderColor: colors.accentStrong
+  },
+  dayOptionText: {
+    color: colors.textPrimary,
+    fontSize: 16,
+    fontWeight: "800"
+  },
+  selectedDayOptionText: {
+    color: colors.surface
+  },
+  dayCard: {
     borderColor: colors.border,
     borderRadius: 16,
     borderWidth: 1,
     gap: spacing.sm,
     padding: spacing.md
   },
-  exerciseTitleGroup: {
+  dayHeader: {
+    alignItems: "flex-start",
+    flexDirection: "row",
+    gap: spacing.md,
+    justifyContent: "space-between"
+  },
+  dayTitleGroup: {
     flex: 1,
     gap: 4
   },
-  exerciseName: {
+  dayLabel: {
+    color: colors.accentStrong,
+    fontSize: 13,
+    fontWeight: "800",
+    textTransform: "uppercase"
+  },
+  workoutName: {
     color: colors.textPrimary,
     fontSize: 17,
     fontWeight: "800",
     lineHeight: 22
   },
+  workoutTitleGroup: {
+    flex: 1,
+    gap: 4
+  },
+  exerciseList: {
+    gap: spacing.xs
+  },
+  exerciseLine: {
+    color: colors.textPrimary,
+    fontSize: 15,
+    fontWeight: "700",
+    lineHeight: 21
+  },
   exerciseMeta: {
     color: colors.textSecondary,
     fontSize: 14,
     fontWeight: "700",
-    lineHeight: 20,
-    textTransform: "capitalize"
+    lineHeight: 20
   },
-  targetInputs: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: spacing.sm
-  },
-  targetInput: {
-    backgroundColor: colors.background,
-    borderColor: colors.border,
-    borderRadius: 14,
-    borderWidth: 1,
-    color: colors.textPrimary,
-    fontSize: 16,
-    fontWeight: "800",
-    minWidth: 64,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    textAlign: "center"
-  },
-  targetSeparator: {
-    color: colors.textPrimary,
-    fontSize: 16,
+  addText: {
+    color: colors.accentStrong,
+    fontSize: 14,
     fontWeight: "800"
   },
   removeText: {
@@ -501,15 +429,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "800"
   },
-  addText: {
-    color: colors.accentStrong,
-    fontSize: 14,
-    fontWeight: "800"
-  },
   errorText: {
     color: "#9c3b31",
     fontSize: 14,
     fontWeight: "700"
+  },
+  rowHeader: {
+    alignItems: "flex-start",
+    flexDirection: "row",
+    gap: spacing.md,
+    justifyContent: "space-between"
   },
   modalBackdrop: {
     alignItems: "center",
@@ -536,10 +465,19 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "800"
   },
-  exerciseChoiceList: {
+  workoutChoiceList: {
+    gap: spacing.md
+  },
+  workoutGroup: {
     gap: spacing.sm
   },
-  exerciseChoice: {
+  groupTitle: {
+    color: colors.textPrimary,
+    fontSize: 18,
+    fontWeight: "800",
+    lineHeight: 24
+  },
+  workoutChoice: {
     alignItems: "center",
     borderColor: colors.border,
     borderRadius: 18,

@@ -15,10 +15,12 @@ import { useResetTestUserData } from "../features/workout/hooks/useResetTestUser
 import { useStartWorkout } from "../features/workout/hooks/useStartWorkout";
 import {
   findProgramWorkoutById,
+  getDashboardPrimarySectionOrder,
   getPredefinedWorkoutChoices,
   getHiddenExerciseCount,
   getNextProgramPositionLabel,
   getPlannedExerciseLines,
+  getProgramSectionActionLabels,
   getProgramWorkoutPositionLabel,
   getProgramWorkouts,
   getWorkoutStartActionLabels,
@@ -150,6 +152,12 @@ export function DashboardScreen({ navigation }: Props) {
   const plannedExerciseLines = getPlannedExerciseLines(nextWorkoutPlan);
   const hiddenExerciseCount = getHiddenExerciseCount(nextWorkoutPlan, plannedExerciseLines.length);
   const availablePrograms = programsQuery.data ?? [];
+  const primarySectionOrder = getDashboardPrimarySectionOrder({
+    hasActiveProgram: Boolean(activeProgram)
+  });
+  const programSectionActionLabels = getProgramSectionActionLabels({
+    hasActiveProgram: Boolean(activeProgram)
+  });
   const predefinedWorkoutChoices = getPredefinedWorkoutChoices({
     activeProgram,
     programs: availablePrograms
@@ -220,17 +228,62 @@ export function DashboardScreen({ navigation }: Props) {
 
   return (
     <Screen>
-      <View style={styles.hero}>
-        <Text style={styles.eyebrow}>Fitness App</Text>
-        <Text style={styles.title}>
-          {activeProgram ? "Train with a clear next step." : "Choose your starting plan."}
-        </Text>
-        <Text style={styles.subtitle}>
-          {activeProgram
-            ? "Follow the program, log the work, and let progression handle the details."
-            : "Pick a program or create your own to queue your first workout."}
-        </Text>
-      </View>
+      {primarySectionOrder[0] === "currentProgram" && activeProgram ? (
+        <View style={styles.card}>
+          <Text style={styles.cardLabel}>Current program</Text>
+          <Text style={styles.cardTitle}>{activeProgram.program.name}</Text>
+          <Text style={styles.cardBody}>{activeProgram.program.description}</Text>
+          <Text style={styles.metaLine}>
+            {activeProgram.program.daysPerWeek} days/week - {activeProgram.program.sessionDurationMinutes} min sessions - {activeProgram.completedWorkoutCount} completed
+          </Text>
+          {programPositionLabel ? (
+            <Text style={styles.positionText}>Next up: {programPositionLabel}</Text>
+          ) : null}
+          {activeWorkout ? (
+            <Text style={styles.warningText}>
+              Finish your active workout before switching programs.
+            </Text>
+          ) : null}
+          <PrimaryButton
+            label={programSectionActionLabels[0] ?? "Change Program"}
+            tone="secondary"
+            disabled={Boolean(activeWorkout)}
+            onPress={() => {
+              setLastAction("change_program");
+              setIsProgramPickerOpen(true);
+            }}
+          />
+          <PrimaryButton
+            label={programSectionActionLabels[1] ?? "Create Program"}
+            tone="secondary"
+            onPress={() => navigation.navigate("CreateProgram")}
+          />
+        </View>
+      ) : null}
+
+      {primarySectionOrder[0] === "programSetup" && !activeProgram ? (
+        <View style={styles.card}>
+          <Text style={styles.cardLabel}>Program setup</Text>
+          <Text style={styles.cardTitle}>Choose your training plan</Text>
+          <Text style={styles.cardBody}>
+            Pick a predefined program or build a simple weekly plan from existing workouts.
+          </Text>
+          <PrimaryButton
+            label={programSectionActionLabels[0] ?? "Choose Program"}
+            tone="secondary"
+            disabled={Boolean(activeWorkout || programsQuery.isLoading)}
+            onPress={() => {
+              setLastAction("choose_program");
+              setIsProgramPickerOpen(true);
+            }}
+          />
+          <PrimaryButton
+            label={programSectionActionLabels[1] ?? "Create Program"}
+            tone="secondary"
+            onPress={() => navigation.navigate("CreateProgram")}
+          />
+        </View>
+      ) : null}
 
       <View style={styles.card}>
         <Text style={styles.cardLabel}>Start workout</Text>
@@ -326,43 +379,10 @@ export function DashboardScreen({ navigation }: Props) {
         ) : activeProgram ? (
           <Text style={styles.cardBody}>Your program does not have a workout queued.</Text>
         ) : null}
-        <PrimaryButton
-          label="Create Program"
-          tone="secondary"
-          onPress={() => navigation.navigate("CreateProgram")}
-        />
         {startWorkoutMutation.error instanceof Error ? (
           <Text style={styles.errorText}>{startWorkoutMutation.error.message}</Text>
         ) : null}
       </View>
-
-      {activeProgram ? (
-        <View style={styles.card}>
-          <Text style={styles.cardLabel}>Current program</Text>
-          <Text style={styles.cardTitle}>{activeProgram.program.name}</Text>
-          <Text style={styles.cardBody}>{activeProgram.program.description}</Text>
-          <Text style={styles.metaLine}>
-            {activeProgram.program.daysPerWeek} days/week - {activeProgram.program.sessionDurationMinutes} min sessions - {activeProgram.completedWorkoutCount} completed
-          </Text>
-          {programPositionLabel ? (
-            <Text style={styles.positionText}>Next up: {programPositionLabel}</Text>
-          ) : null}
-          {activeWorkout ? (
-            <Text style={styles.warningText}>
-              Finish your active workout before switching programs.
-            </Text>
-          ) : null}
-          <PrimaryButton
-            label="Change program"
-            tone="secondary"
-            disabled={Boolean(activeWorkout)}
-            onPress={() => {
-              setLastAction("change_program");
-              setIsProgramPickerOpen(true);
-            }}
-          />
-        </View>
-      ) : null}
 
       {!activeProgram && programsQuery.isError ? (
         <Text style={styles.errorText}>We couldn't load predefined workouts. Pull to refresh or try again.</Text>

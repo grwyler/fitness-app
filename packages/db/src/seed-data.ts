@@ -233,9 +233,9 @@ export const seedExercises: SeedExercise[] = [
   }
 ];
 
-export const beginnerFullBodyV1: SeedProgram = {
-  name: "Beginner Full Body V1",
-  description: "Three full-body sessions per week with deterministic weight progression.",
+export const fullBodyBeginner3Day: SeedProgram = {
+  name: "3-Day Full Body Beginner",
+  description: "Three approachable full-body sessions with simple add-weight-when-ready progression.",
   daysPerWeek: 3,
   sessionDurationMinutes: 60,
   difficultyLevel: "beginner",
@@ -264,6 +264,74 @@ export const beginnerFullBodyV1: SeedProgram = {
         { exerciseSlug: "lat-pulldown", sequenceOrder: 3, targetSets: 3, targetReps: 8, restSeconds: 90 },
         { exerciseSlug: "leg-curl", sequenceOrder: 4, targetSets: 3, targetReps: 8, restSeconds: 75 },
         { exerciseSlug: "bicep-curl", sequenceOrder: 5, targetSets: 3, targetReps: 8, restSeconds: 75 }
+      ]
+    },
+    {
+      name: "Full Body Press + Legs",
+      category: "Full Body",
+      sequenceOrder: 3,
+      estimatedDurationMinutes: 55,
+      exercises: [
+        { exerciseSlug: "back-squat", sequenceOrder: 1, targetSets: 3, targetReps: 8, restSeconds: 120 },
+        { exerciseSlug: "overhead-press", sequenceOrder: 2, targetSets: 3, targetReps: 8, restSeconds: 120 },
+        { exerciseSlug: "lat-pulldown", sequenceOrder: 3, targetSets: 3, targetReps: 10, restSeconds: 90 },
+        { exerciseSlug: "leg-curl", sequenceOrder: 4, targetSets: 3, targetReps: 10, restSeconds: 75 }
+      ]
+    }
+  ]
+};
+
+export const upperLower4Day: SeedProgram = {
+  name: "4-Day Upper/Lower",
+  description: "Balanced upper and lower days with steady double-progression targets.",
+  daysPerWeek: 4,
+  sessionDurationMinutes: 55,
+  difficultyLevel: "beginner",
+  templates: [
+    {
+      name: "Upper Strength",
+      category: "Push",
+      sequenceOrder: 1,
+      estimatedDurationMinutes: 55,
+      exercises: [
+        { exerciseSlug: "bench-press", sequenceOrder: 1, targetSets: 3, targetReps: 6, restSeconds: 120 },
+        { exerciseSlug: "barbell-row", sequenceOrder: 2, targetSets: 3, targetReps: 8, restSeconds: 120 },
+        { exerciseSlug: "overhead-press", sequenceOrder: 3, targetSets: 3, targetReps: 8, restSeconds: 90 },
+        { exerciseSlug: "lat-pulldown", sequenceOrder: 4, targetSets: 3, targetReps: 10, restSeconds: 90 }
+      ]
+    },
+    {
+      name: "Lower Strength",
+      category: "Legs",
+      sequenceOrder: 2,
+      estimatedDurationMinutes: 55,
+      exercises: [
+        { exerciseSlug: "back-squat", sequenceOrder: 1, targetSets: 3, targetReps: 6, restSeconds: 120 },
+        { exerciseSlug: "romanian-deadlift", sequenceOrder: 2, targetSets: 3, targetReps: 8, restSeconds: 120 },
+        { exerciseSlug: "lunges", sequenceOrder: 3, targetSets: 2, targetReps: 10, restSeconds: 90 }
+      ]
+    },
+    {
+      name: "Upper Volume",
+      category: "Pull",
+      sequenceOrder: 3,
+      estimatedDurationMinutes: 50,
+      exercises: [
+        { exerciseSlug: "incline-db-press", sequenceOrder: 1, targetSets: 3, targetReps: 10, restSeconds: 90 },
+        { exerciseSlug: "db-row", sequenceOrder: 2, targetSets: 3, targetReps: 10, restSeconds: 90 },
+        { exerciseSlug: "tricep-pushdown", sequenceOrder: 3, targetSets: 3, targetReps: 12, restSeconds: 75 },
+        { exerciseSlug: "db-curl", sequenceOrder: 4, targetSets: 3, targetReps: 12, restSeconds: 75 }
+      ]
+    },
+    {
+      name: "Lower Volume",
+      category: "Legs",
+      sequenceOrder: 4,
+      estimatedDurationMinutes: 50,
+      exercises: [
+        { exerciseSlug: "deadlift", sequenceOrder: 1, targetSets: 3, targetReps: 5, restSeconds: 120 },
+        { exerciseSlug: "leg-curl", sequenceOrder: 2, targetSets: 3, targetReps: 10, restSeconds: 75 },
+        { exerciseSlug: "lunges", sequenceOrder: 3, targetSets: 3, targetReps: 10, restSeconds: 90 }
       ]
     }
   ]
@@ -336,51 +404,176 @@ export const upperLowerArms4Day: SeedProgram = {
         { exerciseSlug: "hammer-curl", sequenceOrder: 3, targetSets: 2, targetReps: 10, restSeconds: 75 }
       ]
     },
+  ]
+};
+
+export const pushPullLegs5Day: SeedProgram = {
+  name: "5-Day Push/Pull/Legs",
+  description: "Higher-frequency push, pull, and legs rotation with repeat exposure for skill practice.",
+  daysPerWeek: 5,
+  sessionDurationMinutes: 55,
+  difficultyLevel: "intermediate",
+  templates: [
+    {
+      name: "Push Strength",
+      category: "Push",
+      sequenceOrder: 1,
+      estimatedDurationMinutes: 55,
+      exercises: [
+        { exerciseSlug: "bench-press", sequenceOrder: 1, targetSets: 3, targetReps: 5, restSeconds: 120 },
+        { exerciseSlug: "overhead-press", sequenceOrder: 2, targetSets: 3, targetReps: 6, restSeconds: 120 },
+        { exerciseSlug: "tricep-pushdown", sequenceOrder: 3, targetSets: 3, targetReps: 12, restSeconds: 75 }
+      ]
+    },
+    {
+      name: "Pull Strength",
+      category: "Pull",
+      sequenceOrder: 2,
+      estimatedDurationMinutes: 55,
+      exercises: [
+        { exerciseSlug: "deadlift", sequenceOrder: 1, targetSets: 3, targetReps: 5, restSeconds: 120 },
+        { exerciseSlug: "pull-ups", sequenceOrder: 2, targetSets: 3, targetReps: 8, restSeconds: 120 },
+        { exerciseSlug: "db-row", sequenceOrder: 3, targetSets: 3, targetReps: 10, restSeconds: 90 }
+      ]
+    },
+    {
+      name: "Legs",
+      category: "Legs",
+      sequenceOrder: 3,
+      estimatedDurationMinutes: 55,
+      exercises: [
+        { exerciseSlug: "back-squat", sequenceOrder: 1, targetSets: 3, targetReps: 6, restSeconds: 120 },
+        { exerciseSlug: "romanian-deadlift", sequenceOrder: 2, targetSets: 3, targetReps: 8, restSeconds: 120 },
+        { exerciseSlug: "leg-curl", sequenceOrder: 3, targetSets: 3, targetReps: 12, restSeconds: 75 }
+      ]
+    },
     {
       name: "Push Hypertrophy",
       category: "Push",
-      sequenceOrder: 5,
+      sequenceOrder: 4,
       estimatedDurationMinutes: 50,
       exercises: [
         { exerciseSlug: "incline-db-press", sequenceOrder: 1, targetSets: 3, targetReps: 10, restSeconds: 90 },
-        { exerciseSlug: "overhead-press", sequenceOrder: 2, targetSets: 3, targetReps: 8, restSeconds: 90 },
-        { exerciseSlug: "tricep-pushdown", sequenceOrder: 3, targetSets: 3, targetReps: 12, restSeconds: 75 }
+        { exerciseSlug: "overhead-db-tricep-extension", sequenceOrder: 2, targetSets: 3, targetReps: 12, restSeconds: 75 },
+        { exerciseSlug: "skull-crushers", sequenceOrder: 3, targetSets: 3, targetReps: 12, restSeconds: 75 }
       ]
     },
     {
       name: "Pull Hypertrophy",
       category: "Pull",
-      sequenceOrder: 6,
+      sequenceOrder: 5,
       estimatedDurationMinutes: 50,
       exercises: [
-        { exerciseSlug: "pull-ups", sequenceOrder: 1, targetSets: 3, targetReps: 8, restSeconds: 120 },
-        { exerciseSlug: "db-row", sequenceOrder: 2, targetSets: 3, targetReps: 10, restSeconds: 90 },
+        { exerciseSlug: "lat-pulldown", sequenceOrder: 1, targetSets: 3, targetReps: 10, restSeconds: 90 },
+        { exerciseSlug: "db-row", sequenceOrder: 2, targetSets: 3, targetReps: 12, restSeconds: 90 },
         { exerciseSlug: "hammer-curl", sequenceOrder: 3, targetSets: 3, targetReps: 12, restSeconds: 75 }
-      ]
-    },
-    {
-      name: "Legs Volume",
-      category: "Legs",
-      sequenceOrder: 7,
-      estimatedDurationMinutes: 50,
-      exercises: [
-        { exerciseSlug: "back-squat", sequenceOrder: 1, targetSets: 3, targetReps: 8, restSeconds: 120 },
-        { exerciseSlug: "romanian-deadlift", sequenceOrder: 2, targetSets: 3, targetReps: 8, restSeconds: 120 },
-        { exerciseSlug: "lunges", sequenceOrder: 3, targetSets: 2, targetReps: 10, restSeconds: 90 }
-      ]
-    },
-    {
-      name: "Quick Full Body",
-      category: "Quick",
-      sequenceOrder: 8,
-      estimatedDurationMinutes: 30,
-      exercises: [
-        { exerciseSlug: "back-squat", sequenceOrder: 1, targetSets: 2, targetReps: 8, restSeconds: 90 },
-        { exerciseSlug: "bench-press", sequenceOrder: 2, targetSets: 2, targetReps: 8, restSeconds: 90 },
-        { exerciseSlug: "barbell-row", sequenceOrder: 3, targetSets: 2, targetReps: 8, restSeconds: 90 }
       ]
     }
   ]
 };
 
-export const seedPrograms = [beginnerFullBodyV1, upperLowerArms4Day];
+export const strengthFocus3Day: SeedProgram = {
+  name: "3-Day Strength Focus",
+  description: "Three heavier compound-focused days with modest accessories and conservative load jumps.",
+  daysPerWeek: 3,
+  sessionDurationMinutes: 60,
+  difficultyLevel: "intermediate",
+  templates: [
+    {
+      name: "Squat + Bench",
+      category: "Full Body",
+      sequenceOrder: 1,
+      estimatedDurationMinutes: 60,
+      exercises: [
+        { exerciseSlug: "back-squat", sequenceOrder: 1, targetSets: 3, targetReps: 5, restSeconds: 150 },
+        { exerciseSlug: "bench-press", sequenceOrder: 2, targetSets: 3, targetReps: 5, restSeconds: 150 },
+        { exerciseSlug: "barbell-row", sequenceOrder: 3, targetSets: 3, targetReps: 6, restSeconds: 120 }
+      ]
+    },
+    {
+      name: "Deadlift + Press",
+      category: "Full Body",
+      sequenceOrder: 2,
+      estimatedDurationMinutes: 60,
+      exercises: [
+        { exerciseSlug: "deadlift", sequenceOrder: 1, targetSets: 3, targetReps: 5, restSeconds: 150 },
+        { exerciseSlug: "overhead-press", sequenceOrder: 2, targetSets: 3, targetReps: 5, restSeconds: 120 },
+        { exerciseSlug: "pull-ups", sequenceOrder: 3, targetSets: 3, targetReps: 8, restSeconds: 120 }
+      ]
+    },
+    {
+      name: "Squat Volume",
+      category: "Full Body",
+      sequenceOrder: 3,
+      estimatedDurationMinutes: 55,
+      exercises: [
+        { exerciseSlug: "back-squat", sequenceOrder: 1, targetSets: 3, targetReps: 6, restSeconds: 120 },
+        { exerciseSlug: "incline-db-press", sequenceOrder: 2, targetSets: 3, targetReps: 8, restSeconds: 90 },
+        { exerciseSlug: "db-row", sequenceOrder: 3, targetSets: 3, targetReps: 8, restSeconds: 90 }
+      ]
+    }
+  ]
+};
+
+export const hypertrophyFocus4Day: SeedProgram = {
+  name: "4-Day Hypertrophy Focus",
+  description: "Moderate-load upper/lower volume days built around accumulating quality sets.",
+  daysPerWeek: 4,
+  sessionDurationMinutes: 50,
+  difficultyLevel: "intermediate",
+  templates: [
+    {
+      name: "Upper Volume Push",
+      category: "Push",
+      sequenceOrder: 1,
+      estimatedDurationMinutes: 50,
+      exercises: [
+        { exerciseSlug: "incline-db-press", sequenceOrder: 1, targetSets: 4, targetReps: 10, restSeconds: 90 },
+        { exerciseSlug: "overhead-press", sequenceOrder: 2, targetSets: 3, targetReps: 8, restSeconds: 90 },
+        { exerciseSlug: "tricep-pushdown", sequenceOrder: 3, targetSets: 3, targetReps: 12, restSeconds: 75 }
+      ]
+    },
+    {
+      name: "Lower Volume Quads",
+      category: "Legs",
+      sequenceOrder: 2,
+      estimatedDurationMinutes: 50,
+      exercises: [
+        { exerciseSlug: "back-squat", sequenceOrder: 1, targetSets: 4, targetReps: 8, restSeconds: 120 },
+        { exerciseSlug: "lunges", sequenceOrder: 2, targetSets: 3, targetReps: 10, restSeconds: 90 },
+        { exerciseSlug: "leg-curl", sequenceOrder: 3, targetSets: 3, targetReps: 12, restSeconds: 75 }
+      ]
+    },
+    {
+      name: "Upper Volume Pull",
+      category: "Pull",
+      sequenceOrder: 3,
+      estimatedDurationMinutes: 50,
+      exercises: [
+        { exerciseSlug: "lat-pulldown", sequenceOrder: 1, targetSets: 4, targetReps: 10, restSeconds: 90 },
+        { exerciseSlug: "db-row", sequenceOrder: 2, targetSets: 3, targetReps: 12, restSeconds: 90 },
+        { exerciseSlug: "incline-db-curl", sequenceOrder: 3, targetSets: 3, targetReps: 12, restSeconds: 75 }
+      ]
+    },
+    {
+      name: "Lower Volume Hinge",
+      category: "Legs",
+      sequenceOrder: 4,
+      estimatedDurationMinutes: 50,
+      exercises: [
+        { exerciseSlug: "romanian-deadlift", sequenceOrder: 1, targetSets: 4, targetReps: 8, restSeconds: 120 },
+        { exerciseSlug: "leg-curl", sequenceOrder: 2, targetSets: 3, targetReps: 12, restSeconds: 75 },
+        { exerciseSlug: "lunges", sequenceOrder: 3, targetSets: 3, targetReps: 10, restSeconds: 90 }
+      ]
+    }
+  ]
+};
+
+export const seedPrograms = [
+  fullBodyBeginner3Day,
+  upperLower4Day,
+  upperLowerArms4Day,
+  pushPullLegs5Day,
+  strengthFocus3Day,
+  hypertrophyFocus4Day
+];

@@ -74,6 +74,17 @@ A user can:
   - next workout
   - workout intent (sets/reps)
 - [x] Show where the user is in the program (week/day)
+- [x] Keep the Current Program or Program Setup card above Start Workout
+- [x] Move Create Program into the program section
+- [x] Seed multiple predefined programs:
+  - 3-Day Full Body Beginner
+  - 4-Day Upper/Lower
+  - 4-Day Upper/Lower + Arms
+  - 5-Day Push/Pull/Legs
+  - 3-Day Strength Focus
+  - 4-Day Hypertrophy Focus
+- [x] Create custom programs by assigning reusable workout templates to ordered days
+- [x] Allow custom program workout days to be reused under Your Workouts
 
 ---
 
@@ -86,7 +97,8 @@ A user can:
 - [x] Make custom workout creation the primary dashboard start path
 - [x] Keep predefined program workouts available behind a secondary chooser
 - [x] Group predefined workouts by Push, Pull, Legs, Full Body, and Quick inside the chooser
-- [x] No saving templates (yet)
+- [x] Custom program days are saved as reusable workout templates
+- [ ] Completed one-off custom workouts are not promoted into reusable templates yet
 - [x] No editing exercises database
 
 ---

@@ -27,6 +27,20 @@ export type PredefinedWorkoutCategoryGroup = {
   workouts: PredefinedWorkoutChoice[];
 };
 
+export type DashboardPrimarySection = "currentProgram" | "programSetup" | "startWorkout";
+
+export function getDashboardPrimarySectionOrder(input: {
+  hasActiveProgram: boolean;
+}): DashboardPrimarySection[] {
+  return [input.hasActiveProgram ? "currentProgram" : "programSetup", "startWorkout"];
+}
+
+export function getProgramSectionActionLabels(input: { hasActiveProgram: boolean }) {
+  return input.hasActiveProgram
+    ? ["Change Program", "Create Program"]
+    : ["Choose Program", "Create Program"];
+}
+
 export function getNextProgramPositionLabel(activeProgram: ActiveProgramDto | null | undefined) {
   if (!activeProgram) {
     return null;

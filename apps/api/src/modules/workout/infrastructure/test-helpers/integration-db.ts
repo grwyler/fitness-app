@@ -265,7 +265,7 @@ export async function seedBaseWorkoutProgram(context: WorkoutInfrastructureTestC
     id: "program-1",
     userId: null,
     source: "predefined",
-    name: "Beginner Full Body V1",
+    name: "3-Day Full Body Beginner",
     description: "A simple strength progression program.",
     daysPerWeek: 3,
     sessionDurationMinutes: 60,
@@ -628,7 +628,7 @@ export async function seedInProgressWorkout(context: WorkoutInfrastructureTestCo
     durationSeconds: null,
     isPartial: false,
     userEffortFeedback: null,
-    programNameSnapshot: "Beginner Full Body V1",
+    programNameSnapshot: "3-Day Full Body Beginner",
     workoutNameSnapshot: "Workout A",
     createdAt: startedAt,
     updatedAt: startedAt

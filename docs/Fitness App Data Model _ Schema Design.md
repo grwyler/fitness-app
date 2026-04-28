@@ -155,14 +155,18 @@ Stores reusable exercise definitions.
 
 Represents a structured training plan assigned to users.
 
-For V1, this will likely be a standard full-body 3x/week program.
+MVP+ exposes several system-managed predefined programs and user-created custom programs. Custom
+programs are built from ordered workout templates; the backend remains the source of truth for the
+saved program and its workout days.
 
 ## **Table: `programs`**
 
 | Field | Type | Required | Notes |
 | ----- | ----- | ----- | ----- |
 | `id` | UUID | Yes | Primary key |
-| `name` | Text | Yes | Example: `Beginner Full Body V1` |
+| `user_id` | UUID | No | FK -> `users.id`; null for predefined programs |
+| `source` | Text | Yes | `predefined` or `custom` |
+| `name` | Text | Yes | Example: `3-Day Full Body Beginner` |
 | `description` | Text | No | Program summary |
 | `days_per_week` | Integer | Yes | V1 default: `3` |
 | `session_duration_minutes` | Integer | Yes | V1: `45–60` |
@@ -175,7 +179,9 @@ For V1, this will likely be a standard full-body 3x/week program.
 
 * `days_per_week` must be between `1` and `7`.  
 * `session_duration_minutes` must be greater than `0`.  
-* V1 should only expose active system programs.
+* `source = predefined` programs are system-managed and shared.
+* `source = custom` programs are user-owned and can be used as reusable workout definitions.
+* Completed one-off custom workout sessions are not promoted into reusable templates yet.
 
 ---
 

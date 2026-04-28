@@ -2,10 +2,12 @@ import assert from "node:assert/strict";
 import type { ActiveProgramDto, ProgramWorkoutTemplateDto } from "@fitness/shared";
 import {
   findProgramWorkoutById,
+  getDashboardPrimarySectionOrder,
   getPredefinedWorkoutChoices,
   getHiddenExerciseCount,
   getNextProgramPositionLabel,
   getPlannedExerciseLines,
+  getProgramSectionActionLabels,
   getProgramWorkoutPositionLabel,
   getProgramWorkouts,
   getWorkoutStartActionLabels,
@@ -83,7 +85,7 @@ function createActiveProgram(overrides?: {
     program: {
       id: "program-1",
       source: "predefined",
-      name: "Beginner Full Body V1",
+      name: "3-Day Full Body Beginner",
       description: "Three full-body sessions per week.",
       daysPerWeek: overrides?.daysPerWeek ?? 3,
       sessionDurationMinutes: 60,
@@ -122,6 +124,42 @@ function createActiveProgram(overrides?: {
 }
 
 export const dashboardProgramTestCases: MobileTestCase[] = [
+  {
+    name: "Dashboard renders current program before start workout when enrolled",
+    run: () => {
+      assert.deepEqual(getDashboardPrimarySectionOrder({ hasActiveProgram: true }), [
+        "currentProgram",
+        "startWorkout"
+      ]);
+    }
+  },
+  {
+    name: "Dashboard renders program setup before start workout without enrollment",
+    run: () => {
+      assert.deepEqual(getDashboardPrimarySectionOrder({ hasActiveProgram: false }), [
+        "programSetup",
+        "startWorkout"
+      ]);
+    }
+  },
+  {
+    name: "Dashboard keeps Create Program in the program section",
+    run: () => {
+      assert.deepEqual(getProgramSectionActionLabels({ hasActiveProgram: true }), [
+        "Change Program",
+        "Create Program"
+      ]);
+      assert.deepEqual(
+        getWorkoutStartActionLabels({
+          activeWorkout: false,
+          hasActiveProgram: true,
+          hasPredefinedChoices: true,
+          hasRecommendedWorkout: true
+        }),
+        ["Create Workout", "Choose Predefined Workout", "Start Recommended Workout"]
+      );
+    }
+  },
   {
     name: "Dashboard program label derives next week and day from completed count",
     run: () => {

@@ -17,6 +17,7 @@ import { WorkoutApplicationError } from "../errors/workout-application.error.js"
 import { MockTransactionManager } from "../test-helpers/mock-transaction-manager.js";
 import type { ApplicationTestCase } from "../test-helpers/application-test-case.js";
 import { CompleteWorkoutSessionUseCase } from "./complete-workout-session.use-case.js";
+import { CreateCustomProgramUseCase } from "./create-custom-program.use-case.js";
 import { FollowProgramUseCase } from "./follow-program.use-case.js";
 import { GetCurrentWorkoutSessionUseCase } from "./get-current-workout-session.use-case.js";
 import { GetDashboardUseCase } from "./get-dashboard.use-case.js";
@@ -39,7 +40,7 @@ function createBaseWorkoutSessionGraph(): WorkoutSessionGraph {
       durationSeconds: null,
       isPartial: false,
       userEffortFeedback: null,
-      programNameSnapshot: "Beginner Full Body V1",
+      programNameSnapshot: "3-Day Full Body Beginner",
       workoutNameSnapshot: "Workout A",
       createdAt: new Date("2026-04-24T10:00:00.000Z"),
       updatedAt: new Date("2026-04-24T10:00:00.000Z")
@@ -166,7 +167,7 @@ function createProgramDefinition() {
       id: "program-1",
       userId: null,
       source: "predefined" as const,
-      name: "Beginner Full Body V1",
+      name: "3-Day Full Body Beginner",
       description: "A simple strength progression program.",
       daysPerWeek: 3,
       sessionDurationMinutes: 60,
@@ -272,7 +273,7 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
             {
               id: "template-1",
               programId: "program-1",
-              programName: "Beginner Full Body V1",
+              programName: "3-Day Full Body Beginner",
               name: "Workout A",
               sequenceOrder: 1,
               estimatedDurationMinutes: 60,
@@ -360,6 +361,97 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
       assert.equal(createdEnrollmentTemplateId, "template-1");
       assert.equal(followResult.data.activeProgram.nextWorkoutTemplate?.id, "template-1");
       assert.equal(followResult.data.activeProgram.currentPosition.label, "Week 1 · Day 1");
+    }
+  },
+  {
+    name: "CreateCustomProgramUseCase saves assigned workout days as reusable templates",
+    run: async () => {
+      const idempotency = createMockIdempotencyRepository();
+      let persistedWorkoutNames: string[] = [];
+      let persistedExerciseIds: string[] = [];
+
+      const programRepository: ProgramRepository = {
+        async listActive() {
+          return [];
+        },
+        async findActiveById() {
+          return null;
+        },
+        async createCustomProgram(input) {
+          persistedWorkoutNames = input.workouts.map((workout) => workout.name);
+          persistedExerciseIds = input.workouts.flatMap((workout) =>
+            workout.exercises.map((exercise) => exercise.exerciseId)
+          );
+
+          return {
+            program: {
+              id: "custom-program-1",
+              userId: input.userId,
+              source: "custom",
+              name: input.name,
+              description: null,
+              daysPerWeek: input.workouts.length,
+              sessionDurationMinutes: 60,
+              difficultyLevel: "beginner",
+              isActive: true,
+              createdAt: input.createdAt,
+              updatedAt: input.createdAt
+            },
+            templates: input.workouts.map((workout) => ({
+              id: `custom-template-${workout.sequenceOrder}`,
+              programId: "custom-program-1",
+              name: workout.name,
+              category: "Full Body",
+              sequenceOrder: workout.sequenceOrder,
+              estimatedDurationMinutes: null,
+              exercises: workout.exercises.map((exercise, index) => ({
+                id: `custom-template-entry-${workout.sequenceOrder}-${index + 1}`,
+                exerciseId: exercise.exerciseId,
+                exerciseName: exercise.exerciseId === "exercise-1" ? "Bench Press" : "Row",
+                category: "compound",
+                sequenceOrder: index + 1,
+                targetSets: exercise.targetSets,
+                targetReps: exercise.targetReps,
+                restSeconds: exercise.restSeconds
+              }))
+            }))
+          };
+        },
+        async createEnrollment() {
+          throw new Error("Not implemented.");
+        }
+      };
+
+      const useCase = new CreateCustomProgramUseCase(
+        programRepository,
+        new MockTransactionManager(),
+        idempotency.repository
+      );
+
+      const result = await useCase.execute({
+        context: { userId: "user-1", unitSystem: "imperial" },
+        request: {
+          name: "Assigned Program",
+          workouts: [
+            {
+              name: "Day 1: Push Strength",
+              exercises: [{ exerciseId: "exercise-1", targetSets: 3, targetReps: 5 }]
+            },
+            {
+              name: "Day 2: Pull Strength",
+              exercises: [{ exerciseId: "exercise-2", targetSets: 4, targetReps: 8 }]
+            }
+          ]
+        },
+        idempotencyKey: "create-program-key-1"
+      });
+
+      assert.deepEqual(persistedWorkoutNames, ["Day 1: Push Strength", "Day 2: Pull Strength"]);
+      assert.deepEqual(persistedExerciseIds, ["exercise-1", "exercise-2"]);
+      assert.equal(result.data.program.source, "custom");
+      assert.equal(result.data.program.workouts.length, 2);
+      assert.equal(result.data.program.workouts[0]?.exercises[0]?.targetReps, 5);
+      assert.equal(result.meta.replayed, false);
     }
   },
   {
@@ -469,7 +561,7 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
             template: {
               id: "template-1",
               programId: "program-1",
-              programName: "Beginner Full Body V1",
+              programName: "3-Day Full Body Beginner",
               name: "Workout A",
               sequenceOrder: 1,
               estimatedDurationMinutes: 60,
@@ -1119,7 +1211,7 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
             {
               id: "template-1",
               programId: "program-1",
-              programName: "Beginner Full Body V1",
+              programName: "3-Day Full Body Beginner",
               name: "Workout A",
               sequenceOrder: 1,
               estimatedDurationMinutes: 60,
@@ -1130,7 +1222,7 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
             {
               id: "template-2",
               programId: "program-1",
-              programName: "Beginner Full Body V1",
+              programName: "3-Day Full Body Beginner",
               name: "Workout B",
               sequenceOrder: 2,
               estimatedDurationMinutes: 55,
@@ -1502,7 +1594,7 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
             template: {
               id: "template-1",
               programId: "program-1",
-              programName: "Beginner Full Body V1",
+              programName: "3-Day Full Body Beginner",
               name: "Workout A",
               sequenceOrder: 1,
               estimatedDurationMinutes: 60,
@@ -1606,7 +1698,7 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
             {
               id: "session-1",
               workoutName: "Workout A",
-              programName: "Beginner Full Body V1",
+              programName: "3-Day Full Body Beginner",
               status: "completed",
               startedAt: new Date("2026-04-24T10:00:00.000Z"),
               completedAt: new Date("2026-04-24T10:45:00.000Z"),
@@ -1683,7 +1775,7 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
             {
               id: "template-1",
               programId: "program-1",
-              programName: "Beginner Full Body V1",
+              programName: "3-Day Full Body Beginner",
               name: "Workout A",
               sequenceOrder: 1,
               estimatedDurationMinutes: 60,
@@ -1760,7 +1852,7 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
       });
 
       assert.equal(currentWorkoutResult.data.activeWorkoutSession?.id, "session-1");
-      assert.equal(dashboardResult.data.activeProgram?.program.name, "Beginner Full Body V1");
+      assert.equal(dashboardResult.data.activeProgram?.program.name, "3-Day Full Body Beginner");
       assert.equal(dashboardResult.data.activeProgram?.completedWorkoutCount, 1);
       assert.equal(dashboardResult.data.activeProgram?.currentPosition.label, "Week 1 · Day 2");
       assert.equal(dashboardResult.data.activeProgram?.currentPosition.weekNumber, 1);

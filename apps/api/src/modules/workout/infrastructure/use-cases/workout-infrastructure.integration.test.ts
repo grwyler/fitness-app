@@ -34,7 +34,46 @@ export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[]
 
         assert.deepEqual(
           programRows.rows.map((row) => row.name),
-          ["Beginner Full Body V1", "4-Day Upper/Lower + Arms"]
+          [
+            "3-Day Full Body Beginner",
+            "4-Day Upper/Lower",
+            "4-Day Upper/Lower + Arms",
+            "5-Day Push/Pull/Legs",
+            "3-Day Strength Focus",
+            "4-Day Hypertrophy Focus"
+          ]
+        );
+
+        await client.query(
+          `update workout_template_exercise_entries
+           set id = $1, target_sets = 9
+           where workout_template_id = $2 and sequence_order = 1`,
+          [
+            "77777777-7777-7777-7777-777777770001",
+            "33333333-3333-3333-3333-333333333333"
+          ]
+        );
+        await client.query(
+          `insert into programs
+           (id, user_id, source, name, description, days_per_week, session_duration_minutes, difficulty_level, is_active)
+           values ($1, $2, 'custom', 'User Custom Program', null, 1, 45, 'beginner', true)`,
+          ["99999999-9999-9999-9999-999999999901", DEV_USER_ID]
+        );
+        await client.query(
+          `insert into workout_templates
+           (id, program_id, name, category, sequence_order, estimated_duration_minutes, is_active)
+           values ($1, $2, 'User Custom Day', 'Full Body', 1, 45, true)`,
+          ["99999999-9999-9999-9999-999999999902", "99999999-9999-9999-9999-999999999901"]
+        );
+        await client.query(
+          `insert into workout_template_exercise_entries
+           (id, workout_template_id, exercise_id, sequence_order, target_sets, target_reps, rest_seconds)
+           values ($1, $2, $3, 1, 2, 12, 60)`,
+          [
+            "99999999-9999-9999-9999-999999999903",
+            "99999999-9999-9999-9999-999999999902",
+            "66666666-6666-6666-6666-666666666602"
+          ]
         );
 
         await client.query(
@@ -62,13 +101,46 @@ export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[]
           "select program_id from user_program_enrollments where user_id = $1 and status = 'active'",
           [DEV_USER_ID]
         )) as { rows: Array<{ program_id: string }> };
+        const duplicateTemplateEntryRows = (await client.query(
+          `select workout_template_id, sequence_order, count(*) as count
+           from workout_template_exercise_entries
+           group by workout_template_id, sequence_order
+           having count(*) > 1`
+        )) as { rows: Array<{ workout_template_id: string; sequence_order: number; count: string }> };
+        const restoredEntryRows = (await client.query(
+          `select id, target_sets
+           from workout_template_exercise_entries
+           where workout_template_id = $1 and sequence_order = 1`,
+          ["33333333-3333-3333-3333-333333333333"]
+        )) as { rows: Array<{ id: string; target_sets: number }> };
+        const customRows = (await client.query(
+          `select p.id as program_id, wt.id as template_id, wtee.id as entry_id
+           from programs p
+           join workout_templates wt on wt.program_id = p.id
+           join workout_template_exercise_entries wtee on wtee.workout_template_id = wt.id
+           where p.id = $1`,
+          ["99999999-9999-9999-9999-999999999901"]
+        )) as { rows: Array<{ program_id: string; template_id: string; entry_id: string }> };
 
         assert.deepEqual(
           programRows.rows.map((row) => row.name),
-          ["Beginner Full Body V1", "4-Day Upper/Lower + Arms"]
+          [
+            "3-Day Full Body Beginner",
+            "4-Day Upper/Lower",
+            "4-Day Upper/Lower + Arms",
+            "5-Day Push/Pull/Legs",
+            "3-Day Strength Focus",
+            "4-Day Hypertrophy Focus"
+          ]
         );
         assert.equal(activeEnrollmentRows.rows.length, 1);
         assert.equal(activeEnrollmentRows.rows[0]?.program_id, "22222222-2222-2222-2222-222222222223");
+        assert.equal(duplicateTemplateEntryRows.rows.length, 0);
+        assert.equal(restoredEntryRows.rows.length, 1);
+        assert.equal(restoredEntryRows.rows[0]?.id, "77777777-7777-7777-7777-780000000001");
+        assert.equal(Number(restoredEntryRows.rows[0]?.target_sets), 3);
+        assert.equal(customRows.rows.length, 1);
+        assert.equal(customRows.rows[0]?.template_id, "99999999-9999-9999-9999-999999999902");
       } finally {
         await client.close();
       }
@@ -226,7 +298,7 @@ export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[]
             durationSeconds: 2700,
             isPartial: false,
             userEffortFeedback: "just_right",
-            programNameSnapshot: "Beginner Full Body V1",
+            programNameSnapshot: "3-Day Full Body Beginner",
             workoutNameSnapshot: "Workout A",
             createdAt: new Date("2026-04-25T10:00:00.000Z"),
             updatedAt: new Date("2026-04-25T10:45:00.000Z")
@@ -242,7 +314,7 @@ export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[]
             durationSeconds: 2700,
             isPartial: false,
             userEffortFeedback: "just_right",
-            programNameSnapshot: "Beginner Full Body V1",
+            programNameSnapshot: "3-Day Full Body Beginner",
             workoutNameSnapshot: "Workout A",
             createdAt: new Date("2026-04-24T10:00:00.000Z"),
             updatedAt: new Date("2026-04-26T10:45:00.000Z")

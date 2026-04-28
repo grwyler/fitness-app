@@ -1,3 +1,5 @@
+import { seedExercises as catalogSeedExercises, seedPrograms as catalogSeedPrograms } from "@fitness/db";
+
 export const DEV_USER_ID = "11111111-1111-1111-1111-111111111111";
 const PROGRAM_ID = "22222222-2222-2222-2222-222222222222";
 const UPPER_LOWER_ARMS_PROGRAM_ID = "22222222-2222-2222-2222-222222222223";
@@ -14,6 +16,57 @@ const LEGS_VOLUME_TEMPLATE_ID = "33333333-3333-3333-3333-333333333347";
 const QUICK_FULL_BODY_TEMPLATE_ID = "33333333-3333-3333-3333-333333333348";
 const CUSTOM_WORKOUT_TEMPLATE_ID = "33333333-3333-3333-3333-333333333399";
 const ENROLLMENT_ID = "55555555-5555-5555-5555-555555555555";
+
+const PROGRAM_IDS_BY_NAME: Record<string, string> = {
+  "3-Day Full Body Beginner": PROGRAM_ID,
+  "4-Day Upper/Lower": "22222222-2222-2222-2222-222222222224",
+  "4-Day Upper/Lower + Arms": UPPER_LOWER_ARMS_PROGRAM_ID,
+  "5-Day Push/Pull/Legs": "22222222-2222-2222-2222-222222222225",
+  "3-Day Strength Focus": "22222222-2222-2222-2222-222222222226",
+  "4-Day Hypertrophy Focus": "22222222-2222-2222-2222-222222222227"
+};
+
+const TEMPLATE_IDS_BY_PROGRAM_NAME: Record<string, string[]> = {
+  "3-Day Full Body Beginner": [
+    TEMPLATE_A_ID,
+    TEMPLATE_B_ID,
+    "33333333-3333-3333-3333-333333333331"
+  ],
+  "4-Day Upper/Lower": [
+    "33333333-3333-3333-3333-333333333351",
+    "33333333-3333-3333-3333-333333333352",
+    "33333333-3333-3333-3333-333333333353",
+    "33333333-3333-3333-3333-333333333354"
+  ],
+  "4-Day Upper/Lower + Arms": [
+    UPPER_LOWER_DAY_1_TEMPLATE_ID,
+    UPPER_LOWER_DAY_2_TEMPLATE_ID,
+    UPPER_LOWER_DAY_3_TEMPLATE_ID,
+    UPPER_LOWER_DAY_4_TEMPLATE_ID
+  ],
+  "5-Day Push/Pull/Legs": [
+    "33333333-3333-3333-3333-333333333361",
+    "33333333-3333-3333-3333-333333333362",
+    "33333333-3333-3333-3333-333333333363",
+    "33333333-3333-3333-3333-333333333364",
+    "33333333-3333-3333-3333-333333333365"
+  ],
+  "3-Day Strength Focus": [
+    "33333333-3333-3333-3333-333333333371",
+    "33333333-3333-3333-3333-333333333372",
+    "33333333-3333-3333-3333-333333333373"
+  ],
+  "4-Day Hypertrophy Focus": [
+    "33333333-3333-3333-3333-333333333381",
+    "33333333-3333-3333-3333-333333333382",
+    "33333333-3333-3333-3333-333333333383",
+    "33333333-3333-3333-3333-333333333384"
+  ]
+};
+
+function createSeedEntryId(index: number) {
+  return `77777777-7777-7777-7777-${String(780000000000 + index).padStart(12, "0")}`;
+}
 
 const seedExercises = [
   { slug: "back-squat", name: "Squat", category: "compound", movementPattern: "squat", primaryMuscleGroup: "quads", equipmentType: "barbell", defaultStartingWeightLbs: 95, defaultIncrementLbs: 5 },
@@ -192,29 +245,28 @@ export async function bootstrapDevelopmentDatabase(executor: SqlExecutor) {
 }
 
 export async function syncPredefinedProgramCatalog(executor: SqlExecutor) {
-  await executor.query(
-    `insert into programs (id, user_id, source, name, description, days_per_week, session_duration_minutes, difficulty_level, is_active)
-     values ($1, null, 'predefined', $2, $3, $4, $5, $6, $7)
-     on conflict (id) do update
-     set user_id = null, source = 'predefined', name = excluded.name, description = excluded.description, days_per_week = excluded.days_per_week, session_duration_minutes = excluded.session_duration_minutes, difficulty_level = excluded.difficulty_level, is_active = excluded.is_active, updated_at = now()`,
-    [PROGRAM_ID, "Beginner Full Body V1", "Three full-body sessions per week with deterministic weight progression.", 3, 60, "beginner", true]
-  );
+  for (const program of catalogSeedPrograms) {
+    const programId = PROGRAM_IDS_BY_NAME[program.name];
+    if (!programId) {
+      throw new Error(`Missing predefined program id for ${program.name}.`);
+    }
 
-  await executor.query(
-    `insert into programs (id, user_id, source, name, description, days_per_week, session_duration_minutes, difficulty_level, is_active)
-     values ($1, null, 'predefined', $2, $3, $4, $5, $6, $7)
-     on conflict (id) do update
-     set user_id = null, source = 'predefined', name = excluded.name, description = excluded.description, days_per_week = excluded.days_per_week, session_duration_minutes = excluded.session_duration_minutes, difficulty_level = excluded.difficulty_level, is_active = excluded.is_active, updated_at = now()`,
-    [
-      UPPER_LOWER_ARMS_PROGRAM_ID,
-      "4-Day Upper/Lower + Arms",
-      "Four weekly upper/lower sessions with extra arm volume and simple progression targets.",
-      4,
-      55,
-      "beginner",
-      true
-    ]
-  );
+    await executor.query(
+      `insert into programs (id, user_id, source, name, description, days_per_week, session_duration_minutes, difficulty_level, is_active)
+       values ($1, null, 'predefined', $2, $3, $4, $5, $6, $7)
+       on conflict (id) do update
+       set user_id = null, source = 'predefined', name = excluded.name, description = excluded.description, days_per_week = excluded.days_per_week, session_duration_minutes = excluded.session_duration_minutes, difficulty_level = excluded.difficulty_level, is_active = excluded.is_active, updated_at = now()`,
+      [
+        programId,
+        program.name,
+        program.description,
+        program.daysPerWeek,
+        program.sessionDurationMinutes,
+        program.difficultyLevel,
+        true
+      ]
+    );
+  }
 
   await executor.query(
     `insert into programs (id, user_id, source, name, description, days_per_week, session_duration_minutes, difficulty_level, is_active)
@@ -232,7 +284,7 @@ export async function syncPredefinedProgramCatalog(executor: SqlExecutor) {
     ]
   );
 
-  for (const exercise of seedExercises) {
+  for (const exercise of catalogSeedExercises) {
     await executor.query(
       `insert into exercises (id, name, category, movement_pattern, primary_muscle_group, equipment_type, default_starting_weight_lbs, default_increment_lbs, is_active)
        values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
@@ -242,23 +294,59 @@ export async function syncPredefinedProgramCatalog(executor: SqlExecutor) {
     );
   }
 
-  for (const template of templateDefinitions) {
-    await executor.query(
-      `insert into workout_templates (id, program_id, name, category, sequence_order, estimated_duration_minutes, is_active)
-       values ($1, $2, $3, $4, $5, $6, $7)
-       on conflict (id) do update
-       set program_id = excluded.program_id, name = excluded.name, category = excluded.category, sequence_order = excluded.sequence_order, estimated_duration_minutes = excluded.estimated_duration_minutes, is_active = excluded.is_active, updated_at = now()`,
-      [template.id, template.programId, template.name, template.category, template.order, template.duration, true]
-    );
-  }
+  let templateEntryIndex = 1;
+  for (const program of catalogSeedPrograms) {
+    const programId = PROGRAM_IDS_BY_NAME[program.name];
+    const templateIds = TEMPLATE_IDS_BY_PROGRAM_NAME[program.name];
+    if (!programId || !templateIds || templateIds.length < program.templates.length) {
+      throw new Error(`Missing predefined workout template ids for ${program.name}.`);
+    }
 
-  for (const entry of templateEntries) {
-    await executor.query(
-      `insert into workout_template_exercise_entries (id, workout_template_id, exercise_id, sequence_order, target_sets, target_reps, rest_seconds)
-       values ($1, $2, $3, $4, $5, $6, $7)
-       on conflict (id) do update
-       set workout_template_id = excluded.workout_template_id, exercise_id = excluded.exercise_id, sequence_order = excluded.sequence_order, target_sets = excluded.target_sets, target_reps = excluded.target_reps, rest_seconds = excluded.rest_seconds, updated_at = now()`,
-      [entry.id, entry.templateId, EXERCISE_IDS[entry.exerciseSlug], entry.order, entry.sets, entry.reps, entry.rest]
-    );
+    for (const template of program.templates) {
+      const templateId = templateIds[template.sequenceOrder - 1];
+      if (!templateId) {
+        throw new Error(`Missing predefined workout template id for ${program.name} day ${template.sequenceOrder}.`);
+      }
+
+      await executor.query(
+        `insert into workout_templates (id, program_id, name, category, sequence_order, estimated_duration_minutes, is_active)
+         values ($1, $2, $3, $4, $5, $6, $7)
+         on conflict (id) do update
+         set program_id = excluded.program_id, name = excluded.name, category = excluded.category, sequence_order = excluded.sequence_order, estimated_duration_minutes = excluded.estimated_duration_minutes, is_active = excluded.is_active, updated_at = now()`,
+        [
+          templateId,
+          programId,
+          template.name,
+          template.category,
+          template.sequenceOrder,
+          template.estimatedDurationMinutes,
+          true
+        ]
+      );
+
+      await executor.query(
+        `delete from workout_template_exercise_entries
+         where workout_template_id = $1`,
+        [templateId]
+      );
+
+      for (const entry of template.exercises) {
+        await executor.query(
+          `insert into workout_template_exercise_entries (id, workout_template_id, exercise_id, sequence_order, target_sets, target_reps, rest_seconds)
+           values ($1, $2, $3, $4, $5, $6, $7)
+           on conflict (id) do update
+           set workout_template_id = excluded.workout_template_id, exercise_id = excluded.exercise_id, sequence_order = excluded.sequence_order, target_sets = excluded.target_sets, target_reps = excluded.target_reps, rest_seconds = excluded.rest_seconds, updated_at = now()`,
+          [
+            createSeedEntryId(templateEntryIndex++),
+            templateId,
+            EXERCISE_IDS[entry.exerciseSlug],
+            entry.sequenceOrder,
+            entry.targetSets,
+            entry.targetReps,
+            entry.restSeconds
+          ]
+        );
+      }
+    }
   }
 }

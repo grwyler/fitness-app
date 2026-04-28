@@ -649,7 +649,7 @@ export const workoutHttpTestCases: HttpTestCase[] = [
 
           assert.equal(response.status, 200);
           assert.equal(payload.data.programs.length, 2);
-          assert.equal(payload.data.programs[0].name, "Beginner Full Body V1");
+          assert.equal(payload.data.programs[0].name, "3-Day Full Body Beginner");
           assert.equal(payload.data.programs[0].workouts[0].name, "Workout A");
           assert.equal(payload.data.programs[0].workouts[0].category, "Full Body");
           assert.equal(payload.data.programs[0].workouts[0].exercises[0].exerciseName, "Bench Press");
@@ -692,9 +692,16 @@ export const workoutHttpTestCases: HttpTestCase[] = [
           assert.equal(response.status, 200);
           assert.deepEqual(
             payload.data.programs.map((program: { name: string }) => program.name),
-            ["Beginner Full Body V1", "4-Day Upper/Lower + Arms"]
+            [
+              "3-Day Full Body Beginner",
+              "4-Day Upper/Lower",
+              "4-Day Upper/Lower + Arms",
+              "5-Day Push/Pull/Legs",
+              "3-Day Strength Focus",
+              "4-Day Hypertrophy Focus"
+            ]
           );
-          assert.equal(payload.data.programs[1].workouts.length, 8);
+          assert.equal(payload.data.programs[1].workouts.length, 4);
           assert.deepEqual(
             Array.from(
               new Set(payload.data.programs.flatMap((program: { workouts: Array<{ category: string }> }) =>
@@ -1110,7 +1117,7 @@ export const workoutHttpTestCases: HttpTestCase[] = [
           assert.equal(payload.error.code, "CONFLICT");
           assert.match(payload.error.message, /active workout/i);
           assert.equal(dashboardResponse.status, 200);
-          assert.equal(dashboardPayload.data.activeProgram.program.name, "Beginner Full Body V1");
+          assert.equal(dashboardPayload.data.activeProgram.program.name, "3-Day Full Body Beginner");
           assert.equal(dashboardPayload.data.activeWorkoutSession.id, "session-1");
         } finally {
           await server.close();
@@ -1584,7 +1591,7 @@ export const workoutHttpTestCases: HttpTestCase[] = [
           assert.equal(historyResponse.status, 200);
           assert.equal(historyPayload.data.items[0].id, "session-1");
           assert.equal(historyPayload.data.items[0].workoutName, "Workout A");
-          assert.equal(historyPayload.data.items[0].programName, "Beginner Full Body V1");
+          assert.equal(historyPayload.data.items[0].programName, "3-Day Full Body Beginner");
           assert.equal(historyPayload.data.items[0].exerciseCount, 1);
           assert.equal(historyPayload.data.items[0].completedSetCount, 3);
           assert.ok(historyPayload.data.items[0].highlights.includes("Workout completed"));
