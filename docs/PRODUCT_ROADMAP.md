@@ -80,11 +80,11 @@ A user can:
 ### Priority 4 — Quick Custom Workout (MVP-safe)
 
 - [x] Start a “Custom Workout”
-- [ ] Add exercises from existing list
-- [ ] Add sets (reuse existing logging UI)
-- [ ] Complete workout → saves to history
-- [ ] No saving templates (yet)
-- [ ] No editing exercises database
+- [x] Add exercises from existing list
+- [x] Add sets (reuse existing logging UI)
+- [x] Complete workout → saves to history
+- [x] No saving templates (yet)
+- [x] No editing exercises database
 
 ---
 
@@ -114,10 +114,10 @@ A user can:
 
 ## Validation Checklist
 
-- [ ] Can I run 3+ real workouts without friction?
-- [ ] Does progression feel correct?
-- [ ] Is anything confusing during a workout?
-- [ ] Does the app feel fast and responsive?
+- [x] Can I run 3+ real workouts without friction?
+- [x] Does progression feel correct?
+- [x] Is anything confusing during a workout?
+- [x] Does the app feel fast and responsive?
 
 ---
 
