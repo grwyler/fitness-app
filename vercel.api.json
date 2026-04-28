@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "npm run build --workspace @fitness/shared && npm run build --workspace @fitness/db && npm run build:vercel --workspace @fitness/api",
+  "buildCommand": "npm run build:api:vercel",
   "builds": [
     {
       "src": "apps/api/src/index.ts",
