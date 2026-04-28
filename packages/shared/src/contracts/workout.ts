@@ -2,6 +2,7 @@ import type {
   EffortFeedback,
   ExerciseCategory,
   DifficultyLevel,
+  ProgramSource,
   ProgressMetricType,
   ProgressionResult,
   EnrollmentStatus,
@@ -113,12 +114,34 @@ export type ProgramWorkoutTemplateDto = {
 
 export type ProgramDto = {
   id: UUID;
+  source: ProgramSource;
   name: string;
   description: string | null;
   daysPerWeek: number;
   sessionDurationMinutes: number;
   difficultyLevel: DifficultyLevel;
   workouts: ProgramWorkoutTemplateDto[];
+};
+
+export type CreateCustomProgramExerciseRequest = {
+  exerciseId: UUID;
+  targetSets: number;
+  targetReps: number;
+  restSeconds?: number | null;
+};
+
+export type CreateCustomProgramWorkoutRequest = {
+  name: string;
+  exercises: CreateCustomProgramExerciseRequest[];
+};
+
+export type CreateCustomProgramRequest = {
+  name: string;
+  workouts: CreateCustomProgramWorkoutRequest[];
+};
+
+export type CreateCustomProgramResponse = {
+  program: ProgramDto;
 };
 
 export type ActiveProgramDto = {
@@ -288,6 +311,10 @@ export type GetCurrentWorkoutSessionResponse = CurrentWorkoutSessionDto;
 
 export type ListProgramsResponse = {
   programs: ProgramDto[];
+};
+
+export type GetProgramResponse = {
+  program: ProgramDto;
 };
 
 export type ListExercisesResponse = {

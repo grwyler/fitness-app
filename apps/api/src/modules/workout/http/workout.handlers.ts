@@ -3,6 +3,7 @@ import type {
   AddCustomWorkoutExerciseRequest,
   AddWorkoutSetRequest,
   CompleteWorkoutSessionRequest,
+  CreateCustomProgramRequest,
   DeleteWorkoutSetRequest,
   LogSetRequest,
   StartWorkoutSessionRequest
@@ -19,6 +20,7 @@ import {
 import {
   addCustomWorkoutExerciseBodySchema,
   completeWorkoutSessionBodySchema,
+  createCustomProgramBodySchema,
   logSetBodySchema,
   programParamsSchema,
   setParamsSchema,
@@ -32,8 +34,10 @@ import type { AddWorkoutSetUseCase } from "../application/use-cases/add-workout-
 import type { CompleteWorkoutSessionUseCase } from "../application/use-cases/complete-workout-session.use-case.js";
 import type { DeleteWorkoutSetUseCase } from "../application/use-cases/delete-workout-set.use-case.js";
 import type { FollowProgramUseCase } from "../application/use-cases/follow-program.use-case.js";
+import type { CreateCustomProgramUseCase } from "../application/use-cases/create-custom-program.use-case.js";
 import type { GetCurrentWorkoutSessionUseCase } from "../application/use-cases/get-current-workout-session.use-case.js";
 import type { GetDashboardUseCase } from "../application/use-cases/get-dashboard.use-case.js";
+import type { GetProgramUseCase } from "../application/use-cases/get-program.use-case.js";
 import type { GetProgressionUseCase } from "../application/use-cases/get-progression.use-case.js";
 import type { GetWorkoutHistoryDetailUseCase } from "../application/use-cases/get-workout-history-detail.use-case.js";
 import type { GetWorkoutHistoryUseCase } from "../application/use-cases/get-workout-history.use-case.js";
@@ -44,6 +48,8 @@ import type { StartWorkoutSessionUseCase } from "../application/use-cases/start-
 
 export type WorkoutHttpHandlers = {
   listPrograms: RequestHandler;
+  getProgram: RequestHandler;
+  createCustomProgram: RequestHandler;
   listExercises: RequestHandler;
   followProgram: RequestHandler;
   getDashboard: RequestHandler;
@@ -61,6 +67,8 @@ export type WorkoutHttpHandlers = {
 
 export function createWorkoutHandlers(dependencies: {
   listProgramsUseCase: ListProgramsUseCase;
+  getProgramUseCase: GetProgramUseCase;
+  createCustomProgramUseCase: CreateCustomProgramUseCase;
   listExercisesUseCase: ListExercisesUseCase;
   followProgramUseCase: FollowProgramUseCase;
   getDashboardUseCase: GetDashboardUseCase;
@@ -77,8 +85,44 @@ export function createWorkoutHandlers(dependencies: {
 }): WorkoutHttpHandlers {
   return {
     listPrograms: asyncHandler(async (_request, response) => {
-      const result = await dependencies.listProgramsUseCase.execute();
+      const context = getRequestContext(_request);
+      const result = await dependencies.listProgramsUseCase.execute({ context });
       response.json(success(result.data, result.meta));
+    }),
+
+    getProgram: asyncHandler(async (request, response) => {
+      const context = getRequestContext(request);
+      const params = validateParams(programParamsSchema, request);
+      const result = await dependencies.getProgramUseCase.execute({
+        context,
+        programId: params.programId
+      });
+      response.json(success(result.data, result.meta));
+    }),
+
+    createCustomProgram: asyncHandler(async (request, response) => {
+      const context = getRequestContext(request);
+      const body = validateBody(createCustomProgramBodySchema, request);
+      const idempotencyKey = requireIdempotencyKey(request);
+      const useCaseRequest: CreateCustomProgramRequest = {
+        name: body.name,
+        workouts: body.workouts.map((workout) => ({
+          name: workout.name,
+          exercises: workout.exercises.map((exercise) => ({
+            exerciseId: exercise.exerciseId,
+            targetSets: exercise.targetSets,
+            targetReps: exercise.targetReps,
+            ...(exercise.restSeconds !== undefined ? { restSeconds: exercise.restSeconds } : {})
+          }))
+        }))
+      };
+
+      const result = await dependencies.createCustomProgramUseCase.execute({
+        context,
+        request: useCaseRequest,
+        idempotencyKey
+      });
+      response.status(201).json(success(result.data, result.meta));
     }),
 
     listExercises: asyncHandler(async (_request, response) => {

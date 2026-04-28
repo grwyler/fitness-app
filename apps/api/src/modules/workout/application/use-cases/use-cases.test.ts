@@ -164,6 +164,8 @@ function createProgramDefinition() {
   return {
     program: {
       id: "program-1",
+      userId: null,
+      source: "predefined" as const,
       name: "Beginner Full Body V1",
       description: "A simple strength progression program.",
       daysPerWeek: 3,
@@ -343,7 +345,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         new MockTransactionManager()
       );
 
-      const programsResult = await listProgramsUseCase.execute();
+      const programsResult = await listProgramsUseCase.execute({
+        context: { userId: "user-1", unitSystem: "imperial" }
+      });
       const followResult = await followProgramUseCase.execute({
         context: { userId: "user-1", unitSystem: "imperial" },
         programId: "program-1"

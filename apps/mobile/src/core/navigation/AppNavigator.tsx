@@ -2,6 +2,7 @@ import { Pressable, Text } from "react-native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "./navigation-types";
 import { DashboardScreen } from "../../screens/DashboardScreen";
+import { CreateProgramScreen } from "../../screens/CreateProgramScreen";
 import { ActiveWorkoutScreen } from "../../screens/ActiveWorkoutScreen";
 import { WorkoutSummaryScreen } from "../../screens/WorkoutSummaryScreen";
 import { WorkoutHistoryScreen } from "../../screens/WorkoutHistoryScreen";
@@ -66,6 +67,11 @@ export function AppNavigator() {
             name="ActiveWorkout"
             component={ActiveWorkoutScreen}
             options={{ title: "Active Workout" }}
+          />
+          <Stack.Screen
+            name="CreateProgram"
+            component={CreateProgramScreen}
+            options={{ title: "Create Program" }}
           />
           <Stack.Screen
             name="WorkoutHistory"

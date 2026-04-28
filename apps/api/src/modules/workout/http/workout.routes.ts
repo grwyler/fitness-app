@@ -5,8 +5,10 @@ import type { AddCustomWorkoutExerciseUseCase } from "../application/use-cases/a
 import type { AddWorkoutSetUseCase } from "../application/use-cases/add-workout-set.use-case.js";
 import type { DeleteWorkoutSetUseCase } from "../application/use-cases/delete-workout-set.use-case.js";
 import type { FollowProgramUseCase } from "../application/use-cases/follow-program.use-case.js";
+import type { CreateCustomProgramUseCase } from "../application/use-cases/create-custom-program.use-case.js";
 import type { GetCurrentWorkoutSessionUseCase } from "../application/use-cases/get-current-workout-session.use-case.js";
 import type { GetDashboardUseCase } from "../application/use-cases/get-dashboard.use-case.js";
+import type { GetProgramUseCase } from "../application/use-cases/get-program.use-case.js";
 import type { GetProgressionUseCase } from "../application/use-cases/get-progression.use-case.js";
 import type { GetWorkoutHistoryDetailUseCase } from "../application/use-cases/get-workout-history-detail.use-case.js";
 import type { GetWorkoutHistoryUseCase } from "../application/use-cases/get-workout-history.use-case.js";
@@ -17,6 +19,8 @@ import type { StartWorkoutSessionUseCase } from "../application/use-cases/start-
 
 export function createWorkoutRouter(dependencies: {
   listProgramsUseCase: ListProgramsUseCase;
+  getProgramUseCase: GetProgramUseCase;
+  createCustomProgramUseCase: CreateCustomProgramUseCase;
   listExercisesUseCase: ListExercisesUseCase;
   followProgramUseCase: FollowProgramUseCase;
   getDashboardUseCase: GetDashboardUseCase;
@@ -35,6 +39,8 @@ export function createWorkoutRouter(dependencies: {
   const handlers = createWorkoutHandlers(dependencies);
 
   router.get("/programs", handlers.listPrograms);
+  router.post("/programs", handlers.createCustomProgram);
+  router.get("/programs/:programId", handlers.getProgram);
   router.get("/exercises", handlers.listExercises);
   router.post("/programs/:programId/follow", handlers.followProgram);
   router.get("/dashboard", handlers.getDashboard);

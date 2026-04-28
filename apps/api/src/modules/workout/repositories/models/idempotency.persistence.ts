@@ -1,5 +1,6 @@
 export type IdempotencyRouteFamily =
   | "start_workout_session"
+  | "create_custom_program"
   | "add_custom_workout_exercise"
   | "add_workout_set"
   | "delete_workout_set"

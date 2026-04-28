@@ -98,7 +98,10 @@ const schemaSql = `
 create table if not exists users (id uuid primary key, auth_provider_id text not null unique, email text not null unique, password_hash text, display_name text, timezone text not null default 'America/New_York', unit_system text not null default 'imperial', experience_level text, deleted_at timestamptz, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
 alter table users add column if not exists password_hash text;
 create table if not exists exercises (id uuid primary key, name text not null unique, category text not null, movement_pattern text, primary_muscle_group text, equipment_type text, default_starting_weight_lbs numeric(6,2) not null, default_increment_lbs numeric(5,2) not null, is_active boolean not null default true, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
-create table if not exists programs (id uuid primary key, name text not null, description text, days_per_week integer not null, session_duration_minutes integer not null, difficulty_level text not null, is_active boolean not null default true, deleted_at timestamptz, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
+create table if not exists programs (id uuid primary key, user_id uuid references users(id), source text not null default 'predefined', name text not null, description text, days_per_week integer not null, session_duration_minutes integer not null, difficulty_level text not null, is_active boolean not null default true, deleted_at timestamptz, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
+alter table programs add column if not exists user_id uuid references users(id);
+alter table programs add column if not exists source text not null default 'predefined';
+create index if not exists idx_programs_user_source on programs(user_id, source);
 create table if not exists workout_templates (id uuid primary key, program_id uuid not null references programs(id), name text not null, sequence_order integer not null, estimated_duration_minutes integer, is_active boolean not null default true, deleted_at timestamptz, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
 create unique index if not exists idx_workout_templates_program_sequence on workout_templates(program_id, sequence_order);
 create table if not exists user_program_enrollments (id uuid primary key, user_id uuid not null references users(id), program_id uuid not null references programs(id), status text not null, started_at timestamptz not null, completed_at timestamptz, current_workout_template_id uuid references workout_templates(id), created_at timestamptz not null default now(), updated_at timestamptz not null default now());
@@ -169,18 +172,18 @@ export async function bootstrapDevelopmentDatabase(executor: SqlExecutor) {
 
 export async function syncPredefinedProgramCatalog(executor: SqlExecutor) {
   await executor.query(
-    `insert into programs (id, name, description, days_per_week, session_duration_minutes, difficulty_level, is_active)
-     values ($1, $2, $3, $4, $5, $6, $7)
+    `insert into programs (id, user_id, source, name, description, days_per_week, session_duration_minutes, difficulty_level, is_active)
+     values ($1, null, 'predefined', $2, $3, $4, $5, $6, $7)
      on conflict (id) do update
-     set name = excluded.name, description = excluded.description, days_per_week = excluded.days_per_week, session_duration_minutes = excluded.session_duration_minutes, difficulty_level = excluded.difficulty_level, is_active = excluded.is_active, updated_at = now()`,
+     set user_id = null, source = 'predefined', name = excluded.name, description = excluded.description, days_per_week = excluded.days_per_week, session_duration_minutes = excluded.session_duration_minutes, difficulty_level = excluded.difficulty_level, is_active = excluded.is_active, updated_at = now()`,
     [PROGRAM_ID, "Beginner Full Body V1", "Three full-body sessions per week with deterministic weight progression.", 3, 60, "beginner", true]
   );
 
   await executor.query(
-    `insert into programs (id, name, description, days_per_week, session_duration_minutes, difficulty_level, is_active)
-     values ($1, $2, $3, $4, $5, $6, $7)
+    `insert into programs (id, user_id, source, name, description, days_per_week, session_duration_minutes, difficulty_level, is_active)
+     values ($1, null, 'predefined', $2, $3, $4, $5, $6, $7)
      on conflict (id) do update
-     set name = excluded.name, description = excluded.description, days_per_week = excluded.days_per_week, session_duration_minutes = excluded.session_duration_minutes, difficulty_level = excluded.difficulty_level, is_active = excluded.is_active, updated_at = now()`,
+     set user_id = null, source = 'predefined', name = excluded.name, description = excluded.description, days_per_week = excluded.days_per_week, session_duration_minutes = excluded.session_duration_minutes, difficulty_level = excluded.difficulty_level, is_active = excluded.is_active, updated_at = now()`,
     [
       UPPER_LOWER_ARMS_PROGRAM_ID,
       "4-Day Upper/Lower + Arms",
@@ -193,10 +196,10 @@ export async function syncPredefinedProgramCatalog(executor: SqlExecutor) {
   );
 
   await executor.query(
-    `insert into programs (id, name, description, days_per_week, session_duration_minutes, difficulty_level, is_active)
-     values ($1, $2, $3, $4, $5, $6, $7)
+    `insert into programs (id, user_id, source, name, description, days_per_week, session_duration_minutes, difficulty_level, is_active)
+     values ($1, null, 'predefined', $2, $3, $4, $5, $6, $7)
      on conflict (id) do update
-     set name = excluded.name, description = excluded.description, days_per_week = excluded.days_per_week, session_duration_minutes = excluded.session_duration_minutes, difficulty_level = excluded.difficulty_level, is_active = excluded.is_active, updated_at = now()`,
+     set user_id = null, source = 'predefined', name = excluded.name, description = excluded.description, days_per_week = excluded.days_per_week, session_duration_minutes = excluded.session_duration_minutes, difficulty_level = excluded.difficulty_level, is_active = excluded.is_active, updated_at = now()`,
     [
       CUSTOM_WORKOUT_PROGRAM_ID,
       "Custom Workout",

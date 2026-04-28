@@ -29,6 +29,8 @@ export function toAppError(error: unknown): AppError {
 
   if (error instanceof WorkoutApplicationError) {
     switch (error.code) {
+      case "VALIDATION_ERROR":
+        return new AppError(400, "VALIDATION_ERROR", error.message);
       case "SESSION_NOT_FOUND":
       case "SET_NOT_FOUND":
       case "PROGRAM_NOT_FOUND":

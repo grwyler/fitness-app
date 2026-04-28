@@ -3,6 +3,8 @@ import type {
   AddWorkoutSetRequest,
   CompleteWorkoutSessionRequest,
   CompleteWorkoutSessionResponse,
+  CreateCustomProgramRequest,
+  CreateCustomProgramResponse,
   DeleteWorkoutSetRequest,
   FollowProgramResponse,
   GetCurrentWorkoutSessionResponse,
@@ -25,6 +27,17 @@ export async function fetchDashboard() {
 
 export async function fetchPrograms() {
   return apiRequest<ListProgramsResponse>("/programs");
+}
+
+export async function createCustomProgram(input: {
+  request: CreateCustomProgramRequest;
+  idempotencyKey: string;
+}) {
+  return apiRequest<CreateCustomProgramResponse, { replayed: boolean }>("/programs", {
+    method: "POST",
+    body: input.request,
+    idempotencyKey: input.idempotencyKey
+  });
 }
 
 export async function fetchExercises() {

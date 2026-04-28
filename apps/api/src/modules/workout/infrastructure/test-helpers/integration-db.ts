@@ -56,6 +56,8 @@ create table exercises (
 
 create table programs (
   id text primary key,
+  user_id text references users(id),
+  source text not null default 'predefined',
   name text not null,
   description text,
   days_per_week integer not null,
@@ -79,6 +81,7 @@ create table workout_templates (
   updated_at timestamptz not null default now()
 );
 create unique index idx_workout_templates_program_sequence on workout_templates(program_id, sequence_order);
+create index idx_programs_user_source on programs(user_id, source);
 
 create table user_program_enrollments (
   id text primary key,
@@ -259,6 +262,8 @@ export async function seedBaseWorkoutProgram(context: WorkoutInfrastructureTestC
 
   await context.db.insert(programs).values({
     id: "program-1",
+    userId: null,
+    source: "predefined",
     name: "Beginner Full Body V1",
     description: "A simple strength progression program.",
     daysPerWeek: 3,
@@ -271,6 +276,8 @@ export async function seedBaseWorkoutProgram(context: WorkoutInfrastructureTestC
 
   await context.db.insert(programs).values({
     id: CUSTOM_WORKOUT_PROGRAM_ID,
+    userId: null,
+    source: "predefined",
     name: "Custom Workout",
     description: "Ad hoc training session without a predefined program template.",
     daysPerWeek: 1,
@@ -358,6 +365,8 @@ export async function seedUpperLowerArmsProgram(context: WorkoutInfrastructureTe
 
   await context.db.insert(programs).values({
     id: "program-2",
+    userId: null,
+    source: "predefined",
     name: "4-Day Upper/Lower + Arms",
     description: "Four weekly upper/lower sessions with extra arm volume and simple progression targets.",
     daysPerWeek: 4,

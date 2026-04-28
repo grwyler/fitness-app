@@ -77,6 +77,7 @@ function createActiveProgram(overrides?: {
     enrollmentId: "enrollment-1",
     program: {
       id: "program-1",
+      source: "predefined",
       name: "Beginner Full Body V1",
       description: "Three full-body sessions per week.",
       daysPerWeek: overrides?.daysPerWeek ?? 3,

@@ -12,8 +12,10 @@ import { AddCustomWorkoutExerciseUseCase } from "../application/use-cases/add-cu
 import { AddWorkoutSetUseCase } from "../application/use-cases/add-workout-set.use-case.js";
 import { DeleteWorkoutSetUseCase } from "../application/use-cases/delete-workout-set.use-case.js";
 import { FollowProgramUseCase } from "../application/use-cases/follow-program.use-case.js";
+import { CreateCustomProgramUseCase } from "../application/use-cases/create-custom-program.use-case.js";
 import { GetCurrentWorkoutSessionUseCase } from "../application/use-cases/get-current-workout-session.use-case.js";
 import { GetDashboardUseCase } from "../application/use-cases/get-dashboard.use-case.js";
+import { GetProgramUseCase } from "../application/use-cases/get-program.use-case.js";
 import { GetProgressionUseCase } from "../application/use-cases/get-progression.use-case.js";
 import { GetWorkoutHistoryDetailUseCase } from "../application/use-cases/get-workout-history-detail.use-case.js";
 import { GetWorkoutHistoryUseCase } from "../application/use-cases/get-workout-history.use-case.js";
@@ -88,6 +90,12 @@ export function createWorkoutHttpRouter(database: WorkoutDatabase) {
   const getWorkoutHistoryDetailUseCase = new GetWorkoutHistoryDetailUseCase(workoutSessionRepository);
   const getProgressionUseCase = new GetProgressionUseCase(workoutSessionRepository);
   const listProgramsUseCase = new ListProgramsUseCase(programRepository);
+  const getProgramUseCase = new GetProgramUseCase(programRepository);
+  const createCustomProgramUseCase = new CreateCustomProgramUseCase(
+    programRepository,
+    transactionManager,
+    idempotencyRepository
+  );
   const listExercisesUseCase = new ListExercisesUseCase(exerciseRepository);
   const followProgramUseCase = new FollowProgramUseCase(
     programRepository,
@@ -106,6 +114,8 @@ export function createWorkoutHttpRouter(database: WorkoutDatabase) {
 
   return createWorkoutRouter({
     listProgramsUseCase,
+    getProgramUseCase,
+    createCustomProgramUseCase,
     listExercisesUseCase,
     followProgramUseCase,
     getDashboardUseCase,

@@ -84,7 +84,7 @@ export function DashboardScreen({ navigation }: Props) {
         <Text style={styles.subtitle}>
           {activeProgram
             ? "Follow the program, log the work, and let progression handle the details."
-            : "Pick a predefined program to queue your first workout."}
+            : "Pick a program or create your own to queue your first workout."}
         </Text>
       </View>
 
@@ -118,11 +118,11 @@ export function DashboardScreen({ navigation }: Props) {
 
       {!activeProgram ? (
         <View style={styles.card}>
-          <Text style={styles.cardLabel}>Predefined programs</Text>
+          <Text style={styles.cardLabel}>Programs</Text>
           {programsQuery.isLoading ? (
             <Text style={styles.cardBody}>Loading programs...</Text>
           ) : availablePrograms.length === 0 ? (
-            <Text style={styles.cardBody}>No active predefined programs are available yet.</Text>
+            <Text style={styles.cardBody}>No active programs are available yet.</Text>
           ) : (
             availablePrograms.map((program) => {
               const workoutNames = program.workouts.map((workout) => workout.name).join(" / ");
@@ -139,6 +139,9 @@ export function DashboardScreen({ navigation }: Props) {
               return (
                 <View key={program.id} style={styles.programBlock}>
                   <Text style={styles.cardTitle}>{program.name}</Text>
+                  <Text style={styles.sourcePill}>
+                    {program.source === "custom" ? "Custom program" : "Predefined program"}
+                  </Text>
                   <Text style={styles.cardBody}>{program.description}</Text>
                   <Text style={styles.metaLine}>
                     {program.daysPerWeek} days/week - {program.sessionDurationMinutes} minutes - {program.difficultyLevel}
@@ -162,6 +165,11 @@ export function DashboardScreen({ navigation }: Props) {
           {programsQuery.isError ? (
             <Text style={styles.errorText}>We couldn't load programs. Pull to refresh or try again.</Text>
           ) : null}
+          <PrimaryButton
+            label="Create Program"
+            tone="secondary"
+            onPress={() => navigation.navigate("CreateProgram")}
+          />
         </View>
       ) : null}
 
@@ -267,6 +275,11 @@ export function DashboardScreen({ navigation }: Props) {
             }}
           />
         ) : null}
+        <PrimaryButton
+          label="Create Program"
+          tone="secondary"
+          onPress={() => navigation.navigate("CreateProgram")}
+        />
         {startWorkoutMutation.error instanceof Error ? (
           <Text style={styles.errorText}>{startWorkoutMutation.error.message}</Text>
         ) : null}
@@ -331,6 +344,10 @@ export function DashboardScreen({ navigation }: Props) {
         selectingProgram={followProgramMutation.isPending}
         visible={isProgramPickerOpen}
         onClose={() => setIsProgramPickerOpen(false)}
+        onCreateProgram={() => {
+          setIsProgramPickerOpen(false);
+          navigation.navigate("CreateProgram");
+        }}
         onSelectProgram={(programId) => {
           setLastAction("switch_program");
           followProgramMutation.mutate(programId, {
@@ -378,6 +395,7 @@ function ProgramPickerModal(props: {
   selectingProgram: boolean;
   visible: boolean;
   onClose: () => void;
+  onCreateProgram: () => void;
   onSelectProgram: (programId: string) => void;
 }) {
   return (
@@ -386,7 +404,7 @@ function ProgramPickerModal(props: {
         <View style={styles.modalSheet}>
           <View style={styles.modalHeader}>
             <View style={styles.modalTitleGroup}>
-              <Text style={styles.cardLabel}>Predefined programs</Text>
+              <Text style={styles.cardLabel}>Programs</Text>
               <Text style={styles.modalTitle}>Change program</Text>
             </View>
             <Pressable accessibilityRole="button" onPress={props.onClose} style={styles.closeButton}>
@@ -398,7 +416,7 @@ function ProgramPickerModal(props: {
             {props.loadingPrograms ? (
               <Text style={styles.cardBody}>Loading programs...</Text>
             ) : props.programs.length === 0 ? (
-              <Text style={styles.cardBody}>No active predefined programs are available yet.</Text>
+              <Text style={styles.cardBody}>No active programs are available yet.</Text>
             ) : (
               props.programs.map((program) => {
                 const isCurrentProgram = program.id === props.activeProgramId;
@@ -407,6 +425,9 @@ function ProgramPickerModal(props: {
                 return (
                   <View key={program.id} style={styles.programChoice}>
                     <Text style={styles.cardTitle}>{program.name}</Text>
+                    <Text style={styles.sourcePill}>
+                      {program.source === "custom" ? "Custom program" : "Predefined program"}
+                    </Text>
                     <Text style={styles.cardBody}>{program.description}</Text>
                     <Text style={styles.metaLine}>
                       {program.daysPerWeek} days/week - {program.sessionDurationMinutes} minutes - {program.difficultyLevel}
@@ -426,6 +447,7 @@ function ProgramPickerModal(props: {
           </ScrollView>
 
           {props.errorMessage ? <Text style={styles.errorText}>{props.errorMessage}</Text> : null}
+          <PrimaryButton label="Create Program" tone="secondary" onPress={props.onCreateProgram} />
         </View>
       </View>
     </Modal>
@@ -586,6 +608,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     lineHeight: 20
+  },
+  sourcePill: {
+    alignSelf: "flex-start",
+    backgroundColor: colors.background,
+    borderColor: colors.border,
+    borderRadius: 999,
+    borderWidth: 1,
+    color: colors.textPrimary,
+    fontSize: 12,
+    fontWeight: "800",
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    textTransform: "uppercase"
   },
   positionText: {
     color: colors.textPrimary,

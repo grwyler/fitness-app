@@ -119,6 +119,7 @@ export function mapNextWorkoutTemplateDto(
 export function mapProgramDto(definition: ProgramDefinition): ProgramDto {
   return {
     id: definition.program.id,
+    source: definition.program.source,
     name: definition.program.name,
     description: definition.program.description,
     daysPerWeek: definition.program.daysPerWeek,

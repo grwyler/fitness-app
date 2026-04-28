@@ -454,6 +454,183 @@ export const workoutHttpTestCases: HttpTestCase[] = [
     }
   },
   {
+    name: "Custom programs can be created, listed, followed, and started only by their owner",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        await seedUpperLowerArmsProgram(context);
+        const server = await startHttpServer(context.db);
+
+        try {
+          const createResponse = await fetch(`${server.baseUrl}/api/v1/programs`, {
+            method: "POST",
+            headers: createAuthHeaders({
+              "content-type": "application/json",
+              "Idempotency-Key": "create-ppl-program-http-key"
+            }),
+            body: JSON.stringify({
+              name: "Push Pull Legs",
+              workouts: [
+                {
+                  name: "Push",
+                  exercises: [
+                    {
+                      exerciseId: "exercise-1",
+                      targetSets: 3,
+                      targetReps: 8
+                    }
+                  ]
+                },
+                {
+                  name: "Pull",
+                  exercises: [
+                    {
+                      exerciseId: "exercise-3",
+                      targetSets: 3,
+                      targetReps: 10
+                    }
+                  ]
+                },
+                {
+                  name: "Legs",
+                  exercises: [
+                    {
+                      exerciseId: "exercise-2",
+                      targetSets: 4,
+                      targetReps: 6
+                    }
+                  ]
+                }
+              ]
+            })
+          });
+          const createPayload = await readJson(createResponse);
+          const programId = createPayload.data.program.id;
+
+          const listResponse = await fetch(`${server.baseUrl}/api/v1/programs`, {
+            headers: createAuthHeaders()
+          });
+          const listPayload = await readJson(listResponse);
+
+          const otherUserListResponse = await fetch(`${server.baseUrl}/api/v1/programs`, {
+            headers: {
+              Authorization: "Bearer valid-new-user-token"
+            }
+          });
+          const otherUserListPayload = await readJson(otherUserListResponse);
+
+          const otherUserDetailResponse = await fetch(`${server.baseUrl}/api/v1/programs/${programId}`, {
+            headers: {
+              Authorization: "Bearer valid-new-user-token"
+            }
+          });
+
+          const followResponse = await fetch(`${server.baseUrl}/api/v1/programs/${programId}/follow`, {
+            method: "POST",
+            headers: createAuthHeaders()
+          });
+          const followPayload = await readJson(followResponse);
+
+          const dashboardResponse = await fetch(`${server.baseUrl}/api/v1/dashboard`, {
+            headers: createAuthHeaders()
+          });
+          const dashboardPayload = await readJson(dashboardResponse);
+
+          const startResponse = await fetch(`${server.baseUrl}/api/v1/workout-sessions/start`, {
+            method: "POST",
+            headers: createAuthHeaders({
+              "content-type": "application/json",
+              "Idempotency-Key": "start-ppl-program-http-key"
+            }),
+            body: JSON.stringify({})
+          });
+          const startPayload = await readJson(startResponse);
+
+          assert.equal(createResponse.status, 201);
+          assert.equal(createPayload.data.program.source, "custom");
+          assert.equal(createPayload.data.program.name, "Push Pull Legs");
+          assert.equal(createPayload.data.program.workouts.length, 3);
+          assert.equal(createPayload.data.program.workouts[0].name, "Push");
+          assert.equal(createPayload.data.program.workouts[0].exercises[0].targetSets, 3);
+          assert.equal(createPayload.data.program.workouts[1].exercises[0].targetReps, 10);
+          assert.equal(listResponse.status, 200);
+          assert.ok(
+            listPayload.data.programs.some((program: { id: string; source: string }) => program.id === programId && program.source === "custom")
+          );
+          assert.equal(otherUserListResponse.status, 200);
+          assert.equal(
+            otherUserListPayload.data.programs.some((program: { id: string }) => program.id === programId),
+            false
+          );
+          assert.equal(otherUserDetailResponse.status, 404);
+          assert.equal(followResponse.status, 201);
+          assert.equal(followPayload.data.activeProgram.program.id, programId);
+          assert.equal(followPayload.data.activeProgram.nextWorkoutTemplate.name, "Push");
+          assert.equal(dashboardResponse.status, 200);
+          assert.equal(dashboardPayload.data.activeProgram.program.name, "Push Pull Legs");
+          assert.equal(dashboardPayload.data.nextWorkoutTemplate.name, "Push");
+          assert.equal(startResponse.status, 201);
+          assert.equal(startPayload.data.programName, "Push Pull Legs");
+          assert.equal(startPayload.data.workoutName, "Push");
+          assert.equal(startPayload.data.exercises[0].exerciseName, "Bench Press");
+          assert.equal(startPayload.data.exercises[0].targetSets, 3);
+          assert.equal(startPayload.data.exercises[0].targetReps, 8);
+          assert.equal(startPayload.data.exercises[0].sets.length, 3);
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "POST /api/v1/programs validates custom program input",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        const server = await startHttpServer(context.db);
+
+        try {
+          const response = await fetch(`${server.baseUrl}/api/v1/programs`, {
+            method: "POST",
+            headers: createAuthHeaders({
+              "content-type": "application/json",
+              "Idempotency-Key": "create-invalid-program-http-key"
+            }),
+            body: JSON.stringify({
+              name: "Invalid Program",
+              workouts: [
+                {
+                  name: "Day 1",
+                  exercises: [
+                    {
+                      exerciseId: "exercise-1",
+                      targetSets: 0,
+                      targetReps: 8
+                    }
+                  ]
+                }
+              ]
+            })
+          });
+          const payload = await readJson(response);
+
+          assert.equal(response.status, 400);
+          assert.equal(payload.error.code, "VALIDATION_ERROR");
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
     name: "POST /api/v1/programs/:programId/follow switches active program when no workout is in progress",
     run: async () => {
       const context = await createWorkoutInfrastructureTestContext();

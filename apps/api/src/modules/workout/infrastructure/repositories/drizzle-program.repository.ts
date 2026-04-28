@@ -10,6 +10,7 @@ import type { ProgramRepository } from "../../repositories/interfaces/program.re
 import type { EnrollmentRecord } from "../../repositories/models/enrollment.persistence.js";
 import type { RepositoryOptions } from "../../repositories/models/persistence-context.js";
 import type {
+  CreateCustomProgramInput,
   CreateEnrollmentInput,
   ProgramDefinition,
   ProgramRecord,
@@ -27,6 +28,8 @@ import {
 function mapProgramRecord(row: typeof programs.$inferSelect): ProgramRecord {
   return {
     id: row.id,
+    userId: row.userId,
+    source: row.source,
     name: row.name,
     description: row.description,
     daysPerWeek: row.daysPerWeek,
@@ -55,12 +58,18 @@ function mapEnrollmentRecord(row: typeof userProgramEnrollments.$inferSelect): E
 export class DrizzleProgramRepository implements ProgramRepository {
   public constructor(private readonly db: any) {}
 
-  public async listActive(options?: RepositoryOptions): Promise<ProgramDefinition[]> {
+  public async listActive(userId: string, options?: RepositoryOptions): Promise<ProgramDefinition[]> {
     const executor = resolveExecutor(this.db, options);
     const programRows = await executor
       .select()
       .from(programs)
-      .where(and(eq(programs.isActive, true), sql`${programs.deletedAt} is null`))
+      .where(
+        and(
+          eq(programs.isActive, true),
+          sql`${programs.deletedAt} is null`,
+          sql`(${programs.source} = 'predefined' or ${programs.userId} = ${userId})`
+        )
+      )
       .orderBy(asc(programs.createdAt));
 
     return this.loadDefinitions(programRows, options);
@@ -68,6 +77,7 @@ export class DrizzleProgramRepository implements ProgramRepository {
 
   public async findActiveById(
     programId: string,
+    userId: string,
     options?: RepositoryOptions
   ): Promise<ProgramDefinition | null> {
     const executor = resolveExecutor(this.db, options);
@@ -75,12 +85,102 @@ export class DrizzleProgramRepository implements ProgramRepository {
       .select()
       .from(programs)
       .where(
-        and(eq(programs.id, programId), eq(programs.isActive, true), sql`${programs.deletedAt} is null`)
+        and(
+          eq(programs.id, programId),
+          eq(programs.isActive, true),
+          sql`${programs.deletedAt} is null`,
+          sql`(${programs.source} = 'predefined' or ${programs.userId} = ${userId})`
+        )
       )
       .limit(1);
 
     const [definition] = await this.loadDefinitions(programRows, options);
     return definition ?? null;
+  }
+
+  public async createCustomProgram(
+    input: CreateCustomProgramInput,
+    options?: RepositoryOptions
+  ): Promise<ProgramDefinition> {
+    const executor = resolveExecutor(this.db, options);
+    const exerciseIds = [...new Set(input.workouts.flatMap((workout) => workout.exercises.map((exercise) => exercise.exerciseId)))];
+    const activeExerciseRows =
+      exerciseIds.length === 0
+        ? []
+        : await executor
+            .select({ id: exercises.id })
+            .from(exercises)
+            .where(and(inArray(exercises.id, exerciseIds), eq(exercises.isActive, true)));
+
+    if (activeExerciseRows.length !== exerciseIds.length) {
+      throw new Error("One or more exercises in the custom program could not be found.");
+    }
+
+    const [programRow] = await executor
+      .insert(programs)
+      .values({
+        id: randomUUID(),
+        userId: input.userId,
+        source: "custom",
+        name: input.name,
+        description: null,
+        daysPerWeek: input.workouts.length,
+        sessionDurationMinutes: 60,
+        difficultyLevel: "beginner",
+        isActive: true,
+        deletedAt: null,
+        createdAt: input.createdAt,
+        updatedAt: input.createdAt
+      })
+      .returning();
+
+    if (!programRow) {
+      throw new Error("Custom program could not be created.");
+    }
+
+    for (const workout of input.workouts) {
+      const [templateRow] = await executor
+        .insert(workoutTemplates)
+        .values({
+          id: randomUUID(),
+          programId: programRow.id,
+          name: workout.name,
+          sequenceOrder: workout.sequenceOrder,
+          estimatedDurationMinutes: null,
+          isActive: true,
+          deletedAt: null,
+          createdAt: input.createdAt,
+          updatedAt: input.createdAt
+        })
+        .returning();
+
+      if (!templateRow) {
+        throw new Error("Custom program workout could not be created.");
+      }
+
+      if (workout.exercises.length > 0) {
+        await executor.insert(workoutTemplateExerciseEntries).values(
+          workout.exercises.map((exercise, index) => ({
+            id: randomUUID(),
+            workoutTemplateId: templateRow.id,
+            exerciseId: exercise.exerciseId,
+            sequenceOrder: index + 1,
+            targetSets: exercise.targetSets,
+            targetReps: exercise.targetReps,
+            restSeconds: exercise.restSeconds,
+            createdAt: input.createdAt,
+            updatedAt: input.createdAt
+          }))
+        );
+      }
+    }
+
+    const definition = await this.findActiveById(programRow.id, input.userId, options);
+    if (!definition) {
+      throw new Error("Created custom program could not be loaded.");
+    }
+
+    return definition;
   }
 
   public async createEnrollment(

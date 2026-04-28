@@ -55,7 +55,7 @@ export class GetDashboardUseCase {
         null;
 
       const [programDefinition, completedWorkoutCount] = await Promise.all([
-        this.programRepository.findActiveById(activeEnrollment.programId),
+        this.programRepository.findActiveById(activeEnrollment.programId, input.context.userId),
         this.workoutSessionRepository.countCompletedByUserIdAndProgramId(
           input.context.userId,
           activeEnrollment.programId

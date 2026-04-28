@@ -24,6 +24,9 @@ export type EquipmentType = (typeof equipmentTypes)[number];
 export const difficultyLevels = ["beginner", "intermediate", "advanced"] as const;
 export type DifficultyLevel = (typeof difficultyLevels)[number];
 
+export const programSources = ["predefined", "custom"] as const;
+export type ProgramSource = (typeof programSources)[number];
+
 export const enrollmentStatuses = ["active", "paused", "completed", "cancelled"] as const;
 export type EnrollmentStatus = (typeof enrollmentStatuses)[number];
 
@@ -48,4 +51,3 @@ export type ProgressMetricType = (typeof progressMetricTypes)[number];
 
 export const progressionResults = ["increased", "repeated", "reduced"] as const;
 export type ProgressionResult = (typeof progressionResults)[number];
-

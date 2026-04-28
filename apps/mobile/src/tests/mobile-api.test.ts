@@ -8,6 +8,7 @@ import {
   fetchWorkoutHistory,
   fetchWorkoutHistoryDetail,
   addCustomWorkoutExercise,
+  createCustomProgram,
   startWorkoutSession,
   logSet,
   completeWorkoutSession
@@ -293,6 +294,76 @@ export const mobileApiTestCases: MobileTestCase[] = [
         exerciseId: "exercise-1",
         targetSets: 3,
         targetReps: 8
+      });
+    }
+  },
+  {
+    name: "Workout API sends custom program payloads with idempotency",
+    run: async () => {
+      let requestPath: string | undefined;
+      let requestBody: string | undefined;
+      let idempotencyKey: string | null = null;
+
+      setMockFetch(async (input, init) => {
+        requestPath = input.toString();
+        requestBody = init?.body as string | undefined;
+        idempotencyKey =
+          init?.headers && !(init.headers instanceof Headers)
+            ? ((init.headers as Record<string, string>)["Idempotency-Key"] ?? null)
+            : init?.headers instanceof Headers
+              ? init.headers.get("Idempotency-Key")
+              : null;
+        return {
+          ok: true,
+          status: 201,
+          json: async () => ({
+            data: {
+              program: {
+                id: "program-custom-1"
+              }
+            },
+            meta: {
+              replayed: false
+            }
+          })
+        };
+      });
+
+      await createCustomProgram({
+        request: {
+          name: "Push Pull Legs",
+          workouts: [
+            {
+              name: "Push",
+              exercises: [
+                {
+                  exerciseId: "exercise-1",
+                  targetSets: 3,
+                  targetReps: 8
+                }
+              ]
+            }
+          ]
+        },
+        idempotencyKey: "create-program-key"
+      });
+
+      assert.match(requestPath ?? "", /\/programs$/);
+      assert.equal(idempotencyKey, "create-program-key");
+      assert.deepEqual(JSON.parse(requestBody ?? "{}"), {
+        name: "Push Pull Legs",
+        workouts: [
+          {
+            name: "Push",
+            exercises: [
+              {
+                exerciseId: "exercise-1",
+                targetSets: 3,
+                targetReps: 8
+              }
+            ]
+          }
+        ]
       });
     }
   },

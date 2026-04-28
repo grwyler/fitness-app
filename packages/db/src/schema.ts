@@ -18,6 +18,7 @@ import {
   effortFeedbackValues,
   enrollmentStatuses,
   exerciseCategories,
+  programSources,
   progressMetricTypes,
   setStatuses,
   unitSystems,
@@ -32,6 +33,7 @@ const workoutSessionStatusEnum = pgEnum("workout_session_status", workoutSession
 const effortFeedbackEnum = pgEnum("effort_feedback", effortFeedbackValues);
 const setStatusEnum = pgEnum("set_status", setStatuses);
 const progressMetricTypeEnum = pgEnum("progress_metric_type", progressMetricTypes);
+const programSourceEnum = pgEnum("program_source", programSources);
 const idempotencyStatusEnum = pgEnum("idempotency_status", ["pending", "completed"]);
 
 const timestamps = {
@@ -88,6 +90,8 @@ export const programs = pgTable(
   "programs",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").references(() => users.id),
+    source: programSourceEnum("source").notNull().default("predefined"),
     name: text("name").notNull(),
     description: text("description"),
     daysPerWeek: integer("days_per_week").notNull(),
@@ -99,6 +103,7 @@ export const programs = pgTable(
   },
   (table) => ({
     activeIndex: index("idx_programs_is_active").on(table.isActive),
+    userSourceIndex: index("idx_programs_user_source").on(table.userId, table.source),
     validDays: check("chk_programs_days_per_week", sql`${table.daysPerWeek} between 1 and 7`),
     validDuration: check("chk_programs_session_duration_minutes", sql`${table.sessionDurationMinutes} > 0`)
   })

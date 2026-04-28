@@ -27,7 +27,11 @@ export class FollowProgramUseCase {
         tx
       });
 
-      const programDefinition = await this.programRepository.findActiveById(input.programId, { tx });
+      const programDefinition = await this.programRepository.findActiveById(
+        input.programId,
+        input.context.userId,
+        { tx }
+      );
       if (!programDefinition) {
         throw new WorkoutApplicationError("PROGRAM_NOT_FOUND", "The requested program could not be found.");
       }
