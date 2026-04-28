@@ -16,10 +16,12 @@ import { createAuthenticateRequestMiddleware } from "./lib/auth/auth.middleware.
 import { createRequestContextMiddleware } from "./lib/auth/request-context.middleware.js";
 import { createProtectedAuthRouter, createPublicAuthRouter } from "./lib/auth/auth.routes.js";
 import { env } from "./config/env.js";
+import { createDevResetRouter } from "./modules/dev/reset-test-user-data.routes.js";
 
 type DatabaseLike = {
   select: (...args: any[]) => any;
   insert: (...args: any[]) => any;
+  transaction: <T>(operation: (tx: any) => Promise<T>) => Promise<T>;
 };
 
 const defaultAllowedOrigins = [
@@ -83,6 +85,7 @@ export function createApp(options?: {
           database: options.database
         })
       );
+      app.use("/api/v1", createDevResetRouter(options.database));
     }
 
     app.use("/api/v1", options.workoutRouter);

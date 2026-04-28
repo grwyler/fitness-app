@@ -17,6 +17,7 @@ The core backend slice currently supports:
 - `POST /api/v1/workout-sessions/start`
 - `POST /api/v1/sets/:setId/log`
 - `POST /api/v1/workout-sessions/:sessionId/complete`
+- `POST /api/v1/dev/reset-test-user-data` for development/manual validation of `test@test.com` only
 
 ## Run the API
 
@@ -141,6 +142,20 @@ For local development, the seeded default internal user id is:
 - `11111111-1111-1111-1111-111111111111`
 
 The MVP auth endpoints are `POST /api/v1/auth/signup`, `POST /api/v1/auth/signin`, and `GET /api/v1/auth/me`.
+
+## Test user reset
+
+`POST /api/v1/dev/reset-test-user-data` is a protected development/manual-validation endpoint for the test account only.
+
+Safety rules:
+
+- Requires `Authorization: Bearer <app-issued-jwt>`.
+- Allows only authenticated email `test@test.com`.
+- Returns `403 FORBIDDEN` for every other authenticated user.
+- Deletes only the resolved authenticated user's workout/history/progression/program domain rows.
+- Preserves the user account row, email/password credentials, and bearer-token auth setup.
+
+See [docs/TEST_USER_RESET.md](C:\Users\Grwyl\repos\fitness-app\docs\TEST_USER_RESET.md) for the mobile flow, endpoint contract, and full safety restrictions.
 
 ## Idempotency
 

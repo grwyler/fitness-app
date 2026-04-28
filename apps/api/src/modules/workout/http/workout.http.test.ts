@@ -1,6 +1,18 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
-import { progressMetrics, progressionStates, sets, userProgramEnrollments, users, workoutSessions } from "@fitness/db";
+import {
+  exerciseEntries,
+  idempotencyRecords,
+  progressMetrics,
+  progressionStates,
+  programs,
+  sets,
+  userProgramEnrollments,
+  users,
+  workoutSessions,
+  workoutTemplateExerciseEntries,
+  workoutTemplates
+} from "@fitness/db";
 import type { Request } from "express";
 import { createApp } from "../../../app.js";
 import { createAuthenticateRequestMiddleware } from "../../../lib/auth/auth.middleware.js";
@@ -36,6 +48,12 @@ function createTestAuth() {
 
       if (token === "valid-new-user-token") {
         request.authUser = { email: "new-user@example.com", userId: "auth-user-new" };
+        next();
+        return;
+      }
+
+      if (token === "valid-test-user-token") {
+        request.authUser = { email: "test@test.com", userId: "test-user" };
         next();
         return;
       }
@@ -88,8 +106,170 @@ function createAuthHeaders(extraHeaders?: Record<string, string>) {
   };
 }
 
+function createTestUserAuthHeaders(extraHeaders?: Record<string, string>) {
+  return {
+    Authorization: "Bearer valid-test-user-token",
+    ...(extraHeaders ?? {})
+  };
+}
+
 async function readJson(response: Response) {
   return (await response.json()) as Record<string, any>;
+}
+
+async function seedResettableTestUserData(context: Awaited<ReturnType<typeof createWorkoutInfrastructureTestContext>>) {
+  const now = new Date("2026-04-24T10:00:00.000Z");
+
+  await context.db.insert(users).values({
+    id: "test-user",
+    authProviderId: "test-user",
+    email: "test@test.com",
+    passwordHash: "preserved-password-hash",
+    displayName: "test",
+    timezone: "America/New_York",
+    unitSystem: "imperial",
+    experienceLevel: "beginner",
+    createdAt: now,
+    updatedAt: now
+  });
+
+  await context.db.insert(programs).values({
+    id: "test-custom-program",
+    userId: "test-user",
+    source: "custom",
+    name: "Test Custom Program",
+    description: "Only owned by the resettable test user.",
+    daysPerWeek: 1,
+    sessionDurationMinutes: 30,
+    difficultyLevel: "beginner",
+    isActive: true,
+    createdAt: now,
+    updatedAt: now
+  });
+
+  await context.db.insert(workoutTemplates).values({
+    id: "test-custom-template",
+    programId: "test-custom-program",
+    name: "Test Custom Workout",
+    sequenceOrder: 1,
+    estimatedDurationMinutes: 30,
+    isActive: true,
+    createdAt: now,
+    updatedAt: now
+  });
+
+  await context.db.insert(workoutTemplateExerciseEntries).values({
+    id: "test-template-entry",
+    workoutTemplateId: "test-custom-template",
+    exerciseId: "exercise-1",
+    sequenceOrder: 1,
+    targetSets: 1,
+    targetReps: 8,
+    restSeconds: 60,
+    createdAt: now,
+    updatedAt: now
+  });
+
+  await context.db.insert(userProgramEnrollments).values({
+    id: "test-enrollment",
+    userId: "test-user",
+    programId: "test-custom-program",
+    status: "active",
+    startedAt: now,
+    completedAt: null,
+    currentWorkoutTemplateId: "test-custom-template",
+    createdAt: now,
+    updatedAt: now
+  });
+
+  await context.db.insert(workoutSessions).values({
+    id: "test-session",
+    userId: "test-user",
+    programId: "test-custom-program",
+    workoutTemplateId: "test-custom-template",
+    status: "completed",
+    startedAt: now,
+    completedAt: new Date("2026-04-24T10:30:00.000Z"),
+    durationSeconds: 1800,
+    isPartial: false,
+    userEffortFeedback: "just_right",
+    programNameSnapshot: "Test Custom Program",
+    workoutNameSnapshot: "Test Custom Workout",
+    createdAt: now,
+    updatedAt: now
+  });
+
+  await context.db.insert(exerciseEntries).values({
+    id: "test-entry",
+    workoutSessionId: "test-session",
+    exerciseId: "exercise-1",
+    sequenceOrder: 1,
+    targetSets: 1,
+    targetReps: 8,
+    targetWeightLbs: "135.00",
+    restSeconds: 60,
+    effortFeedback: "just_right",
+    completedAt: new Date("2026-04-24T10:20:00.000Z"),
+    exerciseNameSnapshot: "Bench Press",
+    exerciseCategorySnapshot: "compound",
+    progressionRuleSnapshot: { incrementLbs: 5 },
+    createdAt: now,
+    updatedAt: now
+  });
+
+  await context.db.insert(sets).values({
+    id: "test-set",
+    exerciseEntryId: "test-entry",
+    setNumber: 1,
+    targetReps: 8,
+    actualReps: 8,
+    targetWeightLbs: "135.00",
+    actualWeightLbs: "135.00",
+    status: "completed",
+    completedAt: new Date("2026-04-24T10:20:00.000Z"),
+    createdAt: now,
+    updatedAt: now
+  });
+
+  await context.db.insert(progressionStates).values({
+    id: "test-progression",
+    userId: "test-user",
+    exerciseId: "exercise-1",
+    currentWeightLbs: "140.00",
+    lastCompletedWeightLbs: "135.00",
+    consecutiveFailures: 0,
+    lastEffortFeedback: "just_right",
+    lastPerformedAt: now,
+    createdAt: now,
+    updatedAt: now
+  });
+
+  await context.db.insert(progressMetrics).values({
+    id: "test-metric",
+    userId: "test-user",
+    exerciseId: "exercise-1",
+    workoutSessionId: "test-session",
+    metricType: "workout_completed",
+    metricValue: "1.00",
+    displayText: "Workout completed",
+    recordedAt: now,
+    createdAt: now
+  });
+
+  await context.db.insert(idempotencyRecords).values({
+    id: "test-idempotency",
+    userId: "test-user",
+    key: "test-key",
+    routeFamily: "test-route",
+    targetResourceId: "test-session",
+    requestFingerprint: "test-fingerprint",
+    status: "completed",
+    responseStatusCode: 200,
+    responseBody: "{}",
+    completedAt: now,
+    createdAt: now,
+    updatedAt: now
+  });
 }
 
 export const workoutHttpTestCases: HttpTestCase[] = [
@@ -204,6 +384,108 @@ export const workoutHttpTestCases: HttpTestCase[] = [
 
           assert.equal(meResponse.status, 200);
           assert.equal(mePayload.data.user.email, "mvp@example.com");
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "POST /api/v1/dev/reset-test-user-data resets only test@test.com domain data",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        await seedInProgressWorkout(context);
+        await seedResettableTestUserData(context);
+        const server = await startHttpServer(context.db);
+
+        try {
+          const response = await fetch(`${server.baseUrl}/api/v1/dev/reset-test-user-data`, {
+            method: "POST",
+            headers: createTestUserAuthHeaders({
+              "content-type": "application/json"
+            }),
+            body: JSON.stringify({})
+          });
+          const payload = await readJson(response);
+
+          const userRows = await context.db.select().from(users);
+          const sessionRows = await context.db.select().from(workoutSessions);
+          const exerciseEntryRows = await context.db.select().from(exerciseEntries);
+          const setRows = await context.db.select().from(sets);
+          const enrollmentRows = await context.db.select().from(userProgramEnrollments);
+          const progressionRows = await context.db.select().from(progressionStates);
+          const progressMetricRows = await context.db.select().from(progressMetrics);
+          const idempotencyRows = await context.db.select().from(idempotencyRecords);
+          const programRows = await context.db.select().from(programs);
+          const templateRows = await context.db.select().from(workoutTemplates);
+          const templateEntryRows = await context.db.select().from(workoutTemplateExerciseEntries);
+          const preservedTestUser = userRows.find((user) => user.id === "test-user");
+
+          assert.equal(response.status, 200);
+          assert.equal(payload.data.email, "test@test.com");
+          assert.equal(preservedTestUser?.email, "test@test.com");
+          assert.equal(preservedTestUser?.passwordHash, "preserved-password-hash");
+          assert.equal(sessionRows.some((session) => session.userId === "test-user"), false);
+          assert.equal(exerciseEntryRows.some((entry) => entry.id === "test-entry"), false);
+          assert.equal(setRows.some((set) => set.id === "test-set"), false);
+          assert.equal(enrollmentRows.some((enrollment) => enrollment.userId === "test-user"), false);
+          assert.equal(progressionRows.some((state) => state.userId === "test-user"), false);
+          assert.equal(progressMetricRows.some((metric) => metric.userId === "test-user"), false);
+          assert.equal(idempotencyRows.some((record) => record.userId === "test-user"), false);
+          assert.equal(programRows.some((program) => program.id === "test-custom-program"), false);
+          assert.equal(templateRows.some((template) => template.id === "test-custom-template"), false);
+          assert.equal(templateEntryRows.some((entry) => entry.id === "test-template-entry"), false);
+
+          assert.ok(userRows.some((user) => user.id === "user-1"));
+          assert.ok(sessionRows.some((session) => session.userId === "user-1"));
+          assert.ok(setRows.some((set) => set.id === "set-1"));
+          assert.ok(enrollmentRows.some((enrollment) => enrollment.userId === "user-1"));
+          assert.ok(progressionRows.some((state) => state.userId === "user-1"));
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "POST /api/v1/dev/reset-test-user-data rejects non-test users",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        await seedResettableTestUserData(context);
+        const server = await startHttpServer(context.db);
+
+        try {
+          const response = await fetch(`${server.baseUrl}/api/v1/dev/reset-test-user-data`, {
+            method: "POST",
+            headers: createAuthHeaders({
+              "content-type": "application/json"
+            }),
+            body: JSON.stringify({})
+          });
+          const payload = await readJson(response);
+          const testSessions = (await context.db.select().from(workoutSessions)).filter(
+            (session) => session.userId === "test-user"
+          );
+          const testProgression = (await context.db.select().from(progressionStates)).filter(
+            (state) => state.userId === "test-user"
+          );
+          const testUser = (await context.db.select().from(users)).find((user) => user.id === "test-user");
+
+          assert.equal(response.status, 403);
+          assert.equal(payload.error.code, "FORBIDDEN");
+          assert.equal(testSessions.length, 1);
+          assert.equal(testProgression.length, 1);
+          assert.equal(testUser?.email, "test@test.com");
         } finally {
           await server.close();
         }

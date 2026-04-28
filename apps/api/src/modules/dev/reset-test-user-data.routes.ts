@@ -144,7 +144,7 @@ export function createDevResetRouter(database: DatabaseLike) {
 
   router.post("/dev/reset-test-user-data", async (request, response, next) => {
     try {
-      if (request.authUser?.email.toLowerCase() !== TEST_USER_EMAIL) {
+      if (request.authUser?.email !== TEST_USER_EMAIL) {
         throw new AppError(403, "FORBIDDEN", "Resetting test data is only available for the test account.");
       }
 

@@ -1,15 +1,17 @@
 import { useState } from "react";
 import type { ActiveProgramDto, ProgramDto, ProgramWorkoutTemplateDto } from "@fitness/shared";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Screen } from "../components/Screen";
 import { LoadingState } from "../components/LoadingState";
 import { ErrorState } from "../components/ErrorState";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { FeedbackButton } from "../features/feedback/components/FeedbackButton";
+import { useAppAuth } from "../core/auth/AuthProvider";
 import { useDashboard } from "../features/workout/hooks/useDashboard";
 import { useFollowProgram } from "../features/workout/hooks/useFollowProgram";
 import { usePrograms } from "../features/workout/hooks/usePrograms";
+import { useResetTestUserData } from "../features/workout/hooks/useResetTestUserData";
 import { useStartWorkout } from "../features/workout/hooks/useStartWorkout";
 import {
   findProgramWorkoutById,
@@ -25,17 +27,53 @@ import { colors, spacing } from "../theme/tokens";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Dashboard">;
 
+const TEST_USER_EMAIL = "test@test.com";
+const RESET_TEST_DATA_CONFIRMATION =
+  "This will delete workout history, custom workouts, progression state, and program progress for test@test.com only. Continue?";
+
 export function DashboardScreen({ navigation }: Props) {
   const [isProgramPickerOpen, setIsProgramPickerOpen] = useState(false);
   const [isWorkoutPickerOpen, setIsWorkoutPickerOpen] = useState(false);
   const [selectedStartingWorkoutId, setSelectedStartingWorkoutId] = useState<string | null>(null);
+  const [resetFeedback, setResetFeedback] = useState<string | null>(null);
+  const auth = useAppAuth();
   const dashboardQuery = useDashboard();
   const programsQuery = usePrograms(
     Boolean(dashboardQuery.data && (!dashboardQuery.data.activeProgram || isProgramPickerOpen))
   );
   const followProgramMutation = useFollowProgram();
+  const resetTestUserDataMutation = useResetTestUserData();
   const startWorkoutMutation = useStartWorkout();
   const [lastAction, setLastAction] = useState<string | null>(null);
+  const canResetTestData = auth.userEmail?.toLowerCase() === TEST_USER_EMAIL;
+
+  function runResetTestData() {
+    setLastAction("reset_test_data");
+    setResetFeedback(null);
+    resetTestUserDataMutation.mutate(undefined, {
+      onSuccess: () => {
+        setResetFeedback("Test data reset complete.");
+        void dashboardQuery.refetch();
+      },
+      onError: (error) => {
+        setResetFeedback(error instanceof Error ? error.message : "Unable to reset test data.");
+      }
+    });
+  }
+
+  function confirmResetTestData() {
+    Alert.alert("Reset Test Data", RESET_TEST_DATA_CONFIRMATION, [
+      {
+        style: "cancel",
+        text: "Cancel"
+      },
+      {
+        onPress: runResetTestData,
+        style: "destructive",
+        text: "Reset Test Data"
+      }
+    ]);
+  }
 
   if (dashboardQuery.isLoading) {
     return (
@@ -335,6 +373,24 @@ export function DashboardScreen({ navigation }: Props) {
           />
         ) : null}
       </View>
+
+      {canResetTestData ? (
+        <View style={styles.card}>
+          <Text style={styles.cardLabel}>Dev/Test Tools</Text>
+          <Text style={styles.cardTitle}>Test account reset</Text>
+          <Text style={styles.cardBody}>
+            Clears workout history, custom workouts, progression state, and program progress for test@test.com only.
+          </Text>
+          <PrimaryButton
+            label="Reset Test Data"
+            tone="danger"
+            loading={resetTestUserDataMutation.isPending}
+            disabled={resetTestUserDataMutation.isPending}
+            onPress={confirmResetTestData}
+          />
+          {resetFeedback ? <Text style={styles.cardBody}>{resetFeedback}</Text> : null}
+        </View>
+      ) : null}
 
       <ProgramPickerModal
         activeProgramId={activeProgram?.program.id ?? null}

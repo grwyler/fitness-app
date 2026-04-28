@@ -26,6 +26,13 @@ export async function fetchDashboard() {
   return apiRequest<GetDashboardResponse>("/dashboard");
 }
 
+export async function resetTestUserData() {
+  return apiRequest<{ email: string; reset: Record<string, number> }>("/dev/reset-test-user-data", {
+    method: "POST",
+    body: {}
+  });
+}
+
 export async function fetchPrograms() {
   return apiRequest<ListProgramsResponse>("/programs");
 }
