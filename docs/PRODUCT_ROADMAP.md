@@ -73,7 +73,7 @@ A user can:
   - current program
   - next workout
   - workout intent (sets/reps)
-- [ ] Show where the user is in the program (week/day)
+- [x] Show where the user is in the program (week/day)
 
 ---
 

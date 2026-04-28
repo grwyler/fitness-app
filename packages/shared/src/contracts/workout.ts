@@ -73,6 +73,13 @@ export type NextWorkoutTemplateDto = {
   estimatedDurationMinutes: number | null;
 };
 
+export type ProgramPositionDto = {
+  workoutNumber: number;
+  weekNumber: number | null;
+  dayNumber: number | null;
+  label: string;
+};
+
 export type ProgramWorkoutExerciseDto = {
   id: UUID;
   exerciseId: UUID;
@@ -110,6 +117,7 @@ export type ActiveProgramDto = {
   completedAt: ISODateTime | null;
   nextWorkoutTemplate: NextWorkoutTemplateDto | null;
   completedWorkoutCount: number;
+  currentPosition: ProgramPositionDto;
 };
 
 export type WorkoutHistoryItemDto = {

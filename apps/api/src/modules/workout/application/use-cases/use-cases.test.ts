@@ -319,6 +319,7 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
       assert.equal(programsResult.data.programs[0]?.workouts[0]?.exercises[0]?.exerciseName, "Bench Press");
       assert.equal(createdEnrollmentTemplateId, "template-1");
       assert.equal(followResult.data.activeProgram.nextWorkoutTemplate?.id, "template-1");
+      assert.equal(followResult.data.activeProgram.currentPosition.label, "Week 1 · Day 1");
     }
   },
   {
@@ -1282,6 +1283,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
       assert.equal(currentWorkoutResult.data.activeWorkoutSession?.id, "session-1");
       assert.equal(dashboardResult.data.activeProgram?.program.name, "Beginner Full Body V1");
       assert.equal(dashboardResult.data.activeProgram?.completedWorkoutCount, 1);
+      assert.equal(dashboardResult.data.activeProgram?.currentPosition.label, "Week 1 · Day 2");
+      assert.equal(dashboardResult.data.activeProgram?.currentPosition.weekNumber, 1);
+      assert.equal(dashboardResult.data.activeProgram?.currentPosition.dayNumber, 2);
       assert.equal(currentWorkoutResult.meta.replayed, false);
       assert.equal(dashboardResult.data.recentWorkoutHistory[0]?.highlights[0], "Workout completed");
       assert.equal(historyResult.data.items[0]?.workoutName, "Workout A");

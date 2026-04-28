@@ -93,7 +93,24 @@ function createActiveProgram(overrides?: {
       sequenceOrder: 1,
       estimatedDurationMinutes: 60
     },
-    completedWorkoutCount: overrides?.completedWorkoutCount ?? 0
+    completedWorkoutCount: overrides?.completedWorkoutCount ?? 0,
+    currentPosition: {
+      workoutNumber: (overrides?.completedWorkoutCount ?? 0) + 1,
+      weekNumber:
+        overrides?.daysPerWeek === 0
+          ? null
+          : Math.floor((overrides?.completedWorkoutCount ?? 0) / (overrides?.daysPerWeek ?? 3)) + 1,
+      dayNumber:
+        overrides?.daysPerWeek === 0
+          ? null
+          : ((overrides?.completedWorkoutCount ?? 0) % (overrides?.daysPerWeek ?? 3)) + 1,
+      label:
+        overrides?.daysPerWeek === 0
+          ? `Workout ${(overrides?.completedWorkoutCount ?? 0) + 1}`
+          : `Week ${
+              Math.floor((overrides?.completedWorkoutCount ?? 0) / (overrides?.daysPerWeek ?? 3)) + 1
+            } · Day ${((overrides?.completedWorkoutCount ?? 0) % (overrides?.daysPerWeek ?? 3)) + 1}`
+    }
   };
 }
 
@@ -101,14 +118,14 @@ export const dashboardProgramTestCases: MobileTestCase[] = [
   {
     name: "Dashboard program label derives next week and day from completed count",
     run: () => {
-      assert.equal(getNextProgramPositionLabel(createActiveProgram()), "Week 1 / Day 1");
+      assert.equal(getNextProgramPositionLabel(createActiveProgram()), "Week 1 · Day 1");
       assert.equal(
         getNextProgramPositionLabel(createActiveProgram({ completedWorkoutCount: 2 })),
-        "Week 1 / Day 3"
+        "Week 1 · Day 3"
       );
       assert.equal(
         getNextProgramPositionLabel(createActiveProgram({ completedWorkoutCount: 3 })),
-        "Week 2 / Day 1"
+        "Week 2 · Day 1"
       );
     }
   },
@@ -158,7 +175,7 @@ export const dashboardProgramTestCases: MobileTestCase[] = [
           activeProgram,
           workout: workoutB
         }),
-        "Week 1 / Day 2"
+        "Week 1 · Day 2"
       );
     }
   }

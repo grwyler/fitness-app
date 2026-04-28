@@ -8,6 +8,7 @@ import type {
   LogSetResponse,
   NextWorkoutTemplateDto,
   ProgramDto,
+  ProgramPositionDto,
   ProgressMetricDto,
   ProgressionUpdateDto,
   WeightValueDto,
@@ -142,6 +143,33 @@ export function mapProgramDto(definition: ProgramDefinition): ProgramDto {
   };
 }
 
+function mapProgramPositionDto(input: {
+  completedWorkoutCount: number;
+  daysPerWeek: number;
+}): ProgramPositionDto {
+  const completedWorkoutCount = Math.max(0, Math.floor(input.completedWorkoutCount));
+  const workoutNumber = completedWorkoutCount + 1;
+
+  if (!Number.isInteger(input.daysPerWeek) || input.daysPerWeek <= 0) {
+    return {
+      workoutNumber,
+      weekNumber: null,
+      dayNumber: null,
+      label: `Workout ${workoutNumber}`
+    };
+  }
+
+  const weekNumber = Math.floor(completedWorkoutCount / input.daysPerWeek) + 1;
+  const dayNumber = (completedWorkoutCount % input.daysPerWeek) + 1;
+
+  return {
+    workoutNumber,
+    weekNumber,
+    dayNumber,
+    label: `Week ${weekNumber} · Day ${dayNumber}`
+  };
+}
+
 export function mapActiveProgramDto(input: {
   enrollment: EnrollmentRecord;
   programDefinition: ProgramDefinition;
@@ -155,7 +183,11 @@ export function mapActiveProgramDto(input: {
     startedAt: input.enrollment.startedAt.toISOString(),
     completedAt: toIsoString(input.enrollment.completedAt),
     nextWorkoutTemplate: mapNextWorkoutTemplateDto(input.nextWorkoutTemplate),
-    completedWorkoutCount: input.completedWorkoutCount
+    completedWorkoutCount: input.completedWorkoutCount,
+    currentPosition: mapProgramPositionDto({
+      completedWorkoutCount: input.completedWorkoutCount,
+      daysPerWeek: input.programDefinition.program.daysPerWeek
+    })
   };
 }
 

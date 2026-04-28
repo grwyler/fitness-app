@@ -5,6 +5,10 @@ export function getNextProgramPositionLabel(activeProgram: ActiveProgramDto | nu
     return null;
   }
 
+  if (activeProgram.currentPosition?.label) {
+    return activeProgram.currentPosition.label;
+  }
+
   const completedWorkoutCount = Math.max(0, activeProgram.completedWorkoutCount);
   const daysPerWeek = activeProgram.program.daysPerWeek;
   const nextWorkoutNumber = completedWorkoutCount + 1;
@@ -16,7 +20,7 @@ export function getNextProgramPositionLabel(activeProgram: ActiveProgramDto | nu
   const week = Math.floor(completedWorkoutCount / daysPerWeek) + 1;
   const day = (completedWorkoutCount % daysPerWeek) + 1;
 
-  return `Week ${week} / Day ${day}`;
+  return `Week ${week} · Day ${day}`;
 }
 
 export function findProgramWorkoutById(input: {
@@ -60,7 +64,7 @@ export function getProgramWorkoutPositionLabel(input: {
   const week = Math.floor((workoutNumber - 1) / daysPerWeek) + 1;
   const day = ((workoutNumber - 1) % daysPerWeek) + 1;
 
-  return `Week ${week} / Day ${day}`;
+  return `Week ${week} · Day ${day}`;
 }
 
 export function getWorkoutIntentSummary(workout: ProgramWorkoutTemplateDto | null | undefined) {

@@ -230,6 +230,7 @@ export const workoutHttpTestCases: HttpTestCase[] = [
 
           assert.equal(response.status, 200);
           assert.equal(payload.data.nextWorkoutTemplate.id, "template-1");
+          assert.equal(payload.data.activeProgram.currentPosition.label, "Week 1 · Day 1");
           assert.equal(payload.data.activeWorkoutSession, null);
           assert.equal(payload.meta.replayed, false);
         } finally {
@@ -853,6 +854,7 @@ export const workoutHttpTestCases: HttpTestCase[] = [
           assert.equal(dashboardResponse.status, 200);
           assert.equal(dashboardPayload.data.activeWorkoutSession, null);
           assert.equal(dashboardPayload.data.nextWorkoutTemplate.id, "template-2");
+          assert.equal(dashboardPayload.data.activeProgram.currentPosition.label, "Week 1 · Day 2");
           assert.ok(
             dashboardPayload.data.recentWorkoutHistory[0].highlights.includes("Workout completed")
           );
