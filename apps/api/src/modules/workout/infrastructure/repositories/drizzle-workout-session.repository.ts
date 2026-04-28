@@ -3,9 +3,12 @@ import { randomUUID } from "node:crypto";
 import type { WorkoutSessionRepository } from "../../repositories/interfaces/workout-session.repository.js";
 import type { RepositoryOptions } from "../../repositories/models/persistence-context.js";
 import type {
+  AppendCustomExerciseInput,
+  AppendWorkoutSetInput,
   CompletedWorkoutProgressionRecord,
   CompleteWorkoutSessionPersistenceInput,
   CreateWorkoutSessionGraphInput,
+  DeleteWorkoutSetInput,
   ExerciseEntryRecord,
   PersistExerciseEntryFeedbackInput,
   SetRecord,
@@ -241,6 +244,119 @@ export class DrizzleWorkoutSessionRepository implements WorkoutSessionRepository
       exerciseEntries: insertedExerciseEntries.map(mapExerciseEntryRecord),
       sets: insertedSets.map(mapSetRecord)
     };
+  }
+
+  public async appendCustomExercise(
+    input: AppendCustomExerciseInput,
+    options?: RepositoryOptions
+  ): Promise<WorkoutSessionGraph> {
+    const executor = resolveExecutor(this.db, options);
+    const [exerciseEntryRow] = await executor
+      .insert(exerciseEntries)
+      .values({
+        id: randomUUID(),
+        workoutSessionId: input.sessionId,
+        ...input.exerciseEntry,
+        targetWeightLbs: input.exerciseEntry.targetWeightLbs.toString()
+      })
+      .returning();
+
+    if (!exerciseEntryRow) {
+      throw new Error(`Exercise entry could not be created for session ${input.sessionId}.`);
+    }
+
+    for (const setInput of input.sets) {
+      await executor.insert(sets).values({
+        id: randomUUID(),
+        exerciseEntryId: exerciseEntryRow.id,
+        ...setInput,
+        targetWeightLbs: setInput.targetWeightLbs.toString(),
+        actualWeightLbs: setInput.actualWeightLbs === null ? null : setInput.actualWeightLbs.toString()
+      });
+    }
+
+    const graph = await this.loadSessionGraph(input.sessionId, executor);
+    if (!graph) {
+      throw new Error(`Workout session ${input.sessionId} could not be reloaded after adding an exercise.`);
+    }
+
+    return graph;
+  }
+
+  public async appendWorkoutSet(
+    input: AppendWorkoutSetInput,
+    options?: RepositoryOptions
+  ): Promise<WorkoutSessionGraph> {
+    const executor = resolveExecutor(this.db, options);
+    const [insertedSet] = await executor
+      .insert(sets)
+      .values({
+        id: randomUUID(),
+        exerciseEntryId: input.exerciseEntryId,
+        ...input.set,
+        targetWeightLbs: input.set.targetWeightLbs.toString(),
+        actualWeightLbs: input.set.actualWeightLbs === null ? null : input.set.actualWeightLbs.toString()
+      })
+      .returning();
+
+    if (!insertedSet) {
+      throw new Error(`Set could not be created for exercise entry ${input.exerciseEntryId}.`);
+    }
+
+    const [exerciseEntryRow] = await executor
+      .update(exerciseEntries)
+      .set({
+        targetSets: input.targetSets,
+        updatedAt: new Date()
+      })
+      .where(eq(exerciseEntries.id, input.exerciseEntryId))
+      .returning();
+
+    if (!exerciseEntryRow) {
+      throw new Error(`Exercise entry ${input.exerciseEntryId} could not be updated after adding a set.`);
+    }
+
+    const graph = await this.loadSessionGraph(exerciseEntryRow.workoutSessionId, executor);
+    if (!graph) {
+      throw new Error(`Workout session could not be reloaded after adding a set.`);
+    }
+
+    return graph;
+  }
+
+  public async deleteWorkoutSet(
+    input: DeleteWorkoutSetInput,
+    options?: RepositoryOptions
+  ): Promise<WorkoutSessionGraph> {
+    const executor = resolveExecutor(this.db, options);
+    const [deletedSet] = await executor
+      .delete(sets)
+      .where(eq(sets.id, input.setId))
+      .returning();
+
+    if (!deletedSet) {
+      throw new Error(`Set ${input.setId} was not found for deletion.`);
+    }
+
+    const [exerciseEntryRow] = await executor
+      .update(exerciseEntries)
+      .set({
+        targetSets: input.targetSets,
+        updatedAt: new Date()
+      })
+      .where(eq(exerciseEntries.id, input.exerciseEntryId))
+      .returning();
+
+    if (!exerciseEntryRow) {
+      throw new Error(`Exercise entry ${input.exerciseEntryId} could not be updated after deleting a set.`);
+    }
+
+    const graph = await this.loadSessionGraph(exerciseEntryRow.workoutSessionId, executor);
+    if (!graph) {
+      throw new Error(`Workout session could not be reloaded after deleting a set.`);
+    }
+
+    return graph;
   }
 
   public async updateLoggedSet(

@@ -5,7 +5,7 @@ import { getAuthToken, getLastKnownAuthTokenSource } from "../core/auth/auth-bri
 import { appendAuthDebugTimeline, logSafeAuthDiagnostic, setLastAuthDebugMessage } from "../core/auth/auth-debug";
 
 type RequestOptions = {
-  method?: "GET" | "POST";
+  method?: "GET" | "POST" | "DELETE";
   body?: unknown;
   idempotencyKey?: string;
 };

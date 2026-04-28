@@ -867,6 +867,62 @@ export const workoutHttpTestCases: HttpTestCase[] = [
     }
   },
   {
+    name: "POST and DELETE set mutations update an active workout exercise",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        await seedInProgressWorkout(context, {
+          setStatuses: ["pending", "pending", "pending"],
+          actualReps: [0, 0, 0]
+        });
+        const server = await startHttpServer(context.db);
+
+        try {
+          const addResponse = await fetch(
+            `${server.baseUrl}/api/v1/workout-sessions/session-1/exercises/entry-1/sets`,
+            {
+              method: "POST",
+              headers: createAuthHeaders({
+                "content-type": "application/json",
+                "Idempotency-Key": "add-set-http-key-1"
+              }),
+              body: JSON.stringify({})
+            }
+          );
+          const addPayload = await readJson(addResponse);
+          const addedSet = addPayload.data.exercises[0].sets[3];
+
+          const deleteResponse = await fetch(`${server.baseUrl}/api/v1/sets/${addedSet.id}`, {
+            method: "DELETE",
+            headers: createAuthHeaders({
+              "content-type": "application/json",
+              "Idempotency-Key": "delete-set-http-key-1"
+            }),
+            body: JSON.stringify({})
+          });
+          const deletePayload = await readJson(deleteResponse);
+          const setRows = await context.db.select().from(sets);
+
+          assert.equal(addResponse.status, 201);
+          assert.equal(addPayload.data.exercises[0].targetSets, 4);
+          assert.equal(addPayload.data.exercises[0].sets.length, 4);
+          assert.equal(addedSet.setNumber, 4);
+          assert.equal(addedSet.status, "pending");
+          assert.equal(deleteResponse.status, 200);
+          assert.equal(deletePayload.data.exercises[0].targetSets, 3);
+          assert.equal(deletePayload.data.exercises[0].sets.length, 3);
+          assert.equal(setRows.length, 3);
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
     name: "POST /api/v1/workout-sessions/:sessionId/complete completes a workout and refreshes dashboard state",
     run: async () => {
       const context = await createWorkoutInfrastructureTestContext();

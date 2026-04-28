@@ -1,8 +1,11 @@
 import type { RepositoryOptions } from "../models/persistence-context.js";
 import type {
+  AppendCustomExerciseInput,
+  AppendWorkoutSetInput,
   CompletedWorkoutProgressionRecord,
   CompleteWorkoutSessionPersistenceInput,
   CreateWorkoutSessionGraphInput,
+  DeleteWorkoutSetInput,
   PersistExerciseEntryFeedbackInput,
   UpdateLoggedSetInput,
   WorkoutHistorySummaryRecord,
@@ -39,6 +42,15 @@ export interface WorkoutSessionRepository {
     input: CreateWorkoutSessionGraphInput,
     options?: RepositoryOptions
   ): Promise<WorkoutSessionGraph>;
+
+  appendCustomExercise(
+    input: AppendCustomExerciseInput,
+    options?: RepositoryOptions
+  ): Promise<WorkoutSessionGraph>;
+
+  appendWorkoutSet(input: AppendWorkoutSetInput, options?: RepositoryOptions): Promise<WorkoutSessionGraph>;
+
+  deleteWorkoutSet(input: DeleteWorkoutSetInput, options?: RepositoryOptions): Promise<WorkoutSessionGraph>;
 
   updateLoggedSet(
     input: UpdateLoggedSetInput,

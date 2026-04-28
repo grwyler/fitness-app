@@ -1,6 +1,9 @@
 import type { RequestHandler } from "express";
 import type {
+  AddCustomWorkoutExerciseRequest,
+  AddWorkoutSetRequest,
   CompleteWorkoutSessionRequest,
+  DeleteWorkoutSetRequest,
   LogSetRequest,
   StartWorkoutSessionRequest
 } from "@fitness/shared";
@@ -14,27 +17,34 @@ import {
   validateQuery
 } from "./workout.http-utils.js";
 import {
+  addCustomWorkoutExerciseBodySchema,
   completeWorkoutSessionBodySchema,
   logSetBodySchema,
   programParamsSchema,
   setParamsSchema,
   startWorkoutSessionBodySchema,
+  workoutSessionExerciseParamsSchema,
   workoutHistoryQuerySchema,
   workoutSessionParamsSchema
 } from "./workout.schemas.js";
+import type { AddCustomWorkoutExerciseUseCase } from "../application/use-cases/add-custom-workout-exercise.use-case.js";
+import type { AddWorkoutSetUseCase } from "../application/use-cases/add-workout-set.use-case.js";
 import type { CompleteWorkoutSessionUseCase } from "../application/use-cases/complete-workout-session.use-case.js";
+import type { DeleteWorkoutSetUseCase } from "../application/use-cases/delete-workout-set.use-case.js";
 import type { FollowProgramUseCase } from "../application/use-cases/follow-program.use-case.js";
 import type { GetCurrentWorkoutSessionUseCase } from "../application/use-cases/get-current-workout-session.use-case.js";
 import type { GetDashboardUseCase } from "../application/use-cases/get-dashboard.use-case.js";
 import type { GetProgressionUseCase } from "../application/use-cases/get-progression.use-case.js";
 import type { GetWorkoutHistoryDetailUseCase } from "../application/use-cases/get-workout-history-detail.use-case.js";
 import type { GetWorkoutHistoryUseCase } from "../application/use-cases/get-workout-history.use-case.js";
+import type { ListExercisesUseCase } from "../application/use-cases/list-exercises.use-case.js";
 import type { ListProgramsUseCase } from "../application/use-cases/list-programs.use-case.js";
 import type { LogSetUseCase } from "../application/use-cases/log-set.use-case.js";
 import type { StartWorkoutSessionUseCase } from "../application/use-cases/start-workout-session.use-case.js";
 
 export type WorkoutHttpHandlers = {
   listPrograms: RequestHandler;
+  listExercises: RequestHandler;
   followProgram: RequestHandler;
   getDashboard: RequestHandler;
   getProgression: RequestHandler;
@@ -42,12 +52,16 @@ export type WorkoutHttpHandlers = {
   getWorkoutHistoryDetail: RequestHandler;
   getCurrentWorkoutSession: RequestHandler;
   startWorkoutSession: RequestHandler;
+  addCustomWorkoutExercise: RequestHandler;
+  addWorkoutSet: RequestHandler;
+  deleteWorkoutSet: RequestHandler;
   logSet: RequestHandler;
   completeWorkoutSession: RequestHandler;
 };
 
 export function createWorkoutHandlers(dependencies: {
   listProgramsUseCase: ListProgramsUseCase;
+  listExercisesUseCase: ListExercisesUseCase;
   followProgramUseCase: FollowProgramUseCase;
   getDashboardUseCase: GetDashboardUseCase;
   getProgressionUseCase: GetProgressionUseCase;
@@ -55,12 +69,20 @@ export function createWorkoutHandlers(dependencies: {
   getWorkoutHistoryDetailUseCase: GetWorkoutHistoryDetailUseCase;
   getCurrentWorkoutSessionUseCase: GetCurrentWorkoutSessionUseCase;
   startWorkoutSessionUseCase: StartWorkoutSessionUseCase;
+  addCustomWorkoutExerciseUseCase: AddCustomWorkoutExerciseUseCase;
+  addWorkoutSetUseCase: AddWorkoutSetUseCase;
+  deleteWorkoutSetUseCase: DeleteWorkoutSetUseCase;
   logSetUseCase: LogSetUseCase;
   completeWorkoutSessionUseCase: CompleteWorkoutSessionUseCase;
 }): WorkoutHttpHandlers {
   return {
     listPrograms: asyncHandler(async (_request, response) => {
       const result = await dependencies.listProgramsUseCase.execute();
+      response.json(success(result.data, result.meta));
+    }),
+
+    listExercises: asyncHandler(async (_request, response) => {
+      const result = await dependencies.listExercisesUseCase.execute();
       response.json(success(result.data, result.meta));
     }),
 
@@ -129,6 +151,61 @@ export function createWorkoutHandlers(dependencies: {
       });
 
       response.status(201).json(success(result.data, result.meta));
+    }),
+
+    addCustomWorkoutExercise: asyncHandler(async (request, response) => {
+      const context = getRequestContext(request);
+      const params = validateParams(workoutSessionParamsSchema, request);
+      const body = validateBody(addCustomWorkoutExerciseBodySchema, request);
+      const idempotencyKey = requireIdempotencyKey(request);
+      const useCaseRequest: AddCustomWorkoutExerciseRequest = {
+        exerciseId: body.exerciseId,
+        targetSets: body.targetSets,
+        targetReps: body.targetReps,
+        ...(body.restSeconds !== undefined ? { restSeconds: body.restSeconds } : {})
+      };
+
+      const result = await dependencies.addCustomWorkoutExerciseUseCase.execute({
+        context,
+        sessionId: params.sessionId,
+        request: useCaseRequest,
+        idempotencyKey
+      });
+
+      response.status(201).json(success(result.data, result.meta));
+    }),
+
+    addWorkoutSet: asyncHandler(async (request, response) => {
+      const context = getRequestContext(request);
+      const params = validateParams(workoutSessionExerciseParamsSchema, request);
+      const idempotencyKey = requireIdempotencyKey(request);
+      const useCaseRequest: AddWorkoutSetRequest = {};
+
+      const result = await dependencies.addWorkoutSetUseCase.execute({
+        context,
+        sessionId: params.sessionId,
+        exerciseEntryId: params.exerciseEntryId,
+        request: useCaseRequest,
+        idempotencyKey
+      });
+
+      response.status(201).json(success(result.data, result.meta));
+    }),
+
+    deleteWorkoutSet: asyncHandler(async (request, response) => {
+      const context = getRequestContext(request);
+      const params = validateParams(setParamsSchema, request);
+      const idempotencyKey = requireIdempotencyKey(request);
+      const useCaseRequest: DeleteWorkoutSetRequest = {};
+
+      const result = await dependencies.deleteWorkoutSetUseCase.execute({
+        context,
+        setId: params.setId,
+        request: useCaseRequest,
+        idempotencyKey
+      });
+
+      response.json(success(result.data, result.meta));
     }),
 
     logSet: asyncHandler(async (request, response) => {

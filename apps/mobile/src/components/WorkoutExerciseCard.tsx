@@ -34,11 +34,20 @@ export function WorkoutExerciseCard(props: {
   selectedFeedback?: EffortFeedback;
   loggingSetId?: string | null;
   submittingSetIds?: Record<string, boolean>;
+  deletingSetIds?: Record<string, boolean>;
+  addingSet?: boolean;
   setLogDraftsBySetId: Record<string, SetLogDraft>;
   onChangeSetLogDraft: (setId: string, draft: SetLogDraft) => void;
+  onAddSet: (exercise: ExerciseEntryDto) => void;
+  onDeleteSet: (set: SetDto) => void;
   onLogSet: (exercise: ExerciseEntryDto, set: SetDto, draft: SetLogDraft) => void;
   onSelectFeedback: (feedback: EffortFeedback) => void;
 }) {
+  const maxSetNumber = props.exercise.sets.reduce(
+    (maxNumber, set) => Math.max(maxNumber, set.setNumber),
+    0
+  );
+
   return (
     <View style={styles.card}>
       <View style={styles.header}>
@@ -53,6 +62,8 @@ export function WorkoutExerciseCard(props: {
         {props.exercise.sets.map((set) => {
           const isPending = set.status === "pending";
           const isLogging = props.loggingSetId === set.id || props.submittingSetIds?.[set.id] === true;
+          const isDeleting = props.deletingSetIds?.[set.id] === true;
+          const canDeleteSet = isPending && set.setNumber === maxSetNumber && props.exercise.sets.length > 1;
           const previousSet = getPreviousLoggedSet({
             sets: props.exercise.sets,
             setNumber: set.setNumber
@@ -72,15 +83,27 @@ export function WorkoutExerciseCard(props: {
               <View style={styles.setInfo}>
                 <View style={styles.setTitleRow}>
                   <Text style={styles.setTitle}>Set {set.setNumber}</Text>
-                  <Text
-                    style={[
-                      styles.statusPill,
-                      set.status === "completed" && styles.statusPillComplete,
-                      set.status === "failed" && styles.statusPillFailed
-                    ]}
-                  >
-                    {getSetStatusLabel(set)}
-                  </Text>
+                  <View style={styles.setActions}>
+                    {canDeleteSet ? (
+                      <Pressable
+                        accessibilityRole="button"
+                        disabled={isLogging || isDeleting}
+                        onPress={() => props.onDeleteSet(set)}
+                        style={[styles.deleteSetButton, (isLogging || isDeleting) && styles.disabledControl]}
+                      >
+                        <Text style={styles.deleteSetLabel}>{isDeleting ? "Removing..." : "Remove"}</Text>
+                      </Pressable>
+                    ) : null}
+                    <Text
+                      style={[
+                        styles.statusPill,
+                        set.status === "completed" && styles.statusPillComplete,
+                        set.status === "failed" && styles.statusPillFailed
+                      ]}
+                    >
+                      {getSetStatusLabel(set)}
+                    </Text>
+                  </View>
                 </View>
                 <Text style={styles.setMeta}>
                   Target {set.targetReps} reps at {set.targetWeight.value} lb
@@ -227,6 +250,14 @@ export function WorkoutExerciseCard(props: {
         })}
       </View>
 
+      <PrimaryButton
+        label={props.addingSet ? "Adding set..." : "Add set"}
+        tone="secondary"
+        onPress={() => props.onAddSet(props.exercise)}
+        disabled={props.addingSet}
+        loading={props.addingSet}
+      />
+
       <View style={styles.feedbackSection}>
         <Text style={styles.feedbackTitle}>How did this exercise feel?</Text>
         <View style={styles.feedbackOptions}>
@@ -304,6 +335,26 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     fontSize: 18,
     fontWeight: "700"
+  },
+  setActions: {
+    alignItems: "center",
+    flexDirection: "row",
+    flexShrink: 0,
+    flexWrap: "wrap",
+    gap: spacing.xs,
+    justifyContent: "flex-end"
+  },
+  deleteSetButton: {
+    borderColor: colors.border,
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 5
+  },
+  deleteSetLabel: {
+    color: "#9c3b31",
+    fontSize: 12,
+    fontWeight: "800"
   },
   setMeta: {
     color: colors.textSecondary,

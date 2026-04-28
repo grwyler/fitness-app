@@ -53,6 +53,17 @@ function mapWorkoutTemplateRecord(row: typeof workoutTemplates.$inferSelect & { 
 export class DrizzleExerciseRepository implements ExerciseRepository {
   public constructor(private readonly db: any) {}
 
+  public async listActive(options?: RepositoryOptions): Promise<ExerciseRecord[]> {
+    const executor = resolveExecutor(this.db, options);
+    const rows = await executor
+      .select()
+      .from(exercises)
+      .where(eq(exercises.isActive, true))
+      .orderBy(asc(exercises.name));
+
+    return rows.map(mapExerciseRecord);
+  }
+
   public async findTemplateDefinitionById(
     templateId: string,
     options?: RepositoryOptions

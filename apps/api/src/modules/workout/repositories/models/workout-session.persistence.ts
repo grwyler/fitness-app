@@ -67,6 +67,24 @@ export type CreateWorkoutSessionGraphInput = {
   sets: Array<Omit<SetRecord, "id" | "createdAt" | "updatedAt">>;
 };
 
+export type AppendCustomExerciseInput = {
+  sessionId: string;
+  exerciseEntry: Omit<ExerciseEntryRecord, "id" | "workoutSessionId" | "createdAt" | "updatedAt">;
+  sets: Array<Omit<SetRecord, "id" | "exerciseEntryId" | "createdAt" | "updatedAt">>;
+};
+
+export type AppendWorkoutSetInput = {
+  exerciseEntryId: string;
+  set: Omit<SetRecord, "id" | "exerciseEntryId" | "createdAt" | "updatedAt">;
+  targetSets: number;
+};
+
+export type DeleteWorkoutSetInput = {
+  setId: string;
+  exerciseEntryId: string;
+  targetSets: number;
+};
+
 export type UpdateLoggedSetInput = {
   setId: string;
   actualReps: number;

@@ -1,6 +1,7 @@
 import type {
   CurrentWorkoutSessionDto,
   DashboardDto,
+  ExerciseCatalogItemDto,
   ExerciseEntryDto,
   ActiveProgramDto,
   GetCurrentWorkoutSessionResponse,
@@ -18,6 +19,7 @@ import type {
 import type { UnitSystem } from "@fitness/shared";
 import { isCustomWorkoutProgramId } from "../../domain/models/custom-workout.js";
 import type { EnrollmentRecord } from "../../repositories/models/enrollment.persistence.js";
+import type { ExerciseRecord } from "../../repositories/models/exercise.persistence.js";
 import type { WorkoutTemplateRecord } from "../../repositories/models/exercise.persistence.js";
 import type { ProgramDefinition } from "../../repositories/models/program.persistence.js";
 import type { ProgressMetricRecord } from "../../repositories/models/progress-metric.persistence.js";
@@ -229,6 +231,17 @@ export function mapProgressMetricDto(record: ProgressMetricRecord): ProgressMetr
     metricValue: record.metricValue,
     displayText: record.displayText,
     recordedAt: record.recordedAt.toISOString()
+  };
+}
+
+export function mapExerciseCatalogItemDto(record: ExerciseRecord): ExerciseCatalogItemDto {
+  return {
+    id: record.id,
+    name: record.name,
+    category: record.category,
+    movementPattern: record.movementPattern,
+    primaryMuscleGroup: record.primaryMuscleGroup,
+    equipmentType: record.equipmentType
   };
 }
 

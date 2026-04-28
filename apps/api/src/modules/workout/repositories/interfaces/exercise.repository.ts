@@ -7,6 +7,8 @@ import type {
 import type { ExerciseProgressionSeedRecord } from "../models/progression-state.persistence.js";
 
 export interface ExerciseRepository {
+  listActive(options?: RepositoryOptions): Promise<ExerciseRecord[]>;
+
   findTemplateDefinitionById(
     templateId: string,
     options?: RepositoryOptions

@@ -83,6 +83,15 @@ export type ProgramPositionDto = {
   label: string;
 };
 
+export type ExerciseCatalogItemDto = {
+  id: UUID;
+  name: string;
+  category: ExerciseCategory;
+  movementPattern: string | null;
+  primaryMuscleGroup: string | null;
+  equipmentType: string | null;
+};
+
 export type ProgramWorkoutExerciseDto = {
   id: UUID;
   exerciseId: UUID;
@@ -208,6 +217,17 @@ export type StartWorkoutSessionRequest = {
   startedAt?: ISODateTime;
 };
 
+export type AddCustomWorkoutExerciseRequest = {
+  exerciseId: UUID;
+  targetSets: number;
+  targetReps: number;
+  restSeconds?: number | null;
+};
+
+export type AddWorkoutSetRequest = Record<string, never>;
+
+export type DeleteWorkoutSetRequest = Record<string, never>;
+
 export type LogSetRequest = {
   actualReps: number;
   actualWeight?: WeightValueDto;
@@ -268,6 +288,10 @@ export type GetCurrentWorkoutSessionResponse = CurrentWorkoutSessionDto;
 
 export type ListProgramsResponse = {
   programs: ProgramDto[];
+};
+
+export type ListExercisesResponse = {
+  exercises: ExerciseCatalogItemDto[];
 };
 
 export type FollowProgramResponse = {

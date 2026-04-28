@@ -8,12 +8,16 @@ import { DrizzleProgressMetricRepository } from "../infrastructure/repositories/
 import { DrizzleProgressionStateRepository } from "../infrastructure/repositories/drizzle-progression-state.repository.js";
 import { DrizzleWorkoutSessionRepository } from "../infrastructure/repositories/drizzle-workout-session.repository.js";
 import { CompleteWorkoutSessionUseCase } from "../application/use-cases/complete-workout-session.use-case.js";
+import { AddCustomWorkoutExerciseUseCase } from "../application/use-cases/add-custom-workout-exercise.use-case.js";
+import { AddWorkoutSetUseCase } from "../application/use-cases/add-workout-set.use-case.js";
+import { DeleteWorkoutSetUseCase } from "../application/use-cases/delete-workout-set.use-case.js";
 import { FollowProgramUseCase } from "../application/use-cases/follow-program.use-case.js";
 import { GetCurrentWorkoutSessionUseCase } from "../application/use-cases/get-current-workout-session.use-case.js";
 import { GetDashboardUseCase } from "../application/use-cases/get-dashboard.use-case.js";
 import { GetProgressionUseCase } from "../application/use-cases/get-progression.use-case.js";
 import { GetWorkoutHistoryDetailUseCase } from "../application/use-cases/get-workout-history-detail.use-case.js";
 import { GetWorkoutHistoryUseCase } from "../application/use-cases/get-workout-history.use-case.js";
+import { ListExercisesUseCase } from "../application/use-cases/list-exercises.use-case.js";
 import { ListProgramsUseCase } from "../application/use-cases/list-programs.use-case.js";
 import { LogSetUseCase } from "../application/use-cases/log-set.use-case.js";
 import { StartWorkoutSessionUseCase } from "../application/use-cases/start-workout-session.use-case.js";
@@ -40,7 +44,27 @@ export function createWorkoutHttpRouter(database: WorkoutDatabase) {
     idempotencyRepository
   );
 
+  const addCustomWorkoutExerciseUseCase = new AddCustomWorkoutExerciseUseCase(
+    workoutSessionRepository,
+    progressionStateRepository,
+    exerciseRepository,
+    transactionManager,
+    idempotencyRepository
+  );
+
   const logSetUseCase = new LogSetUseCase(
+    workoutSessionRepository,
+    transactionManager,
+    idempotencyRepository
+  );
+
+  const addWorkoutSetUseCase = new AddWorkoutSetUseCase(
+    workoutSessionRepository,
+    transactionManager,
+    idempotencyRepository
+  );
+
+  const deleteWorkoutSetUseCase = new DeleteWorkoutSetUseCase(
     workoutSessionRepository,
     transactionManager,
     idempotencyRepository
@@ -64,6 +88,7 @@ export function createWorkoutHttpRouter(database: WorkoutDatabase) {
   const getWorkoutHistoryDetailUseCase = new GetWorkoutHistoryDetailUseCase(workoutSessionRepository);
   const getProgressionUseCase = new GetProgressionUseCase(workoutSessionRepository);
   const listProgramsUseCase = new ListProgramsUseCase(programRepository);
+  const listExercisesUseCase = new ListExercisesUseCase(exerciseRepository);
   const followProgramUseCase = new FollowProgramUseCase(
     programRepository,
     enrollmentRepository,
@@ -81,6 +106,7 @@ export function createWorkoutHttpRouter(database: WorkoutDatabase) {
 
   return createWorkoutRouter({
     listProgramsUseCase,
+    listExercisesUseCase,
     followProgramUseCase,
     getDashboardUseCase,
     getProgressionUseCase,
@@ -88,6 +114,9 @@ export function createWorkoutHttpRouter(database: WorkoutDatabase) {
     getWorkoutHistoryDetailUseCase,
     getCurrentWorkoutSessionUseCase,
     startWorkoutSessionUseCase,
+    addCustomWorkoutExerciseUseCase,
+    addWorkoutSetUseCase,
+    deleteWorkoutSetUseCase,
     logSetUseCase,
     completeWorkoutSessionUseCase
   });

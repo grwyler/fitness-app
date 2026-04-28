@@ -256,6 +256,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
       };
 
       const exerciseRepository: ExerciseRepository = {
+        async listActive() {
+          return [];
+        },
         async findTemplateDefinitionById() {
           return null;
         },
@@ -296,6 +299,15 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
           return null;
         },
         async createSessionGraph() {
+          throw new Error("Not implemented.");
+        },
+        async appendCustomExercise() {
+          throw new Error("Not implemented.");
+        },
+        async appendWorkoutSet() {
+          throw new Error("Not implemented.");
+        },
+        async deleteWorkoutSet() {
           throw new Error("Not implemented.");
         },
         async updateLoggedSet() {
@@ -366,6 +378,15 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
           createdSessionUserId = input.session.userId;
           return createBaseWorkoutSessionGraph();
         },
+        async appendCustomExercise() {
+          throw new Error("Not implemented.");
+        },
+        async appendWorkoutSet() {
+          throw new Error("Not implemented.");
+        },
+        async deleteWorkoutSet() {
+          throw new Error("Not implemented.");
+        },
         async updateLoggedSet() {
           throw new Error("Not implemented.");
         },
@@ -430,6 +451,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
       };
 
       const exerciseRepository: ExerciseRepository = {
+        async listActive() {
+          return [];
+        },
         async findTemplateDefinitionById() {
           return {
             template: {
@@ -547,6 +571,15 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
             sets: []
           };
         },
+        async appendCustomExercise() {
+          throw new Error("Not implemented.");
+        },
+        async appendWorkoutSet() {
+          throw new Error("Not implemented.");
+        },
+        async deleteWorkoutSet() {
+          throw new Error("Not implemented.");
+        },
         async updateLoggedSet() {
           throw new Error("Not implemented.");
         },
@@ -596,6 +629,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
       };
 
       const exerciseRepository: ExerciseRepository = {
+        async listActive() {
+          return [];
+        },
         async findTemplateDefinitionById(templateId) {
           return templateId === CUSTOM_WORKOUT_TEMPLATE_ID
             ? createCustomWorkoutTemplateDefinition()
@@ -657,6 +693,15 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         async createSessionGraph() {
           throw new Error("Selected template should be rejected before session creation.");
         },
+        async appendCustomExercise() {
+          throw new Error("Not implemented.");
+        },
+        async appendWorkoutSet() {
+          throw new Error("Not implemented.");
+        },
+        async deleteWorkoutSet() {
+          throw new Error("Not implemented.");
+        },
         async updateLoggedSet() {
           throw new Error("Not implemented.");
         },
@@ -716,6 +761,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
       };
 
       const exerciseRepository: ExerciseRepository = {
+        async listActive() {
+          return [];
+        },
         async findTemplateDefinitionById() {
           return {
             template: {
@@ -804,6 +852,15 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
           };
         },
         async createSessionGraph() {
+          throw new Error("Not implemented.");
+        },
+        async appendCustomExercise() {
+          throw new Error("Not implemented.");
+        },
+        async appendWorkoutSet() {
+          throw new Error("Not implemented.");
+        },
+        async deleteWorkoutSet() {
           throw new Error("Not implemented.");
         },
         async updateLoggedSet() {
@@ -913,6 +970,15 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         async createSessionGraph() {
           throw new Error("Not implemented.");
         },
+        async appendCustomExercise() {
+          throw new Error("Not implemented.");
+        },
+        async appendWorkoutSet() {
+          throw new Error("Not implemented.");
+        },
+        async deleteWorkoutSet() {
+          throw new Error("Not implemented.");
+        },
         async updateLoggedSet() {
           throw new Error("Not implemented.");
         },
@@ -1009,6 +1075,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
       };
 
       const exerciseRepository: ExerciseRepository = {
+        async listActive() {
+          return [];
+        },
         async findTemplateDefinitionById() {
           return null;
         },
@@ -1120,6 +1189,15 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         async createSessionGraph() {
           return createBaseWorkoutSessionGraph();
         },
+        async appendCustomExercise() {
+          throw new Error("Not implemented.");
+        },
+        async appendWorkoutSet() {
+          throw new Error("Not implemented.");
+        },
+        async deleteWorkoutSet() {
+          throw new Error("Not implemented.");
+        },
         async updateLoggedSet() {
           throw new Error("Not implemented.");
         },
@@ -1179,6 +1257,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
       };
 
       const exerciseRepository: ExerciseRepository = {
+        async listActive() {
+          return [];
+        },
         async findTemplateDefinitionById() {
           return {
             template: {
@@ -1264,6 +1345,15 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         async createSessionGraph() {
           throw new Error("Not implemented.");
         },
+        async appendCustomExercise() {
+          throw new Error("Not implemented.");
+        },
+        async appendWorkoutSet() {
+          throw new Error("Not implemented.");
+        },
+        async deleteWorkoutSet() {
+          throw new Error("Not implemented.");
+        },
         async updateLoggedSet() {
           throw new Error("Not implemented.");
         },
@@ -1339,6 +1429,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
       };
 
       const exerciseRepository: ExerciseRepository = {
+        async listActive() {
+          return [];
+        },
         async findTemplateDefinitionById() {
           return null;
         },

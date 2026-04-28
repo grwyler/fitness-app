@@ -1,10 +1,14 @@
 import type {
+  AddCustomWorkoutExerciseRequest,
+  AddWorkoutSetRequest,
   CompleteWorkoutSessionRequest,
   CompleteWorkoutSessionResponse,
+  DeleteWorkoutSetRequest,
   FollowProgramResponse,
   GetCurrentWorkoutSessionResponse,
   GetDashboardResponse,
   GetProgressionResponse,
+  ListExercisesResponse,
   GetWorkoutHistoryDetailResponse,
   GetWorkoutHistoryResponse,
   ListProgramsResponse,
@@ -21,6 +25,10 @@ export async function fetchDashboard() {
 
 export async function fetchPrograms() {
   return apiRequest<ListProgramsResponse>("/programs");
+}
+
+export async function fetchExercises() {
+  return apiRequest<ListExercisesResponse>("/exercises");
 }
 
 export async function followProgram(programId: string) {
@@ -52,6 +60,49 @@ export async function startWorkoutSession(input: {
 }) {
   return apiRequest<WorkoutSessionDto, { replayed: boolean }>("/workout-sessions/start", {
     method: "POST",
+    body: input.request,
+    idempotencyKey: input.idempotencyKey
+  });
+}
+
+export async function addCustomWorkoutExercise(input: {
+  sessionId: string;
+  request: AddCustomWorkoutExerciseRequest;
+  idempotencyKey: string;
+}) {
+  return apiRequest<WorkoutSessionDto, { replayed: boolean }>(
+    `/workout-sessions/${input.sessionId}/exercises`,
+    {
+      method: "POST",
+      body: input.request,
+      idempotencyKey: input.idempotencyKey
+    }
+  );
+}
+
+export async function addWorkoutSet(input: {
+  sessionId: string;
+  exerciseEntryId: string;
+  request: AddWorkoutSetRequest;
+  idempotencyKey: string;
+}) {
+  return apiRequest<WorkoutSessionDto, { replayed: boolean }>(
+    `/workout-sessions/${input.sessionId}/exercises/${input.exerciseEntryId}/sets`,
+    {
+      method: "POST",
+      body: input.request,
+      idempotencyKey: input.idempotencyKey
+    }
+  );
+}
+
+export async function deleteWorkoutSet(input: {
+  setId: string;
+  request: DeleteWorkoutSetRequest;
+  idempotencyKey: string;
+}) {
+  return apiRequest<WorkoutSessionDto, { replayed: boolean }>(`/sets/${input.setId}`, {
+    method: "DELETE",
     body: input.request,
     idempotencyKey: input.idempotencyKey
   });

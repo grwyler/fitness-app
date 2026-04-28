@@ -12,6 +12,7 @@ import { FeedbackButton } from "../features/feedback/components/FeedbackButton";
 import { useCurrentWorkout } from "../features/workout/hooks/useCurrentWorkout";
 import { useLogSet } from "../features/workout/hooks/useLogSet";
 import { useCompleteWorkout } from "../features/workout/hooks/useCompleteWorkout";
+import { useAddWorkoutSet, useDeleteWorkoutSet } from "../features/workout/hooks/useWorkoutSets";
 import { useActiveWorkoutStore } from "../features/workout/store/active-workout-store";
 import {
   buildCompleteWorkoutRequest,
@@ -38,6 +39,8 @@ type RestTimerState = {
 export function ActiveWorkoutScreen({ navigation }: Props) {
   const currentWorkoutQuery = useCurrentWorkout();
   const logSetMutation = useLogSet();
+  const addWorkoutSetMutation = useAddWorkoutSet();
+  const deleteWorkoutSetMutation = useDeleteWorkoutSet();
   const completeWorkoutMutation = useCompleteWorkout();
   const feedbackByEntryId = useActiveWorkoutStore((state) => state.exerciseFeedbackByEntryId);
   const setExerciseFeedback = useActiveWorkoutStore((state) => state.setExerciseFeedback);
@@ -46,6 +49,7 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
   const setSetLogDraft = useActiveWorkoutStore((state) => state.setSetLogDraft);
   const [lastAction, setLastAction] = useState<string | null>(null);
   const [submittingSetIds, setSubmittingSetIds] = useState<Record<string, boolean>>({});
+  const [deletingSetIds, setDeletingSetIds] = useState<Record<string, boolean>>({});
   const [showFinishEarlyConfirmation, setShowFinishEarlyConfirmation] = useState(false);
   const [restTimer, setRestTimer] = useState<RestTimerState>(null);
   const inFlightSetIds = useRef<Set<string>>(new Set());
@@ -115,7 +119,12 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
   const workout = activeWorkout;
 
   const hasPendingSetSave =
-    logSetMutation.isPending || Object.keys(submittingSetIds).length > 0 || inFlightSetIds.current.size > 0;
+    logSetMutation.isPending ||
+    addWorkoutSetMutation.isPending ||
+    deleteWorkoutSetMutation.isPending ||
+    Object.keys(submittingSetIds).length > 0 ||
+    Object.keys(deletingSetIds).length > 0 ||
+    inFlightSetIds.current.size > 0;
   const completionUiState = getWorkoutCompletionUiState(workout, feedbackByEntryId, {
     hasPendingSetSave
   });
@@ -161,6 +170,44 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
         onSettled: () => {
           inFlightSetIds.current.delete(set.id);
           setSubmittingSetIds((current) => {
+            const next = { ...current };
+            delete next[set.id];
+            return next;
+          });
+        }
+      }
+    );
+  }
+
+  function handleAddSet(exercise: ExerciseEntryDto) {
+    if (addWorkoutSetMutation.isPending) {
+      return;
+    }
+
+    setLastAction(`add_set:${exercise.id}`);
+    addWorkoutSetMutation.mutate({
+      sessionId: workout.id,
+      exerciseEntryId: exercise.id
+    });
+  }
+
+  function handleDeleteSet(set: SetDto) {
+    if (deletingSetIds[set.id] || deleteWorkoutSetMutation.isPending || set.status !== "pending") {
+      return;
+    }
+
+    setLastAction(`delete_set:${set.id}`);
+    setDeletingSetIds((current) => ({
+      ...current,
+      [set.id]: true
+    }));
+    deleteWorkoutSetMutation.mutate(
+      {
+        setId: set.id
+      },
+      {
+        onSettled: () => {
+          setDeletingSetIds((current) => {
             const next = { ...current };
             delete next[set.id];
             return next;
@@ -267,8 +314,15 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
               : {})}
             loggingSetId={logSetMutation.isPending ? logSetMutation.variables?.setId ?? null : null}
             submittingSetIds={submittingSetIds}
+            deletingSetIds={deletingSetIds}
+            addingSet={
+              addWorkoutSetMutation.isPending &&
+              addWorkoutSetMutation.variables?.exerciseEntryId === exercise.id
+            }
             setLogDraftsBySetId={setLogDraftsBySetId}
             onChangeSetLogDraft={setSetLogDraft}
+            onAddSet={handleAddSet}
+            onDeleteSet={handleDeleteSet}
             onLogSet={handleLogSet}
             onSelectFeedback={(feedback) => {
               setLastAction(`set_exercise_feedback:${exercise.id}`);
@@ -281,6 +335,12 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
       <View style={styles.footer}>
         {logSetMutation.isError ? (
           <Text style={styles.errorText}>Set not saved. Check the values and try again.</Text>
+        ) : null}
+        {addWorkoutSetMutation.isError ? (
+          <Text style={styles.errorText}>Set not added. Try again.</Text>
+        ) : null}
+        {deleteWorkoutSetMutation.isError ? (
+          <Text style={styles.errorText}>Set not removed. Only the last pending set can be removed.</Text>
         ) : null}
         {completeWorkoutMutation.isError ? (
           <Text style={styles.errorText}>
