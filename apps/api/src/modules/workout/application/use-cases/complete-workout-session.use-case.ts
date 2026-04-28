@@ -181,7 +181,13 @@ export class CompleteWorkoutSessionUseCase {
             },
             outcome: {
               effortFeedback,
-              hasFailure
+              hasFailure,
+              sets: relatedSets.map((set) => ({
+                targetReps: set.targetReps,
+                actualReps: set.actualReps,
+                targetWeightLbs: set.targetWeightLbs,
+                actualWeightLbs: set.actualWeightLbs
+              }))
             }
           });
 
@@ -215,14 +221,19 @@ export class CompleteWorkoutSessionUseCase {
 
         const progressMetricInputs = [
           ...progressionUpdates
-            .filter(({ progressionResult }) => progressionResult.result === "increased")
+            .filter(({ progressionResult }) =>
+              progressionResult.result === "increased" || progressionResult.result === "recalibrated"
+            )
             .map(({ exerciseEntry, progressionResult }) => ({
               userId: input.context.userId,
               exerciseId: exerciseEntry.exerciseId,
               workoutSessionId: workoutSessionGraph.session.id,
               metricType: "weight_increase" as const,
               metricValue: progressionResult.nextWeightLbs - progressionResult.previousWeightLbs,
-              displayText: `+${progressionResult.nextWeightLbs - progressionResult.previousWeightLbs} lbs on ${exerciseEntry.exerciseNameSnapshot}`,
+              displayText:
+                progressionResult.result === "recalibrated"
+                  ? `Adjusted ${exerciseEntry.exerciseNameSnapshot} working weight based on your performance`
+                  : `+${progressionResult.nextWeightLbs - progressionResult.previousWeightLbs} lbs on ${exerciseEntry.exerciseNameSnapshot}`,
               recordedAt: completedAt
             })),
           {

@@ -49,5 +49,5 @@ export const progressMetricTypes = [
 ] as const;
 export type ProgressMetricType = (typeof progressMetricTypes)[number];
 
-export const progressionResults = ["increased", "repeated", "reduced"] as const;
+export const progressionResults = ["increased", "repeated", "reduced", "recalibrated"] as const;
 export type ProgressionResult = (typeof progressionResults)[number];

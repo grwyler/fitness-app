@@ -15,7 +15,15 @@ export type ExerciseProgressionContext = {
 
 export type ExerciseWorkoutOutcome = {
   effortFeedback: EffortFeedback;
-  hasFailure: boolean;
+  hasFailure?: boolean;
+  sets?: ExerciseWorkoutSetOutcome[];
+};
+
+export type ExerciseWorkoutSetOutcome = {
+  targetReps: number;
+  actualReps: number | null;
+  targetWeightLbs: number;
+  actualWeightLbs: number | null;
 };
 
 export type ProgressionComputationInput = {
@@ -31,4 +39,3 @@ export type ProgressionComputationResult = {
   reason: string;
   nextState: ProgressionStateSnapshot;
 };
-

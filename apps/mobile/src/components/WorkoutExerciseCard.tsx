@@ -73,7 +73,9 @@ export function WorkoutExerciseCard(props: {
           const request = buildLogSetRequestFromDraft(draft);
           const outcomeText = getSetOutcomeText({
             actualReps: validation.actualReps,
-            targetReps: set.targetReps
+            targetReps: set.targetReps,
+            actualWeightValue: validation.actualWeight?.value ?? null,
+            targetWeightValue: set.targetWeight.value
           });
           const canSubmit = isPending && request !== null && !isLogging;
           const previousWeight = previousSet?.actualWeight?.value ?? null;

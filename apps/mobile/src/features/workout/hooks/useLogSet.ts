@@ -2,6 +2,7 @@ import type { GetCurrentWorkoutSessionResponse, LogSetRequest, SetDto } from "@f
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { logSet } from "../../../api/workouts";
 import { useActiveWorkoutStore } from "../store/active-workout-store";
+import { isMaterialOverperformanceLog } from "../utils/set-logging.shared";
 import { workoutQueryKeys } from "./query-keys";
 
 function applyLoggedSet(
@@ -26,12 +27,19 @@ function applyLoggedSet(
             return set;
           }
 
+          const actualWeight = input.request.actualWeight ?? set.targetWeight;
+          const isOverperformanceSet = isMaterialOverperformanceLog({
+            actualReps: input.request.actualReps,
+            actualWeightValue: actualWeight.value,
+            targetWeightValue: set.targetWeight.value
+          });
+
           return {
             ...set,
             actualReps: input.request.actualReps,
-            actualWeight: input.request.actualWeight ?? set.targetWeight,
+            actualWeight,
             completedAt: input.request.completedAt ?? input.completedAt,
-            status: input.request.actualReps >= set.targetReps ? "completed" : "failed"
+            status: input.request.actualReps >= set.targetReps || isOverperformanceSet ? "completed" : "failed"
           };
         })
       }))

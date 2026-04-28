@@ -140,5 +140,33 @@ export const workoutSummaryTestCases: MobileTestCase[] = [
         "Stays at 135 lb next time"
       );
     }
+  },
+  {
+    name: "Workout summary displays recalibration feedback returned by backend",
+    run: () => {
+      const summary: CompleteWorkoutSessionResponse = {
+        workoutSession: createWorkout(),
+        progressionUpdates: [
+          {
+            exerciseId: "exercise-1",
+            exerciseName: "Bench Press",
+            previousWeight: { value: 135, unit: "lb" },
+            nextWeight: { value: 215, unit: "lb" },
+            result: "recalibrated",
+            reason: "Adjusted Bench Press working weight based on your performance."
+          }
+        ],
+        progressMetrics: [],
+        nextWorkoutTemplate: null
+      };
+
+      assert.equal(getWorkoutSummaryHeadline(summary), "1 lift recalibrated");
+      assert.equal(
+        getWorkoutSummaryEncouragement(summary),
+        "Adjusted Bench Press to 215 lb based on your performance."
+      );
+      assert.equal(getProgressionUpdateSummaryText(summary.progressionUpdates[0]!), "Adjusted to 215 lb next time");
+      assert.equal(getWorkoutSummaryOutcomes(summary)[3]?.detail, "lift recalibrated");
+    }
   }
 ];

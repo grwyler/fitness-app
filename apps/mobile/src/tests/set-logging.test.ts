@@ -129,6 +129,15 @@ export const setLoggingTestCases: MobileTestCase[] = [
       assert.equal(getSetStatusLabel(createSet({ status: "failed" })), "Missed reps");
       assert.equal(getSetOutcomeText({ actualReps: 8, targetReps: 8 }), "Meets target");
       assert.equal(getSetOutcomeText({ actualReps: 7, targetReps: 8 }), "Below target");
+      assert.equal(
+        getSetOutcomeText({
+          actualReps: 4,
+          targetReps: 5,
+          actualWeightValue: 225,
+          targetWeightValue: 135
+        }),
+        "Heavy work"
+      );
     }
   },
   {

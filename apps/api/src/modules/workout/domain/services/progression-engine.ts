@@ -2,8 +2,14 @@ import type { ExerciseCategory } from "@fitness/shared";
 import type {
   ProgressionComputationInput,
   ProgressionComputationResult,
-  ProgressionStateSnapshot
+  ProgressionStateSnapshot,
+  ExerciseWorkoutOutcome,
+  ExerciseWorkoutSetOutcome
 } from "../models/progression.js";
+
+export const MATERIAL_OVERPERFORMANCE_MULTIPLIER = 1.25;
+const MIN_RECALIBRATION_SET_COUNT = 2;
+const MAX_RECALIBRATION_JUMP_MULTIPLIER = 1.75;
 
 function roundToTwoDecimals(value: number) {
   return Math.round(value * 100) / 100;
@@ -26,6 +32,50 @@ function getTooEasyIncreaseLbs(category: ExerciseCategory) {
   return category === "compound" ? 10 : 5;
 }
 
+function median(values: number[]) {
+  const sorted = [...values].sort((left, right) => left - right);
+  const middleIndex = Math.floor(sorted.length / 2);
+
+  if (sorted.length % 2 === 1) {
+    return sorted[middleIndex]!;
+  }
+
+  return (sorted[middleIndex - 1]! + sorted[middleIndex]!) / 2;
+}
+
+function estimateOneRepMaxEpley(weightLbs: number, reps: number) {
+  return weightLbs * (1 + reps / 30);
+}
+
+function estimateWorkingWeightFromOneRepMax(e1rm: number, targetReps: number) {
+  return e1rm / (1 + targetReps / 30);
+}
+
+export function isMaterialOverperformanceSet(set: ExerciseWorkoutSetOutcome) {
+  if (set.actualReps === null || set.actualWeightLbs === null) {
+    return false;
+  }
+
+  return (
+    set.actualReps > 0 &&
+    set.targetWeightLbs > 0 &&
+    set.actualWeightLbs >= set.targetWeightLbs * MATERIAL_OVERPERFORMANCE_MULTIPLIER
+  );
+}
+
+function hasEffectiveFailure(outcome: ExerciseWorkoutOutcome) {
+  if (!outcome.sets) {
+    return outcome.hasFailure ?? false;
+  }
+
+  return outcome.sets.some(
+    (set) =>
+      set.actualReps !== null &&
+      set.actualReps < set.targetReps &&
+      !isMaterialOverperformanceSet(set)
+  );
+}
+
 export class ProgressionEngine {
   public calculate(input: ProgressionComputationInput): ProgressionComputationResult {
     const { exercise, outcome, state } = input;
@@ -39,7 +89,12 @@ export class ProgressionEngine {
       throw new Error("incrementLbs must be greater than 0.");
     }
 
-    if (outcome.hasFailure) {
+    const recalibrationResult = this.calculateRecalibrationResult(input, previousWeightLbs);
+    if (recalibrationResult) {
+      return recalibrationResult;
+    }
+
+    if (hasEffectiveFailure(outcome)) {
       return this.calculateFailureResult(input, previousWeightLbs);
     }
 
@@ -139,5 +194,51 @@ export class ProgressionEngine {
       nextState
     };
   }
-}
 
+  private calculateRecalibrationResult(
+    input: ProgressionComputationInput,
+    previousWeightLbs: number
+  ): ProgressionComputationResult | null {
+    const { exercise, outcome } = input;
+    const qualifyingSets = outcome.sets?.filter(isMaterialOverperformanceSet) ?? [];
+
+    if (qualifyingSets.length < MIN_RECALIBRATION_SET_COUNT) {
+      return null;
+    }
+
+    const estimatedOneRepMaxes = qualifyingSets.map((set) =>
+      estimateOneRepMaxEpley(set.actualWeightLbs!, set.actualReps!)
+    );
+    const targetRepCounts = qualifyingSets.map((set) => set.targetReps);
+    const representativeE1rm = median(estimatedOneRepMaxes);
+    const representativeTargetReps = median(targetRepCounts);
+    const uncappedWorkingWeight = estimateWorkingWeightFromOneRepMax(
+      representativeE1rm,
+      representativeTargetReps
+    );
+    const cappedWorkingWeight = Math.min(
+      uncappedWorkingWeight,
+      previousWeightLbs * MAX_RECALIBRATION_JUMP_MULTIPLIER
+    );
+    const nextWeightLbs = roundDownToIncrement(cappedWorkingWeight, exercise.incrementLbs);
+
+    if (nextWeightLbs <= previousWeightLbs + getTooEasyIncreaseLbs(exercise.exerciseCategory)) {
+      return null;
+    }
+
+    const nextState: ProgressionStateSnapshot = {
+      currentWeightLbs: nextWeightLbs,
+      lastCompletedWeightLbs: nextWeightLbs,
+      consecutiveFailures: 0,
+      lastEffortFeedback: outcome.effortFeedback
+    };
+
+    return {
+      previousWeightLbs,
+      nextWeightLbs,
+      result: "recalibrated",
+      reason: `Adjusted ${exercise.exerciseName} working weight based on your performance.`,
+      nextState
+    };
+  }
+}

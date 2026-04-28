@@ -1191,6 +1191,218 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
     }
   },
   {
+    name: "CompleteWorkoutSessionUseCase recalibrates dramatic heavier-weight lower-rep performance",
+    run: async () => {
+      const idempotency = createMockIdempotencyRepository();
+      let updatedProgressionWeight: number | null = null;
+      const baseGraph = createBaseWorkoutSessionGraph();
+      const heavySets = baseGraph.sets.map((set) => ({
+        ...set,
+        targetReps: 5,
+        actualReps: 4,
+        targetWeightLbs: 135,
+        actualWeightLbs: 225,
+        status: "failed" as const,
+        completedAt: new Date("2026-04-24T10:10:00.000Z")
+      }));
+      const inProgressGraph: WorkoutSessionGraph = {
+        ...baseGraph,
+        session: {
+          ...baseGraph.session,
+          programId: CUSTOM_WORKOUT_PROGRAM_ID,
+          workoutTemplateId: CUSTOM_WORKOUT_TEMPLATE_ID
+        },
+        exerciseEntries: [
+          {
+            ...baseGraph.exerciseEntries[0]!,
+            targetReps: 5,
+            targetWeightLbs: 135
+          }
+        ],
+        sets: heavySets
+      };
+      const completedGraph: WorkoutSessionGraph = {
+        ...inProgressGraph,
+        session: {
+          ...inProgressGraph.session,
+          status: "completed",
+          completedAt: new Date("2026-04-24T10:45:00.000Z"),
+          durationSeconds: 2700
+        },
+        exerciseEntries: [
+          {
+            ...inProgressGraph.exerciseEntries[0]!,
+            effortFeedback: "just_right",
+            completedAt: new Date("2026-04-24T10:45:00.000Z")
+          }
+        ]
+      };
+      let graphReadCount = 0;
+
+      const workoutSessionRepository: WorkoutSessionRepository = {
+        async findInProgressByUserId() {
+          return null;
+        },
+        async findOwnedById() {
+          return null;
+        },
+        async findOwnedSessionGraphById() {
+          return graphReadCount++ === 0 ? inProgressGraph : completedGraph;
+        },
+        async findOwnedSetForLogging() {
+          return null;
+        },
+        async createSessionGraph() {
+          throw new Error("Not implemented.");
+        },
+        async appendCustomExercise() {
+          throw new Error("Not implemented.");
+        },
+        async appendWorkoutSet() {
+          throw new Error("Not implemented.");
+        },
+        async deleteWorkoutSet() {
+          throw new Error("Not implemented.");
+        },
+        async updateLoggedSet() {
+          throw new Error("Not implemented.");
+        },
+        async persistExerciseEntryFeedback() {},
+        async completeSession(input) {
+          return {
+            ...completedGraph.session,
+            completedAt: input.completedAt,
+            durationSeconds: input.durationSeconds,
+            isPartial: input.isPartial,
+            userEffortFeedback: input.userEffortFeedback
+          };
+        },
+        async cancelSession() {
+          throw new Error("Not implemented.");
+        },
+        async listRecentCompletedByUserId() {
+          return [];
+        },
+        async countCompletedByUserIdWithinRange() {
+          return 0;
+        },
+        async countCompletedByUserId() {
+          return 0;
+        },
+        async countCompletedByUserIdAndProgramId() {
+          return 0;
+        },
+        async listCompletedProgressionByUserId() {
+          return [];
+        }
+      };
+      const enrollmentRepository: EnrollmentRepository = {
+        async findActiveByUserId() {
+          return null;
+        },
+        async updateNextWorkoutTemplate() {
+          throw new Error("Not implemented.");
+        },
+        async cancelEnrollment() {
+          throw new Error("Not implemented.");
+        }
+      };
+      const progressionStateRepository: ProgressionStateRepository = {
+        async findByUserIdAndExerciseIds() {
+          return [
+            {
+              id: "progression-1",
+              userId: "user-1",
+              exerciseId: "exercise-1",
+              currentWeightLbs: 135,
+              lastCompletedWeightLbs: 130,
+              consecutiveFailures: 1,
+              lastEffortFeedback: "too_hard",
+              lastPerformedAt: new Date("2026-04-20T10:00:00.000Z"),
+              createdAt: new Date("2026-04-01T00:00:00.000Z"),
+              updatedAt: new Date("2026-04-20T10:00:00.000Z")
+            }
+          ];
+        },
+        async createMany() {
+          return [];
+        },
+        async updateMany(inputs) {
+          updatedProgressionWeight = inputs[0]?.currentWeightLbs ?? null;
+          return inputs.map((input) => ({
+            id: "progression-1",
+            ...input,
+            createdAt: new Date("2026-04-01T00:00:00.000Z"),
+            updatedAt: new Date("2026-04-24T10:45:00.000Z")
+          }));
+        }
+      };
+      const exerciseRepository: ExerciseRepository = {
+        async listActive() {
+          return [];
+        },
+        async findTemplateDefinitionById() {
+          return null;
+        },
+        async findProgressionSeedsByExerciseIds() {
+          return [
+            {
+              exerciseId: "exercise-1",
+              exerciseName: "Bench Press",
+              exerciseCategory: "compound",
+              defaultStartingWeightLbs: 135,
+              incrementLbs: 5
+            }
+          ];
+        },
+        async findActiveTemplatesByProgramId() {
+          return [];
+        },
+        async findByIds() {
+          return [];
+        }
+      };
+      const progressMetricRepository: ProgressMetricRepository = {
+        async createMany(inputs) {
+          return inputs.map((input, index) => ({
+            id: `metric-${index + 1}`,
+            ...input,
+            createdAt: input.recordedAt
+          }));
+        },
+        async listRecentByUserId() {
+          return [];
+        }
+      };
+
+      const useCase = new CompleteWorkoutSessionUseCase(
+        workoutSessionRepository,
+        enrollmentRepository,
+        progressionStateRepository,
+        exerciseRepository,
+        progressMetricRepository,
+        new MockTransactionManager(),
+        idempotency.repository
+      );
+
+      const result = await useCase.execute({
+        context: { userId: "user-1", unitSystem: "imperial" },
+        sessionId: "session-1",
+        request: {
+          exerciseFeedback: [{ exerciseEntryId: "entry-1", effortFeedback: "just_right" }],
+          userEffortFeedback: "just_right"
+        },
+        idempotencyKey: "complete-recalibration-key"
+      });
+
+      assert.equal(result.data.progressionUpdates[0]?.result, "recalibrated");
+      assert.equal(result.data.progressionUpdates[0]?.nextWeight.value, 215);
+      assert.equal(updatedProgressionWeight, 215);
+      assert.match(result.data.progressionUpdates[0]?.reason ?? "", /Adjusted Bench Press/);
+      assert.equal(result.data.progressMetrics[0]?.displayText, "Adjusted Bench Press working weight based on your performance");
+    }
+  },
+  {
     name: "Idempotency behavior replays identical mutations and rejects conflicting payloads",
     run: async () => {
       const idempotency = createMockIdempotencyRepository();

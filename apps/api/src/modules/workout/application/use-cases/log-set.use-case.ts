@@ -1,4 +1,5 @@
 import type { LogSetRequest, LogSetResponse } from "@fitness/shared";
+import { isMaterialOverperformanceSet } from "../../domain/services/progression-engine.js";
 import { WorkoutValidationService } from "../../domain/services/workout-validation-service.js";
 import type { IdempotencyRepository } from "../../repositories/interfaces/idempotency.repository.js";
 import type { WorkoutSessionRepository } from "../../repositories/interfaces/workout-session.repository.js";
@@ -59,7 +60,16 @@ export class LogSetUseCase {
         });
 
         const actualWeightLbs = input.request.actualWeight?.value ?? setForLogging.set.targetWeightLbs;
-        const status = input.request.actualReps >= setForLogging.set.targetReps ? "completed" : "failed";
+        const isOverperformanceSet = isMaterialOverperformanceSet({
+          targetReps: setForLogging.set.targetReps,
+          actualReps: input.request.actualReps,
+          targetWeightLbs: setForLogging.set.targetWeightLbs,
+          actualWeightLbs
+        });
+        const status =
+          input.request.actualReps >= setForLogging.set.targetReps || isOverperformanceSet
+            ? "completed"
+            : "failed";
 
         const updatedLoggedSet = await this.workoutSessionRepository.updateLoggedSet(
           {

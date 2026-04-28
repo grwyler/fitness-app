@@ -52,7 +52,12 @@ export function getWorkoutSummaryStats(workout: WorkoutSessionDto): WorkoutSumma
 }
 
 export function getWorkoutSummaryHeadline(summary: CompleteWorkoutSessionResponse) {
+  const recalibratedUpdates = summary.progressionUpdates.filter((update) => update.result === "recalibrated");
   const updates = summary.progressionUpdates.filter((update) => update.result === "increased");
+
+  if (recalibratedUpdates.length > 0) {
+    return `${recalibratedUpdates.length} lift${recalibratedUpdates.length === 1 ? "" : "s"} recalibrated`;
+  }
 
   if (updates.length > 0) {
     return `${updates.length} lift${updates.length === 1 ? "" : "s"} moving up next time`;
@@ -66,7 +71,15 @@ export function getWorkoutSummaryHeadline(summary: CompleteWorkoutSessionRespons
 }
 
 export function getWorkoutSummaryEncouragement(summary: CompleteWorkoutSessionResponse) {
+  const recalibratedUpdates = summary.progressionUpdates.filter((update) => update.result === "recalibrated");
   const increasedUpdates = summary.progressionUpdates.filter((update) => update.result === "increased");
+
+  if (recalibratedUpdates.length > 0) {
+    const firstUpdate = recalibratedUpdates[0];
+    if (firstUpdate) {
+      return `Adjusted ${firstUpdate.exerciseName} to ${firstUpdate.nextWeight.value} lb based on your performance.`;
+    }
+  }
 
   if (increasedUpdates.length > 0) {
     const firstUpdate = increasedUpdates[0];
@@ -96,6 +109,10 @@ export function getProgressionUpdateSummaryText(update: CompleteWorkoutSessionRe
     return `+${formatDelta(delta)} lb next time`;
   }
 
+  if (update.result === "recalibrated" && delta > 0) {
+    return `Adjusted to ${formatDelta(nextWeight)} lb next time`;
+  }
+
   if (update.result === "reduced" && delta < 0) {
     return `${formatDelta(Math.abs(delta))} lb lighter next time`;
   }
@@ -105,6 +122,7 @@ export function getProgressionUpdateSummaryText(update: CompleteWorkoutSessionRe
 
 export function getWorkoutSummaryOutcomes(summary: CompleteWorkoutSessionResponse): WorkoutSummaryOutcome[] {
   const stats = getWorkoutSummaryStats(summary.workoutSession);
+  const recalibratedUpdates = summary.progressionUpdates.filter((update) => update.result === "recalibrated");
   const increasedUpdates = summary.progressionUpdates.filter((update) => update.result === "increased");
   const outcomes: WorkoutSummaryOutcome[] = [
     {
@@ -124,7 +142,13 @@ export function getWorkoutSummaryOutcomes(summary: CompleteWorkoutSessionRespons
     }
   ];
 
-  if (increasedUpdates.length > 0) {
+  if (recalibratedUpdates.length > 0) {
+    outcomes.push({
+      label: "Progress",
+      value: `${recalibratedUpdates.length}`,
+      detail: `lift${recalibratedUpdates.length === 1 ? "" : "s"} recalibrated`
+    });
+  } else if (increasedUpdates.length > 0) {
     outcomes.push({
       label: "Progress",
       value: `${increasedUpdates.length}`,

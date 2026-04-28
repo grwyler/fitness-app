@@ -29,6 +29,7 @@ import {
   buildLogSetRequestFromDraft,
   formatRestTimer,
   getRestDurationSeconds,
+  isMaterialOverperformanceLog,
   type SetLogDraft
 } from "../features/workout/utils/set-logging.shared";
 import { colors, spacing } from "../theme/tokens";
@@ -172,7 +173,17 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
       ...current,
       [set.id]: true
     }));
-    setLastAction(request.actualReps >= set.targetReps ? `completed_set:${set.id}` : `missed_set:${set.id}`);
+    const loggedWeightValue = request.actualWeight?.value ?? set.targetWeight.value;
+    const isOverperformanceSet = isMaterialOverperformanceLog({
+      actualReps: request.actualReps,
+      actualWeightValue: loggedWeightValue,
+      targetWeightValue: set.targetWeight.value
+    });
+    setLastAction(
+      request.actualReps >= set.targetReps || isOverperformanceSet
+        ? `completed_set:${set.id}`
+        : `missed_set:${set.id}`
+    );
     const hasAnotherPendingSet = exercise.sets.some(
       (candidate) => candidate.setNumber > set.setNumber && candidate.status === "pending"
     );

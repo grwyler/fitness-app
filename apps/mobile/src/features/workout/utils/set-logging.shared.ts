@@ -1,5 +1,7 @@
 import type { LogSetRequest, SetDto, WeightValueDto } from "@fitness/shared";
 
+const MATERIAL_OVERPERFORMANCE_MULTIPLIER = 1.25;
+
 export type SetLogDraft = {
   repsText: string;
   weightText: string;
@@ -113,6 +115,18 @@ export function buildLogSetRequestFromDraft(draft: SetLogDraft): LogSetRequest |
   };
 }
 
+export function isMaterialOverperformanceLog(input: {
+  actualReps: number;
+  actualWeightValue: number;
+  targetWeightValue: number;
+}) {
+  return (
+    input.actualReps > 0 &&
+    input.targetWeightValue > 0 &&
+    input.actualWeightValue >= input.targetWeightValue * MATERIAL_OVERPERFORMANCE_MULTIPLIER
+  );
+}
+
 export function getRestDurationSeconds(input: {
   restSeconds: number | null;
   exerciseCategory?: string;
@@ -150,9 +164,26 @@ export function getSetStatusLabel(set: SetDto) {
 export function getSetOutcomeText(input: {
   actualReps: number | null;
   targetReps: number;
+  actualWeightValue?: number | null;
+  targetWeightValue?: number | null;
 }) {
   if (input.actualReps === null) {
     return "Ready";
+  }
+
+  if (
+    input.actualWeightValue !== null &&
+    input.actualWeightValue !== undefined &&
+    input.targetWeightValue !== null &&
+    input.targetWeightValue !== undefined &&
+    input.actualReps < input.targetReps &&
+    isMaterialOverperformanceLog({
+      actualReps: input.actualReps,
+      actualWeightValue: input.actualWeightValue,
+      targetWeightValue: input.targetWeightValue
+    })
+  ) {
+    return "Heavy work";
   }
 
   return input.actualReps >= input.targetReps ? "Meets target" : "Below target";
