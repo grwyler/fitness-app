@@ -106,21 +106,43 @@ Optional:
 
 Merges to `main` deploy the production web app to Vercel automatically via [`.github/workflows/vercel-production.yml`](C:\Users\Grwyl\repos\fitness-app\.github\workflows\vercel-production.yml).
 
+Merges to `main` also deploy the production API to its separate Vercel project automatically via [`.github/workflows/vercel-api-production.yml`](C:\Users\Grwyl\repos\fitness-app\.github\workflows\vercel-api-production.yml). The API workflow:
+
+- installs from the root workspace lockfile
+- builds `@fitness/shared`, `@fitness/db`, and `@fitness/api`
+- runs the backend test suite with `npm run test --workspace @fitness/api`
+- builds the API Vercel output from [vercel.api.json](C:\Users\Grwyl\repos\fitness-app\vercel.api.json)
+- deploys the prebuilt output to the API Vercel project
+- smoke-checks `/health` on the deployed API URL
+
 Add these repository secrets in GitHub before relying on the workflow:
 
 - `VERCEL_TOKEN`
 - `VERCEL_ORG_ID`
 - `VERCEL_PROJECT_ID`: the production web app Vercel project, not the API project
+- `VERCEL_API_PROJECT_ID`: the production API Vercel project, not the web app project
 
-Optional repository variable:
+Optional repository variables:
 
 - `VERCEL_PRODUCTION_URL`: the canonical production URL, for example `https://setwisefit.vercel.app`
+- `VERCEL_API_PRODUCTION_URL`: the canonical API production URL, for example `https://setwiseapi.vercel.app`
 
-The workflow can also be started manually from the GitHub Actions tab with `workflow_dispatch`.
+Both workflows can also be started manually from the GitHub Actions tab with `workflow_dispatch`.
 
-The workflow builds the Vercel output, verifies the built app serves the Expo web HTML shell at `/` and a deep link path, deploys the prebuilt output, and smoke-checks the deployed URL. If the URL returns the API `NOT_FOUND` JSON payload, the workflow fails.
+The web workflow builds the Vercel output, verifies the built app serves the Expo web HTML shell at `/` and a deep link path, deploys the prebuilt output, and smoke-checks the deployed URL. If the URL returns the API `NOT_FOUND` JSON payload, the workflow fails.
 
-The API should either use a separate Vercel Git integration for the `apps/api` project or a separate API deployment workflow with its own project id secret. Do not reuse the production web app project id for the API.
+The API workflow uses a separate project id secret. Do not reuse the production web app project id for the API.
+
+Production API runtime configuration belongs in the API Vercel project environment, not in GitHub Actions and not in the repository:
+
+- `DATABASE_URL`
+- `JWT_SECRET`
+- `CORS_ALLOWED_ORIGINS`
+- `NODE_ENV=production`
+
+The API workflow does not run production schema changes automatically. Apply reviewed database migrations before merging code that requires them. The local `setup:dev` command is intentionally not used in production CI because it can seed development data.
+
+To roll back either deployment, use the Vercel dashboard to promote a previous production deployment for that project, or rerun the GitHub Actions workflow from a known-good commit. To manually redeploy the latest `main`, open the matching workflow in GitHub Actions and run `workflow_dispatch`.
 
 ## API dashboard flow
 

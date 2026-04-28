@@ -1,0 +1,66 @@
+name: Deploy API to Vercel
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: vercel-api-production
+  cancel-in-progress: true
+
+jobs:
+  deploy-api:
+    name: API production deploy
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_API_PROJECT_ID }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build shared packages
+        run: |
+          npm run build --workspace @fitness/shared
+          npm run build --workspace @fitness/db
+
+      - name: Build API
+        run: npm run build --workspace @fitness/api
+
+      - name: Test API
+        run: npm run test --workspace @fitness/api
+
+      - name: Pull API Vercel environment
+        run: npx vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Build API Vercel output
+        run: npx vercel build --prod --local-config vercel.api.json --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Deploy API to production
+        run: |
+          DEPLOYMENT_OUTPUT="$(npx vercel deploy --prebuilt --prod --yes --local-config vercel.api.json --token=${{ secrets.VERCEL_TOKEN }})"
+          DEPLOYMENT_URL="$(printf "%s\n" "$DEPLOYMENT_OUTPUT" | tail -n 1)"
+          echo "API_DEPLOYMENT_URL=$DEPLOYMENT_URL" >> "$GITHUB_ENV"
+          printf "%s\n" "$DEPLOYMENT_OUTPUT"
+
+      - name: Smoke check API production URL
+        env:
+          API_PRODUCTION_URL: ${{ vars.VERCEL_API_PRODUCTION_URL }}
+        run: |
+          if [ -n "$API_PRODUCTION_URL" ]; then
+            npm run smoke:api:url -- "$API_PRODUCTION_URL"
+          else
+            npm run smoke:api:url -- "$API_DEPLOYMENT_URL"
+          fi
