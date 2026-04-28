@@ -35,6 +35,9 @@ jobs:
         run: npm run build:api
 
       - name: Test API
+        env:
+          NODE_ENV: test
+          USE_PGLITE_DEV: "true"
         run: npm run test --workspace @fitness/api
 
       - name: Pull API Vercel environment
