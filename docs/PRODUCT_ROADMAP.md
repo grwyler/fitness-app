@@ -85,6 +85,7 @@ A user can:
 - [x] Complete workout → saves to history
 - [x] Make custom workout creation the primary dashboard start path
 - [x] Keep predefined program workouts available behind a secondary chooser
+- [x] Group predefined workouts by Push, Pull, Legs, Full Body, and Quick inside the chooser
 - [x] No saving templates (yet)
 - [x] No editing exercises database
 
@@ -159,10 +160,10 @@ A user can:
 ## Current Status
 
 Right now I am working on:
-Completion feedback and history/detail validation after realistic workout-flow review.
+Keeping workout start friction low while expanding the predefined workout catalog.
 
 Next task is:
-Run 3+ real workouts and capture any remaining friction in completion, history, detail, and progression.
+Run through custom and predefined workout starts on web/mobile and capture any remaining picker friction.
 
 Blockers:
 No blocker on the local auth flow. Production now uses first-party MVP auth.

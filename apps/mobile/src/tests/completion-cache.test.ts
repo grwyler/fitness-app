@@ -76,6 +76,7 @@ function createCompletionSummary(overrides?: {
     nextWorkoutTemplate: {
       id: "template-2",
       name: "Workout B",
+      category: "Full Body",
       sequenceOrder: 2,
       estimatedDurationMinutes: 55
     }

@@ -111,6 +111,7 @@ export function mapNextWorkoutTemplateDto(
   return {
     id: template.id,
     name: template.name,
+    category: template.category ?? "Full Body",
     sequenceOrder: template.sequenceOrder,
     estimatedDurationMinutes: template.estimatedDurationMinutes
   };
@@ -130,6 +131,7 @@ export function mapProgramDto(definition: ProgramDefinition): ProgramDto {
       .map((template) => ({
         id: template.id,
         name: template.name,
+        category: template.category ?? "Full Body",
         sequenceOrder: template.sequenceOrder,
         estimatedDurationMinutes: template.estimatedDurationMinutes,
         exercises: [...template.exercises]

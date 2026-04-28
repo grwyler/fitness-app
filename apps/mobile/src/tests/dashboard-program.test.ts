@@ -2,19 +2,22 @@ import assert from "node:assert/strict";
 import type { ActiveProgramDto, ProgramWorkoutTemplateDto } from "@fitness/shared";
 import {
   findProgramWorkoutById,
+  getPredefinedWorkoutChoices,
   getHiddenExerciseCount,
   getNextProgramPositionLabel,
   getPlannedExerciseLines,
   getProgramWorkoutPositionLabel,
   getProgramWorkouts,
   getWorkoutStartActionLabels,
-  getWorkoutIntentSummary
+  getWorkoutIntentSummary,
+  groupPredefinedWorkoutChoicesByCategory
 } from "../features/workout/utils/dashboard-program.shared.js";
 import type { MobileTestCase } from "./mobile-test-case.js";
 
 const workoutA: ProgramWorkoutTemplateDto = {
   id: "template-1",
   name: "Workout A",
+  category: "Full Body",
   sequenceOrder: 1,
   estimatedDurationMinutes: 60,
   exercises: [
@@ -54,6 +57,7 @@ const workoutA: ProgramWorkoutTemplateDto = {
 const workoutB: ProgramWorkoutTemplateDto = {
   id: "template-2",
   name: "Workout B",
+  category: "Full Body",
   sequenceOrder: 2,
   estimatedDurationMinutes: 55,
   exercises: [
@@ -92,6 +96,7 @@ function createActiveProgram(overrides?: {
     nextWorkoutTemplate: {
       id: "template-1",
       name: "Workout A",
+      category: "Full Body",
       sequenceOrder: 1,
       estimatedDurationMinutes: 60
     },
@@ -204,12 +209,14 @@ export const dashboardProgramTestCases: MobileTestCase[] = [
               ...workoutA,
               id: "template-3",
               name: "Workout C",
+              category: "Push",
               sequenceOrder: 3
             },
             {
               ...workoutB,
               id: "template-4",
               name: "Workout D",
+              category: "Pull",
               sequenceOrder: 4
             }
           ]
@@ -262,6 +269,70 @@ export const dashboardProgramTestCases: MobileTestCase[] = [
         }),
         "Week 1 · Day 2"
       );
+    }
+  },
+  {
+    name: "Dashboard groups predefined workout choices by category",
+    run: () => {
+      const activeProgram = createActiveProgram();
+      const choices = getPredefinedWorkoutChoices({
+        activeProgram: null,
+        programs: [
+          activeProgram.program,
+          {
+            ...activeProgram.program,
+            id: "program-2",
+            name: "Push Pull Legs",
+            workouts: [
+              {
+                ...workoutA,
+                id: "template-3",
+                name: "Push Strength",
+                category: "Push",
+                sequenceOrder: 1
+              },
+              {
+                ...workoutB,
+                id: "template-4",
+                name: "Pull Strength",
+                category: "Pull",
+                sequenceOrder: 2
+              },
+              {
+                ...workoutB,
+                id: "template-5",
+                name: "Quick Full Body",
+                category: "Quick",
+                sequenceOrder: 3
+              }
+            ]
+          }
+        ]
+      });
+      const groups = groupPredefinedWorkoutChoicesByCategory(choices);
+
+      assert.deepEqual(
+        groups.map((group) => group.category),
+        ["Push", "Pull", "Full Body", "Quick"]
+      );
+      assert.deepEqual(
+        groups.flatMap((group) => group.workouts.map((choice) => choice.workout.name)),
+        ["Push Strength", "Pull Strength", "Workout A", "Workout B", "Quick Full Body"]
+      );
+    }
+  },
+  {
+    name: "Dashboard predefined workout choices carry program and workout ids for starting",
+    run: () => {
+      const activeProgram = createActiveProgram();
+      const [choice] = getPredefinedWorkoutChoices({
+        activeProgram: null,
+        programs: [activeProgram.program]
+      });
+
+      assert.equal(choice?.programId, "program-1");
+      assert.equal(choice?.workout.id, "template-1");
+      assert.equal(choice?.positionLabel, "Workout 1");
     }
   }
 ];

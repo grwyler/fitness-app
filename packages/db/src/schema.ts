@@ -1,4 +1,5 @@
 import { sql } from "drizzle-orm";
+import type { PredefinedWorkoutCategory } from "@fitness/shared";
 import {
   boolean,
   check,
@@ -115,6 +116,7 @@ export const workoutTemplates = pgTable(
     id: uuid("id").defaultRandom().primaryKey(),
     programId: uuid("program_id").notNull().references(() => programs.id),
     name: text("name").notNull(),
+    category: text("category").$type<PredefinedWorkoutCategory>().notNull().default("Full Body"),
     sequenceOrder: integer("sequence_order").notNull(),
     estimatedDurationMinutes: integer("estimated_duration_minutes"),
     isActive: boolean("is_active").notNull().default(true),

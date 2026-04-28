@@ -1,4 +1,8 @@
-import type { DifficultyLevel, ExerciseCategory } from "@fitness/shared";
+import type {
+  DifficultyLevel,
+  ExerciseCategory,
+  PredefinedWorkoutCategory
+} from "@fitness/shared";
 
 type SeedExercise = {
   slug: string;
@@ -21,6 +25,7 @@ type SeedWorkoutExercise = {
 
 type SeedWorkoutTemplate = {
   name: string;
+  category: PredefinedWorkoutCategory;
   sequenceOrder: number;
   estimatedDurationMinutes: number;
   exercises: SeedWorkoutExercise[];
@@ -236,7 +241,8 @@ export const beginnerFullBodyV1: SeedProgram = {
   difficultyLevel: "beginner",
   templates: [
     {
-      name: "Workout A",
+      name: "Full Body Strength",
+      category: "Full Body",
       sequenceOrder: 1,
       estimatedDurationMinutes: 60,
       exercises: [
@@ -248,7 +254,8 @@ export const beginnerFullBodyV1: SeedProgram = {
       ]
     },
     {
-      name: "Workout B",
+      name: "Full Body Posterior Chain",
+      category: "Full Body",
       sequenceOrder: 2,
       estimatedDurationMinutes: 55,
       exercises: [
@@ -270,7 +277,8 @@ export const upperLowerArms4Day: SeedProgram = {
   difficultyLevel: "beginner",
   templates: [
     {
-      name: "Day 1 - Upper Strength",
+      name: "Push Strength",
+      category: "Push",
       sequenceOrder: 1,
       estimatedDurationMinutes: 60,
       exercises: [
@@ -288,7 +296,8 @@ export const upperLowerArms4Day: SeedProgram = {
       ]
     },
     {
-      name: "Day 2 - Lower",
+      name: "Legs Strength",
+      category: "Legs",
       sequenceOrder: 2,
       estimatedDurationMinutes: 55,
       exercises: [
@@ -304,7 +313,8 @@ export const upperLowerArms4Day: SeedProgram = {
       ]
     },
     {
-      name: "Day 3 - Upper Arms Focus",
+      name: "Pull + Arms",
+      category: "Pull",
       sequenceOrder: 3,
       estimatedDurationMinutes: 55,
       exercises: [
@@ -316,13 +326,58 @@ export const upperLowerArms4Day: SeedProgram = {
       ]
     },
     {
-      name: "Day 4 - Arms Quick",
+      name: "Quick Arms",
+      category: "Quick",
       sequenceOrder: 4,
       estimatedDurationMinutes: 35,
       exercises: [
         { exerciseSlug: "db-curl", sequenceOrder: 1, targetSets: 3, targetReps: 10, restSeconds: 75 },
         { exerciseSlug: "skull-crushers", sequenceOrder: 2, targetSets: 3, targetReps: 10, restSeconds: 75 },
         { exerciseSlug: "hammer-curl", sequenceOrder: 3, targetSets: 2, targetReps: 10, restSeconds: 75 }
+      ]
+    },
+    {
+      name: "Push Hypertrophy",
+      category: "Push",
+      sequenceOrder: 5,
+      estimatedDurationMinutes: 50,
+      exercises: [
+        { exerciseSlug: "incline-db-press", sequenceOrder: 1, targetSets: 3, targetReps: 10, restSeconds: 90 },
+        { exerciseSlug: "overhead-press", sequenceOrder: 2, targetSets: 3, targetReps: 8, restSeconds: 90 },
+        { exerciseSlug: "tricep-pushdown", sequenceOrder: 3, targetSets: 3, targetReps: 12, restSeconds: 75 }
+      ]
+    },
+    {
+      name: "Pull Hypertrophy",
+      category: "Pull",
+      sequenceOrder: 6,
+      estimatedDurationMinutes: 50,
+      exercises: [
+        { exerciseSlug: "pull-ups", sequenceOrder: 1, targetSets: 3, targetReps: 8, restSeconds: 120 },
+        { exerciseSlug: "db-row", sequenceOrder: 2, targetSets: 3, targetReps: 10, restSeconds: 90 },
+        { exerciseSlug: "hammer-curl", sequenceOrder: 3, targetSets: 3, targetReps: 12, restSeconds: 75 }
+      ]
+    },
+    {
+      name: "Legs Volume",
+      category: "Legs",
+      sequenceOrder: 7,
+      estimatedDurationMinutes: 50,
+      exercises: [
+        { exerciseSlug: "back-squat", sequenceOrder: 1, targetSets: 3, targetReps: 8, restSeconds: 120 },
+        { exerciseSlug: "romanian-deadlift", sequenceOrder: 2, targetSets: 3, targetReps: 8, restSeconds: 120 },
+        { exerciseSlug: "lunges", sequenceOrder: 3, targetSets: 2, targetReps: 10, restSeconds: 90 }
+      ]
+    },
+    {
+      name: "Quick Full Body",
+      category: "Quick",
+      sequenceOrder: 8,
+      estimatedDurationMinutes: 30,
+      exercises: [
+        { exerciseSlug: "back-squat", sequenceOrder: 1, targetSets: 2, targetReps: 8, restSeconds: 90 },
+        { exerciseSlug: "bench-press", sequenceOrder: 2, targetSets: 2, targetReps: 8, restSeconds: 90 },
+        { exerciseSlug: "barbell-row", sequenceOrder: 3, targetSets: 2, targetReps: 8, restSeconds: 90 }
       ]
     }
   ]

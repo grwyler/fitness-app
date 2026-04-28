@@ -164,6 +164,7 @@ async function seedResettableTestUserData(context: Awaited<ReturnType<typeof cre
     id: "test-custom-template",
     programId: "test-custom-program",
     name: "Test Custom Workout",
+    category: "Full Body",
     sequenceOrder: 1,
     estimatedDurationMinutes: 30,
     isActive: true,
@@ -650,14 +651,17 @@ export const workoutHttpTestCases: HttpTestCase[] = [
           assert.equal(payload.data.programs.length, 2);
           assert.equal(payload.data.programs[0].name, "Beginner Full Body V1");
           assert.equal(payload.data.programs[0].workouts[0].name, "Workout A");
+          assert.equal(payload.data.programs[0].workouts[0].category, "Full Body");
           assert.equal(payload.data.programs[0].workouts[0].exercises[0].exerciseName, "Bench Press");
           assert.equal(payload.data.programs[1].name, "4-Day Upper/Lower + Arms");
           assert.equal(payload.data.programs[1].daysPerWeek, 4);
           assert.equal(payload.data.programs[1].workouts.length, 4);
           assert.equal(payload.data.programs[1].workouts[0].name, "Day 1 - Upper Strength");
+          assert.equal(payload.data.programs[1].workouts[0].category, "Push");
           assert.equal(payload.data.programs[1].workouts[0].exercises[1].exerciseName, "Pull-Ups");
           assert.equal(payload.data.programs[1].workouts[0].exercises[1].targetReps, 8);
           assert.equal(payload.data.programs[1].workouts[3].exercises[0].exerciseName, "DB Curl");
+          assert.equal(payload.data.programs[1].workouts[3].category, "Quick");
           assert.equal(payload.data.programs[1].workouts[3].exercises[0].targetSets, 3);
         } finally {
           await server.close();
@@ -690,7 +694,15 @@ export const workoutHttpTestCases: HttpTestCase[] = [
             payload.data.programs.map((program: { name: string }) => program.name),
             ["Beginner Full Body V1", "4-Day Upper/Lower + Arms"]
           );
-          assert.equal(payload.data.programs[1].workouts.length, 4);
+          assert.equal(payload.data.programs[1].workouts.length, 8);
+          assert.deepEqual(
+            Array.from(
+              new Set(payload.data.programs.flatMap((program: { workouts: Array<{ category: string }> }) =>
+                program.workouts.map((workout) => workout.category)
+              ))
+            ).sort(),
+            ["Full Body", "Legs", "Pull", "Push", "Quick"].sort()
+          );
         } finally {
           await server.close();
         }

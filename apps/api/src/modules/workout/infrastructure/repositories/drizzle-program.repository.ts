@@ -145,6 +145,7 @@ export class DrizzleProgramRepository implements ProgramRepository {
           id: randomUUID(),
           programId: programRow.id,
           name: workout.name,
+          category: "Full Body",
           sequenceOrder: workout.sequenceOrder,
           estimatedDurationMinutes: null,
           isActive: true,
@@ -267,6 +268,7 @@ export class DrizzleProgramRepository implements ProgramRepository {
         id: row.id,
         programId: row.programId,
         name: row.name,
+        category: row.category,
         sequenceOrder: row.sequenceOrder,
         estimatedDurationMinutes: row.estimatedDurationMinutes,
         exercises: exercisesByTemplateId.get(row.id) ?? []

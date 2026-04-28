@@ -1,4 +1,31 @@
-import type { ActiveProgramDto, ProgramWorkoutTemplateDto } from "@fitness/shared";
+import type {
+  ActiveProgramDto,
+  PredefinedWorkoutCategory,
+  ProgramDto,
+  ProgramWorkoutTemplateDto
+} from "@fitness/shared";
+
+export const predefinedWorkoutCategories: PredefinedWorkoutCategory[] = [
+  "Push",
+  "Pull",
+  "Legs",
+  "Full Body",
+  "Quick"
+];
+
+export type PredefinedWorkoutChoice = {
+  id: string;
+  category: PredefinedWorkoutCategory;
+  programId: string;
+  programName: string;
+  positionLabel: string;
+  workout: ProgramWorkoutTemplateDto;
+};
+
+export type PredefinedWorkoutCategoryGroup = {
+  category: PredefinedWorkoutCategory;
+  workouts: PredefinedWorkoutChoice[];
+};
 
 export function getNextProgramPositionLabel(activeProgram: ActiveProgramDto | null | undefined) {
   if (!activeProgram) {
@@ -45,6 +72,81 @@ export function getProgramWorkouts(activeProgram: ActiveProgramDto | null | unde
   return [...activeProgram.program.workouts].sort(
     (left, right) => left.sequenceOrder - right.sequenceOrder
   );
+}
+
+export function getPredefinedWorkoutChoices(input: {
+  activeProgram: ActiveProgramDto | null | undefined;
+  programs: ProgramDto[];
+}): PredefinedWorkoutChoice[] {
+  const choicesById = new Map<string, PredefinedWorkoutChoice>();
+
+  if (input.activeProgram?.program.source === "predefined") {
+    for (const workout of getProgramWorkouts(input.activeProgram)) {
+      choicesById.set(workout.id, {
+        id: workout.id,
+        category: workout.category,
+        programId: input.activeProgram.program.id,
+        programName: input.activeProgram.program.name,
+        positionLabel: getProgramWorkoutPositionLabel({
+          activeProgram: input.activeProgram,
+          workout
+        }),
+        workout
+      });
+    }
+  }
+
+  for (const program of input.programs) {
+    if (program.source !== "predefined") {
+      continue;
+    }
+
+    for (const workout of [...program.workouts].sort(
+      (left, right) => left.sequenceOrder - right.sequenceOrder
+    )) {
+      if (choicesById.has(workout.id)) {
+        continue;
+      }
+
+      choicesById.set(workout.id, {
+        id: workout.id,
+        category: workout.category,
+        programId: program.id,
+        programName: program.name,
+        positionLabel: `Workout ${workout.sequenceOrder}`,
+        workout
+      });
+    }
+  }
+
+  return [...choicesById.values()].sort((left, right) => {
+    const categoryDelta =
+      predefinedWorkoutCategories.indexOf(left.category) -
+      predefinedWorkoutCategories.indexOf(right.category);
+
+    if (categoryDelta !== 0) {
+      return categoryDelta;
+    }
+
+    const programDelta = left.programName.localeCompare(right.programName);
+
+    if (programDelta !== 0) {
+      return programDelta;
+    }
+
+    return left.workout.sequenceOrder - right.workout.sequenceOrder;
+  });
+}
+
+export function groupPredefinedWorkoutChoicesByCategory(
+  choices: PredefinedWorkoutChoice[]
+): PredefinedWorkoutCategoryGroup[] {
+  return predefinedWorkoutCategories
+    .map((category) => ({
+      category,
+      workouts: choices.filter((choice) => choice.category === category)
+    }))
+    .filter((group) => group.workouts.length > 0);
 }
 
 export function getProgramWorkoutPositionLabel(input: {

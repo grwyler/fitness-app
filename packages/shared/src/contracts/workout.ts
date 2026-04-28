@@ -28,6 +28,8 @@ export type WeightValueDto = {
 
 export type WorkoutSessionType = "program" | "custom";
 
+export type PredefinedWorkoutCategory = "Push" | "Pull" | "Legs" | "Full Body" | "Quick";
+
 export type SetDto = {
   id: UUID;
   exerciseEntryId: UUID;
@@ -73,6 +75,7 @@ export type WorkoutSessionDto = {
 export type NextWorkoutTemplateDto = {
   id: UUID;
   name: string;
+  category: PredefinedWorkoutCategory;
   sequenceOrder: number;
   estimatedDurationMinutes: number | null;
 };
@@ -107,6 +110,7 @@ export type ProgramWorkoutExerciseDto = {
 export type ProgramWorkoutTemplateDto = {
   id: UUID;
   name: string;
+  category: PredefinedWorkoutCategory;
   sequenceOrder: number;
   estimatedDurationMinutes: number | null;
   exercises: ProgramWorkoutExerciseDto[];

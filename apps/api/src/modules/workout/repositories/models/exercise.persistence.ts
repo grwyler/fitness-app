@@ -1,4 +1,4 @@
-import type { ExerciseCategory } from "@fitness/shared";
+import type { ExerciseCategory, PredefinedWorkoutCategory } from "@fitness/shared";
 
 export type ExerciseRecord = {
   id: string;
@@ -18,6 +18,7 @@ export type WorkoutTemplateRecord = {
   programId: string;
   programName: string;
   name: string;
+  category?: PredefinedWorkoutCategory;
   sequenceOrder: number;
   estimatedDurationMinutes: number | null;
   isActive: boolean;

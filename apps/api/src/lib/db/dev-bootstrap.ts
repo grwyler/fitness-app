@@ -8,6 +8,10 @@ const UPPER_LOWER_DAY_1_TEMPLATE_ID = "33333333-3333-3333-3333-333333333341";
 const UPPER_LOWER_DAY_2_TEMPLATE_ID = "33333333-3333-3333-3333-333333333342";
 const UPPER_LOWER_DAY_3_TEMPLATE_ID = "33333333-3333-3333-3333-333333333343";
 const UPPER_LOWER_DAY_4_TEMPLATE_ID = "33333333-3333-3333-3333-333333333344";
+const PUSH_HYPERTROPHY_TEMPLATE_ID = "33333333-3333-3333-3333-333333333345";
+const PULL_HYPERTROPHY_TEMPLATE_ID = "33333333-3333-3333-3333-333333333346";
+const LEGS_VOLUME_TEMPLATE_ID = "33333333-3333-3333-3333-333333333347";
+const QUICK_FULL_BODY_TEMPLATE_ID = "33333333-3333-3333-3333-333333333348";
 const CUSTOM_WORKOUT_TEMPLATE_ID = "33333333-3333-3333-3333-333333333399";
 const ENROLLMENT_ID = "55555555-5555-5555-5555-555555555555";
 
@@ -56,13 +60,17 @@ const EXERCISE_IDS: Record<string, string> = {
 };
 
 const templateDefinitions = [
-  { id: TEMPLATE_A_ID, programId: PROGRAM_ID, name: "Workout A", order: 1, duration: 60 },
-  { id: TEMPLATE_B_ID, programId: PROGRAM_ID, name: "Workout B", order: 2, duration: 55 },
-  { id: UPPER_LOWER_DAY_1_TEMPLATE_ID, programId: UPPER_LOWER_ARMS_PROGRAM_ID, name: "Day 1 - Upper Strength", order: 1, duration: 60 },
-  { id: UPPER_LOWER_DAY_2_TEMPLATE_ID, programId: UPPER_LOWER_ARMS_PROGRAM_ID, name: "Day 2 - Lower", order: 2, duration: 55 },
-  { id: UPPER_LOWER_DAY_3_TEMPLATE_ID, programId: UPPER_LOWER_ARMS_PROGRAM_ID, name: "Day 3 - Upper Arms Focus", order: 3, duration: 55 },
-  { id: UPPER_LOWER_DAY_4_TEMPLATE_ID, programId: UPPER_LOWER_ARMS_PROGRAM_ID, name: "Day 4 - Arms Quick", order: 4, duration: 35 },
-  { id: CUSTOM_WORKOUT_TEMPLATE_ID, programId: CUSTOM_WORKOUT_PROGRAM_ID, name: "Custom Workout", order: 1, duration: 45 }
+  { id: TEMPLATE_A_ID, programId: PROGRAM_ID, name: "Full Body Strength", category: "Full Body", order: 1, duration: 60 },
+  { id: TEMPLATE_B_ID, programId: PROGRAM_ID, name: "Full Body Posterior Chain", category: "Full Body", order: 2, duration: 55 },
+  { id: UPPER_LOWER_DAY_1_TEMPLATE_ID, programId: UPPER_LOWER_ARMS_PROGRAM_ID, name: "Push Strength", category: "Push", order: 1, duration: 60 },
+  { id: UPPER_LOWER_DAY_2_TEMPLATE_ID, programId: UPPER_LOWER_ARMS_PROGRAM_ID, name: "Legs Strength", category: "Legs", order: 2, duration: 55 },
+  { id: UPPER_LOWER_DAY_3_TEMPLATE_ID, programId: UPPER_LOWER_ARMS_PROGRAM_ID, name: "Pull + Arms", category: "Pull", order: 3, duration: 55 },
+  { id: UPPER_LOWER_DAY_4_TEMPLATE_ID, programId: UPPER_LOWER_ARMS_PROGRAM_ID, name: "Quick Arms", category: "Quick", order: 4, duration: 35 },
+  { id: PUSH_HYPERTROPHY_TEMPLATE_ID, programId: UPPER_LOWER_ARMS_PROGRAM_ID, name: "Push Hypertrophy", category: "Push", order: 5, duration: 50 },
+  { id: PULL_HYPERTROPHY_TEMPLATE_ID, programId: UPPER_LOWER_ARMS_PROGRAM_ID, name: "Pull Hypertrophy", category: "Pull", order: 6, duration: 50 },
+  { id: LEGS_VOLUME_TEMPLATE_ID, programId: UPPER_LOWER_ARMS_PROGRAM_ID, name: "Legs Volume", category: "Legs", order: 7, duration: 50 },
+  { id: QUICK_FULL_BODY_TEMPLATE_ID, programId: UPPER_LOWER_ARMS_PROGRAM_ID, name: "Quick Full Body", category: "Quick", order: 8, duration: 30 },
+  { id: CUSTOM_WORKOUT_TEMPLATE_ID, programId: CUSTOM_WORKOUT_PROGRAM_ID, name: "Custom Workout", category: "Full Body", order: 1, duration: 45 }
 ] as const;
 
 const templateEntries = [
@@ -91,7 +99,19 @@ const templateEntries = [
   { id: "77777777-7777-7777-7777-777777777723", templateId: UPPER_LOWER_DAY_3_TEMPLATE_ID, exerciseSlug: "hammer-curl", order: 5, sets: 2, reps: 10, rest: 75 },
   { id: "77777777-7777-7777-7777-777777777724", templateId: UPPER_LOWER_DAY_4_TEMPLATE_ID, exerciseSlug: "db-curl", order: 1, sets: 3, reps: 10, rest: 75 },
   { id: "77777777-7777-7777-7777-777777777725", templateId: UPPER_LOWER_DAY_4_TEMPLATE_ID, exerciseSlug: "skull-crushers", order: 2, sets: 3, reps: 10, rest: 75 },
-  { id: "77777777-7777-7777-7777-777777777726", templateId: UPPER_LOWER_DAY_4_TEMPLATE_ID, exerciseSlug: "hammer-curl", order: 3, sets: 2, reps: 10, rest: 75 }
+  { id: "77777777-7777-7777-7777-777777777726", templateId: UPPER_LOWER_DAY_4_TEMPLATE_ID, exerciseSlug: "hammer-curl", order: 3, sets: 2, reps: 10, rest: 75 },
+  { id: "77777777-7777-7777-7777-777777777727", templateId: PUSH_HYPERTROPHY_TEMPLATE_ID, exerciseSlug: "incline-db-press", order: 1, sets: 3, reps: 10, rest: 90 },
+  { id: "77777777-7777-7777-7777-777777777728", templateId: PUSH_HYPERTROPHY_TEMPLATE_ID, exerciseSlug: "overhead-press", order: 2, sets: 3, reps: 8, rest: 90 },
+  { id: "77777777-7777-7777-7777-777777777729", templateId: PUSH_HYPERTROPHY_TEMPLATE_ID, exerciseSlug: "tricep-pushdown", order: 3, sets: 3, reps: 12, rest: 75 },
+  { id: "77777777-7777-7777-7777-777777777730", templateId: PULL_HYPERTROPHY_TEMPLATE_ID, exerciseSlug: "pull-ups", order: 1, sets: 3, reps: 8, rest: 120 },
+  { id: "77777777-7777-7777-7777-777777777731", templateId: PULL_HYPERTROPHY_TEMPLATE_ID, exerciseSlug: "db-row", order: 2, sets: 3, reps: 10, rest: 90 },
+  { id: "77777777-7777-7777-7777-777777777732", templateId: PULL_HYPERTROPHY_TEMPLATE_ID, exerciseSlug: "hammer-curl", order: 3, sets: 3, reps: 12, rest: 75 },
+  { id: "77777777-7777-7777-7777-777777777733", templateId: LEGS_VOLUME_TEMPLATE_ID, exerciseSlug: "back-squat", order: 1, sets: 3, reps: 8, rest: 120 },
+  { id: "77777777-7777-7777-7777-777777777734", templateId: LEGS_VOLUME_TEMPLATE_ID, exerciseSlug: "romanian-deadlift", order: 2, sets: 3, reps: 8, rest: 120 },
+  { id: "77777777-7777-7777-7777-777777777735", templateId: LEGS_VOLUME_TEMPLATE_ID, exerciseSlug: "lunges", order: 3, sets: 2, reps: 10, rest: 90 },
+  { id: "77777777-7777-7777-7777-777777777736", templateId: QUICK_FULL_BODY_TEMPLATE_ID, exerciseSlug: "back-squat", order: 1, sets: 2, reps: 8, rest: 90 },
+  { id: "77777777-7777-7777-7777-777777777737", templateId: QUICK_FULL_BODY_TEMPLATE_ID, exerciseSlug: "bench-press", order: 2, sets: 2, reps: 8, rest: 90 },
+  { id: "77777777-7777-7777-7777-777777777738", templateId: QUICK_FULL_BODY_TEMPLATE_ID, exerciseSlug: "barbell-row", order: 3, sets: 2, reps: 8, rest: 90 }
 ] as const;
 
 const schemaSql = `
@@ -102,7 +122,8 @@ create table if not exists programs (id uuid primary key, user_id uuid reference
 alter table programs add column if not exists user_id uuid references users(id);
 alter table programs add column if not exists source text not null default 'predefined';
 create index if not exists idx_programs_user_source on programs(user_id, source);
-create table if not exists workout_templates (id uuid primary key, program_id uuid not null references programs(id), name text not null, sequence_order integer not null, estimated_duration_minutes integer, is_active boolean not null default true, deleted_at timestamptz, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
+create table if not exists workout_templates (id uuid primary key, program_id uuid not null references programs(id), name text not null, category text not null default 'Full Body', sequence_order integer not null, estimated_duration_minutes integer, is_active boolean not null default true, deleted_at timestamptz, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
+alter table workout_templates add column if not exists category text not null default 'Full Body';
 create unique index if not exists idx_workout_templates_program_sequence on workout_templates(program_id, sequence_order);
 create table if not exists user_program_enrollments (id uuid primary key, user_id uuid not null references users(id), program_id uuid not null references programs(id), status text not null, started_at timestamptz not null, completed_at timestamptz, current_workout_template_id uuid references workout_templates(id), created_at timestamptz not null default now(), updated_at timestamptz not null default now());
 create unique index if not exists idx_one_active_program_per_user on user_program_enrollments(user_id) where status = 'active';
@@ -223,11 +244,11 @@ export async function syncPredefinedProgramCatalog(executor: SqlExecutor) {
 
   for (const template of templateDefinitions) {
     await executor.query(
-      `insert into workout_templates (id, program_id, name, sequence_order, estimated_duration_minutes, is_active)
-       values ($1, $2, $3, $4, $5, $6)
+      `insert into workout_templates (id, program_id, name, category, sequence_order, estimated_duration_minutes, is_active)
+       values ($1, $2, $3, $4, $5, $6, $7)
        on conflict (id) do update
-       set program_id = excluded.program_id, name = excluded.name, sequence_order = excluded.sequence_order, estimated_duration_minutes = excluded.estimated_duration_minutes, is_active = excluded.is_active, updated_at = now()`,
-      [template.id, template.programId, template.name, template.order, template.duration, true]
+       set program_id = excluded.program_id, name = excluded.name, category = excluded.category, sequence_order = excluded.sequence_order, estimated_duration_minutes = excluded.estimated_duration_minutes, is_active = excluded.is_active, updated_at = now()`,
+      [template.id, template.programId, template.name, template.category, template.order, template.duration, true]
     );
   }
 

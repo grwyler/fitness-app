@@ -1,4 +1,9 @@
-import type { DifficultyLevel, ExerciseCategory, ProgramSource } from "@fitness/shared";
+import type {
+  DifficultyLevel,
+  ExerciseCategory,
+  PredefinedWorkoutCategory,
+  ProgramSource
+} from "@fitness/shared";
 
 export type ProgramRecord = {
   id: string;
@@ -29,6 +34,7 @@ export type ProgramTemplateRecord = {
   id: string;
   programId: string;
   name: string;
+  category?: PredefinedWorkoutCategory;
   sequenceOrder: number;
   estimatedDurationMinutes: number | null;
   exercises: ProgramTemplateExerciseRecord[];
