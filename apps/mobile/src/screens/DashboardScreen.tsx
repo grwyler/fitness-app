@@ -20,6 +20,7 @@ import {
   getPlannedExerciseLines,
   getProgramWorkoutPositionLabel,
   getProgramWorkouts,
+  getWorkoutStartActionLabels,
   getWorkoutIntentSummary
 } from "../features/workout/utils/dashboard-program.shared";
 import { requestResetTestDataConfirmation } from "../features/workout/utils/reset-test-data.shared";
@@ -147,8 +148,25 @@ export function DashboardScreen({ navigation }: Props) {
   const plannedExerciseLines = getPlannedExerciseLines(nextWorkoutPlan);
   const hiddenExerciseCount = getHiddenExerciseCount(nextWorkoutPlan, plannedExerciseLines.length);
   const availablePrograms = programsQuery.data ?? [];
+  const hasPredefinedChoices = activeProgram ? programWorkouts.length > 0 : availablePrograms.length > 0;
+  const workoutStartActionLabels = getWorkoutStartActionLabels({
+    activeWorkout: Boolean(activeWorkout),
+    hasActiveProgram: Boolean(activeProgram),
+    hasPredefinedChoices,
+    hasRecommendedWorkout: Boolean(nextWorkout)
+  });
   const isStartingCustomWorkout =
     startWorkoutMutation.isPending && selectedStartingWorkoutId === "custom-workout";
+  const isStartingRecommendedWorkout =
+    startWorkoutMutation.isPending && selectedStartingWorkoutId === nextWorkout?.id;
+
+  if (isDevEnvironment) {
+    console.info("[dashboard] workout-start-structure", {
+      firstAction: workoutStartActionLabels[0] ?? null,
+      inlinePredefinedListVisible: false,
+      secondaryActions: workoutStartActionLabels.slice(1)
+    });
+  }
 
   return (
     <Screen>
@@ -162,6 +180,110 @@ export function DashboardScreen({ navigation }: Props) {
             ? "Follow the program, log the work, and let progression handle the details."
             : "Pick a program or create your own to queue your first workout."}
         </Text>
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.cardLabel}>Start workout</Text>
+        <Text style={styles.cardTitle}>Create Workout</Text>
+        {programPositionLabel ? <Text style={styles.positionText}>{programPositionLabel}</Text> : null}
+        <Text style={styles.cardBody}>
+          Start from a blank workout when you know what you want to train. Predefined workouts are still available when you want structure.
+        </Text>
+        <PrimaryButton
+          label={workoutStartActionLabels[0] ?? "Create Workout"}
+          onPress={() => {
+            setLastAction("start_custom_workout");
+            setSelectedStartingWorkoutId("custom-workout");
+            startWorkoutMutation.mutate(
+              {
+                sessionType: "custom"
+              },
+              {
+                onSuccess: () => {
+                  setSelectedStartingWorkoutId(null);
+                  navigation.navigate("ActiveWorkout");
+                },
+                onError: () => {
+                  setSelectedStartingWorkoutId(null);
+                }
+              }
+            );
+          }}
+          disabled={Boolean(activeWorkout || startWorkoutMutation.isPending)}
+          loading={isStartingCustomWorkout}
+        />
+        {hasPredefinedChoices ? (
+          <PrimaryButton
+            label="Choose Predefined Workout"
+            tone="secondary"
+            disabled={Boolean(activeWorkout || startWorkoutMutation.isPending || programsQuery.isLoading)}
+            onPress={() => {
+              setLastAction("choose_predefined_workout");
+              if (activeProgram) {
+                setIsWorkoutPickerOpen(true);
+                return;
+              }
+
+              setIsProgramPickerOpen(true);
+            }}
+          />
+        ) : null}
+        {nextWorkout ? (
+          <PrimaryButton
+            label="Start Recommended Workout"
+            tone="secondary"
+            onPress={() => {
+              setLastAction("start_recommended_workout");
+              setSelectedStartingWorkoutId(nextWorkout.id);
+              startWorkoutMutation.mutate(
+                {},
+                {
+                  onSuccess: () => {
+                    setSelectedStartingWorkoutId(null);
+                    navigation.navigate("ActiveWorkout");
+                  },
+                  onError: () => {
+                    setSelectedStartingWorkoutId(null);
+                  }
+                }
+              );
+            }}
+            disabled={Boolean(activeWorkout || !activeProgram || startWorkoutMutation.isPending)}
+            loading={isStartingRecommendedWorkout}
+          />
+        ) : null}
+        {nextWorkout ? (
+          <View style={styles.intentBlock}>
+            <Text style={styles.sectionTitle}>Recommended from your program</Text>
+            <Text style={styles.cardTitle}>{nextWorkout.name}</Text>
+            <Text style={styles.cardBody}>
+              {activeProgram?.program.name ?? "Current program"} - estimated {nextWorkout.estimatedDurationMinutes ?? activeProgram?.program.sessionDurationMinutes ?? 0} minutes
+            </Text>
+            <Text style={styles.cardBody}>{getWorkoutIntentSummary(nextWorkoutPlan)}</Text>
+            {plannedExerciseLines.length > 0 ? (
+              <View style={styles.exerciseList}>
+                {plannedExerciseLines.map((line) => (
+                  <Text key={line} style={styles.exerciseLine}>
+                    {line}
+                  </Text>
+                ))}
+                {hiddenExerciseCount > 0 ? (
+                  <Text style={styles.exerciseLine}>+{hiddenExerciseCount} more planned</Text>
+                ) : null}
+              </View>
+            ) : null}
+          </View>
+        ) : activeProgram ? (
+          <Text style={styles.cardBody}>Your program does not have a workout queued.</Text>
+        ) : null}
+        <PrimaryButton
+          label="Create Program"
+          tone="secondary"
+          onPress={() => navigation.navigate("CreateProgram")}
+        />
+        {startWorkoutMutation.error instanceof Error ? (
+          <Text style={styles.errorText}>{startWorkoutMutation.error.message}</Text>
+        ) : null}
       </View>
 
       {activeProgram ? (
@@ -192,61 +314,8 @@ export function DashboardScreen({ navigation }: Props) {
         </View>
       ) : null}
 
-      {!activeProgram ? (
-        <View style={styles.card}>
-          <Text style={styles.cardLabel}>Programs</Text>
-          {programsQuery.isLoading ? (
-            <Text style={styles.cardBody}>Loading programs...</Text>
-          ) : availablePrograms.length === 0 ? (
-            <Text style={styles.cardBody}>No active programs are available yet.</Text>
-          ) : (
-            availablePrograms.map((program) => {
-              const workoutNames = program.workouts.map((workout) => workout.name).join(" / ");
-              const exerciseOverview =
-                program.workouts
-                  .map(
-                    (workout) =>
-                      `${workout.name}: ${workout.exercises
-                        .map((exercise) => exercise.exerciseName)
-                        .join(", ")}`
-                  )
-                  .join("\n") || "Workout overview unavailable";
-
-              return (
-                <View key={program.id} style={styles.programBlock}>
-                  <Text style={styles.cardTitle}>{program.name}</Text>
-                  <Text style={styles.sourcePill}>
-                    {program.source === "custom" ? "Custom program" : "Predefined program"}
-                  </Text>
-                  <Text style={styles.cardBody}>{program.description}</Text>
-                  <Text style={styles.metaLine}>
-                    {program.daysPerWeek} days/week - {program.sessionDurationMinutes} minutes - {program.difficultyLevel}
-                  </Text>
-                  <Text style={styles.sectionTitle}>Weekly structure</Text>
-                  <Text style={styles.cardBody}>{workoutNames}</Text>
-                  <Text style={styles.sectionTitle}>Workout overview</Text>
-                  <Text style={styles.cardBody}>{exerciseOverview}</Text>
-                  <PrimaryButton
-                    label="Start this program"
-                    onPress={() => {
-                      setLastAction("follow_program");
-                      followProgramMutation.mutate(program.id);
-                    }}
-                    loading={followProgramMutation.isPending}
-                  />
-                </View>
-              );
-            })
-          )}
-          {programsQuery.isError ? (
-            <Text style={styles.errorText}>We couldn't load programs. Pull to refresh or try again.</Text>
-          ) : null}
-          <PrimaryButton
-            label="Create Program"
-            tone="secondary"
-            onPress={() => navigation.navigate("CreateProgram")}
-          />
-        </View>
+      {!activeProgram && programsQuery.isError ? (
+        <Text style={styles.errorText}>We couldn't load predefined workouts. Pull to refresh or try again.</Text>
       ) : null}
 
       {activeWorkout ? (
@@ -265,101 +334,6 @@ export function DashboardScreen({ navigation }: Props) {
           />
         </View>
       ) : null}
-
-      <View style={styles.card}>
-        <Text style={styles.cardLabel}>Next workout</Text>
-        <Text style={styles.cardTitle}>{nextWorkout?.name ?? "No workout queued"}</Text>
-        {programPositionLabel ? <Text style={styles.positionText}>{programPositionLabel}</Text> : null}
-        <Text style={styles.cardBody}>
-          {nextWorkout
-            ? `${activeProgram?.program.name ?? "Current program"} - estimated ${nextWorkout.estimatedDurationMinutes ?? activeProgram?.program.sessionDurationMinutes ?? 0} minutes`
-            : activeProgram
-              ? "Your program does not have a workout queued."
-              : "Start a predefined program to queue your first workout."}
-        </Text>
-        {nextWorkout ? (
-          <View style={styles.intentBlock}>
-            <Text style={styles.sectionTitle}>Workout intent</Text>
-            <Text style={styles.cardBody}>{getWorkoutIntentSummary(nextWorkoutPlan)}</Text>
-            {plannedExerciseLines.length > 0 ? (
-              <View style={styles.exerciseList}>
-                {plannedExerciseLines.map((line) => (
-                  <Text key={line} style={styles.exerciseLine}>
-                    {line}
-                  </Text>
-                ))}
-                {hiddenExerciseCount > 0 ? (
-                  <Text style={styles.exerciseLine}>+{hiddenExerciseCount} more planned</Text>
-                ) : null}
-              </View>
-            ) : null}
-          </View>
-        ) : null}
-        <PrimaryButton
-          label={activeWorkout ? "Workout already active" : "Start workout"}
-          onPress={() => {
-            setLastAction("start_workout");
-            setSelectedStartingWorkoutId(nextWorkout?.id ?? null);
-            startWorkoutMutation.mutate(
-              {},
-              {
-                onSuccess: () => {
-                  setSelectedStartingWorkoutId(null);
-                  navigation.navigate("ActiveWorkout");
-                },
-                onError: () => {
-                  setSelectedStartingWorkoutId(null);
-                }
-              }
-            );
-          }}
-          disabled={Boolean(activeWorkout || !nextWorkout || !activeProgram)}
-          loading={startWorkoutMutation.isPending && selectedStartingWorkoutId === nextWorkout?.id}
-        />
-        <PrimaryButton
-          label={activeWorkout ? "Workout already active" : "Start custom workout"}
-          tone="secondary"
-          onPress={() => {
-            setLastAction("start_custom_workout");
-            setSelectedStartingWorkoutId("custom-workout");
-            startWorkoutMutation.mutate(
-              {
-                sessionType: "custom"
-              },
-              {
-                onSuccess: () => {
-                  setSelectedStartingWorkoutId(null);
-                  navigation.navigate("ActiveWorkout");
-                },
-                onError: () => {
-                  setSelectedStartingWorkoutId(null);
-                }
-              }
-            );
-          }}
-          disabled={Boolean(activeWorkout || startWorkoutMutation.isPending)}
-          loading={isStartingCustomWorkout}
-        />
-        {activeProgram && programWorkouts.length > 0 ? (
-          <PrimaryButton
-            label="Choose workout"
-            tone="secondary"
-            disabled={Boolean(activeWorkout || startWorkoutMutation.isPending)}
-            onPress={() => {
-              setLastAction("choose_workout");
-              setIsWorkoutPickerOpen(true);
-            }}
-          />
-        ) : null}
-        <PrimaryButton
-          label="Create Program"
-          tone="secondary"
-          onPress={() => navigation.navigate("CreateProgram")}
-        />
-        {startWorkoutMutation.error instanceof Error ? (
-          <Text style={styles.errorText}>{startWorkoutMutation.error.message}</Text>
-        ) : null}
-      </View>
 
       <View style={styles.card}>
         <Text style={styles.cardLabel}>This week</Text>

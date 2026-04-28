@@ -83,6 +83,8 @@ A user can:
 - [x] Add exercises from existing list
 - [x] Add sets (reuse existing logging UI)
 - [x] Complete workout → saves to history
+- [x] Make custom workout creation the primary dashboard start path
+- [x] Keep predefined program workouts available behind a secondary chooser
 - [x] No saving templates (yet)
 - [x] No editing exercises database
 

@@ -7,6 +7,7 @@ import {
   getPlannedExerciseLines,
   getProgramWorkoutPositionLabel,
   getProgramWorkouts,
+  getWorkoutStartActionLabels,
   getWorkoutIntentSummary
 } from "../features/workout/utils/dashboard-program.shared.js";
 import type { MobileTestCase } from "./mobile-test-case.js";
@@ -159,6 +160,89 @@ export const dashboardProgramTestCases: MobileTestCase[] = [
         "Bench Press: 3 x 8"
       ]);
       assert.equal(getHiddenExerciseCount(workout, 2), 1);
+    }
+  },
+  {
+    name: "Dashboard start actions prioritize custom workout creation",
+    run: () => {
+      assert.deepEqual(
+        getWorkoutStartActionLabels({
+          activeWorkout: false,
+          hasActiveProgram: true,
+          hasPredefinedChoices: true,
+          hasRecommendedWorkout: true
+        }),
+        ["Create Workout", "Choose Predefined Workout", "Start Recommended Workout"]
+      );
+    }
+  },
+  {
+    name: "Dashboard start actions keep predefined choices behind chooser without an active program",
+    run: () => {
+      assert.deepEqual(
+        getWorkoutStartActionLabels({
+          activeWorkout: false,
+          hasActiveProgram: false,
+          hasPredefinedChoices: true,
+          hasRecommendedWorkout: false
+        }),
+        ["Create Workout", "Choose Predefined Workout"]
+      );
+    }
+  },
+  {
+    name: "Dashboard keeps predefined workout selection secondary and scalable",
+    run: () => {
+      const activeProgram = createActiveProgram();
+      const expandedProgram: ActiveProgramDto = {
+        ...activeProgram,
+        program: {
+          ...activeProgram.program,
+          workouts: [
+            ...activeProgram.program.workouts,
+            {
+              ...workoutA,
+              id: "template-3",
+              name: "Workout C",
+              sequenceOrder: 3
+            },
+            {
+              ...workoutB,
+              id: "template-4",
+              name: "Workout D",
+              sequenceOrder: 4
+            }
+          ]
+        }
+      };
+
+      assert.equal(
+        getWorkoutStartActionLabels({
+          activeWorkout: false,
+          hasActiveProgram: true,
+          hasPredefinedChoices: getProgramWorkouts(expandedProgram).length > 0,
+          hasRecommendedWorkout: true
+        })[1],
+        "Choose Predefined Workout"
+      );
+      assert.deepEqual(
+        getProgramWorkouts(expandedProgram).map((workout) => workout.id),
+        ["template-1", "template-2", "template-3", "template-4"]
+      );
+    }
+  },
+  {
+    name: "Dashboard start actions keep Create Workout first when a workout is active",
+    run: () => {
+      assert.deepEqual(
+        getWorkoutStartActionLabels({
+          activeWorkout: true,
+          hasActiveProgram: true,
+          hasPredefinedChoices: true,
+          hasRecommendedWorkout: true
+        }),
+        ["Create Workout", "Choose Predefined Workout", "Start Recommended Workout"]
+      );
     }
   },
   {

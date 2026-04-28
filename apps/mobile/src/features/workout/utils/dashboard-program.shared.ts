@@ -118,3 +118,16 @@ export function getHiddenExerciseCount(
 
   return Math.max(0, workout.exercises.length - visibleCount);
 }
+
+export function getWorkoutStartActionLabels(input: {
+  activeWorkout: boolean;
+  hasActiveProgram: boolean;
+  hasPredefinedChoices: boolean;
+  hasRecommendedWorkout: boolean;
+}) {
+  return [
+    "Create Workout",
+    ...(input.hasPredefinedChoices ? ["Choose Predefined Workout"] : []),
+    ...(input.hasActiveProgram && input.hasRecommendedWorkout ? ["Start Recommended Workout"] : [])
+  ];
+}
