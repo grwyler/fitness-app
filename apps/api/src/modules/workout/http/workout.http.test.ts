@@ -58,6 +58,12 @@ function createTestAuth() {
         return;
       }
 
+      if (token === "valid-mixed-case-test-user-token") {
+        request.authUser = { email: "Test@Test.com", userId: "test-user" };
+        next();
+        return;
+      }
+
       if (token === "valid-dev-user-token") {
         request.authUser = { email: "dev-user@example.com", userId: DEV_USER_ID };
         next();
@@ -109,6 +115,13 @@ function createAuthHeaders(extraHeaders?: Record<string, string>) {
 function createTestUserAuthHeaders(extraHeaders?: Record<string, string>) {
   return {
     Authorization: "Bearer valid-test-user-token",
+    ...(extraHeaders ?? {})
+  };
+}
+
+function createMixedCaseTestUserAuthHeaders(extraHeaders?: Record<string, string>) {
+  return {
+    Authorization: "Bearer valid-mixed-case-test-user-token",
     ...(extraHeaders ?? {})
   };
 }
@@ -448,6 +461,14 @@ export const workoutHttpTestCases: HttpTestCase[] = [
             body: JSON.stringify({})
           });
           const payload = await readJson(response);
+          const dashboardResponse = await fetch(`${server.baseUrl}/api/v1/dashboard`, {
+            headers: createTestUserAuthHeaders()
+          });
+          const dashboardPayload = await readJson(dashboardResponse);
+          const programsResponse = await fetch(`${server.baseUrl}/api/v1/programs`, {
+            headers: createTestUserAuthHeaders()
+          });
+          const programsPayload = await readJson(programsResponse);
 
           const userRows = await context.db.select().from(users);
           const sessionRows = await context.db.select().from(workoutSessions);
@@ -464,6 +485,21 @@ export const workoutHttpTestCases: HttpTestCase[] = [
 
           assert.equal(response.status, 200);
           assert.equal(payload.data.email, "test@test.com");
+          assert.equal(payload.data.success, true);
+          assert.equal(payload.data.deleted.workoutSessions, 1);
+          assert.equal(payload.data.deleted.exerciseEntries, 1);
+          assert.equal(payload.data.deleted.sets, 1);
+          assert.equal(payload.data.deleted.customPrograms, 1);
+          assert.equal(payload.data.deleted.customWorkouts, 1);
+          assert.equal(payload.data.deleted.progression, 1);
+          assert.equal(payload.data.deleted.progressMetrics, 1);
+          assert.equal(payload.data.deleted.programProgress, 1);
+          assert.equal(dashboardResponse.status, 200);
+          assert.equal(dashboardPayload.data.activeProgram, null);
+          assert.equal(dashboardPayload.data.activeWorkoutSession, null);
+          assert.equal(dashboardPayload.data.weeklyWorkoutCount, 0);
+          assert.equal(programsResponse.status, 200);
+          assert.ok(programsPayload.data.programs.length > 0);
           assert.equal(preservedTestUser?.email, "test@test.com");
           assert.equal(preservedTestUser?.passwordHash, "preserved-password-hash");
           assert.equal(sessionRows.some((session) => session.userId === "test-user"), false);
@@ -482,6 +518,41 @@ export const workoutHttpTestCases: HttpTestCase[] = [
           assert.ok(setRows.some((set) => set.id === "set-1"));
           assert.ok(enrollmentRows.some((enrollment) => enrollment.userId === "user-1"));
           assert.ok(progressionRows.some((state) => state.userId === "user-1"));
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "POST /api/v1/dev/reset-test-user-data accepts test email case-insensitively",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        await seedResettableTestUserData(context);
+        const server = await startHttpServer(context.db);
+
+        try {
+          const response = await fetch(`${server.baseUrl}/api/v1/dev/reset-test-user-data`, {
+            method: "POST",
+            headers: createMixedCaseTestUserAuthHeaders({
+              "content-type": "application/json"
+            }),
+            body: JSON.stringify({})
+          });
+          const payload = await readJson(response);
+          const testSessions = (await context.db.select().from(workoutSessions)).filter(
+            (session) => session.userId === "test-user"
+          );
+
+          assert.equal(response.status, 200);
+          assert.equal(payload.data.success, true);
+          assert.equal(payload.data.deleted.workoutSessions, 1);
+          assert.equal(testSessions.length, 0);
         } finally {
           await server.close();
         }

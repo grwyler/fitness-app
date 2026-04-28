@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { ActiveProgramDto, ProgramDto, ProgramWorkoutTemplateDto } from "@fitness/shared";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Screen } from "../components/Screen";
 import { LoadingState } from "../components/LoadingState";
 import { ErrorState } from "../components/ErrorState";
@@ -22,6 +22,7 @@ import {
   getProgramWorkouts,
   getWorkoutIntentSummary
 } from "../features/workout/utils/dashboard-program.shared";
+import { requestResetTestDataConfirmation } from "../features/workout/utils/reset-test-data.shared";
 import type { RootStackParamList } from "../core/navigation/navigation-types";
 import { colors, spacing } from "../theme/tokens";
 
@@ -30,6 +31,25 @@ type Props = NativeStackScreenProps<RootStackParamList, "Dashboard">;
 const TEST_USER_EMAIL = "test@test.com";
 const RESET_TEST_DATA_CONFIRMATION =
   "This will delete workout history, custom workouts, progression state, and program progress for test@test.com only. Continue?";
+const RESET_DELETED_COUNT_KEYS = [
+  "customPrograms",
+  "customTemplateEntries",
+  "customTemplates",
+  "enrollments",
+  "exerciseEntries",
+  "idempotencyRecords",
+  "progressMetrics",
+  "progression",
+  "sets",
+  "workoutSessions"
+] as const;
+const isDevEnvironment = typeof __DEV__ !== "undefined" && __DEV__;
+
+function logResetDiagnostic(event: string) {
+  if (isDevEnvironment) {
+    console.info("[reset-test-data]", event);
+  }
+}
 
 export function DashboardScreen({ navigation }: Props) {
   const [isProgramPickerOpen, setIsProgramPickerOpen] = useState(false);
@@ -48,31 +68,41 @@ export function DashboardScreen({ navigation }: Props) {
   const canResetTestData = auth.userEmail?.toLowerCase() === TEST_USER_EMAIL;
 
   function runResetTestData() {
+    logResetDiagnostic("handler_entered");
     setLastAction("reset_test_data");
     setResetFeedback(null);
+    logResetDiagnostic("mutation_started");
     resetTestUserDataMutation.mutate(undefined, {
-      onSuccess: () => {
-        setResetFeedback("Test data reset complete.");
-        void dashboardQuery.refetch();
+      onSuccess: (response) => {
+        logResetDiagnostic("mutation_success");
+        const deletedCount = RESET_DELETED_COUNT_KEYS.reduce(
+          (total, key) => total + (response.data.deleted[key] ?? 0),
+          0
+        );
+        const message = `Test data reset complete. ${deletedCount} records cleared.`;
+        setResetFeedback(message);
+        Alert.alert("Reset Complete", message);
       },
       onError: (error) => {
-        setResetFeedback(error instanceof Error ? error.message : "Unable to reset test data.");
+        logResetDiagnostic("mutation_error");
+        const message = error instanceof Error ? error.message : "Unable to reset test data.";
+        setResetFeedback(message);
+        Alert.alert("Reset Failed", message);
       }
     });
   }
 
   function confirmResetTestData() {
-    Alert.alert("Reset Test Data", RESET_TEST_DATA_CONFIRMATION, [
-      {
-        style: "cancel",
-        text: "Cancel"
-      },
-      {
-        onPress: runResetTestData,
-        style: "destructive",
-        text: "Reset Test Data"
-      }
-    ]);
+    const webConfirm = (globalThis as { confirm?: (message: string) => boolean }).confirm;
+
+    requestResetTestDataConfirmation({
+      alert: Alert,
+      confirmationMessage: RESET_TEST_DATA_CONFIRMATION,
+      confirm: webConfirm,
+      log: logResetDiagnostic,
+      onConfirm: runResetTestData,
+      platformOs: Platform.OS
+    });
   }
 
   if (dashboardQuery.isLoading) {

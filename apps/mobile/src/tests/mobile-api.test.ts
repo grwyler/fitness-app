@@ -15,6 +15,7 @@ import {
   completeWorkoutSession
 } from "../api/workouts.js";
 import { MobileApiError } from "../api/errors.js";
+import { setLastKnownAuthToken } from "../core/auth/auth-bridge.js";
 import { resolveStableIdempotencyKey } from "../features/workout/utils/idempotency.js";
 import type { MobileTestCase } from "./mobile-test-case.js";
 
@@ -97,6 +98,53 @@ export const mobileApiTestCases: MobileTestCase[] = [
         () => apiRequest("/dashboard"),
         (error: unknown) => error instanceof MobileApiError && error.code === "CONFLICT"
       );
+    }
+  },
+  {
+    name: "Reset test data API posts to the dev reset endpoint with auth",
+    run: async () => {
+      let requestPath: string | undefined;
+      let requestBody: string | undefined;
+      let authorizationHeader: string | undefined;
+
+      setLastKnownAuthToken("test-token", "test_case");
+
+      try {
+        setMockFetch(async (input, init) => {
+          requestPath = input.toString();
+          requestBody = init?.body as string | undefined;
+          authorizationHeader = (init?.headers as Record<string, string>).Authorization;
+
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              data: {
+                deleted: {
+                  customPrograms: 1,
+                  progression: 1,
+                  sets: 1,
+                  workoutSessions: 1
+                },
+                email: "test@test.com",
+                reset: {},
+                success: true
+              },
+              meta: {}
+            })
+          };
+        });
+
+        const response = await resetTestUserData();
+
+        assert.match(requestPath ?? "", /\/dev\/reset-test-user-data$/);
+        assert.equal(authorizationHeader, "Bearer test-token");
+        assert.equal(requestBody, "{}");
+        assert.equal(response.data.success, true);
+        assert.equal(response.data.deleted.workoutSessions, 1);
+      } finally {
+        setLastKnownAuthToken(null, "test_case_cleanup");
+      }
     }
   },
   {

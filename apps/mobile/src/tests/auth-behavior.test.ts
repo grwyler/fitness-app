@@ -4,6 +4,7 @@ import { registerAuthBridge, setLastKnownAuthToken } from "../core/auth/auth-bri
 import { deriveAuthStatus } from "../core/auth/auth-state.js";
 import { getPrimaryButtonDisabledState, handleWebPrimaryButtonClick } from "../components/primary-button.shared.js";
 import { isDashboardQueryEnabled } from "../features/workout/hooks/dashboard-query.shared.js";
+import { requestResetTestDataConfirmation } from "../features/workout/utils/reset-test-data.shared.js";
 import type { MobileTestCase } from "./mobile-test-case.js";
 
 type MockFetchResponse = {
@@ -35,6 +36,110 @@ export const authBehaviorTestCases: MobileTestCase[] = [
       });
 
       assert.equal(clickCount, 1);
+    }
+  },
+  {
+    name: "Reset Test Data button click enters confirmation and starts reset on web approval",
+    run: () => {
+      let resetStartedCount = 0;
+      const events: string[] = [];
+
+      handleWebPrimaryButtonClick({
+        disabled: false,
+        label: "Reset Test Data",
+        onPress: () => {
+          let confirmReceiver: unknown = null;
+
+          requestResetTestDataConfirmation({
+            alert: {
+              alert: () => {
+                throw new Error("Web reset confirmation should use confirm().");
+              }
+            },
+            confirmationMessage: "Reset test data?",
+            confirm(message) {
+              confirmReceiver = this;
+              assert.match(message, /^Reset Test Data\n\n/);
+              return true;
+            },
+            log: (event) => events.push(event),
+            onConfirm: () => {
+              resetStartedCount += 1;
+            },
+            platformOs: "web"
+          });
+
+          assert.equal(confirmReceiver, globalThis);
+        }
+      });
+
+      assert.deepEqual(events, ["confirmation_opened", "confirmation_accepted"]);
+      assert.equal(resetStartedCount, 1);
+    }
+  },
+  {
+    name: "Reset Test Data button click does not start reset when web confirmation is cancelled",
+    run: () => {
+      let resetStartedCount = 0;
+      const events: string[] = [];
+
+      handleWebPrimaryButtonClick({
+        disabled: false,
+        label: "Reset Test Data",
+        onPress: () => {
+          let confirmReceiver: unknown = null;
+
+          requestResetTestDataConfirmation({
+            alert: {
+              alert: () => {
+                throw new Error("Web reset confirmation should use confirm().");
+              }
+            },
+            confirmationMessage: "Reset test data?",
+            confirm() {
+              confirmReceiver = this;
+              return false;
+            },
+            log: (event) => events.push(event),
+            onConfirm: () => {
+              resetStartedCount += 1;
+            },
+            platformOs: "web"
+          });
+
+          assert.equal(confirmReceiver, globalThis);
+        }
+      });
+
+      assert.deepEqual(events, ["confirmation_opened", "confirmation_cancelled"]);
+      assert.equal(resetStartedCount, 0);
+    }
+  },
+  {
+    name: "Reset Test Data native confirmation starts reset from destructive action",
+    run: () => {
+      let resetStartedCount = 0;
+      let destructiveAction: (() => void) | undefined;
+      const events: string[] = [];
+
+      requestResetTestDataConfirmation({
+        alert: {
+          alert: (_title, _message, buttons) => {
+            destructiveAction = buttons?.find((button) => button.style === "destructive")?.onPress;
+          }
+        },
+        confirmationMessage: "Reset test data?",
+        log: (event) => events.push(event),
+        onConfirm: () => {
+          resetStartedCount += 1;
+        },
+        platformOs: "ios"
+      });
+
+      destructiveAction?.();
+
+      assert.deepEqual(events, ["confirmation_opened", "confirmation_accepted"]);
+      assert.equal(resetStartedCount, 1);
     }
   },
   {

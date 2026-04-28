@@ -14,13 +14,13 @@ export function useResetTestUserData() {
       resetForDiscardedWorkout();
       setLatestSummary(null);
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: workoutQueryKeys.dashboard }),
-        queryClient.invalidateQueries({ queryKey: workoutQueryKeys.currentWorkout }),
-        queryClient.invalidateQueries({ queryKey: workoutQueryKeys.progression }),
-        queryClient.invalidateQueries({ queryKey: workoutQueryKeys.programs }),
-        queryClient.invalidateQueries({ queryKey: workoutQueryKeys.workoutHistory }),
-        queryClient.invalidateQueries({ queryKey: workoutQueryKeys.workoutHistoryDetail })
+        queryClient.resetQueries({ queryKey: workoutQueryKeys.dashboard }),
+        queryClient.resetQueries({ queryKey: workoutQueryKeys.currentWorkout }),
+        queryClient.resetQueries({ queryKey: workoutQueryKeys.progression }),
+        queryClient.resetQueries({ queryKey: workoutQueryKeys.programs }),
+        queryClient.resetQueries({ queryKey: workoutQueryKeys.workoutHistory })
       ]);
+      queryClient.removeQueries({ queryKey: workoutQueryKeys.workoutHistoryDetail });
     }
   });
 }

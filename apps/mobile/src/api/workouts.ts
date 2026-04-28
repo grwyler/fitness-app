@@ -27,7 +27,12 @@ export async function fetchDashboard() {
 }
 
 export async function resetTestUserData() {
-  return apiRequest<{ email: string; reset: Record<string, number> }>("/dev/reset-test-user-data", {
+  return apiRequest<{
+    deleted: Record<string, number>;
+    email: string;
+    reset: Record<string, number>;
+    success: true;
+  }>("/dev/reset-test-user-data", {
     method: "POST",
     body: {}
   });

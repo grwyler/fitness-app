@@ -15,6 +15,7 @@ import { Router } from "express";
 import { getRequestContext } from "../../lib/auth/request-context.middleware.js";
 import { success } from "../../lib/http/envelope.js";
 import { AppError } from "../../lib/http/errors.js";
+import { logger } from "../../lib/observability/logger.js";
 
 const TEST_USER_EMAIL = "test@test.com";
 
@@ -139,21 +140,52 @@ async function resetTestUserData(database: DatabaseLike, userId: string) {
   });
 }
 
+function normalizeEmail(email: string | null | undefined) {
+  return email?.trim().toLowerCase() ?? null;
+}
+
 export function createDevResetRouter(database: DatabaseLike) {
   const router = Router();
 
   router.post("/dev/reset-test-user-data", async (request, response, next) => {
     try {
-      if (request.authUser?.email !== TEST_USER_EMAIL) {
+      const authenticatedEmail = normalizeEmail(request.authUser?.email);
+      if (authenticatedEmail !== TEST_USER_EMAIL) {
+        logger.warn("Rejected test data reset for non-test account", {
+          authenticatedEmail,
+          authenticatedUserId: request.authUser?.userId ?? null
+        });
         throw new AppError(403, "FORBIDDEN", "Resetting test data is only available for the test account.");
       }
 
       const context = getRequestContext(request);
       const result = await resetTestUserData(database, context.userId);
+      const deleted = {
+        customPrograms: result.deletedCustomPrograms,
+        customWorkouts: result.deletedCustomPrograms,
+        customTemplateEntries: result.deletedCustomTemplateEntries,
+        customTemplates: result.deletedCustomTemplates,
+        enrollments: result.deletedEnrollments,
+        exerciseEntries: result.deletedExerciseEntries,
+        idempotencyRecords: result.deletedIdempotencyRecords,
+        progressMetrics: result.deletedProgressMetrics,
+        programProgress: result.deletedEnrollments,
+        progression: result.deletedProgressionStates,
+        sets: result.deletedSets,
+        workoutSessions: result.deletedWorkoutSessions
+      };
+
+      logger.info("Reset test user data completed", {
+        authenticatedEmail,
+        userId: context.userId,
+        ...deleted
+      });
 
       response.json(
         success({
           email: TEST_USER_EMAIL,
+          success: true,
+          deleted,
           reset: result
         })
       );
