@@ -7,6 +7,7 @@ import {
   fetchProgression,
   fetchWorkoutHistory,
   fetchWorkoutHistoryDetail,
+  addCustomWorkoutExercise,
   startWorkoutSession,
   logSet,
   completeWorkoutSession
@@ -245,6 +246,53 @@ export const mobileApiTestCases: MobileTestCase[] = [
 
       assert.deepEqual(JSON.parse(requestBody ?? "{}"), {
         sessionType: "custom"
+      });
+    }
+  },
+  {
+    name: "Workout API sends selected exercise details when adding to a custom workout",
+    run: async () => {
+      let requestPath: string | undefined;
+      let requestBody: string | undefined;
+      let idempotencyKey: string | null = null;
+
+      setMockFetch(async (input, init) => {
+        requestPath = input.toString();
+        requestBody = init?.body as string | undefined;
+        idempotencyKey =
+          init?.headers && !(init.headers instanceof Headers)
+            ? ((init.headers as Record<string, string>)["Idempotency-Key"] ?? null)
+            : init?.headers instanceof Headers
+              ? init.headers.get("Idempotency-Key")
+              : null;
+        return {
+          ok: true,
+          status: 201,
+          json: async () => ({
+            data: {},
+            meta: {
+              replayed: false
+            }
+          })
+        };
+      });
+
+      await addCustomWorkoutExercise({
+        sessionId: "session-1",
+        request: {
+          exerciseId: "exercise-1",
+          targetSets: 3,
+          targetReps: 8
+        },
+        idempotencyKey: "add-custom-exercise-key"
+      });
+
+      assert.match(requestPath ?? "", /\/workout-sessions\/session-1\/exercises$/);
+      assert.equal(idempotencyKey, "add-custom-exercise-key");
+      assert.deepEqual(JSON.parse(requestBody ?? "{}"), {
+        exerciseId: "exercise-1",
+        targetSets: 3,
+        targetReps: 8
       });
     }
   },

@@ -160,7 +160,7 @@ export const activeWorkoutScreenTestCases: MobileTestCase[] = [
     }
   },
   {
-    name: "Empty custom workouts can be completed immediately",
+    name: "Empty custom workouts require an exercise before completion",
     run: () => {
       const state = getWorkoutCompletionUiState(
         {
@@ -177,7 +177,8 @@ export const activeWorkoutScreenTestCases: MobileTestCase[] = [
 
       assert.equal(state.hasPendingSets, false);
       assert.equal(state.finishButtonLabel, "Complete workout");
-      assert.equal(state.finishButtonDisabled, false);
+      assert.equal(state.finishButtonDisabled, true);
+      assert.equal(state.footerMessage, "Add at least one exercise to continue.");
     }
   }
 ];

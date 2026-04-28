@@ -16,10 +16,11 @@ export function getWorkoutCompletionUiState(
   }
 ): WorkoutCompletionUiState {
   const hasPendingSetSave = input?.hasPendingSetSave === true;
+  const hasExercises = workout.exercises.length > 0;
   const hasPendingSets = workout.exercises.some((exercise) =>
     exercise.sets.some((set) => set.status === "pending")
   );
-  const hasCompleteFeedback = workout.exercises.every(
+  const hasCompleteFeedback = hasExercises && workout.exercises.every(
     (exercise) => feedbackByEntryId[exercise.id] !== undefined
   );
 
@@ -27,10 +28,12 @@ export function getWorkoutCompletionUiState(
     hasPendingSets,
     hasCompleteFeedback,
     finishButtonLabel: hasPendingSets ? "End workout" : "Complete workout",
-    finishButtonDisabled: hasPendingSetSave || (!hasPendingSets && !hasCompleteFeedback),
+    finishButtonDisabled: hasPendingSetSave || !hasExercises || (!hasPendingSets && !hasCompleteFeedback),
     footerMessage:
       hasPendingSetSave
         ? "Saving your last set before finishing."
+        : !hasExercises
+          ? "Add at least one exercise to continue."
         : !hasPendingSets && hasCompleteFeedback
         ? "All sets are logged and feedback is ready."
         : hasPendingSets

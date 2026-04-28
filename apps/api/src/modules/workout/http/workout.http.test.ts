@@ -757,6 +757,24 @@ export const workoutHttpTestCases: HttpTestCase[] = [
           assert.equal(startPayload.data.workoutName, "Custom Workout");
           assert.equal(startPayload.data.exercises.length, 0);
 
+          const addExerciseResponse = await fetch(
+            `${server.baseUrl}/api/v1/workout-sessions/${startPayload.data.id}/exercises`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: "Bearer valid-new-user-token",
+                "content-type": "application/json",
+                "Idempotency-Key": "add-custom-exercise-http-key"
+              },
+              body: JSON.stringify({
+                exerciseId: "exercise-1",
+                targetSets: 3,
+                targetReps: 8
+              })
+            }
+          );
+          const addExercisePayload = await readJson(addExerciseResponse);
+
           const completeResponse = await fetch(
             `${server.baseUrl}/api/v1/workout-sessions/${startPayload.data.id}/complete`,
             {
@@ -767,7 +785,8 @@ export const workoutHttpTestCases: HttpTestCase[] = [
                 "Idempotency-Key": "complete-custom-http-key"
               },
               body: JSON.stringify({
-                exerciseFeedback: []
+                exerciseFeedback: [],
+                finishEarly: true
               })
             }
           );
@@ -780,12 +799,17 @@ export const workoutHttpTestCases: HttpTestCase[] = [
           });
           const historyPayload = await readJson(historyResponse);
 
+          assert.equal(addExerciseResponse.status, 201);
+          assert.equal(addExercisePayload.data.exercises.length, 1);
+          assert.equal(addExercisePayload.data.exercises[0].exerciseName, "Bench Press");
+          assert.equal(addExercisePayload.data.exercises[0].sets.length, 3);
           assert.equal(completeResponse.status, 200);
           assert.equal(completePayload.data.workoutSession.sessionType, "custom");
+          assert.equal(completePayload.data.workoutSession.exercises.length, 1);
           assert.equal(completePayload.data.nextWorkoutTemplate, null);
           assert.equal(historyResponse.status, 200);
           assert.equal(historyPayload.data.items[0].programName, "Custom Workout");
-          assert.equal(historyPayload.data.items[0].exerciseCount, 0);
+          assert.equal(historyPayload.data.items[0].exerciseCount, 1);
         } finally {
           await server.close();
         }

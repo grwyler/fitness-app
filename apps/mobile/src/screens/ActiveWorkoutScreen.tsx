@@ -12,6 +12,9 @@ import { FeedbackButton } from "../features/feedback/components/FeedbackButton";
 import { useCurrentWorkout } from "../features/workout/hooks/useCurrentWorkout";
 import { useLogSet } from "../features/workout/hooks/useLogSet";
 import { useCompleteWorkout } from "../features/workout/hooks/useCompleteWorkout";
+import { CustomExercisePickerModal } from "../features/workout/components/CustomExercisePickerModal";
+import { useAddCustomWorkoutExercise } from "../features/workout/hooks/useCustomWorkoutExercises";
+import { useExercises } from "../features/workout/hooks/useExercises";
 import { useAddWorkoutSet, useDeleteWorkoutSet } from "../features/workout/hooks/useWorkoutSets";
 import { useActiveWorkoutStore } from "../features/workout/store/active-workout-store";
 import {
@@ -41,6 +44,7 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
   const logSetMutation = useLogSet();
   const addWorkoutSetMutation = useAddWorkoutSet();
   const deleteWorkoutSetMutation = useDeleteWorkoutSet();
+  const addCustomWorkoutExerciseMutation = useAddCustomWorkoutExercise();
   const completeWorkoutMutation = useCompleteWorkout();
   const feedbackByEntryId = useActiveWorkoutStore((state) => state.exerciseFeedbackByEntryId);
   const setExerciseFeedback = useActiveWorkoutStore((state) => state.setExerciseFeedback);
@@ -51,9 +55,15 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
   const [submittingSetIds, setSubmittingSetIds] = useState<Record<string, boolean>>({});
   const [deletingSetIds, setDeletingSetIds] = useState<Record<string, boolean>>({});
   const [showFinishEarlyConfirmation, setShowFinishEarlyConfirmation] = useState(false);
+  const [isExercisePickerOpen, setIsExercisePickerOpen] = useState(false);
+  const [selectedCustomExerciseIds, setSelectedCustomExerciseIds] = useState<string[]>([]);
+  const [customExerciseError, setCustomExerciseError] = useState<string | null>(null);
   const [restTimer, setRestTimer] = useState<RestTimerState>(null);
   const inFlightSetIds = useRef<Set<string>>(new Set());
   const completionInFlight = useRef(false);
+  const promptedCustomExerciseSessionId = useRef<string | null>(null);
+  const activeWorkout = currentWorkoutQuery.data?.activeWorkoutSession ?? null;
+  const exercisesQuery = useExercises(isExercisePickerOpen);
 
   useEffect(() => {
     if (!restTimer) {
@@ -81,6 +91,17 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
     return () => clearInterval(interval);
   }, [restTimer]);
 
+  useEffect(() => {
+    if (
+      activeWorkout?.sessionType === "custom" &&
+      activeWorkout.exercises.length === 0 &&
+      promptedCustomExerciseSessionId.current !== activeWorkout.id
+    ) {
+      promptedCustomExerciseSessionId.current = activeWorkout.id;
+      setIsExercisePickerOpen(true);
+    }
+  }, [activeWorkout?.exercises.length, activeWorkout?.id, activeWorkout?.sessionType]);
+
   if (currentWorkoutQuery.isLoading) {
     return (
       <Screen>
@@ -102,7 +123,6 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
     );
   }
 
-  const activeWorkout = currentWorkoutQuery.data?.activeWorkoutSession;
   if (!activeWorkout) {
     return (
       <Screen>
@@ -117,6 +137,9 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
   }
 
   const workout = activeWorkout;
+  const availableCustomExercises = (exercisesQuery.data ?? []).filter(
+    (exercise) => !workout.exercises.some((entry) => entry.exerciseId === exercise.id)
+  );
 
   const hasPendingSetSave =
     logSetMutation.isPending ||
@@ -265,6 +288,37 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
     setShowFinishEarlyConfirmation(true);
   }
 
+  function handleToggleCustomExercise(exerciseId: string) {
+    setCustomExerciseError(null);
+    setSelectedCustomExerciseIds((current) =>
+      current.includes(exerciseId)
+        ? current.filter((selectedExerciseId) => selectedExerciseId !== exerciseId)
+        : [...current, exerciseId]
+    );
+  }
+
+  async function handleAddCustomExercises() {
+    if (selectedCustomExerciseIds.length === 0) {
+      setCustomExerciseError("Choose at least one exercise to continue.");
+      return;
+    }
+
+    try {
+      setCustomExerciseError(null);
+      setLastAction(`add_custom_exercises:${selectedCustomExerciseIds.length}`);
+      for (const exerciseId of selectedCustomExerciseIds) {
+        await addCustomWorkoutExerciseMutation.mutateAsync({
+          sessionId: workout.id,
+          exerciseId
+        });
+      }
+      setSelectedCustomExerciseIds([]);
+      setIsExercisePickerOpen(false);
+    } catch {
+      setCustomExerciseError("Exercises were not added. Check your connection and try again.");
+    }
+  }
+
   return (
     <Screen>
       <View style={styles.header}>
@@ -301,35 +355,57 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
         <View style={styles.emptyStateCard}>
           <Text style={styles.emptyStateTitle}>No exercises yet</Text>
           <Text style={styles.footerText}>
-            This custom workout is active and can be completed, even before exercises are added.
+            Add at least one exercise from your exercise list to start logging sets.
           </Text>
+          <PrimaryButton
+            label="Choose exercises"
+            onPress={() => {
+              setCustomExerciseError(null);
+              setIsExercisePickerOpen(true);
+            }}
+            loading={addCustomWorkoutExerciseMutation.isPending}
+          />
         </View>
       ) : (
-        workout.exercises.map((exercise) => (
-          <WorkoutExerciseCard
-            key={exercise.id}
-            exercise={exercise}
-            {...(feedbackByEntryId[exercise.id]
-              ? { selectedFeedback: feedbackByEntryId[exercise.id] }
-              : {})}
-            loggingSetId={logSetMutation.isPending ? logSetMutation.variables?.setId ?? null : null}
-            submittingSetIds={submittingSetIds}
-            deletingSetIds={deletingSetIds}
-            addingSet={
-              addWorkoutSetMutation.isPending &&
-              addWorkoutSetMutation.variables?.exerciseEntryId === exercise.id
-            }
-            setLogDraftsBySetId={setLogDraftsBySetId}
-            onChangeSetLogDraft={setSetLogDraft}
-            onAddSet={handleAddSet}
-            onDeleteSet={handleDeleteSet}
-            onLogSet={handleLogSet}
-            onSelectFeedback={(feedback) => {
-              setLastAction(`set_exercise_feedback:${exercise.id}`);
-              setExerciseFeedback(exercise.id, feedback);
-            }}
-          />
-        ))
+        <>
+          {workout.sessionType === "custom" ? (
+            <PrimaryButton
+              label="Add exercise"
+              tone="secondary"
+              onPress={() => {
+                setCustomExerciseError(null);
+                setIsExercisePickerOpen(true);
+              }}
+              disabled={addCustomWorkoutExerciseMutation.isPending}
+              loading={addCustomWorkoutExerciseMutation.isPending}
+            />
+          ) : null}
+          {workout.exercises.map((exercise) => (
+            <WorkoutExerciseCard
+              key={exercise.id}
+              exercise={exercise}
+              {...(feedbackByEntryId[exercise.id]
+                ? { selectedFeedback: feedbackByEntryId[exercise.id] }
+                : {})}
+              loggingSetId={logSetMutation.isPending ? logSetMutation.variables?.setId ?? null : null}
+              submittingSetIds={submittingSetIds}
+              deletingSetIds={deletingSetIds}
+              addingSet={
+                addWorkoutSetMutation.isPending &&
+                addWorkoutSetMutation.variables?.exerciseEntryId === exercise.id
+              }
+              setLogDraftsBySetId={setLogDraftsBySetId}
+              onChangeSetLogDraft={setSetLogDraft}
+              onAddSet={handleAddSet}
+              onDeleteSet={handleDeleteSet}
+              onLogSet={handleLogSet}
+              onSelectFeedback={(feedback) => {
+                setLastAction(`set_exercise_feedback:${exercise.id}`);
+                setExerciseFeedback(exercise.id, feedback);
+              }}
+            />
+          ))}
+        </>
       )}
 
       <View style={styles.footer}>
@@ -341,6 +417,9 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
         ) : null}
         {deleteWorkoutSetMutation.isError ? (
           <Text style={styles.errorText}>Set not removed. Only the last pending set can be removed.</Text>
+        ) : null}
+        {addCustomWorkoutExerciseMutation.isError ? (
+          <Text style={styles.errorText}>Exercise not added. Check your connection and try again.</Text>
         ) : null}
         {completeWorkoutMutation.isError ? (
           <Text style={styles.errorText}>
@@ -382,6 +461,21 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
           lastAction={lastAction}
         />
       </View>
+      <CustomExercisePickerModal
+        errorMessage={customExerciseError}
+        exercises={availableCustomExercises}
+        loadingExercises={exercisesQuery.isLoading}
+        selectedExerciseIds={selectedCustomExerciseIds}
+        submitting={addCustomWorkoutExerciseMutation.isPending}
+        visible={isExercisePickerOpen && workout.sessionType === "custom"}
+        onClose={() => {
+          setIsExercisePickerOpen(false);
+          setCustomExerciseError(null);
+          setSelectedCustomExerciseIds([]);
+        }}
+        onStart={handleAddCustomExercises}
+        onToggleExercise={handleToggleCustomExercise}
+      />
     </Screen>
   );
 }
