@@ -187,6 +187,37 @@ export const mobileApiTestCases: MobileTestCase[] = [
     }
   },
   {
+    name: "Workout API sends selected workout template when starting a chosen workout",
+    run: async () => {
+      let requestBody: string | undefined;
+
+      setMockFetch(async (_input, init) => {
+        requestBody = init?.body as string | undefined;
+        return {
+          ok: true,
+          status: 201,
+          json: async () => ({
+            data: {},
+            meta: {
+              replayed: false
+            }
+          })
+        };
+      });
+
+      await startWorkoutSession({
+        request: {
+          workoutTemplateId: "template-2"
+        },
+        idempotencyKey: "start-selected-key"
+      });
+
+      assert.deepEqual(JSON.parse(requestBody ?? "{}"), {
+        workoutTemplateId: "template-2"
+      });
+    }
+  },
+  {
     name: "Stable idempotency keys are reused only for the same payload",
     run: () => {
       const first = resolveStableIdempotencyKey({

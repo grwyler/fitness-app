@@ -605,6 +605,164 @@ export const workoutHttpTestCases: HttpTestCase[] = [
     }
   },
   {
+    name: "POST /api/v1/workout-sessions/start starts a selected workout from the active program",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        await seedUpperLowerArmsProgram(context);
+        const server = await startHttpServer(context.db);
+
+        try {
+          const followResponse = await fetch(`${server.baseUrl}/api/v1/programs/program-2/follow`, {
+            method: "POST",
+            headers: {
+              Authorization: "Bearer valid-new-user-token"
+            }
+          });
+          const followPayload = await readJson(followResponse);
+
+          const startResponse = await fetch(`${server.baseUrl}/api/v1/workout-sessions/start`, {
+            method: "POST",
+            headers: {
+              Authorization: "Bearer valid-new-user-token",
+              "content-type": "application/json",
+              "Idempotency-Key": "start-selected-workout-http-key"
+            },
+            body: JSON.stringify({
+              workoutTemplateId: "template-4"
+            })
+          });
+          const startPayload = await readJson(startResponse);
+
+          let logIndex = 0;
+          for (const exercise of startPayload.data.exercises) {
+            for (const set of exercise.sets) {
+              logIndex += 1;
+              const logResponse = await fetch(`${server.baseUrl}/api/v1/sets/${set.id}/log`, {
+                method: "POST",
+                headers: {
+                  Authorization: "Bearer valid-new-user-token",
+                  "content-type": "application/json",
+                  "Idempotency-Key": `log-selected-workout-http-key-${logIndex}`
+                },
+                body: JSON.stringify({
+                  actualReps: set.targetReps
+                })
+              });
+
+              assert.equal(logResponse.status, 200);
+            }
+          }
+
+          const completeResponse = await fetch(
+            `${server.baseUrl}/api/v1/workout-sessions/${startPayload.data.id}/complete`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: "Bearer valid-new-user-token",
+                "content-type": "application/json",
+                "Idempotency-Key": "complete-selected-workout-http-key"
+              },
+              body: JSON.stringify({
+                completedAt: "2026-04-24T11:00:00.000Z",
+                exerciseFeedback: startPayload.data.exercises.map((exercise: any) => ({
+                  exerciseEntryId: exercise.id,
+                  effortFeedback: "just_right"
+                })),
+                userEffortFeedback: "just_right"
+              })
+            }
+          );
+          const completePayload = await readJson(completeResponse);
+
+          const historyResponse = await fetch(
+            `${server.baseUrl}/api/v1/workout-history?limit=20&status=completed`,
+            {
+              headers: {
+                Authorization: "Bearer valid-new-user-token"
+              }
+            }
+          );
+          const historyPayload = await readJson(historyResponse);
+
+          const historyDetailResponse = await fetch(
+            `${server.baseUrl}/api/v1/workout-history/${startPayload.data.id}`,
+            {
+              headers: {
+                Authorization: "Bearer valid-new-user-token"
+              }
+            }
+          );
+          const historyDetailPayload = await readJson(historyDetailResponse);
+
+          const progressionResponse = await fetch(`${server.baseUrl}/api/v1/progression`, {
+            headers: {
+              Authorization: "Bearer valid-new-user-token"
+            }
+          });
+          const progressionPayload = await readJson(progressionResponse);
+
+          assert.equal(followResponse.status, 201);
+          assert.equal(followPayload.data.activeProgram.nextWorkoutTemplate.id, "template-3");
+          assert.equal(startResponse.status, 201);
+          assert.equal(startPayload.data.workoutTemplateId, "template-4");
+          assert.equal(startPayload.data.workoutName, "Day 2 - Lower");
+          assert.equal(startPayload.data.exercises.length, 3);
+          assert.equal(completeResponse.status, 200);
+          assert.equal(completePayload.data.workoutSession.status, "completed");
+          assert.equal(completePayload.data.nextWorkoutTemplate.id, "template-5");
+          assert.equal(historyResponse.status, 200);
+          assert.equal(historyPayload.data.items[0].workoutName, "Day 2 - Lower");
+          assert.equal(historyPayload.data.items[0].completedSetCount, 7);
+          assert.equal(historyDetailResponse.status, 200);
+          assert.equal(historyDetailPayload.data.workoutSession.workoutTemplateId, "template-4");
+          assert.equal(progressionResponse.status, 200);
+          assert.equal(progressionPayload.data.totalCompletedWorkouts, 1);
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "POST /api/v1/workout-sessions/start rejects a selected workout outside the active program",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        await seedUpperLowerArmsProgram(context);
+        const server = await startHttpServer(context.db);
+
+        try {
+          const response = await fetch(`${server.baseUrl}/api/v1/workout-sessions/start`, {
+            method: "POST",
+            headers: createAuthHeaders({
+              "content-type": "application/json",
+              "Idempotency-Key": "start-invalid-selected-workout-http-key"
+            }),
+            body: JSON.stringify({
+              workoutTemplateId: "template-3"
+            })
+          });
+          const payload = await readJson(response);
+
+          assert.equal(response.status, 404);
+          assert.equal(payload.error.code, "NOT_FOUND");
+          assert.match(payload.error.message, /active program/i);
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
     name: "POST /api/v1/sets/:setId/log logs a set",
     run: async () => {
       const context = await createWorkoutInfrastructureTestContext();

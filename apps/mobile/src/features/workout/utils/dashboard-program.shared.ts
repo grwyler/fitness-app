@@ -33,6 +33,36 @@ export function findProgramWorkoutById(input: {
   );
 }
 
+export function getProgramWorkouts(activeProgram: ActiveProgramDto | null | undefined) {
+  if (!activeProgram) {
+    return [];
+  }
+
+  return [...activeProgram.program.workouts].sort(
+    (left, right) => left.sequenceOrder - right.sequenceOrder
+  );
+}
+
+export function getProgramWorkoutPositionLabel(input: {
+  activeProgram: ActiveProgramDto | null | undefined;
+  workout: ProgramWorkoutTemplateDto;
+}) {
+  const workoutIndex = getProgramWorkouts(input.activeProgram).findIndex(
+    (workout) => workout.id === input.workout.id
+  );
+  const workoutNumber = workoutIndex >= 0 ? workoutIndex + 1 : input.workout.sequenceOrder;
+  const daysPerWeek = input.activeProgram?.program.daysPerWeek ?? 0;
+
+  if (!Number.isInteger(daysPerWeek) || daysPerWeek <= 0) {
+    return `Workout ${workoutNumber}`;
+  }
+
+  const week = Math.floor((workoutNumber - 1) / daysPerWeek) + 1;
+  const day = ((workoutNumber - 1) % daysPerWeek) + 1;
+
+  return `Week ${week} / Day ${day}`;
+}
+
 export function getWorkoutIntentSummary(workout: ProgramWorkoutTemplateDto | null | undefined) {
   if (!workout) {
     return "Workout plan unavailable.";

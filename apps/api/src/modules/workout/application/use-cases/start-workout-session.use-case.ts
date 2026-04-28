@@ -87,6 +87,12 @@ export class StartWorkoutSessionUseCase {
             "The requested workout template could not be found."
           );
         }
+        if (workoutTemplateDefinition.template.programId !== activeEnrollment.programId) {
+          throw new WorkoutApplicationError(
+            "WORKOUT_TEMPLATE_NOT_FOUND",
+            "The requested workout template is not part of the active program."
+          );
+        }
 
         const exerciseIds = workoutTemplateDefinition.exercises.map(({ exercise }) => exercise.id);
         const progressionSeeds = await this.exerciseRepository.findProgressionSeedsByExerciseIds(

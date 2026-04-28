@@ -5,6 +5,8 @@ import {
   getHiddenExerciseCount,
   getNextProgramPositionLabel,
   getPlannedExerciseLines,
+  getProgramWorkoutPositionLabel,
+  getProgramWorkouts,
   getWorkoutIntentSummary
 } from "../features/workout/utils/dashboard-program.shared.js";
 import type { MobileTestCase } from "./mobile-test-case.js";
@@ -48,6 +50,25 @@ const workoutA: ProgramWorkoutTemplateDto = {
   ]
 };
 
+const workoutB: ProgramWorkoutTemplateDto = {
+  id: "template-2",
+  name: "Workout B",
+  sequenceOrder: 2,
+  estimatedDurationMinutes: 55,
+  exercises: [
+    {
+      id: "entry-4",
+      exerciseId: "exercise-4",
+      exerciseName: "Overhead Press",
+      category: "compound",
+      sequenceOrder: 1,
+      targetSets: 3,
+      targetReps: 8,
+      restSeconds: 120
+    }
+  ]
+};
+
 function createActiveProgram(overrides?: {
   completedWorkoutCount?: number;
   daysPerWeek?: number;
@@ -61,7 +82,7 @@ function createActiveProgram(overrides?: {
       daysPerWeek: overrides?.daysPerWeek ?? 3,
       sessionDurationMinutes: 60,
       difficultyLevel: "beginner",
-      workouts: [workoutA]
+      workouts: [workoutB, workoutA]
     },
     status: "active",
     startedAt: "2026-04-01T00:00:00.000Z",
@@ -120,6 +141,25 @@ export const dashboardProgramTestCases: MobileTestCase[] = [
         "Bench Press: 3 x 8"
       ]);
       assert.equal(getHiddenExerciseCount(workout, 2), 1);
+    }
+  },
+  {
+    name: "Dashboard workout picker helpers sort workouts and label program positions",
+    run: () => {
+      const activeProgram = createActiveProgram();
+      const workouts = getProgramWorkouts(activeProgram);
+
+      assert.deepEqual(
+        workouts.map((workout) => workout.id),
+        ["template-1", "template-2"]
+      );
+      assert.equal(
+        getProgramWorkoutPositionLabel({
+          activeProgram,
+          workout: workoutB
+        }),
+        "Week 1 / Day 2"
+      );
     }
   }
 ];

@@ -490,6 +490,136 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
     }
   },
   {
+    name: "StartWorkoutSessionUseCase rejects selected templates outside the active program",
+    run: async () => {
+      const idempotency = createMockIdempotencyRepository();
+
+      const workoutSessionRepository: WorkoutSessionRepository = {
+        async findInProgressByUserId() {
+          return null;
+        },
+        async findOwnedById() {
+          return null;
+        },
+        async findOwnedSessionGraphById() {
+          return null;
+        },
+        async findOwnedSetForLogging() {
+          return null;
+        },
+        async createSessionGraph() {
+          throw new Error("Selected template should be rejected before session creation.");
+        },
+        async updateLoggedSet() {
+          throw new Error("Not implemented.");
+        },
+        async persistExerciseEntryFeedback() {},
+        async completeSession() {
+          throw new Error("Not implemented.");
+        },
+        async listRecentCompletedByUserId() {
+          return [];
+        },
+        async countCompletedByUserIdWithinRange() {
+          return 0;
+        },
+        async countCompletedByUserId() {
+          return 0;
+        },
+        async countCompletedByUserIdAndProgramId() {
+          return 0;
+        },
+        async listCompletedProgressionByUserId() {
+          return [];
+        }
+      };
+
+      const enrollmentRepository: EnrollmentRepository = {
+        async findActiveByUserId() {
+          return {
+            id: "enrollment-1",
+            userId: "user-1",
+            programId: "program-1",
+            status: "active",
+            startedAt: new Date("2026-04-01T00:00:00.000Z"),
+            completedAt: null,
+            currentWorkoutTemplateId: "template-1",
+            createdAt: new Date("2026-04-01T00:00:00.000Z"),
+            updatedAt: new Date("2026-04-01T00:00:00.000Z")
+          };
+        },
+        async updateNextWorkoutTemplate() {
+          throw new Error("Not implemented.");
+        },
+        async cancelEnrollment() {
+          throw new Error("Not implemented.");
+        }
+      };
+
+      const progressionStateRepository: ProgressionStateRepository = {
+        async findByUserIdAndExerciseIds() {
+          return [];
+        },
+        async createMany() {
+          return [];
+        },
+        async updateMany() {
+          return [];
+        }
+      };
+
+      const exerciseRepository: ExerciseRepository = {
+        async findTemplateDefinitionById() {
+          return {
+            template: {
+              id: "template-outside-active-program",
+              programId: "program-2",
+              programName: "Other Program",
+              name: "Other Workout",
+              sequenceOrder: 1,
+              estimatedDurationMinutes: 45,
+              isActive: true,
+              createdAt: new Date("2026-04-01T00:00:00.000Z"),
+              updatedAt: new Date("2026-04-01T00:00:00.000Z")
+            },
+            exercises: []
+          };
+        },
+        async findProgressionSeedsByExerciseIds() {
+          return [];
+        },
+        async findActiveTemplatesByProgramId() {
+          return [];
+        },
+        async findByIds() {
+          return [];
+        }
+      };
+
+      const useCase = new StartWorkoutSessionUseCase(
+        workoutSessionRepository,
+        enrollmentRepository,
+        progressionStateRepository,
+        exerciseRepository,
+        new MockTransactionManager(),
+        idempotency.repository
+      );
+
+      await assert.rejects(
+        () =>
+          useCase.execute({
+            context: { userId: "user-1", unitSystem: "imperial" },
+            request: {
+              workoutTemplateId: "template-outside-active-program"
+            },
+            idempotencyKey: "start-invalid-selected-key"
+          }),
+        (error: unknown) =>
+          error instanceof WorkoutApplicationError && error.code === "WORKOUT_TEMPLATE_NOT_FOUND"
+      );
+    }
+  },
+  {
     name: "LogSetUseCase updates only valid pending sets",
     run: async () => {
       const idempotency = createMockIdempotencyRepository();
