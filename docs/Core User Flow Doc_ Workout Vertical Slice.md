@@ -737,7 +737,9 @@
 
 * ## **Set status changes from `pending` to `completed` if `actualReps >= targetReps`.**
 
-* ## **Set status changes from `pending` to `failed` if `actualReps < targetReps`.**
+* ## **Set status may tentatively change from `pending` to `failed` if `actualReps < targetReps` and actual weight is near target weight.**
+
+* ## **If actual weight is materially above target weight, keep the UI neutral or completed for flow purposes and wait for backend completion feedback rather than showing failure language.**
 
 * ## **Store `actualReps`, `actualWeightLbs`, and local `completedAt`.**
 
@@ -761,11 +763,13 @@
 
 * ## **Set `status = "completed"` when `actualReps >= targetReps`.**
 
-* ## **Set `status = "failed"` when `actualReps < targetReps`.**
+* ## **Set `status = "failed"` when `actualReps < targetReps` and actual weight is near target weight.**
+
+* ## **For materially heavier actual weight, keep the set logged/completed for workout flow and defer recalibration classification to workout completion.**
 
 * ## **Set `completed_at`.**
 
-## **Progression state is not updated yet. Progression is finalized only when the workout is completed.**
+## **Progression state is not updated yet. Progression, including any adaptive recalibration for materially heavier actual weights, is finalized only when the workout is completed.**
 
 ### **If It Fails**
 
@@ -1112,7 +1116,7 @@
 
 * ## **Calculate `duration_seconds`.**
 
-* ## **Update `progression_states` for each exercise.**
+* ## **Update `progression_states` for each exercise, including adaptive recalibration when actual weight materially exceeds target weight.**
 
 * ## **Create append-only `progress_metrics`.**
 
@@ -2129,7 +2133,8 @@ Idempotency-Key: \<uuid\>
 Optimistic update immediately:
 
 * Set status changes from `pending` to `completed` if `actualReps >= targetReps`.  
-* Set status changes from `pending` to `failed` if `actualReps < targetReps`.  
+* Set status may tentatively change from `pending` to `failed` if `actualReps < targetReps` and actual weight is near target weight.
+* If actual weight is materially above target weight, keep the UI neutral or completed for flow purposes and wait for backend completion feedback rather than showing failure language.
 * Store `actualReps`, `actualWeightLbs`, and local `completedAt`.  
 * Increment completed set count.  
 * Disable Confirm for that set.  
@@ -2143,10 +2148,11 @@ Optimistic update immediately:
 * Set `actual_reps`.  
 * Set `actual_weight_lbs`, defaulting to target weight if omitted.  
 * Set `status = "completed"` when `actualReps >= targetReps`.  
-* Set `status = "failed"` when `actualReps < targetReps`.  
+* Set `status = "failed"` when `actualReps < targetReps` and actual weight is near target weight.
+* For materially heavier actual weight, keep the set logged/completed for workout flow and defer recalibration classification to workout completion.
 * Set `completed_at`.
 
-Progression state is not updated yet. Progression is finalized only when the workout is completed.
+Progression state is not updated yet. Progression, including any adaptive recalibration for materially heavier actual weights, is finalized only when the workout is completed.
 
 ### **If It Fails**
 
@@ -2403,7 +2409,7 @@ Inside a transaction:
 * Update `workout_sessions.status = "completed"`.  
 * Set `completed_at`.  
 * Calculate `duration_seconds`.  
-* Update `progression_states` for each exercise.  
+* Update `progression_states` for each exercise, including adaptive recalibration when actual weight materially exceeds target weight.
 * Create append-only `progress_metrics`.  
 * Advance `user_program_enrollments.current_workout_template_id` to the next workout template.
 
@@ -2738,4 +2744,3 @@ For V1, the cleanest implementation is:
 * Add idempotency keys for workout start, set logging, and workout completion before testing offline/retry behavior.
 
 This best supports the product promise: the user opens the app, starts the workout, follows instructions, logs what happened, and the system handles the rest.
-

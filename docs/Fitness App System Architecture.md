@@ -278,15 +278,48 @@ Handles:
 * Weight increases  
 * Failure detection  
 * Effort feedback interpretation
+* Adaptive performance recalibration (post-MVP immediate priority)
 
 ### **Key Rules**
 
 * Deterministic logic (predictable behavior)  
 * Stored state (not inferred)
+* Backend owns progression classification and future working weight decisions
+* Logged performance can override the prescription when actual weight is materially higher than target weight
 
 This is the **highest-risk system component** per PRD:
 
 If progression feels wrong, users lose trust quickly
+
+### **Adaptive Performance Recalibration (Post-MVP / Immediate Next Priority)**
+
+The V1 failure rule is intentionally simple, but it is not sufficient when the user logs substantially heavier actual weight than prescribed. In that case, lower reps should not automatically mean failure because the actual load may prove that the current working weight is too low.
+
+Recommended detection:
+
+* Compare actual logged weight against prescribed target weight per exercise.
+* Treat actual weight approximately 25-30% or more above prescribed weight as an out-of-model signal.
+* Estimate strength with a conservative e1RM calculation such as `e1rm = weight * (1 + reps / 30)`.
+* Use best set, median set, multi-set average, or conservative averaging to avoid overreacting to one anomalous set.
+
+Recommended classification:
+
+* Normal case: lower reps at roughly prescribed weight can remain a missed-rep failure.
+* Recalibration case: materially heavier actual weight should be classified as overperformance / recalibration-needed.
+* Mixed case: one unusually heavy set should be treated more cautiously than repeated heavy sets.
+
+Recommended progression update:
+
+* Re-anchor future working weight based on demonstrated strength instead of only applying the fixed increment.
+* Preserve progressive overload by moving the working weight toward the new estimate gradually.
+* Consider a 1-2 workout recalibration window where the engine converges on a better working weight.
+* Do not reduce or repeat weight solely because reps were below target when weight was substantially above target.
+
+User-facing feedback:
+
+* Show positive explanatory feedback such as "Adjusted your working weight based on your performance."
+* Avoid "failed set" language for clear overperformance cases.
+* Mobile should display backend-provided classification and messages, not calculate recalibration locally.
 
 ---
 

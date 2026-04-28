@@ -162,6 +162,8 @@ This loop should be extremely fast and frictionless.
 
 If the progression feels wrong, users will lose trust quickly.
 
+The user's logged performance should be treated as a signal about their real strength level. The prescribed workout is a recommendation, not absolute truth. When a user dramatically outperforms the prescribed weight, the system should adapt instead of punishing the user for not matching the prescribed rep target exactly.
+
 ### **Simplicity vs Effectiveness**
 
 * Too simple → ineffective workouts  
@@ -256,7 +258,55 @@ Workout A:
   * First failure → repeat weight  
   * Second failure → reduce weight by \~5–10%
 
-Failure is detected automatically based on logged reps.
+Failure is detected automatically based on logged reps in the normal V1 case where actual weight is at or near the prescribed weight.
+
+---
+
+### **Adaptive Performance Recalibration (Post-MVP / Immediate Next Priority)**
+
+The progression system must detect when logged performance proves the prescribed working weight is far too low.
+
+Example:
+
+* Prescribed: Bench Press, 135 lb x 5 reps
+* Logged: 225 lb x 4 reps across working sets
+
+This should not be classified as a missed-rep failure simply because 4 reps is below the prescribed target. The heavier actual load is a stronger signal than the missed target reps.
+
+Expected behavior:
+
+* Detect out-of-model performance when actual logged weight is materially above prescribed weight.
+* Classify the exercise result as overperformance / recalibration-needed, not missed reps.
+* Use actual logged performance to update the future working weight more aggressively than the normal fixed increment.
+* Preserve progressive overload while avoiding a dangerous overreaction to one anomalous set.
+* Avoid negative feedback such as "failed set" when the user clearly demonstrated higher strength.
+* Keep the backend as the source of truth for the recalibration decision.
+* Keep mobile responsible for displaying clear feedback, not owning progression logic.
+
+MVP-safe rule candidates:
+
+* Detect overperformance when actual weight is approximately 25-30% or more above prescribed weight.
+* Estimate strength with a simple formula such as Epley: `e1rm = weight * (1 + reps / 30)`.
+* Re-anchor future working weight from estimated strength instead of only adding a fixed increment.
+* Use best set, median set, multiple-set average, or conservative averaging to avoid overreacting.
+* Consider a recalibration window for the next 1-2 workouts so the system converges toward an appropriate working weight.
+
+Acceptance criteria:
+
+* Given a materially heavier actual weight and slightly lower reps, progression does not label the result as a failed exercise.
+* The next working weight is adjusted toward the user's demonstrated strength, not repeated or reduced due only to missed target reps.
+* User-facing feedback is positive and explanatory, for example: "Adjusted your working weight based on your performance."
+* The response remains conservative if only one set is dramatically heavier or the logged values are implausible.
+* The client displays the backend-provided progression result and does not calculate recalibration locally.
+
+Edge cases:
+
+* One heavy set with the remaining sets near prescription should trigger caution or a smaller adjustment.
+* Multiple consistent heavy sets should justify stronger recalibration.
+* Actual weight far above prescription with very low reps should be treated as a strength signal, but not blindly converted into an unsafe working weight.
+* Bodyweight or machine exercises may need exercise-specific thresholds.
+* Missing actual weight should fall back to normal V1 progression rules.
+* Edited or corrected set logs should cause recalibration to be recomputed only by the backend.
 
 ---
 
@@ -399,4 +449,3 @@ Everything should be evaluated based on:
 If not, it shouldn’t be included.
 
 ---
-

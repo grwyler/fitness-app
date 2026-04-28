@@ -395,11 +395,21 @@ Represents each logged set for an exercise entry.
 
 ## **Failure Detection**
 
-A set is considered failed if:
+A set is considered failed in the normal V1 case if:
 
 actual\_reps \< target\_reps
 
-This should feed progression logic automatically.
+This should feed progression logic automatically only when actual weight is at or near target weight.
+
+Post-MVP immediate priority: if `actual_weight_lbs` is materially higher than `target_weight_lbs`, lower reps should not automatically classify the set or exercise as failed. The backend progression engine should evaluate the full exercise performance and may classify the result as overperformance / recalibration-needed.
+
+To avoid blocking workout completion, the set can remain logged/completed for workflow purposes while the exercise-level progression result is recalibrated during workout completion.
+
+Recommended threshold:
+
+actual\_weight\_lbs >= target\_weight\_lbs \* 1.25
+
+The exact threshold may be tuned, but the first implementation should use a conservative material-difference threshold such as 25-30%.
 
 ---
 
@@ -594,12 +604,29 @@ ON progress\_metrics(exercise\_id);
 * A user can only have one active workout session.  
 * Sets should be pre-created when a workout session starts.  
 * Set logging should update quickly and support optimistic UI.  
-* Actual reps below target reps should count as failure.  
+* Actual reps below target reps should count as failure when actual weight is at or near target weight.
+* Materially heavier actual weight should be evaluated by backend progression as potential overperformance / recalibration-needed.
 * Workout completion should trigger progression update.
 
 ## **Progression**
 
 Progression should be deterministic.
+
+Post-MVP immediate priority: progression should also support adaptive performance recalibration when logged weight is materially above the prescription. The backend should use actual performance as a strength signal and re-anchor `current_weight_lbs` more aggressively than the normal fixed increment, while remaining conservative enough to preserve safe progressive overload.
+
+Candidate recalibration inputs:
+
+* Best valid set
+* Median valid set
+* Conservative average across completed sets
+* Estimated 1RM, for example `e1rm = weight * (1 + reps / 30)`
+
+Candidate safeguards:
+
+* Require material weight overperformance, such as 25-30% or more above target.
+* Treat repeated heavy sets as stronger evidence than one anomalous heavy set.
+* Use a 1-2 workout recalibration window before fully converging on the new working weight.
+* Do not let the mobile client mutate permanent progression state from local-only calculations.
 
 ### **Compound Lifts**
 

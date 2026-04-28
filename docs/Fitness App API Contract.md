@@ -710,7 +710,9 @@
 
   * # **`completed` if `actualReps >= targetReps`**
 
-  * # **`failed` if `actualReps < targetReps`**
+  * # **`failed` if `actualReps < targetReps` and actual weight is at or near target weight**
+
+  * # **post-MVP immediate: if actual weight is materially above target weight, the set may remain `completed` for workflow purposes while exercise-level progression is classified as `recalibrated` at workout completion**
 
 ### **Example Request**
 
@@ -834,7 +836,9 @@
 
 * # **In V1, editing previously logged sets should be avoided unless necessary.**
 
-* # **A set is failed when `actualReps < targetReps`.**
+* # **A set is failed when `actualReps < targetReps` and actual weight is at or near target weight.**
+
+* # **Post-MVP immediate: materially heavier actual weight should be treated as a recalibration signal during workout completion, not as an automatic missed-rep failure; the set can remain logged/completed so the workout flow is not blocked.**
 
 * # **Logging a set should not update progression state immediately; progression should be finalized when the workout is completed.**
 
@@ -956,7 +960,7 @@
 
 #   **nextWeightLbs: number;**
 
-#   **result: "increased" | "repeated" | "reduced";**
+#   **result: "increased" | "repeated" | "reduced" | "recalibrated";**
 
 #   **reason: string;**
 
@@ -1130,7 +1134,39 @@
 | **First failure** | **Repeat weight** |
 | **Second consecutive failure** | **Reduce by 5–10%** |
 
-# **Failure is detected when any set has `actualReps < targetReps`.**
+# **Failure is detected when any set has `actualReps < targetReps` and actual weight is at or near target weight.**
+
+### **Adaptive Performance Recalibration (Post-MVP / Immediate Next Priority)**
+
+# **When actual logged weight is materially above prescribed weight, the backend should classify the exercise result as overperformance / recalibration-needed instead of missed-rep failure.**
+
+# **Recommended MVP-safe detection:**
+
+* # **Actual weight is approximately 25-30% or more above target weight.**
+
+* # **Actual performance produces a higher estimated strength signal, for example using Epley: `e1rm = weight * (1 + reps / 30)`.**
+
+* # **Multiple heavy sets or a conservative median/average should count as stronger evidence than one anomalous set.**
+
+# **Recommended API behavior:**
+
+* # **`completeWorkoutSession` remains the authoritative point where recalibration is finalized.**
+
+* # **`progressionUpdates[].result` may be `recalibrated`.**
+
+* # **`progressionUpdates[].reason` should use positive explanatory language such as "Adjusted your working weight based on your performance."**
+
+* # **Progress metrics may record the recalibration as a trust-building event.**
+
+* # **The mobile client should display the returned result and reason, not calculate recalibration locally.**
+
+# **Safety rules:**
+
+* # **Do not overreact to one implausible or isolated heavy set.**
+
+* # **Use a 1-2 workout recalibration window when confidence is moderate.**
+
+* # **Missing `actualWeightLbs` falls back to normal V1 progression rules.**
 
 # ---
 
@@ -2076,7 +2112,8 @@ type LogSetRequest \= {
 * `completedAt` defaults to server time if omitted.  
 * Backend determines `status`:  
   * `completed` if `actualReps >= targetReps`  
-  * `failed` if `actualReps < targetReps`
+  * `failed` if `actualReps < targetReps` and actual weight is at or near target weight
+  * post-MVP immediate: if actual weight is materially above target weight, the set may remain `completed` for workflow purposes while exercise-level progression is classified as `recalibrated` at workout completion
 
 ### **Example Request**
 
@@ -2149,7 +2186,8 @@ type LogSetResponse \= {
 * Logging must be idempotency-safe from the client perspective.  
 * Backend should reject duplicate logs unless the product explicitly supports editing sets.  
 * In V1, editing previously logged sets should be avoided unless necessary.  
-* A set is failed when `actualReps < targetReps`.  
+* A set is failed when `actualReps < targetReps` and actual weight is at or near target weight.
+* Post-MVP immediate: materially heavier actual weight should be treated as a recalibration signal during workout completion, not as an automatic missed-rep failure; the set can remain logged/completed so the workout flow is not blocked.
 * Logging a set should not update progression state immediately; progression should be finalized when the workout is completed.
 
 ### **Recommended Future Addition**
@@ -2225,7 +2263,7 @@ type ProgressionUpdateDto \= {
   exerciseName: string;  
   previousWeightLbs: number;  
   nextWeightLbs: number;  
-  result: "increased" | "repeated" | "reduced";  
+  result: "increased" | "repeated" | "reduced" | "recalibrated";
   reason: string;  
 };
 
@@ -2333,7 +2371,31 @@ For accessory lifts:
 | First failure | Repeat weight |
 | Second consecutive failure | Reduce by 5–10% |
 
-Failure is detected when any set has `actualReps < targetReps`.
+Failure is detected when any set has `actualReps < targetReps` and actual weight is at or near target weight.
+
+### **Adaptive Performance Recalibration (Post-MVP / Immediate Next Priority)**
+
+When actual logged weight is materially above prescribed weight, the backend should classify the exercise result as overperformance / recalibration-needed instead of missed-rep failure.
+
+Recommended MVP-safe detection:
+
+* Actual weight is approximately 25-30% or more above target weight.
+* Actual performance produces a higher estimated strength signal, for example using Epley: `e1rm = weight * (1 + reps / 30)`.
+* Multiple heavy sets or a conservative median/average should count as stronger evidence than one anomalous set.
+
+Recommended API behavior:
+
+* `completeWorkoutSession` remains the authoritative point where recalibration is finalized.
+* `progressionUpdates[].result` may be `recalibrated`.
+* `progressionUpdates[].reason` should use positive explanatory language such as "Adjusted your working weight based on your performance."
+* Progress metrics may record the recalibration as a trust-building event.
+* The mobile client should display the returned result and reason, not calculate recalibration locally.
+
+Safety rules:
+
+* Do not overreact to one implausible or isolated heavy set.
+* Use a 1-2 workout recalibration window when confidence is moderate.
+* Missing `actualWeightLbs` falls back to normal V1 progression rules.
 
 ---
 
@@ -2661,4 +2723,3 @@ The client owns:
 The most important rule is:
 
 **The user should never have to think during the workout.**
-

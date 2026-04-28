@@ -100,7 +100,11 @@ A user can:
 
 ### High Priority
 
-- [ ]
+- [ ] Adaptive performance recalibration for out-of-model heavy logged sets
+  - Detect when actual logged weight is materially above prescribed weight.
+  - Treat strong heavy-day performance as a recalibration signal, not automatic failure.
+  - Re-anchor future working weight conservatively from actual performance.
+  - Show positive explanatory feedback from the backend progression result.
 
 ### Medium Priority
 
@@ -115,7 +119,7 @@ A user can:
 ## Validation Checklist
 
 - [x] Can I run 3+ real workouts without friction?
-- [x] Does progression feel correct?
+- [ ] Does progression feel correct when actual performance is far above the prescription?
 - [x] Is anything confusing during a workout?
 - [x] Does the app feel fast and responsive?
 
