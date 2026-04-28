@@ -69,7 +69,7 @@ A user can:
 #### Priority 3 — Program Experience
 
 - [x] Follow predefined program
-- [ ] Clearly show:
+- [x] Clearly show:
   - current program
   - next workout
   - workout intent (sets/reps)

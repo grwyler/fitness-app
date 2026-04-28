@@ -11,6 +11,13 @@ import { useDashboard } from "../features/workout/hooks/useDashboard";
 import { useFollowProgram } from "../features/workout/hooks/useFollowProgram";
 import { usePrograms } from "../features/workout/hooks/usePrograms";
 import { useStartWorkout } from "../features/workout/hooks/useStartWorkout";
+import {
+  findProgramWorkoutById,
+  getHiddenExerciseCount,
+  getNextProgramPositionLabel,
+  getPlannedExerciseLines,
+  getWorkoutIntentSummary
+} from "../features/workout/utils/dashboard-program.shared";
 import type { RootStackParamList } from "../core/navigation/navigation-types";
 import { colors, spacing } from "../theme/tokens";
 
@@ -51,6 +58,13 @@ export function DashboardScreen({ navigation }: Props) {
   const activeProgram = dashboard.activeProgram;
   const activeWorkout = dashboard.activeWorkoutSession;
   const nextWorkout = dashboard.nextWorkoutTemplate;
+  const nextWorkoutPlan = findProgramWorkoutById({
+    activeProgram,
+    workoutTemplateId: nextWorkout?.id
+  });
+  const programPositionLabel = getNextProgramPositionLabel(activeProgram);
+  const plannedExerciseLines = getPlannedExerciseLines(nextWorkoutPlan);
+  const hiddenExerciseCount = getHiddenExerciseCount(nextWorkoutPlan, plannedExerciseLines.length);
   const availablePrograms = programsQuery.data ?? [];
 
   return (
@@ -75,6 +89,9 @@ export function DashboardScreen({ navigation }: Props) {
           <Text style={styles.metaLine}>
             {activeProgram.program.daysPerWeek} days/week - {activeProgram.program.sessionDurationMinutes} min sessions - {activeProgram.completedWorkoutCount} completed
           </Text>
+          {programPositionLabel ? (
+            <Text style={styles.positionText}>Next up: {programPositionLabel}</Text>
+          ) : null}
           {activeWorkout ? (
             <Text style={styles.warningText}>
               Finish your active workout before switching programs.
@@ -161,13 +178,32 @@ export function DashboardScreen({ navigation }: Props) {
       <View style={styles.card}>
         <Text style={styles.cardLabel}>Next workout</Text>
         <Text style={styles.cardTitle}>{nextWorkout?.name ?? "No workout queued"}</Text>
+        {programPositionLabel ? <Text style={styles.positionText}>{programPositionLabel}</Text> : null}
         <Text style={styles.cardBody}>
           {nextWorkout
-            ? `Estimated ${nextWorkout.estimatedDurationMinutes ?? 0} minutes`
+            ? `${activeProgram?.program.name ?? "Current program"} - estimated ${nextWorkout.estimatedDurationMinutes ?? activeProgram?.program.sessionDurationMinutes ?? 0} minutes`
             : activeProgram
               ? "Your program does not have a workout queued."
               : "Start a predefined program to queue your first workout."}
         </Text>
+        {nextWorkout ? (
+          <View style={styles.intentBlock}>
+            <Text style={styles.sectionTitle}>Workout intent</Text>
+            <Text style={styles.cardBody}>{getWorkoutIntentSummary(nextWorkoutPlan)}</Text>
+            {plannedExerciseLines.length > 0 ? (
+              <View style={styles.exerciseList}>
+                {plannedExerciseLines.map((line) => (
+                  <Text key={line} style={styles.exerciseLine}>
+                    {line}
+                  </Text>
+                ))}
+                {hiddenExerciseCount > 0 ? (
+                  <Text style={styles.exerciseLine}>+{hiddenExerciseCount} more planned</Text>
+                ) : null}
+              </View>
+            ) : null}
+          </View>
+        ) : null}
         <PrimaryButton
           label={activeWorkout ? "Workout already active" : "Start workout"}
           onPress={() => {
@@ -369,6 +405,24 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     lineHeight: 20
+  },
+  positionText: {
+    color: colors.textPrimary,
+    fontSize: 16,
+    fontWeight: "800",
+    lineHeight: 22
+  },
+  intentBlock: {
+    gap: spacing.xs
+  },
+  exerciseList: {
+    gap: spacing.xs
+  },
+  exerciseLine: {
+    color: colors.textPrimary,
+    fontSize: 15,
+    fontWeight: "700",
+    lineHeight: 21
   },
   programBlock: {
     gap: spacing.sm
