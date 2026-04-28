@@ -730,6 +730,71 @@ export const workoutHttpTestCases: HttpTestCase[] = [
     }
   },
   {
+    name: "POST /api/v1/workout-sessions/start starts a custom workout without an active enrollment",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        const server = await startHttpServer(context.db);
+
+        try {
+          const startResponse = await fetch(`${server.baseUrl}/api/v1/workout-sessions/start`, {
+            method: "POST",
+            headers: {
+              Authorization: "Bearer valid-new-user-token",
+              "content-type": "application/json",
+              "Idempotency-Key": "start-custom-http-key"
+            },
+            body: JSON.stringify({
+              sessionType: "custom"
+            })
+          });
+          const startPayload = await readJson(startResponse);
+
+          assert.equal(startResponse.status, 201);
+          assert.equal(startPayload.data.sessionType, "custom");
+          assert.equal(startPayload.data.workoutName, "Custom Workout");
+          assert.equal(startPayload.data.exercises.length, 0);
+
+          const completeResponse = await fetch(
+            `${server.baseUrl}/api/v1/workout-sessions/${startPayload.data.id}/complete`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: "Bearer valid-new-user-token",
+                "content-type": "application/json",
+                "Idempotency-Key": "complete-custom-http-key"
+              },
+              body: JSON.stringify({
+                exerciseFeedback: []
+              })
+            }
+          );
+          const completePayload = await readJson(completeResponse);
+
+          const historyResponse = await fetch(`${server.baseUrl}/api/v1/workout-history?limit=20&status=completed`, {
+            headers: {
+              Authorization: "Bearer valid-new-user-token"
+            }
+          });
+          const historyPayload = await readJson(historyResponse);
+
+          assert.equal(completeResponse.status, 200);
+          assert.equal(completePayload.data.workoutSession.sessionType, "custom");
+          assert.equal(completePayload.data.nextWorkoutTemplate, null);
+          assert.equal(historyResponse.status, 200);
+          assert.equal(historyPayload.data.items[0].programName, "Custom Workout");
+          assert.equal(historyPayload.data.items[0].exerciseCount, 0);
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
     name: "POST /api/v1/workout-sessions/start rejects a selected workout outside the active program",
     run: async () => {
       const context = await createWorkoutInfrastructureTestContext();

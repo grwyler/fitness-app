@@ -218,6 +218,37 @@ export const mobileApiTestCases: MobileTestCase[] = [
     }
   },
   {
+    name: "Workout API sends custom workout session type when starting a custom workout",
+    run: async () => {
+      let requestBody: string | undefined;
+
+      setMockFetch(async (_input, init) => {
+        requestBody = init?.body as string | undefined;
+        return {
+          ok: true,
+          status: 201,
+          json: async () => ({
+            data: {},
+            meta: {
+              replayed: false
+            }
+          })
+        };
+      });
+
+      await startWorkoutSession({
+        request: {
+          sessionType: "custom"
+        },
+        idempotencyKey: "start-custom-key"
+      });
+
+      assert.deepEqual(JSON.parse(requestBody ?? "{}"), {
+        sessionType: "custom"
+      });
+    }
+  },
+  {
     name: "Stable idempotency keys are reused only for the same payload",
     run: () => {
       const first = resolveStableIdempotencyKey({

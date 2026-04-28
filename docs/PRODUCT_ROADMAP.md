@@ -79,7 +79,7 @@ A user can:
 
 ### Priority 4 — Quick Custom Workout (MVP-safe)
 
-- [ ] Start a “Custom Workout”
+- [x] Start a “Custom Workout”
 - [ ] Add exercises from existing list
 - [ ] Add sets (reuse existing logging UI)
 - [ ] Complete workout → saves to history

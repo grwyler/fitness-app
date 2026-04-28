@@ -16,6 +16,7 @@ function createWorkout(overrides?: {
   return {
     id: "session-1",
     status: "in_progress",
+    sessionType: "program",
     isPartial: false,
     programId: "program-1",
     workoutTemplateId: "template-1",
@@ -156,6 +157,27 @@ export const activeWorkoutScreenTestCases: MobileTestCase[] = [
         getWorkoutCompletionErrorMessage(null),
         "Workout not saved. Check your connection and try again."
       );
+    }
+  },
+  {
+    name: "Empty custom workouts can be completed immediately",
+    run: () => {
+      const state = getWorkoutCompletionUiState(
+        {
+          ...createWorkout({
+            setStatuses: []
+          }),
+          sessionType: "custom",
+          programName: "Custom Workout",
+          workoutName: "Custom Workout",
+          exercises: []
+        },
+        {}
+      );
+
+      assert.equal(state.hasPendingSets, false);
+      assert.equal(state.finishButtonLabel, "Complete workout");
+      assert.equal(state.finishButtonDisabled, false);
     }
   }
 ];

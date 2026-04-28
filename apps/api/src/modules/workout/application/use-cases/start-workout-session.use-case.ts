@@ -1,4 +1,8 @@
 import type { StartWorkoutSessionRequest, WorkoutSessionDto } from "@fitness/shared";
+import {
+  CUSTOM_WORKOUT_TEMPLATE_ID,
+  isCustomWorkoutTemplateId
+} from "../../domain/models/custom-workout.js";
 import { WorkoutSessionFactory } from "../../domain/services/workout-session-factory.js";
 import type { EnrollmentRepository } from "../../repositories/interfaces/enrollment.repository.js";
 import type { ExerciseRepository } from "../../repositories/interfaces/exercise.repository.js";
@@ -14,6 +18,7 @@ import type { UseCaseResult } from "../types/use-case-result.js";
 
 function buildStartWorkoutFingerprint(request: StartWorkoutSessionRequest) {
   return JSON.stringify({
+    sessionType: request.sessionType ?? "program",
     workoutTemplateId: request.workoutTemplateId ?? null,
     startedAt: request.startedAt ?? null
   });
@@ -58,18 +63,27 @@ export class StartWorkoutSessionUseCase {
           );
         }
 
-        const activeEnrollment = await this.enrollmentRepository.findActiveByUserId(input.context.userId, {
-          tx
-        });
-        if (!activeEnrollment) {
+        const isCustomWorkoutRequest =
+          input.request.sessionType === "custom" ||
+          (input.request.workoutTemplateId
+            ? isCustomWorkoutTemplateId(input.request.workoutTemplateId)
+            : false);
+
+        const activeEnrollment = isCustomWorkoutRequest
+          ? null
+          : await this.enrollmentRepository.findActiveByUserId(input.context.userId, {
+              tx
+            });
+        if (!isCustomWorkoutRequest && !activeEnrollment) {
           throw new WorkoutApplicationError(
             "ACTIVE_ENROLLMENT_NOT_FOUND",
             "The user does not have an active enrollment."
           );
         }
 
-        const targetTemplateId =
-          input.request.workoutTemplateId ?? activeEnrollment.currentWorkoutTemplateId;
+        const targetTemplateId = isCustomWorkoutRequest
+          ? CUSTOM_WORKOUT_TEMPLATE_ID
+          : input.request.workoutTemplateId ?? activeEnrollment?.currentWorkoutTemplateId;
         if (!targetTemplateId) {
           throw new WorkoutApplicationError(
             "WORKOUT_TEMPLATE_NOT_FOUND",
@@ -87,7 +101,10 @@ export class StartWorkoutSessionUseCase {
             "The requested workout template could not be found."
           );
         }
-        if (workoutTemplateDefinition.template.programId !== activeEnrollment.programId) {
+        if (
+          !isCustomWorkoutRequest &&
+          workoutTemplateDefinition.template.programId !== activeEnrollment?.programId
+        ) {
           throw new WorkoutApplicationError(
             "WORKOUT_TEMPLATE_NOT_FOUND",
             "The requested workout template is not part of the active program."
@@ -138,7 +155,7 @@ export class StartWorkoutSessionUseCase {
 
         const workoutSessionGraphInput = this.workoutSessionFactory.build({
           userId: input.context.userId,
-          programId: activeEnrollment.programId,
+          programId: workoutTemplateDefinition.template.programId,
           programName: workoutTemplateDefinition.template.programName,
           workoutTemplateDefinition,
           progressionStates,

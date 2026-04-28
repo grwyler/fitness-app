@@ -117,6 +117,7 @@ export function createWorkoutHandlers(dependencies: {
       const body = validateBody(startWorkoutSessionBodySchema, request);
       const idempotencyKey = requireIdempotencyKey(request);
       const useCaseRequest: StartWorkoutSessionRequest = {
+        ...(body.sessionType ? { sessionType: body.sessionType } : {}),
         ...(body.workoutTemplateId ? { workoutTemplateId: body.workoutTemplateId } : {}),
         ...(body.startedAt ? { startedAt: body.startedAt } : {})
       };

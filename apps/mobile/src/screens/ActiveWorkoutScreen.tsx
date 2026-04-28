@@ -223,7 +223,11 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
       <View style={styles.header}>
         <Text style={styles.title}>{workout.workoutName}</Text>
         <Text style={styles.subtitle}>
-          {workout.exercises.length} exercises in {workout.programName}
+          {workout.sessionType === "custom"
+            ? workout.exercises.length === 0
+              ? "Custom workout started."
+              : `${workout.exercises.length} exercises in progress`
+            : `${workout.exercises.length} exercises in ${workout.programName}`}
         </Text>
       </View>
 
@@ -246,24 +250,33 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
         </View>
       ) : null}
 
-      {workout.exercises.map((exercise) => (
-        <WorkoutExerciseCard
-          key={exercise.id}
-          exercise={exercise}
-          {...(feedbackByEntryId[exercise.id]
-            ? { selectedFeedback: feedbackByEntryId[exercise.id] }
-            : {})}
-          loggingSetId={logSetMutation.isPending ? logSetMutation.variables?.setId ?? null : null}
-          submittingSetIds={submittingSetIds}
-          setLogDraftsBySetId={setLogDraftsBySetId}
-          onChangeSetLogDraft={setSetLogDraft}
-          onLogSet={handleLogSet}
-          onSelectFeedback={(feedback) => {
-            setLastAction(`set_exercise_feedback:${exercise.id}`);
-            setExerciseFeedback(exercise.id, feedback);
-          }}
-        />
-      ))}
+      {workout.exercises.length === 0 ? (
+        <View style={styles.emptyStateCard}>
+          <Text style={styles.emptyStateTitle}>No exercises yet</Text>
+          <Text style={styles.footerText}>
+            This custom workout is active and can be completed, even before exercises are added.
+          </Text>
+        </View>
+      ) : (
+        workout.exercises.map((exercise) => (
+          <WorkoutExerciseCard
+            key={exercise.id}
+            exercise={exercise}
+            {...(feedbackByEntryId[exercise.id]
+              ? { selectedFeedback: feedbackByEntryId[exercise.id] }
+              : {})}
+            loggingSetId={logSetMutation.isPending ? logSetMutation.variables?.setId ?? null : null}
+            submittingSetIds={submittingSetIds}
+            setLogDraftsBySetId={setLogDraftsBySetId}
+            onChangeSetLogDraft={setSetLogDraft}
+            onLogSet={handleLogSet}
+            onSelectFeedback={(feedback) => {
+              setLastAction(`set_exercise_feedback:${exercise.id}`);
+              setExerciseFeedback(exercise.id, feedback);
+            }}
+          />
+        ))
+      )}
 
       <View style={styles.footer}>
         {logSetMutation.isError ? (
@@ -389,6 +402,19 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     gap: spacing.md,
     padding: spacing.md
+  },
+  emptyStateCard: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: 22,
+    borderWidth: 1,
+    gap: spacing.sm,
+    padding: spacing.lg
+  },
+  emptyStateTitle: {
+    color: colors.textPrimary,
+    fontSize: 18,
+    fontWeight: "800"
   },
   confirmationTitle: {
     color: colors.textPrimary,

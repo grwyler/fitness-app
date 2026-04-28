@@ -13,6 +13,7 @@ function createWorkout(): WorkoutSessionDto {
   return {
     id: "session-1",
     status: "completed",
+    sessionType: "program",
     isPartial: false,
     programId: "program-1",
     workoutTemplateId: "template-1",

@@ -9,6 +9,10 @@ import type { ProgressionStateRepository } from "../../repositories/interfaces/p
 import type { WorkoutSessionRepository } from "../../repositories/interfaces/workout-session.repository.js";
 import type { IdempotencyRecord } from "../../repositories/models/idempotency.persistence.js";
 import type { WorkoutSessionGraph } from "../../repositories/models/workout-session.persistence.js";
+import {
+  CUSTOM_WORKOUT_PROGRAM_ID,
+  CUSTOM_WORKOUT_TEMPLATE_ID
+} from "../../domain/models/custom-workout.js";
 import { WorkoutApplicationError } from "../errors/workout-application.error.js";
 import { MockTransactionManager } from "../test-helpers/mock-transaction-manager.js";
 import type { ApplicationTestCase } from "../test-helpers/application-test-case.js";
@@ -190,6 +194,23 @@ function createProgramDefinition() {
         ]
       }
     ]
+  };
+}
+
+function createCustomWorkoutTemplateDefinition() {
+  return {
+    template: {
+      id: CUSTOM_WORKOUT_TEMPLATE_ID,
+      programId: CUSTOM_WORKOUT_PROGRAM_ID,
+      programName: "Custom Workout",
+      name: "Custom Workout",
+      sequenceOrder: 1,
+      estimatedDurationMinutes: 45,
+      isActive: true,
+      createdAt: new Date("2026-04-01T00:00:00.000Z"),
+      updatedAt: new Date("2026-04-01T00:00:00.000Z")
+    },
+    exercises: []
   };
 }
 
@@ -488,6 +509,131 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
       assert.equal(createdSessionUserId, "user-1");
       assert.equal(result.data.id, "session-1");
       assert.equal(result.meta.replayed, false);
+    }
+  },
+  {
+    name: "StartWorkoutSessionUseCase can start a custom workout without an active enrollment",
+    run: async () => {
+      let createdSessionProgramId: string | null = null;
+      let createdSessionTemplateId: string | null = null;
+
+      const workoutSessionRepository: WorkoutSessionRepository = {
+        async findInProgressByUserId() {
+          return null;
+        },
+        async findOwnedById() {
+          return null;
+        },
+        async findOwnedSessionGraphById() {
+          return null;
+        },
+        async findOwnedSetForLogging() {
+          return null;
+        },
+        async createSessionGraph(input) {
+          createdSessionProgramId = input.session.programId;
+          createdSessionTemplateId = input.session.workoutTemplateId;
+
+          return {
+            ...createBaseWorkoutSessionGraph(),
+            session: {
+              ...createBaseWorkoutSessionGraph().session,
+              programId: input.session.programId,
+              workoutTemplateId: input.session.workoutTemplateId,
+              programNameSnapshot: input.session.programNameSnapshot,
+              workoutNameSnapshot: input.session.workoutNameSnapshot
+            },
+            exerciseEntries: [],
+            sets: []
+          };
+        },
+        async updateLoggedSet() {
+          throw new Error("Not implemented.");
+        },
+        async persistExerciseEntryFeedback() {},
+        async completeSession() {
+          throw new Error("Not implemented.");
+        },
+        async listRecentCompletedByUserId() {
+          return [];
+        },
+        async countCompletedByUserIdWithinRange() {
+          return 0;
+        },
+        async countCompletedByUserId() {
+          return 0;
+        },
+        async countCompletedByUserIdAndProgramId() {
+          return 0;
+        },
+        async listCompletedProgressionByUserId() {
+          return [];
+        }
+      };
+
+      const enrollmentRepository: EnrollmentRepository = {
+        async findActiveByUserId() {
+          return null;
+        },
+        async updateNextWorkoutTemplate() {
+          throw new Error("Not implemented.");
+        },
+        async cancelEnrollment() {
+          throw new Error("Not implemented.");
+        }
+      };
+
+      const progressionStateRepository: ProgressionStateRepository = {
+        async findByUserIdAndExerciseIds() {
+          return [];
+        },
+        async createMany() {
+          return [];
+        },
+        async updateMany() {
+          return [];
+        }
+      };
+
+      const exerciseRepository: ExerciseRepository = {
+        async findTemplateDefinitionById(templateId) {
+          return templateId === CUSTOM_WORKOUT_TEMPLATE_ID
+            ? createCustomWorkoutTemplateDefinition()
+            : null;
+        },
+        async findProgressionSeedsByExerciseIds() {
+          return [];
+        },
+        async findActiveTemplatesByProgramId() {
+          return [];
+        },
+        async findByIds() {
+          return [];
+        }
+      };
+
+      const idempotency = createMockIdempotencyRepository();
+      const useCase = new StartWorkoutSessionUseCase(
+        workoutSessionRepository,
+        enrollmentRepository,
+        progressionStateRepository,
+        exerciseRepository,
+        new MockTransactionManager(),
+        idempotency.repository
+      );
+
+      const result = await useCase.execute({
+        context: { userId: "user-1", unitSystem: "imperial" },
+        request: {
+          sessionType: "custom"
+        },
+        idempotencyKey: "start-custom-key-1"
+      });
+
+      assert.equal(createdSessionProgramId, CUSTOM_WORKOUT_PROGRAM_ID);
+      assert.equal(createdSessionTemplateId, CUSTOM_WORKOUT_TEMPLATE_ID);
+      assert.equal(result.data.sessionType, "custom");
+      assert.equal(result.data.exercises.length, 0);
     }
   },
   {

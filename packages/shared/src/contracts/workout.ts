@@ -25,6 +25,8 @@ export type WeightValueDto = {
   unit: "lb";
 };
 
+export type WorkoutSessionType = "program" | "custom";
+
 export type SetDto = {
   id: UUID;
   exerciseEntryId: UUID;
@@ -55,6 +57,7 @@ export type ExerciseEntryDto = {
 export type WorkoutSessionDto = {
   id: UUID;
   status: WorkoutSessionStatus;
+  sessionType: WorkoutSessionType;
   isPartial: boolean;
   programId: UUID;
   workoutTemplateId: UUID;
@@ -200,6 +203,7 @@ export type ProgressionSummaryDto = {
 export type GetProgressionResponse = ProgressionSummaryDto;
 
 export type StartWorkoutSessionRequest = {
+  sessionType?: WorkoutSessionType;
   workoutTemplateId?: UUID;
   startedAt?: ISODateTime;
 };

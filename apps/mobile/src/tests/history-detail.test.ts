@@ -9,6 +9,7 @@ import type { MobileTestCase } from "./mobile-test-case.js";
 const workout: WorkoutSessionDto = {
   id: "session-2",
   status: "completed",
+  sessionType: "program",
   isPartial: false,
   programId: "program-1",
   workoutTemplateId: "template-1",

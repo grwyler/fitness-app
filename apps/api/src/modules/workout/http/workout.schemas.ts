@@ -31,6 +31,7 @@ export const setParamsSchema = z.object({
 });
 
 export const startWorkoutSessionBodySchema = z.object({
+  sessionType: z.enum(["program", "custom"]).optional(),
   workoutTemplateId: z.string().min(1).optional(),
   startedAt: isoDateTimeSchema.optional()
 });

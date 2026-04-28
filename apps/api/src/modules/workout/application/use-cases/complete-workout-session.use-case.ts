@@ -2,6 +2,7 @@ import type {
   CompleteWorkoutSessionRequest,
   CompleteWorkoutSessionResponse
 } from "@fitness/shared";
+import { isCustomWorkoutProgramId } from "../../domain/models/custom-workout.js";
 import { ProgramAdvancementPolicy } from "../../domain/services/program-advancement-policy.js";
 import { ProgressionEngine } from "../../domain/services/progression-engine.js";
 import { WorkoutValidationService } from "../../domain/services/workout-validation-service.js";
@@ -95,10 +96,14 @@ export class CompleteWorkoutSessionUseCase {
           exerciseFeedback: exerciseFeedbackByEntryId
         });
 
-        const activeEnrollment = await this.enrollmentRepository.findActiveByUserId(input.context.userId, {
-          tx
-        });
-        if (!activeEnrollment) {
+        const isCustomWorkout = isCustomWorkoutProgramId(workoutSessionGraph.session.programId);
+
+        const activeEnrollment = isCustomWorkout
+          ? null
+          : await this.enrollmentRepository.findActiveByUserId(input.context.userId, {
+              tx
+            });
+        if (!isCustomWorkout && !activeEnrollment) {
           throw new WorkoutApplicationError(
             "ACTIVE_ENROLLMENT_NOT_FOUND",
             "The user does not have an active enrollment."
@@ -254,33 +259,36 @@ export class CompleteWorkoutSessionUseCase {
           { tx }
         );
 
-        const activeTemplates = await this.exerciseRepository.findActiveTemplatesByProgramId(
-          activeEnrollment.programId,
-          { tx }
-        );
+        let nextWorkoutTemplate = null;
+        if (!isCustomWorkout && activeEnrollment) {
+          const activeTemplates = await this.exerciseRepository.findActiveTemplatesByProgramId(
+            activeEnrollment.programId,
+            { tx }
+          );
 
-        const nextTemplateId = this.programAdvancementPolicy.resolveNextTemplateId({
-          templates: activeTemplates.map((template) => ({
-            id: template.id,
-            sequenceOrder: template.sequenceOrder
-          })),
-          currentTemplateId: activeEnrollment.currentWorkoutTemplateId,
-          completedTemplateId: workoutSessionGraph.session.workoutTemplateId,
-          workoutSessionStatus: "completed"
-        });
+          const nextTemplateId = this.programAdvancementPolicy.resolveNextTemplateId({
+            templates: activeTemplates.map((template) => ({
+              id: template.id,
+              sequenceOrder: template.sequenceOrder
+            })),
+            currentTemplateId: activeEnrollment.currentWorkoutTemplateId,
+            completedTemplateId: workoutSessionGraph.session.workoutTemplateId,
+            workoutSessionStatus: "completed"
+          });
 
-        const updatedEnrollment = await this.enrollmentRepository.updateNextWorkoutTemplate(
-          {
-            enrollmentId: activeEnrollment.id,
-            nextWorkoutTemplateId: nextTemplateId
-          },
-          { tx }
-        );
+          const updatedEnrollment = await this.enrollmentRepository.updateNextWorkoutTemplate(
+            {
+              enrollmentId: activeEnrollment.id,
+              nextWorkoutTemplateId: nextTemplateId
+            },
+            { tx }
+          );
 
-        const nextWorkoutTemplate =
-          activeTemplates.find((template) => template.id === updatedEnrollment.currentWorkoutTemplateId) ??
-          activeTemplates.find((template) => template.id === nextTemplateId) ??
-          null;
+          nextWorkoutTemplate =
+            activeTemplates.find((template) => template.id === updatedEnrollment.currentWorkoutTemplateId) ??
+            activeTemplates.find((template) => template.id === nextTemplateId) ??
+            null;
+        }
 
         const completedWorkoutSessionGraph = await this.workoutSessionRepository.findOwnedSessionGraphById(
           input.context.userId,

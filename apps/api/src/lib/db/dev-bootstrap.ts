@@ -1,12 +1,14 @@
 export const DEV_USER_ID = "11111111-1111-1111-1111-111111111111";
 const PROGRAM_ID = "22222222-2222-2222-2222-222222222222";
 const UPPER_LOWER_ARMS_PROGRAM_ID = "22222222-2222-2222-2222-222222222223";
+const CUSTOM_WORKOUT_PROGRAM_ID = "22222222-2222-2222-2222-222222222299";
 const TEMPLATE_A_ID = "33333333-3333-3333-3333-333333333333";
 const TEMPLATE_B_ID = "44444444-4444-4444-4444-444444444444";
 const UPPER_LOWER_DAY_1_TEMPLATE_ID = "33333333-3333-3333-3333-333333333341";
 const UPPER_LOWER_DAY_2_TEMPLATE_ID = "33333333-3333-3333-3333-333333333342";
 const UPPER_LOWER_DAY_3_TEMPLATE_ID = "33333333-3333-3333-3333-333333333343";
 const UPPER_LOWER_DAY_4_TEMPLATE_ID = "33333333-3333-3333-3333-333333333344";
+const CUSTOM_WORKOUT_TEMPLATE_ID = "33333333-3333-3333-3333-333333333399";
 const ENROLLMENT_ID = "55555555-5555-5555-5555-555555555555";
 
 const seedExercises = [
@@ -59,7 +61,8 @@ const templateDefinitions = [
   { id: UPPER_LOWER_DAY_1_TEMPLATE_ID, programId: UPPER_LOWER_ARMS_PROGRAM_ID, name: "Day 1 - Upper Strength", order: 1, duration: 60 },
   { id: UPPER_LOWER_DAY_2_TEMPLATE_ID, programId: UPPER_LOWER_ARMS_PROGRAM_ID, name: "Day 2 - Lower", order: 2, duration: 55 },
   { id: UPPER_LOWER_DAY_3_TEMPLATE_ID, programId: UPPER_LOWER_ARMS_PROGRAM_ID, name: "Day 3 - Upper Arms Focus", order: 3, duration: 55 },
-  { id: UPPER_LOWER_DAY_4_TEMPLATE_ID, programId: UPPER_LOWER_ARMS_PROGRAM_ID, name: "Day 4 - Arms Quick", order: 4, duration: 35 }
+  { id: UPPER_LOWER_DAY_4_TEMPLATE_ID, programId: UPPER_LOWER_ARMS_PROGRAM_ID, name: "Day 4 - Arms Quick", order: 4, duration: 35 },
+  { id: CUSTOM_WORKOUT_TEMPLATE_ID, programId: CUSTOM_WORKOUT_PROGRAM_ID, name: "Custom Workout", order: 1, duration: 45 }
 ] as const;
 
 const templateEntries = [
@@ -186,6 +189,22 @@ export async function syncPredefinedProgramCatalog(executor: SqlExecutor) {
       55,
       "beginner",
       true
+    ]
+  );
+
+  await executor.query(
+    `insert into programs (id, name, description, days_per_week, session_duration_minutes, difficulty_level, is_active)
+     values ($1, $2, $3, $4, $5, $6, $7)
+     on conflict (id) do update
+     set name = excluded.name, description = excluded.description, days_per_week = excluded.days_per_week, session_duration_minutes = excluded.session_duration_minutes, difficulty_level = excluded.difficulty_level, is_active = excluded.is_active, updated_at = now()`,
+    [
+      CUSTOM_WORKOUT_PROGRAM_ID,
+      "Custom Workout",
+      "Ad hoc training session without a predefined program template.",
+      1,
+      45,
+      "beginner",
+      false
     ]
   );
 

@@ -71,6 +71,8 @@ export function DashboardScreen({ navigation }: Props) {
   const plannedExerciseLines = getPlannedExerciseLines(nextWorkoutPlan);
   const hiddenExerciseCount = getHiddenExerciseCount(nextWorkoutPlan, plannedExerciseLines.length);
   const availablePrograms = programsQuery.data ?? [];
+  const isStartingCustomWorkout =
+    startWorkoutMutation.isPending && selectedStartingWorkoutId === "custom-workout";
 
   return (
     <Screen>
@@ -229,6 +231,30 @@ export function DashboardScreen({ navigation }: Props) {
           }}
           disabled={Boolean(activeWorkout || !nextWorkout || !activeProgram)}
           loading={startWorkoutMutation.isPending && selectedStartingWorkoutId === nextWorkout?.id}
+        />
+        <PrimaryButton
+          label={activeWorkout ? "Workout already active" : "Start custom workout"}
+          tone="secondary"
+          onPress={() => {
+            setLastAction("start_custom_workout");
+            setSelectedStartingWorkoutId("custom-workout");
+            startWorkoutMutation.mutate(
+              {
+                sessionType: "custom"
+              },
+              {
+                onSuccess: () => {
+                  setSelectedStartingWorkoutId(null);
+                  navigation.navigate("ActiveWorkout");
+                },
+                onError: () => {
+                  setSelectedStartingWorkoutId(null);
+                }
+              }
+            );
+          }}
+          disabled={Boolean(activeWorkout || startWorkoutMutation.isPending)}
+          loading={isStartingCustomWorkout}
         />
         {activeProgram && programWorkouts.length > 0 ? (
           <PrimaryButton

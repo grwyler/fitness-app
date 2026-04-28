@@ -16,6 +16,7 @@ import type {
   WorkoutSessionDto
 } from "@fitness/shared";
 import type { UnitSystem } from "@fitness/shared";
+import { isCustomWorkoutProgramId } from "../../domain/models/custom-workout.js";
 import type { EnrollmentRecord } from "../../repositories/models/enrollment.persistence.js";
 import type { WorkoutTemplateRecord } from "../../repositories/models/exercise.persistence.js";
 import type { ProgramDefinition } from "../../repositories/models/program.persistence.js";
@@ -81,6 +82,7 @@ export function mapWorkoutSessionDto(graph: WorkoutSessionGraph): WorkoutSession
   return {
     id: graph.session.id,
     status: graph.session.status,
+    sessionType: isCustomWorkoutProgramId(graph.session.programId) ? "custom" : "program",
     isPartial: graph.session.isPartial,
     programId: graph.session.programId,
     workoutTemplateId: graph.session.workoutTemplateId,

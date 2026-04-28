@@ -14,6 +14,7 @@ function createCompletionSummary(overrides?: {
     workoutSession: {
       id: overrides?.id ?? "session-2",
       status: "completed",
+      sessionType: "program",
       isPartial: false,
       programId: "program-1",
       workoutTemplateId: "template-1",

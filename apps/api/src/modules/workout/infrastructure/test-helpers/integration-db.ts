@@ -12,6 +12,10 @@ import {
   workoutTemplateExerciseEntries,
   workoutTemplates
 } from "@fitness/db";
+import {
+  CUSTOM_WORKOUT_PROGRAM_ID,
+  CUSTOM_WORKOUT_TEMPLATE_ID
+} from "../../domain/models/custom-workout.js";
 import { createPgliteClient, createPgliteDatabase, type PgliteDatabase } from "../../../../lib/db/connection.js";
 import { DrizzleTransactionManager } from "../db/drizzle-transaction-manager.js";
 import { DrizzleEnrollmentRepository } from "../repositories/drizzle-enrollment.repository.js";
@@ -265,6 +269,18 @@ export async function seedBaseWorkoutProgram(context: WorkoutInfrastructureTestC
     updatedAt: now
   });
 
+  await context.db.insert(programs).values({
+    id: CUSTOM_WORKOUT_PROGRAM_ID,
+    name: "Custom Workout",
+    description: "Ad hoc training session without a predefined program template.",
+    daysPerWeek: 1,
+    sessionDurationMinutes: 45,
+    difficultyLevel: "beginner",
+    isActive: false,
+    createdAt: now,
+    updatedAt: now
+  });
+
   await context.db.insert(workoutTemplates).values([
     {
       id: "template-1",
@@ -282,6 +298,16 @@ export async function seedBaseWorkoutProgram(context: WorkoutInfrastructureTestC
       name: "Workout B",
       sequenceOrder: 2,
       estimatedDurationMinutes: 55,
+      isActive: true,
+      createdAt: now,
+      updatedAt: now
+    },
+    {
+      id: CUSTOM_WORKOUT_TEMPLATE_ID,
+      programId: CUSTOM_WORKOUT_PROGRAM_ID,
+      name: "Custom Workout",
+      sequenceOrder: 1,
+      estimatedDurationMinutes: 45,
       isActive: true,
       createdAt: now,
       updatedAt: now
