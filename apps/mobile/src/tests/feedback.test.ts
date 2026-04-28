@@ -2,6 +2,10 @@ import assert from "node:assert/strict";
 import { buildFeedbackContext } from "../features/feedback/utils/build-feedback-context.js";
 import { createFeedbackStorage } from "../features/feedback/storage/feedback-storage.js";
 import { createFeedbackEntry } from "../features/feedback/types.js";
+import {
+  isTestUserEmail,
+  shouldShowReviewFeedbackButton
+} from "../features/workout/utils/test-account.shared.js";
 import type { MobileTestCase } from "./mobile-test-case.js";
 
 export const feedbackTestCases: MobileTestCase[] = [
@@ -54,6 +58,19 @@ export const feedbackTestCases: MobileTestCase[] = [
       assert.equal(context.lastAction, "logged_set");
       assert.equal(context.timestamp, "2026-04-24T12:00:00.000Z");
       assert.ok(context.platform.length > 0);
+    }
+  },
+  {
+    name: "Review Feedback visibility is limited to the test account",
+    run: () => {
+      assert.equal(isTestUserEmail("test@test.com"), true);
+      assert.equal(isTestUserEmail("Test@Test.com"), true);
+      assert.equal(isTestUserEmail("user@example.com"), false);
+      assert.equal(isTestUserEmail(null), false);
+      assert.equal(shouldShowReviewFeedbackButton({ isDev: true, userEmail: "test@test.com" }), true);
+      assert.equal(shouldShowReviewFeedbackButton({ isDev: true, userEmail: "Test@Test.com" }), true);
+      assert.equal(shouldShowReviewFeedbackButton({ isDev: true, userEmail: "user@example.com" }), false);
+      assert.equal(shouldShowReviewFeedbackButton({ isDev: false, userEmail: "test@test.com" }), false);
     }
   },
   {

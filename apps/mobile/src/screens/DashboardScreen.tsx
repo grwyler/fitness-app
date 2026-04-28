@@ -23,12 +23,16 @@ import {
   getWorkoutIntentSummary
 } from "../features/workout/utils/dashboard-program.shared";
 import { requestResetTestDataConfirmation } from "../features/workout/utils/reset-test-data.shared";
+import {
+  TEST_USER_EMAIL,
+  isTestUserEmail,
+  shouldShowReviewFeedbackButton
+} from "../features/workout/utils/test-account.shared";
 import type { RootStackParamList } from "../core/navigation/navigation-types";
 import { colors, spacing } from "../theme/tokens";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Dashboard">;
 
-const TEST_USER_EMAIL = "test@test.com";
 const RESET_TEST_DATA_CONFIRMATION =
   "This will delete workout history, custom workouts, progression state, and program progress for test@test.com only. Continue?";
 const RESET_DELETED_COUNT_KEYS = [
@@ -65,7 +69,11 @@ export function DashboardScreen({ navigation }: Props) {
   const resetTestUserDataMutation = useResetTestUserData();
   const startWorkoutMutation = useStartWorkout();
   const [lastAction, setLastAction] = useState<string | null>(null);
-  const canResetTestData = auth.userEmail?.toLowerCase() === TEST_USER_EMAIL;
+  const isTestUser = isTestUserEmail(auth.userEmail);
+  const canReviewFeedback = shouldShowReviewFeedbackButton({
+    isDev: __DEV__,
+    userEmail: auth.userEmail
+  });
 
   function runResetTestData() {
     logResetDiagnostic("handler_entered");
@@ -395,7 +403,7 @@ export function DashboardScreen({ navigation }: Props) {
           workoutSessionId={activeWorkout?.id ?? null}
           lastAction={lastAction}
         />
-        {__DEV__ ? (
+        {canReviewFeedback ? (
           <PrimaryButton
             label="Review feedback"
             tone="secondary"
@@ -404,7 +412,7 @@ export function DashboardScreen({ navigation }: Props) {
         ) : null}
       </View>
 
-      {canResetTestData ? (
+      {isTestUser ? (
         <View style={styles.card}>
           <Text style={styles.cardLabel}>Dev/Test Tools</Text>
           <Text style={styles.cardTitle}>Test account reset</Text>
