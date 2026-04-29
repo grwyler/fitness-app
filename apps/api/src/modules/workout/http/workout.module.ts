@@ -24,6 +24,7 @@ import { ListExercisesUseCase } from "../application/use-cases/list-exercises.us
 import { ListProgramsUseCase } from "../application/use-cases/list-programs.use-case.js";
 import { LogSetUseCase } from "../application/use-cases/log-set.use-case.js";
 import { StartWorkoutSessionUseCase } from "../application/use-cases/start-workout-session.use-case.js";
+import { UpdateLoggedSetUseCase } from "../application/use-cases/update-logged-set.use-case.js";
 import { UpdateCustomProgramUseCase } from "../application/use-cases/update-custom-program.use-case.js";
 import { createWorkoutRouter } from "./workout.routes.js";
 
@@ -57,6 +58,12 @@ export function createWorkoutHttpRouter(database: WorkoutDatabase) {
   );
 
   const logSetUseCase = new LogSetUseCase(
+    workoutSessionRepository,
+    transactionManager,
+    idempotencyRepository
+  );
+
+  const updateLoggedSetUseCase = new UpdateLoggedSetUseCase(
     workoutSessionRepository,
     transactionManager,
     idempotencyRepository
@@ -140,6 +147,7 @@ export function createWorkoutHttpRouter(database: WorkoutDatabase) {
     addWorkoutSetUseCase,
     deleteWorkoutSetUseCase,
     logSetUseCase,
+    updateLoggedSetUseCase,
     cancelWorkoutSessionUseCase,
     completeWorkoutSessionUseCase
   });

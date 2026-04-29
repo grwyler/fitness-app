@@ -883,6 +883,7 @@ export const workoutHttpTestCases: HttpTestCase[] = [
           const sessionRows = await context.db.select().from(workoutSessions);
           const exerciseEntryRows = await context.db.select().from(exerciseEntries);
           const setRows = await context.db.select().from(sets);
+          const updatedSetRow = setRows.find((row: { id: string }) => row.id === "set-1");
           const enrollmentRows = await context.db.select().from(userProgramEnrollments);
           const progressionRows = await context.db.select().from(progressionStates);
           const progressMetricRows = await context.db.select().from(progressMetrics);
@@ -1992,6 +1993,48 @@ export const workoutHttpTestCases: HttpTestCase[] = [
           assert.equal(payload.data.set.status, "completed");
           assert.equal(payload.data.exerciseEntry.completedSetCount, 1);
           assert.equal(payload.meta.replayed, false);
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "PUT /api/v1/sets/:setId edits a logged set",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        await seedInProgressWorkout(context, {
+          setStatuses: ["completed", "completed", "completed"],
+          actualReps: [8, 8, 8]
+        });
+        const server = await startHttpServer(context.db);
+
+        try {
+          const response = await fetch(`${server.baseUrl}/api/v1/sets/set-1`, {
+            method: "PUT",
+            headers: createAuthHeaders({
+              "content-type": "application/json",
+              "Idempotency-Key": "edit-set-http-key-1"
+            }),
+            body: JSON.stringify({
+              actualReps: 7
+            })
+          });
+          const payload = await readJson(response);
+          const setRows = await context.db.select().from(sets);
+          const updatedSetRow = setRows.find((row: { id: string }) => row.id === "set-1");
+
+          assert.equal(response.status, 200);
+          assert.equal(payload.data.set.actualReps, 7);
+          assert.equal(payload.data.set.status, "failed");
+          assert.equal(payload.meta.replayed, false);
+          assert.equal(updatedSetRow?.actualReps, 7);
+          assert.equal(updatedSetRow?.status, "failed");
         } finally {
           await server.close();
         }

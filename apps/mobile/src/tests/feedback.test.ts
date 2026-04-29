@@ -36,6 +36,7 @@ export const feedbackTestCases: MobileTestCase[] = [
       assert.equal(entry.description, "Button label is unclear");
       assert.equal(entry.category, "Confusing");
       assert.equal(entry.severity, "Low");
+      assert.equal(entry.priority, "P2");
       assert.equal(entry.context.lastAction, "opened_dashboard");
     }
   },
@@ -159,9 +160,9 @@ export const feedbackTestCases: MobileTestCase[] = [
 
       const prompt = buildCodexPromptFromFeedbackEntries(entries);
       assert.ok(prompt.includes("Triage workflow:"));
-      assert.ok(prompt.includes("Raw feedback entries (JSON):"));
+      assert.ok(prompt.includes("Raw feedback entry (JSON):"));
       assert.ok(prompt.includes("\"entry-1\""));
-      assert.ok(prompt.includes("docs/PRODUCT_ROADMAP.md"));
+      assert.ok(prompt.includes("log it as a backlog item in docs/"));
     }
   }
 ];

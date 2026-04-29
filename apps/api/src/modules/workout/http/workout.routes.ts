@@ -17,6 +17,7 @@ import type { ListExercisesUseCase } from "../application/use-cases/list-exercis
 import type { ListProgramsUseCase } from "../application/use-cases/list-programs.use-case.js";
 import type { LogSetUseCase } from "../application/use-cases/log-set.use-case.js";
 import type { StartWorkoutSessionUseCase } from "../application/use-cases/start-workout-session.use-case.js";
+import type { UpdateLoggedSetUseCase } from "../application/use-cases/update-logged-set.use-case.js";
 import type { UpdateCustomProgramUseCase } from "../application/use-cases/update-custom-program.use-case.js";
 
 export function createWorkoutRouter(dependencies: {
@@ -36,6 +37,7 @@ export function createWorkoutRouter(dependencies: {
   addWorkoutSetUseCase: AddWorkoutSetUseCase;
   deleteWorkoutSetUseCase: DeleteWorkoutSetUseCase;
   logSetUseCase: LogSetUseCase;
+  updateLoggedSetUseCase: UpdateLoggedSetUseCase;
   cancelWorkoutSessionUseCase: CancelWorkoutSessionUseCase;
   completeWorkoutSessionUseCase: CompleteWorkoutSessionUseCase;
 }) {
@@ -58,6 +60,7 @@ export function createWorkoutRouter(dependencies: {
   router.post("/workout-sessions/:sessionId/exercises/:exerciseEntryId/sets", handlers.addWorkoutSet);
   router.delete("/sets/:setId", handlers.deleteWorkoutSet);
   router.post("/sets/:setId/log", handlers.logSet);
+  router.put("/sets/:setId", handlers.updateLoggedSet);
   router.post("/workout-sessions/:sessionId/cancel", handlers.cancelWorkoutSession);
   router.post("/workout-sessions/:sessionId/complete", handlers.completeWorkoutSession);
 

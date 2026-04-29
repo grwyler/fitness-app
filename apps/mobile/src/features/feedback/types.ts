@@ -9,8 +9,11 @@ export const feedbackCategories = [
 
 export const feedbackSeverities = ["High", "Medium", "Low"] as const;
 
+export const feedbackPriorities = ["P0", "P1", "P2", "P3"] as const;
+
 export type FeedbackCategory = (typeof feedbackCategories)[number];
 export type FeedbackSeverity = (typeof feedbackSeverities)[number];
+export type FeedbackPriority = (typeof feedbackPriorities)[number];
 
 export type FeedbackContext = {
   screenName: string;
@@ -26,6 +29,7 @@ export type FeedbackDraft = {
   description: string;
   category: FeedbackCategory;
   severity: FeedbackSeverity;
+  priority?: FeedbackPriority;
 };
 
 export type FeedbackEntry = FeedbackDraft & {
@@ -45,6 +49,7 @@ export function createFeedbackEntry(input: {
     description: input.draft.description.trim(),
     category: input.draft.category,
     severity: input.draft.severity,
+    priority: input.draft.priority ?? "P2",
     context: input.context
   };
 }

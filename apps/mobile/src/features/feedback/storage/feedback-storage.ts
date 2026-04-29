@@ -28,6 +28,29 @@ export function createFeedbackStorage(storage: FeedbackStorageAdapter) {
       await storage.setItem(FEEDBACK_STORAGE_KEY, JSON.stringify(nextEntries));
       return nextEntries;
     },
+    async updateEntry(id: string, patch: Partial<Pick<FeedbackEntry, "description" | "category" | "severity" | "priority">>) {
+      const entries = await this.listEntries();
+      const nextEntries = entries.map((entry) => {
+        if (entry.id !== id) {
+          return entry;
+        }
+
+        return {
+          ...entry,
+          ...patch,
+          description: typeof patch.description === "string" ? patch.description.trim() : entry.description
+        };
+      });
+
+      await storage.setItem(FEEDBACK_STORAGE_KEY, JSON.stringify(nextEntries));
+      return nextEntries;
+    },
+    async deleteEntry(id: string) {
+      const entries = await this.listEntries();
+      const nextEntries = entries.filter((entry) => entry.id !== id);
+      await storage.setItem(FEEDBACK_STORAGE_KEY, JSON.stringify(nextEntries));
+      return nextEntries;
+    },
     async exportEntries() {
       const entries = await this.listEntries();
       return JSON.stringify(entries, null, 2);

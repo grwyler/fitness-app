@@ -5,6 +5,7 @@ export type IdempotencyRouteFamily =
   | "add_workout_set"
   | "delete_workout_set"
   | "log_set"
+  | "update_logged_set"
   | "cancel_workout_session"
   | "complete_workout_session";
 

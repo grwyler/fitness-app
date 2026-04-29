@@ -33,6 +33,7 @@ export function WorkoutExerciseCard(props: {
   exercise: ExerciseEntryDto;
   selectedFeedback?: EffortFeedback;
   loggingSetId?: string | null;
+  editingSetId?: string | null;
   submittingSetIds?: Record<string, boolean>;
   deletingSetIds?: Record<string, boolean>;
   addingSet?: boolean;
@@ -41,6 +42,9 @@ export function WorkoutExerciseCard(props: {
   onAddSet: (exercise: ExerciseEntryDto) => void;
   onDeleteSet: (set: SetDto) => void;
   onLogSet: (exercise: ExerciseEntryDto, set: SetDto, draft: SetLogDraft) => void;
+  onStartEditSet: (set: SetDto) => void;
+  onCancelEditSet: (set: SetDto) => void;
+  onUpdateLoggedSet: (exercise: ExerciseEntryDto, set: SetDto, draft: SetLogDraft) => void;
   onSelectFeedback: (feedback: EffortFeedback) => void;
 }) {
   const maxSetNumber = props.exercise.sets.reduce(
@@ -61,6 +65,7 @@ export function WorkoutExerciseCard(props: {
       <View style={styles.setList}>
         {props.exercise.sets.map((set) => {
           const isPending = set.status === "pending";
+          const isEditing = props.editingSetId === set.id;
           const isLogging = props.loggingSetId === set.id || props.submittingSetIds?.[set.id] === true;
           const isDeleting = props.deletingSetIds?.[set.id] === true;
           const canDeleteSet = isPending && set.setNumber === maxSetNumber && props.exercise.sets.length > 1;
@@ -77,7 +82,7 @@ export function WorkoutExerciseCard(props: {
             actualWeightValue: validation.actualWeight?.value ?? null,
             targetWeightValue: set.targetWeight.value
           });
-          const canSubmit = isPending && request !== null && !isLogging;
+          const canSubmit = (isPending || isEditing) && request !== null && !isLogging;
           const previousWeight = previousSet?.actualWeight?.value ?? null;
 
           return (
@@ -96,6 +101,16 @@ export function WorkoutExerciseCard(props: {
                         <Text style={styles.deleteSetLabel}>{isDeleting ? "Removing..." : "Remove"}</Text>
                       </Pressable>
                     ) : null}
+                    {!isPending ? (
+                      <Pressable
+                        accessibilityRole="button"
+                        disabled={isLogging || isDeleting}
+                        onPress={() => (isEditing ? props.onCancelEditSet(set) : props.onStartEditSet(set))}
+                        style={[styles.editSetButton, (isLogging || isDeleting) && styles.disabledControl]}
+                      >
+                        <Text style={styles.editSetLabel}>{isEditing ? "Cancel" : "Edit"}</Text>
+                      </Pressable>
+                    ) : null}
                     <Text
                       style={[
                         styles.statusPill,
@@ -112,7 +127,7 @@ export function WorkoutExerciseCard(props: {
                 </Text>
               </View>
 
-              {isPending ? (
+              {isPending || isEditing ? (
                 <View style={styles.pendingSetBody}>
                   <View style={styles.inputGrid}>
                     <View style={styles.inputGroup}>
@@ -146,7 +161,11 @@ export function WorkoutExerciseCard(props: {
                           }
                           onSubmitEditing={() => {
                             if (canSubmit) {
-                              props.onLogSet(props.exercise, set, draft);
+                              if (isPending) {
+                                props.onLogSet(props.exercise, set, draft);
+                              } else {
+                                props.onUpdateLoggedSet(props.exercise, set, draft);
+                              }
                             }
                           }}
                           returnKeyType="done"
@@ -192,7 +211,11 @@ export function WorkoutExerciseCard(props: {
                           }
                           onSubmitEditing={() => {
                             if (canSubmit) {
-                              props.onLogSet(props.exercise, set, draft);
+                              if (isPending) {
+                                props.onLogSet(props.exercise, set, draft);
+                              } else {
+                                props.onUpdateLoggedSet(props.exercise, set, draft);
+                              }
                             }
                           }}
                           returnKeyType="done"
@@ -234,10 +257,18 @@ export function WorkoutExerciseCard(props: {
                       isLogging
                         ? "Saving..."
                         : request
-                          ? `Log ${request.actualReps} @ ${request.actualWeight?.value ?? set.targetWeight.value} lb`
-                          : "Log set"
+                          ? isPending
+                            ? `Log ${request.actualReps} @ ${request.actualWeight?.value ?? set.targetWeight.value} lb`
+                            : `Update ${request.actualReps} @ ${request.actualWeight?.value ?? set.targetWeight.value} lb`
+                          : isPending
+                            ? "Log set"
+                            : "Update set"
                     }
-                    onPress={() => props.onLogSet(props.exercise, set, draft)}
+                    onPress={() =>
+                      isPending
+                        ? props.onLogSet(props.exercise, set, draft)
+                        : props.onUpdateLoggedSet(props.exercise, set, draft)
+                    }
                     disabled={!canSubmit}
                     loading={isLogging}
                   />
@@ -355,6 +386,18 @@ const styles = StyleSheet.create({
   },
   deleteSetLabel: {
     color: colors.danger,
+    fontSize: 12,
+    fontWeight: "600"
+  },
+  editSetButton: {
+    borderColor: colors.border,
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 5
+  },
+  editSetLabel: {
+    color: colors.textPrimary,
     fontSize: 12,
     fontWeight: "600"
   },

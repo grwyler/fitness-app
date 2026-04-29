@@ -47,6 +47,7 @@ import type { ListExercisesUseCase } from "../application/use-cases/list-exercis
 import type { ListProgramsUseCase } from "../application/use-cases/list-programs.use-case.js";
 import type { LogSetUseCase } from "../application/use-cases/log-set.use-case.js";
 import type { StartWorkoutSessionUseCase } from "../application/use-cases/start-workout-session.use-case.js";
+import type { UpdateLoggedSetUseCase } from "../application/use-cases/update-logged-set.use-case.js";
 import type { UpdateCustomProgramUseCase } from "../application/use-cases/update-custom-program.use-case.js";
 
 export type WorkoutHttpHandlers = {
@@ -66,6 +67,7 @@ export type WorkoutHttpHandlers = {
   addWorkoutSet: RequestHandler;
   deleteWorkoutSet: RequestHandler;
   logSet: RequestHandler;
+  updateLoggedSet: RequestHandler;
   cancelWorkoutSession: RequestHandler;
   completeWorkoutSession: RequestHandler;
 };
@@ -87,6 +89,7 @@ export function createWorkoutHandlers(dependencies: {
   addWorkoutSetUseCase: AddWorkoutSetUseCase;
   deleteWorkoutSetUseCase: DeleteWorkoutSetUseCase;
   logSetUseCase: LogSetUseCase;
+  updateLoggedSetUseCase: UpdateLoggedSetUseCase;
   cancelWorkoutSessionUseCase: CancelWorkoutSessionUseCase;
   completeWorkoutSessionUseCase: CompleteWorkoutSessionUseCase;
 }): WorkoutHttpHandlers {
@@ -297,6 +300,27 @@ export function createWorkoutHandlers(dependencies: {
       };
 
       const result = await dependencies.logSetUseCase.execute({
+        context,
+        setId: params.setId,
+        request: useCaseRequest,
+        idempotencyKey
+      });
+
+      response.json(success(result.data, result.meta));
+    }),
+
+    updateLoggedSet: asyncHandler(async (request, response) => {
+      const context = getRequestContext(request);
+      const params = validateParams(setParamsSchema, request);
+      const body = validateBody(logSetBodySchema, request);
+      const idempotencyKey = requireIdempotencyKey(request);
+      const useCaseRequest: LogSetRequest = {
+        actualReps: body.actualReps,
+        ...(body.actualWeight ? { actualWeight: body.actualWeight } : {}),
+        ...(body.completedAt ? { completedAt: body.completedAt } : {})
+      };
+
+      const result = await dependencies.updateLoggedSetUseCase.execute({
         context,
         setId: params.setId,
         request: useCaseRequest,

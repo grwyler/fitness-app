@@ -11,6 +11,7 @@ import type { RootStackParamList } from "../core/navigation/navigation-types";
 import { FeedbackButton } from "../features/feedback/components/FeedbackButton";
 import { useCurrentWorkout } from "../features/workout/hooks/useCurrentWorkout";
 import { useLogSet } from "../features/workout/hooks/useLogSet";
+import { useUpdateLoggedSet } from "../features/workout/hooks/useUpdateLoggedSet";
 import { useCompleteWorkout } from "../features/workout/hooks/useCompleteWorkout";
 import { useCancelWorkout } from "../features/workout/hooks/useCancelWorkout";
 import { CustomExercisePickerModal } from "../features/workout/components/CustomExercisePickerModal";
@@ -47,6 +48,7 @@ type RestTimerState = {
 export function ActiveWorkoutScreen({ navigation, route }: Props) {
   const currentWorkoutQuery = useCurrentWorkout();
   const logSetMutation = useLogSet();
+  const updateLoggedSetMutation = useUpdateLoggedSet();
   const addWorkoutSetMutation = useAddWorkoutSet();
   const deleteWorkoutSetMutation = useDeleteWorkoutSet();
   const addCustomWorkoutExerciseMutation = useAddCustomWorkoutExercise();
@@ -60,6 +62,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
   const [lastAction, setLastAction] = useState<string | null>(null);
   const [submittingSetIds, setSubmittingSetIds] = useState<Record<string, boolean>>({});
   const [deletingSetIds, setDeletingSetIds] = useState<Record<string, boolean>>({});
+  const [editingSetId, setEditingSetId] = useState<string | null>(null);
   const [showFinishEarlyConfirmation, setShowFinishEarlyConfirmation] = useState(false);
   const [showDiscardConfirmation, setShowDiscardConfirmation] = useState(false);
   const [isExercisePickerOpen, setIsExercisePickerOpen] = useState(false);
@@ -154,6 +157,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
 
   const hasPendingSetSave =
     logSetMutation.isPending ||
+    updateLoggedSetMutation.isPending ||
     addWorkoutSetMutation.isPending ||
     deleteWorkoutSetMutation.isPending ||
     Object.keys(submittingSetIds).length > 0 ||
@@ -218,6 +222,77 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
             delete next[set.id];
             return next;
           });
+        }
+      }
+    );
+  }
+
+  function handleStartEditSet(set: SetDto) {
+    if (submittingSetIds[set.id] || inFlightSetIds.current.has(set.id) || set.status === "pending") {
+      return;
+    }
+
+    setLastAction(`start_edit_set:${set.id}`);
+    setEditingSetId(set.id);
+  }
+
+  function handleCancelEditSet(set: SetDto) {
+    if (editingSetId !== set.id) {
+      return;
+    }
+
+    setEditingSetId(null);
+  }
+
+  function handleUpdateLoggedSet(exercise: ExerciseEntryDto, set: SetDto, draft: SetLogDraft) {
+    if (
+      submittingSetIds[set.id] ||
+      inFlightSetIds.current.has(set.id) ||
+      set.status === "pending" ||
+      editingSetId !== set.id
+    ) {
+      return;
+    }
+
+    const request = buildLogSetRequestFromDraft(draft);
+    if (!request) {
+      return;
+    }
+
+    inFlightSetIds.current.add(set.id);
+    setSubmittingSetIds((current) => ({
+      ...current,
+      [set.id]: true
+    }));
+
+    const loggedWeightValue = request.actualWeight?.value ?? set.targetWeight.value;
+    const isOverperformanceSet = isMaterialOverperformanceLog({
+      actualReps: request.actualReps,
+      actualWeightValue: loggedWeightValue,
+      targetWeightValue: set.targetWeight.value
+    });
+    setLastAction(
+      request.actualReps >= set.targetReps || isOverperformanceSet
+        ? `edited_completed_set:${set.id}`
+        : `edited_missed_set:${set.id}`
+    );
+
+    updateLoggedSetMutation.mutate(
+      {
+        setId: set.id,
+        request
+      },
+      {
+        onSettled: () => {
+          inFlightSetIds.current.delete(set.id);
+          setSubmittingSetIds((current) => {
+            const next = { ...current };
+            delete next[set.id];
+            return next;
+          });
+        },
+        onSuccess: () => {
+          setEditingSetId(null);
         }
       }
     );
@@ -472,6 +547,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
                 ? { selectedFeedback: feedbackByEntryId[exercise.id] }
                 : {})}
               loggingSetId={logSetMutation.isPending ? logSetMutation.variables?.setId ?? null : null}
+              editingSetId={editingSetId}
               submittingSetIds={submittingSetIds}
               deletingSetIds={deletingSetIds}
               addingSet={
@@ -483,6 +559,9 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
               onAddSet={handleAddSet}
               onDeleteSet={handleDeleteSet}
               onLogSet={handleLogSet}
+              onStartEditSet={handleStartEditSet}
+              onCancelEditSet={handleCancelEditSet}
+              onUpdateLoggedSet={handleUpdateLoggedSet}
               onSelectFeedback={(feedback) => {
                 setLastAction(`set_exercise_feedback:${exercise.id}`);
                 setExerciseFeedback(exercise.id, feedback);
@@ -495,6 +574,9 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
       <View style={styles.footer}>
         {logSetMutation.isError ? (
           <Text style={styles.errorText}>Set not saved. Check the values and try again.</Text>
+        ) : null}
+        {updateLoggedSetMutation.isError ? (
+          <Text style={styles.errorText}>Set not updated. Check the values and try again.</Text>
         ) : null}
         {addWorkoutSetMutation.isError ? (
           <Text style={styles.errorText}>Set not added. Try again.</Text>

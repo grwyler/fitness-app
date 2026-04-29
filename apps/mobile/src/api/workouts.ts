@@ -158,6 +158,18 @@ export async function logSet(input: {
   });
 }
 
+export async function updateLoggedSet(input: {
+  setId: string;
+  request: LogSetRequest;
+  idempotencyKey: string;
+}) {
+  return apiRequest<LogSetResponse, { replayed: boolean }>(`/sets/${input.setId}`, {
+    method: "PUT",
+    body: input.request,
+    idempotencyKey: input.idempotencyKey
+  });
+}
+
 export async function completeWorkoutSession(input: {
   sessionId: string;
   request: CompleteWorkoutSessionRequest;

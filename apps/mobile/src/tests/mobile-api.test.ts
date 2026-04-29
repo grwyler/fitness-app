@@ -13,6 +13,7 @@ import {
   resetTestUserData,
   startWorkoutSession,
   logSet,
+  updateLoggedSet,
   completeWorkoutSession
 } from "../api/workouts.js";
 import { MobileApiError } from "../api/errors.js";
@@ -183,6 +184,13 @@ export const mobileApiTestCases: MobileTestCase[] = [
         },
         idempotencyKey: "log-key"
       });
+      await updateLoggedSet({
+        setId: "set-1",
+        request: {
+          actualReps: 7
+        },
+        idempotencyKey: "update-key"
+      });
       await completeWorkoutSession({
         sessionId: "session-1",
         request: {
@@ -203,7 +211,8 @@ export const mobileApiTestCases: MobileTestCase[] = [
       assert.equal((calls[4]?.headers as Record<string, string>)["Idempotency-Key"], undefined);
       assert.equal((calls[5]?.headers as Record<string, string>)["Idempotency-Key"], "start-key");
       assert.equal((calls[6]?.headers as Record<string, string>)["Idempotency-Key"], "log-key");
-      assert.equal((calls[7]?.headers as Record<string, string>)["Idempotency-Key"], "complete-key");
+      assert.equal((calls[7]?.headers as Record<string, string>)["Idempotency-Key"], "update-key");
+      assert.equal((calls[8]?.headers as Record<string, string>)["Idempotency-Key"], "complete-key");
       assert.equal(calls[4]?.method, "POST");
     }
   },
