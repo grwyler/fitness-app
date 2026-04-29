@@ -135,7 +135,13 @@ Stores reusable exercise definitions.
 | `movement_pattern` | Text | No | `push`, `pull`, `squat`, `hinge`, etc. |
 | `primary_muscle_group` | Text | No | Example: `chest` |
 | `equipment_type` | Text | No | `barbell`, `dumbbell`, `machine`, `bodyweight` |
+| `default_target_sets` | Integer | No | Suggested sets when adding to a custom workout |
+| `default_target_reps` | Integer | No | Suggested reps when adding to a custom workout |
+| `default_starting_weight_lbs` | Numeric | Yes | Suggested starting weight for progression & custom workouts |
 | `default_increment_lbs` | Numeric | Yes | Example: `5`, `2.5` |
+| `is_bodyweight` | Boolean | Yes | Default: `false` |
+| `is_weight_optional` | Boolean | Yes | Default: `false` (bodyweight exercises set this true) |
+| `is_progression_eligible` | Boolean | Yes | Default: `true` |
 | `is_active` | Boolean | Yes | Default: `true` |
 | `created_at` | Timestamp | Yes | Audit field |
 | `updated_at` | Timestamp | Yes | Audit field |
@@ -147,6 +153,7 @@ Stores reusable exercise definitions.
   * `compound`  
   * `accessory`  
 * `default_increment_lbs` must be greater than `0`.  
+* If provided, `default_target_sets` / `default_target_reps` must be greater than `0`.
 * In V1, exercises are system-managed, not user-created.
 
 ---

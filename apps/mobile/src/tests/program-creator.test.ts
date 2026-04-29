@@ -137,7 +137,13 @@ const selectedExercises: ExerciseCatalogItemDto[] = [
     category: "compound",
     movementPattern: "horizontal_push",
     primaryMuscleGroup: "chest",
-    equipmentType: "barbell"
+    equipmentType: "barbell",
+    defaultTargetSets: 3,
+    defaultTargetReps: 8,
+    defaultStartingWeight: { value: 95, unit: "lb" },
+    isBodyweight: false,
+    isWeightOptional: false,
+    isProgressionEligible: true
   },
   {
     id: "exercise-row",
@@ -145,7 +151,13 @@ const selectedExercises: ExerciseCatalogItemDto[] = [
     category: "compound",
     movementPattern: "horizontal_pull",
     primaryMuscleGroup: "back",
-    equipmentType: "barbell"
+    equipmentType: "barbell",
+    defaultTargetSets: 3,
+    defaultTargetReps: 8,
+    defaultStartingWeight: { value: 95, unit: "lb" },
+    isBodyweight: false,
+    isWeightOptional: false,
+    isProgressionEligible: true
   },
   {
     id: "exercise-split-squat",
@@ -153,7 +165,13 @@ const selectedExercises: ExerciseCatalogItemDto[] = [
     category: "compound",
     movementPattern: "squat",
     primaryMuscleGroup: "quads",
-    equipmentType: "dumbbell"
+    equipmentType: "dumbbell",
+    defaultTargetSets: 3,
+    defaultTargetReps: 10,
+    defaultStartingWeight: { value: 25, unit: "lb" },
+    isBodyweight: false,
+    isWeightOptional: false,
+    isProgressionEligible: true
   }
 ];
 

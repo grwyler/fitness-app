@@ -238,6 +238,7 @@ export function createWorkoutHandlers(dependencies: {
         exerciseId: body.exerciseId,
         targetSets: body.targetSets,
         targetReps: body.targetReps,
+        ...(body.targetWeight !== undefined ? { targetWeight: body.targetWeight } : {}),
         ...(body.restSeconds !== undefined ? { restSeconds: body.restSeconds } : {})
       };
 

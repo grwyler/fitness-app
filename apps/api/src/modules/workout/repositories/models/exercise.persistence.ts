@@ -7,7 +7,13 @@ export type ExerciseRecord = {
   movementPattern: string | null;
   primaryMuscleGroup: string | null;
   equipmentType: string | null;
+  defaultTargetSets: number | null;
+  defaultTargetReps: number | null;
+  defaultStartingWeightLbs: number;
   defaultIncrementLbs: number;
+  isBodyweight: boolean;
+  isWeightOptional: boolean;
+  isProgressionEligible: boolean;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;

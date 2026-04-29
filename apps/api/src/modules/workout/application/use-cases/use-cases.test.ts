@@ -589,7 +589,13 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
                   movementPattern: "push",
                   primaryMuscleGroup: "chest",
                   equipmentType: "barbell",
+                  defaultTargetSets: 3,
+                  defaultTargetReps: 8,
+                  defaultStartingWeightLbs: 95,
                   defaultIncrementLbs: 5,
+                  isBodyweight: false,
+                  isWeightOptional: false,
+                  isProgressionEligible: true,
                   isActive: true,
                   createdAt: new Date("2026-04-01T00:00:00.000Z"),
                   updatedAt: new Date("2026-04-01T00:00:00.000Z")
@@ -605,7 +611,8 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
               exerciseName: "Bench Press",
               exerciseCategory: "compound",
               defaultStartingWeightLbs: 135,
-              incrementLbs: 5
+              incrementLbs: 5,
+              isProgressionEligible: true
             }
           ];
         },
@@ -1202,7 +1209,8 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
               exerciseName: "Bench Press",
               exerciseCategory: "compound",
               defaultStartingWeightLbs: 135,
-              incrementLbs: 5
+              incrementLbs: 5,
+              isProgressionEligible: true
             }
           ];
         },
@@ -1443,7 +1451,8 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
               exerciseName: "Bench Press",
               exerciseCategory: "compound",
               defaultStartingWeightLbs: 135,
-              incrementLbs: 5
+              incrementLbs: 5,
+              isProgressionEligible: true
             }
           ];
         },

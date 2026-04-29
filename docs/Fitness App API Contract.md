@@ -1813,6 +1813,15 @@ type WorkoutSessionDto \= {
   exercises: ExerciseEntryDto\[\];  
 };
 
+### **Weight Value DTO**
+
+Canonical weight value used across targets and logs (V1 uses lbs only).
+
+type WeightValueDto \= {  
+  value: number;  
+  unit: "lb";  
+};
+
 ### **Exercise Entry DTO**
 
 type ExerciseEntryDto \= {  
@@ -1823,7 +1832,8 @@ type ExerciseEntryDto \= {
   sequenceOrder: number;  
   targetSets: number;  
   targetReps: number;  
-  targetWeightLbs: number;  
+  targetWeight: WeightValueDto;  
+  restSeconds: number | null;  
   effortFeedback: EffortFeedback | null;  
   completedAt: ISODateTime | null;  
   sets: SetDto\[\];  
@@ -1837,10 +1847,39 @@ type SetDto \= {
   setNumber: number;  
   targetReps: number;  
   actualReps: number | null;  
-  targetWeightLbs: number;  
-  actualWeightLbs: number | null;  
+  targetWeight: WeightValueDto;  
+  actualWeight: WeightValueDto | null;  
   status: SetStatus;  
   completedAt: ISODateTime | null;  
+};
+
+### **Exercise Catalog Item DTO**
+
+type ExerciseCatalogItemDto \= {  
+  id: UUID;  
+  name: string;  
+  category: ExerciseCategory;  
+  movementPattern: string | null;  
+  primaryMuscleGroup: string | null;  
+  equipmentType: string | null;  
+  defaultTargetSets: number | null;  
+  defaultTargetReps: number | null;  
+  defaultStartingWeight: WeightValueDto;  
+  isBodyweight: boolean;  
+  isWeightOptional: boolean;  
+  isProgressionEligible: boolean;  
+};
+
+### **Add Custom Workout Exercise Request**
+
+Adds an exercise to an in-progress custom workout session with configured targets.
+
+type AddCustomWorkoutExerciseRequest \= {  
+  exerciseId: UUID;  
+  targetSets: number;  
+  targetReps: number;  
+  targetWeight?: WeightValueDto;  
+  restSeconds?: number | null;  
 };
 
 ---

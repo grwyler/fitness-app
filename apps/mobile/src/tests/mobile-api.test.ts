@@ -336,7 +336,8 @@ export const mobileApiTestCases: MobileTestCase[] = [
         request: {
           exerciseId: "exercise-1",
           targetSets: 3,
-          targetReps: 8
+          targetReps: 8,
+          targetWeight: { value: 155, unit: "lb" }
         },
         idempotencyKey: "add-custom-exercise-key"
       });
@@ -346,7 +347,8 @@ export const mobileApiTestCases: MobileTestCase[] = [
       assert.deepEqual(JSON.parse(requestBody ?? "{}"), {
         exerciseId: "exercise-1",
         targetSets: 3,
-        targetReps: 8
+        targetReps: 8,
+        targetWeight: { value: 155, unit: "lb" }
       });
     }
   },

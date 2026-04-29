@@ -29,7 +29,13 @@ function mapExerciseRecord(row: typeof exercises.$inferSelect): ExerciseRecord {
     movementPattern: row.movementPattern,
     primaryMuscleGroup: row.primaryMuscleGroup,
     equipmentType: row.equipmentType,
+    defaultTargetSets: row.defaultTargetSets,
+    defaultTargetReps: row.defaultTargetReps,
+    defaultStartingWeightLbs: normalizeNumeric(row.defaultStartingWeightLbs),
     defaultIncrementLbs: normalizeNumeric(row.defaultIncrementLbs),
+    isBodyweight: row.isBodyweight,
+    isWeightOptional: row.isWeightOptional,
+    isProgressionEligible: row.isProgressionEligible,
     isActive: row.isActive,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt
@@ -132,7 +138,8 @@ export class DrizzleExerciseRepository implements ExerciseRepository {
       exerciseName: row.name,
       exerciseCategory: row.category,
       defaultStartingWeightLbs: normalizeNumeric(row.defaultStartingWeightLbs),
-      incrementLbs: normalizeNumeric(row.defaultIncrementLbs)
+      incrementLbs: normalizeNumeric(row.defaultIncrementLbs),
+      isProgressionEligible: row.isProgressionEligible
     }));
   }
 

@@ -11,8 +11,13 @@ type SeedExercise = {
   movementPattern: string;
   primaryMuscleGroup: string;
   equipmentType: string;
+  defaultTargetSets: number;
+  defaultTargetReps: number;
   defaultStartingWeightLbs: number;
   defaultIncrementLbs: number;
+  isBodyweight?: boolean;
+  isWeightOptional?: boolean;
+  isProgressionEligible?: boolean;
 };
 
 type SeedWorkoutExercise = {
@@ -48,6 +53,8 @@ export const seedExercises: SeedExercise[] = [
     movementPattern: "squat",
     primaryMuscleGroup: "quads",
     equipmentType: "barbell",
+    defaultTargetSets: 3,
+    defaultTargetReps: 8,
     defaultStartingWeightLbs: 95,
     defaultIncrementLbs: 5
   },
@@ -58,6 +65,8 @@ export const seedExercises: SeedExercise[] = [
     movementPattern: "push",
     primaryMuscleGroup: "chest",
     equipmentType: "barbell",
+    defaultTargetSets: 3,
+    defaultTargetReps: 8,
     defaultStartingWeightLbs: 95,
     defaultIncrementLbs: 5
   },
@@ -68,6 +77,8 @@ export const seedExercises: SeedExercise[] = [
     movementPattern: "pull",
     primaryMuscleGroup: "back",
     equipmentType: "barbell",
+    defaultTargetSets: 3,
+    defaultTargetReps: 8,
     defaultStartingWeightLbs: 95,
     defaultIncrementLbs: 5
   },
@@ -78,6 +89,8 @@ export const seedExercises: SeedExercise[] = [
     movementPattern: "hinge",
     primaryMuscleGroup: "posterior_chain",
     equipmentType: "barbell",
+    defaultTargetSets: 3,
+    defaultTargetReps: 5,
     defaultStartingWeightLbs: 135,
     defaultIncrementLbs: 5
   },
@@ -88,6 +101,8 @@ export const seedExercises: SeedExercise[] = [
     movementPattern: "push",
     primaryMuscleGroup: "shoulders",
     equipmentType: "barbell",
+    defaultTargetSets: 3,
+    defaultTargetReps: 8,
     defaultStartingWeightLbs: 65,
     defaultIncrementLbs: 5
   },
@@ -98,6 +113,8 @@ export const seedExercises: SeedExercise[] = [
     movementPattern: "pull",
     primaryMuscleGroup: "biceps",
     equipmentType: "dumbbell",
+    defaultTargetSets: 3,
+    defaultTargetReps: 12,
     defaultStartingWeightLbs: 20,
     defaultIncrementLbs: 2.5
   },
@@ -108,6 +125,8 @@ export const seedExercises: SeedExercise[] = [
     movementPattern: "push",
     primaryMuscleGroup: "triceps",
     equipmentType: "cable",
+    defaultTargetSets: 3,
+    defaultTargetReps: 12,
     defaultStartingWeightLbs: 30,
     defaultIncrementLbs: 2.5
   },
@@ -118,6 +137,8 @@ export const seedExercises: SeedExercise[] = [
     movementPattern: "hinge",
     primaryMuscleGroup: "hamstrings",
     equipmentType: "machine",
+    defaultTargetSets: 3,
+    defaultTargetReps: 12,
     defaultStartingWeightLbs: 40,
     defaultIncrementLbs: 2.5
   },
@@ -128,6 +149,8 @@ export const seedExercises: SeedExercise[] = [
     movementPattern: "pull",
     primaryMuscleGroup: "lats",
     equipmentType: "cable",
+    defaultTargetSets: 3,
+    defaultTargetReps: 10,
     defaultStartingWeightLbs: 50,
     defaultIncrementLbs: 2.5
   },
@@ -138,8 +161,12 @@ export const seedExercises: SeedExercise[] = [
     movementPattern: "pull",
     primaryMuscleGroup: "lats",
     equipmentType: "bodyweight",
+    defaultTargetSets: 3,
+    defaultTargetReps: 8,
     defaultStartingWeightLbs: 0,
-    defaultIncrementLbs: 2.5
+    defaultIncrementLbs: 2.5,
+    isBodyweight: true,
+    isWeightOptional: true
   },
   {
     slug: "db-row",
@@ -148,6 +175,8 @@ export const seedExercises: SeedExercise[] = [
     movementPattern: "pull",
     primaryMuscleGroup: "back",
     equipmentType: "dumbbell",
+    defaultTargetSets: 3,
+    defaultTargetReps: 10,
     defaultStartingWeightLbs: 35,
     defaultIncrementLbs: 5
   },
@@ -158,6 +187,8 @@ export const seedExercises: SeedExercise[] = [
     movementPattern: "pull",
     primaryMuscleGroup: "biceps",
     equipmentType: "dumbbell",
+    defaultTargetSets: 3,
+    defaultTargetReps: 12,
     defaultStartingWeightLbs: 20,
     defaultIncrementLbs: 2.5
   },
@@ -168,6 +199,8 @@ export const seedExercises: SeedExercise[] = [
     movementPattern: "push",
     primaryMuscleGroup: "triceps",
     equipmentType: "dumbbell",
+    defaultTargetSets: 3,
+    defaultTargetReps: 12,
     defaultStartingWeightLbs: 25,
     defaultIncrementLbs: 2.5
   },
@@ -178,6 +211,8 @@ export const seedExercises: SeedExercise[] = [
     movementPattern: "hinge",
     primaryMuscleGroup: "hamstrings",
     equipmentType: "barbell",
+    defaultTargetSets: 3,
+    defaultTargetReps: 8,
     defaultStartingWeightLbs: 95,
     defaultIncrementLbs: 5
   },
@@ -188,6 +223,8 @@ export const seedExercises: SeedExercise[] = [
     movementPattern: "lunge",
     primaryMuscleGroup: "quads",
     equipmentType: "dumbbell",
+    defaultTargetSets: 3,
+    defaultTargetReps: 10,
     defaultStartingWeightLbs: 25,
     defaultIncrementLbs: 5
   },
@@ -198,6 +235,8 @@ export const seedExercises: SeedExercise[] = [
     movementPattern: "push",
     primaryMuscleGroup: "chest",
     equipmentType: "dumbbell",
+    defaultTargetSets: 3,
+    defaultTargetReps: 10,
     defaultStartingWeightLbs: 35,
     defaultIncrementLbs: 5
   },
@@ -208,6 +247,8 @@ export const seedExercises: SeedExercise[] = [
     movementPattern: "pull",
     primaryMuscleGroup: "biceps",
     equipmentType: "dumbbell",
+    defaultTargetSets: 3,
+    defaultTargetReps: 12,
     defaultStartingWeightLbs: 15,
     defaultIncrementLbs: 2.5
   },
@@ -218,6 +259,8 @@ export const seedExercises: SeedExercise[] = [
     movementPattern: "push",
     primaryMuscleGroup: "triceps",
     equipmentType: "barbell",
+    defaultTargetSets: 3,
+    defaultTargetReps: 12,
     defaultStartingWeightLbs: 35,
     defaultIncrementLbs: 2.5
   },
@@ -228,8 +271,445 @@ export const seedExercises: SeedExercise[] = [
     movementPattern: "pull",
     primaryMuscleGroup: "biceps",
     equipmentType: "dumbbell",
+    defaultTargetSets: 3,
+    defaultTargetReps: 12,
     defaultStartingWeightLbs: 20,
     defaultIncrementLbs: 2.5
+  },
+  {
+    slug: "front-squat",
+    name: "Front Squat",
+    category: "compound",
+    movementPattern: "squat",
+    primaryMuscleGroup: "quads",
+    equipmentType: "barbell",
+    defaultTargetSets: 3,
+    defaultTargetReps: 6,
+    defaultStartingWeightLbs: 95,
+    defaultIncrementLbs: 5
+  },
+  {
+    slug: "leg-press",
+    name: "Leg Press",
+    category: "compound",
+    movementPattern: "squat",
+    primaryMuscleGroup: "quads",
+    equipmentType: "machine",
+    defaultTargetSets: 3,
+    defaultTargetReps: 10,
+    defaultStartingWeightLbs: 90,
+    defaultIncrementLbs: 10
+  },
+  {
+    slug: "hack-squat",
+    name: "Hack Squat",
+    category: "compound",
+    movementPattern: "squat",
+    primaryMuscleGroup: "quads",
+    equipmentType: "machine",
+    defaultTargetSets: 3,
+    defaultTargetReps: 10,
+    defaultStartingWeightLbs: 90,
+    defaultIncrementLbs: 10
+  },
+  {
+    slug: "leg-extension",
+    name: "Leg Extension",
+    category: "accessory",
+    movementPattern: "squat",
+    primaryMuscleGroup: "quads",
+    equipmentType: "machine",
+    defaultTargetSets: 3,
+    defaultTargetReps: 12,
+    defaultStartingWeightLbs: 40,
+    defaultIncrementLbs: 5
+  },
+  {
+    slug: "calf-raise",
+    name: "Calf Raise",
+    category: "accessory",
+    movementPattern: "carry",
+    primaryMuscleGroup: "calves",
+    equipmentType: "machine",
+    defaultTargetSets: 3,
+    defaultTargetReps: 12,
+    defaultStartingWeightLbs: 50,
+    defaultIncrementLbs: 5
+  },
+  {
+    slug: "hip-thrust",
+    name: "Hip Thrust",
+    category: "compound",
+    movementPattern: "hinge",
+    primaryMuscleGroup: "glutes",
+    equipmentType: "barbell",
+    defaultTargetSets: 3,
+    defaultTargetReps: 8,
+    defaultStartingWeightLbs: 95,
+    defaultIncrementLbs: 10
+  },
+  {
+    slug: "glute-bridge",
+    name: "Glute Bridge",
+    category: "accessory",
+    movementPattern: "hinge",
+    primaryMuscleGroup: "glutes",
+    equipmentType: "bodyweight",
+    defaultTargetSets: 3,
+    defaultTargetReps: 12,
+    defaultStartingWeightLbs: 0,
+    defaultIncrementLbs: 5,
+    isBodyweight: true,
+    isWeightOptional: true
+  },
+  {
+    slug: "incline-bench-press",
+    name: "Incline Bench Press",
+    category: "compound",
+    movementPattern: "push",
+    primaryMuscleGroup: "chest",
+    equipmentType: "barbell",
+    defaultTargetSets: 3,
+    defaultTargetReps: 8,
+    defaultStartingWeightLbs: 85,
+    defaultIncrementLbs: 5
+  },
+  {
+    slug: "dumbbell-bench-press",
+    name: "DB Bench Press",
+    category: "compound",
+    movementPattern: "push",
+    primaryMuscleGroup: "chest",
+    equipmentType: "dumbbell",
+    defaultTargetSets: 3,
+    defaultTargetReps: 10,
+    defaultStartingWeightLbs: 35,
+    defaultIncrementLbs: 5
+  },
+  {
+    slug: "machine-chest-press",
+    name: "Machine Chest Press",
+    category: "compound",
+    movementPattern: "push",
+    primaryMuscleGroup: "chest",
+    equipmentType: "machine",
+    defaultTargetSets: 3,
+    defaultTargetReps: 10,
+    defaultStartingWeightLbs: 50,
+    defaultIncrementLbs: 5
+  },
+  {
+    slug: "pec-deck",
+    name: "Pec Deck",
+    category: "accessory",
+    movementPattern: "push",
+    primaryMuscleGroup: "chest",
+    equipmentType: "machine",
+    defaultTargetSets: 3,
+    defaultTargetReps: 12,
+    defaultStartingWeightLbs: 40,
+    defaultIncrementLbs: 5
+  },
+  {
+    slug: "cable-fly",
+    name: "Cable Fly",
+    category: "accessory",
+    movementPattern: "push",
+    primaryMuscleGroup: "chest",
+    equipmentType: "cable",
+    defaultTargetSets: 3,
+    defaultTargetReps: 12,
+    defaultStartingWeightLbs: 20,
+    defaultIncrementLbs: 2.5
+  },
+  {
+    slug: "push-ups",
+    name: "Push-Ups",
+    category: "compound",
+    movementPattern: "push",
+    primaryMuscleGroup: "chest",
+    equipmentType: "bodyweight",
+    defaultTargetSets: 3,
+    defaultTargetReps: 12,
+    defaultStartingWeightLbs: 0,
+    defaultIncrementLbs: 2.5,
+    isBodyweight: true,
+    isWeightOptional: true
+  },
+  {
+    slug: "dips",
+    name: "Dips",
+    category: "compound",
+    movementPattern: "push",
+    primaryMuscleGroup: "triceps",
+    equipmentType: "bodyweight",
+    defaultTargetSets: 3,
+    defaultTargetReps: 8,
+    defaultStartingWeightLbs: 0,
+    defaultIncrementLbs: 2.5,
+    isBodyweight: true,
+    isWeightOptional: true
+  },
+  {
+    slug: "close-grip-bench-press",
+    name: "Close-Grip Bench Press",
+    category: "compound",
+    movementPattern: "push",
+    primaryMuscleGroup: "triceps",
+    equipmentType: "barbell",
+    defaultTargetSets: 3,
+    defaultTargetReps: 8,
+    defaultStartingWeightLbs: 85,
+    defaultIncrementLbs: 5
+  },
+  {
+    slug: "lat-raise",
+    name: "Lateral Raise",
+    category: "accessory",
+    movementPattern: "push",
+    primaryMuscleGroup: "shoulders",
+    equipmentType: "dumbbell",
+    defaultTargetSets: 3,
+    defaultTargetReps: 15,
+    defaultStartingWeightLbs: 10,
+    defaultIncrementLbs: 2.5
+  },
+  {
+    slug: "rear-delt-fly",
+    name: "Rear Delt Fly",
+    category: "accessory",
+    movementPattern: "pull",
+    primaryMuscleGroup: "shoulders",
+    equipmentType: "dumbbell",
+    defaultTargetSets: 3,
+    defaultTargetReps: 15,
+    defaultStartingWeightLbs: 10,
+    defaultIncrementLbs: 2.5
+  },
+  {
+    slug: "face-pull",
+    name: "Face Pull",
+    category: "accessory",
+    movementPattern: "pull",
+    primaryMuscleGroup: "upper_back",
+    equipmentType: "cable",
+    defaultTargetSets: 3,
+    defaultTargetReps: 15,
+    defaultStartingWeightLbs: 25,
+    defaultIncrementLbs: 2.5
+  },
+  {
+    slug: "dumbbell-shoulder-press",
+    name: "DB Shoulder Press",
+    category: "compound",
+    movementPattern: "push",
+    primaryMuscleGroup: "shoulders",
+    equipmentType: "dumbbell",
+    defaultTargetSets: 3,
+    defaultTargetReps: 10,
+    defaultStartingWeightLbs: 25,
+    defaultIncrementLbs: 5
+  },
+  {
+    slug: "machine-shoulder-press",
+    name: "Machine Shoulder Press",
+    category: "compound",
+    movementPattern: "push",
+    primaryMuscleGroup: "shoulders",
+    equipmentType: "machine",
+    defaultTargetSets: 3,
+    defaultTargetReps: 10,
+    defaultStartingWeightLbs: 40,
+    defaultIncrementLbs: 5
+  },
+  {
+    slug: "seated-cable-row",
+    name: "Seated Cable Row",
+    category: "compound",
+    movementPattern: "pull",
+    primaryMuscleGroup: "back",
+    equipmentType: "cable",
+    defaultTargetSets: 3,
+    defaultTargetReps: 10,
+    defaultStartingWeightLbs: 60,
+    defaultIncrementLbs: 5
+  },
+  {
+    slug: "chest-supported-row",
+    name: "Chest Supported Row",
+    category: "compound",
+    movementPattern: "pull",
+    primaryMuscleGroup: "back",
+    equipmentType: "machine",
+    defaultTargetSets: 3,
+    defaultTargetReps: 10,
+    defaultStartingWeightLbs: 60,
+    defaultIncrementLbs: 5
+  },
+  {
+    slug: "t-bar-row",
+    name: "T-Bar Row",
+    category: "compound",
+    movementPattern: "pull",
+    primaryMuscleGroup: "back",
+    equipmentType: "machine",
+    defaultTargetSets: 3,
+    defaultTargetReps: 8,
+    defaultStartingWeightLbs: 70,
+    defaultIncrementLbs: 5
+  },
+  {
+    slug: "chin-ups",
+    name: "Chin-Ups",
+    category: "compound",
+    movementPattern: "pull",
+    primaryMuscleGroup: "lats",
+    equipmentType: "bodyweight",
+    defaultStartingWeightLbs: 0,
+    defaultIncrementLbs: 2.5,
+    defaultTargetSets: 3,
+    defaultTargetReps: 8,
+    isBodyweight: true,
+    isWeightOptional: true
+  },
+  {
+    slug: "cable-tricep-extension",
+    name: "Cable Tricep Extension",
+    category: "accessory",
+    movementPattern: "push",
+    primaryMuscleGroup: "triceps",
+    equipmentType: "cable",
+    defaultTargetSets: 3,
+    defaultTargetReps: 12,
+    defaultStartingWeightLbs: 25,
+    defaultIncrementLbs: 2.5
+  },
+  {
+    slug: "cable-overhead-tricep-extension",
+    name: "Cable Overhead Tricep Extension",
+    category: "accessory",
+    movementPattern: "push",
+    primaryMuscleGroup: "triceps",
+    equipmentType: "cable",
+    defaultTargetSets: 3,
+    defaultTargetReps: 12,
+    defaultStartingWeightLbs: 20,
+    defaultIncrementLbs: 2.5
+  },
+  {
+    slug: "preacher-curl",
+    name: "Preacher Curl",
+    category: "accessory",
+    movementPattern: "pull",
+    primaryMuscleGroup: "biceps",
+    equipmentType: "machine",
+    defaultTargetSets: 3,
+    defaultTargetReps: 12,
+    defaultStartingWeightLbs: 30,
+    defaultIncrementLbs: 2.5
+  },
+  {
+    slug: "cable-curl",
+    name: "Cable Curl",
+    category: "accessory",
+    movementPattern: "pull",
+    primaryMuscleGroup: "biceps",
+    equipmentType: "cable",
+    defaultTargetSets: 3,
+    defaultTargetReps: 12,
+    defaultStartingWeightLbs: 20,
+    defaultIncrementLbs: 2.5
+  },
+  {
+    slug: "plank",
+    name: "Plank",
+    category: "accessory",
+    movementPattern: "core",
+    primaryMuscleGroup: "core",
+    equipmentType: "bodyweight",
+    defaultTargetSets: 3,
+    defaultTargetReps: 30,
+    defaultStartingWeightLbs: 0,
+    defaultIncrementLbs: 2.5,
+    isBodyweight: true,
+    isWeightOptional: true,
+    isProgressionEligible: false
+  },
+  {
+    slug: "hanging-leg-raise",
+    name: "Hanging Leg Raise",
+    category: "accessory",
+    movementPattern: "core",
+    primaryMuscleGroup: "core",
+    equipmentType: "bodyweight",
+    defaultTargetSets: 3,
+    defaultTargetReps: 10,
+    defaultStartingWeightLbs: 0,
+    defaultIncrementLbs: 2.5,
+    isBodyweight: true,
+    isWeightOptional: true
+  },
+  {
+    slug: "cable-crunch",
+    name: "Cable Crunch",
+    category: "accessory",
+    movementPattern: "core",
+    primaryMuscleGroup: "core",
+    equipmentType: "cable",
+    defaultTargetSets: 3,
+    defaultTargetReps: 12,
+    defaultStartingWeightLbs: 25,
+    defaultIncrementLbs: 2.5
+  },
+  {
+    slug: "ab-wheel",
+    name: "Ab Wheel",
+    category: "accessory",
+    movementPattern: "core",
+    primaryMuscleGroup: "core",
+    equipmentType: "bodyweight",
+    defaultTargetSets: 3,
+    defaultTargetReps: 10,
+    defaultStartingWeightLbs: 0,
+    defaultIncrementLbs: 2.5,
+    isBodyweight: true,
+    isWeightOptional: true
+  },
+  {
+    slug: "power-clean",
+    name: "Power Clean",
+    category: "compound",
+    movementPattern: "hinge",
+    primaryMuscleGroup: "posterior_chain",
+    equipmentType: "barbell",
+    defaultTargetSets: 3,
+    defaultTargetReps: 3,
+    defaultStartingWeightLbs: 75,
+    defaultIncrementLbs: 5
+  },
+  {
+    slug: "clean-and-jerk",
+    name: "Clean and Jerk",
+    category: "compound",
+    movementPattern: "hinge",
+    primaryMuscleGroup: "posterior_chain",
+    equipmentType: "barbell",
+    defaultTargetSets: 3,
+    defaultTargetReps: 2,
+    defaultStartingWeightLbs: 65,
+    defaultIncrementLbs: 5
+  },
+  {
+    slug: "snatch",
+    name: "Snatch",
+    category: "compound",
+    movementPattern: "hinge",
+    primaryMuscleGroup: "posterior_chain",
+    equipmentType: "barbell",
+    defaultTargetSets: 3,
+    defaultTargetReps: 2,
+    defaultStartingWeightLbs: 45,
+    defaultIncrementLbs: 5
   }
 ];
 

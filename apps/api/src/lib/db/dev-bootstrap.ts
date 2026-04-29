@@ -112,7 +112,42 @@ const EXERCISE_IDS: Record<string, string> = {
   "incline-db-press": "66666666-6666-6666-6666-666666666616",
   "incline-db-curl": "66666666-6666-6666-6666-666666666617",
   "skull-crushers": "66666666-6666-6666-6666-666666666618",
-  "hammer-curl": "66666666-6666-6666-6666-666666666619"
+  "hammer-curl": "66666666-6666-6666-6666-666666666619",
+  "front-squat": "66666666-6666-6666-6666-666666666620",
+  "leg-press": "66666666-6666-6666-6666-666666666621",
+  "hack-squat": "66666666-6666-6666-6666-666666666622",
+  "leg-extension": "66666666-6666-6666-6666-666666666623",
+  "calf-raise": "66666666-6666-6666-6666-666666666624",
+  "hip-thrust": "66666666-6666-6666-6666-666666666625",
+  "glute-bridge": "66666666-6666-6666-6666-666666666626",
+  "incline-bench-press": "66666666-6666-6666-6666-666666666627",
+  "dumbbell-bench-press": "66666666-6666-6666-6666-666666666628",
+  "machine-chest-press": "66666666-6666-6666-6666-666666666629",
+  "pec-deck": "66666666-6666-6666-6666-666666666630",
+  "cable-fly": "66666666-6666-6666-6666-666666666631",
+  "push-ups": "66666666-6666-6666-6666-666666666632",
+  dips: "66666666-6666-6666-6666-666666666633",
+  "close-grip-bench-press": "66666666-6666-6666-6666-666666666634",
+  "lat-raise": "66666666-6666-6666-6666-666666666635",
+  "rear-delt-fly": "66666666-6666-6666-6666-666666666636",
+  "face-pull": "66666666-6666-6666-6666-666666666637",
+  "dumbbell-shoulder-press": "66666666-6666-6666-6666-666666666638",
+  "machine-shoulder-press": "66666666-6666-6666-6666-666666666639",
+  "seated-cable-row": "66666666-6666-6666-6666-666666666640",
+  "chest-supported-row": "66666666-6666-6666-6666-666666666641",
+  "t-bar-row": "66666666-6666-6666-6666-666666666642",
+  "chin-ups": "66666666-6666-6666-6666-666666666643",
+  "cable-tricep-extension": "66666666-6666-6666-6666-666666666644",
+  "cable-overhead-tricep-extension": "66666666-6666-6666-6666-666666666645",
+  "preacher-curl": "66666666-6666-6666-6666-666666666646",
+  "cable-curl": "66666666-6666-6666-6666-666666666647",
+  plank: "66666666-6666-6666-6666-666666666648",
+  "hanging-leg-raise": "66666666-6666-6666-6666-666666666649",
+  "cable-crunch": "66666666-6666-6666-6666-666666666650",
+  "ab-wheel": "66666666-6666-6666-6666-666666666651",
+  "power-clean": "66666666-6666-6666-6666-666666666652",
+  "clean-and-jerk": "66666666-6666-6666-6666-666666666653",
+  snatch: "66666666-6666-6666-6666-666666666654"
 };
 
 const templateDefinitions = [
@@ -173,7 +208,10 @@ const templateEntries = [
 const schemaSql = `
 create table if not exists users (id uuid primary key, auth_provider_id text not null unique, email text not null unique, password_hash text, display_name text, timezone text not null default 'America/New_York', unit_system text not null default 'imperial', experience_level text, deleted_at timestamptz, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
 alter table users add column if not exists password_hash text;
-create table if not exists exercises (id uuid primary key, name text not null unique, category text not null, movement_pattern text, primary_muscle_group text, equipment_type text, default_starting_weight_lbs numeric(6,2) not null, default_increment_lbs numeric(5,2) not null, is_active boolean not null default true, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
+create table if not exists password_reset_tokens (id uuid primary key, user_id uuid not null references users(id), token_hash text not null unique, expires_at timestamptz not null, consumed_at timestamptz, created_at timestamptz not null default now());
+create index if not exists idx_password_reset_tokens_user_id on password_reset_tokens(user_id);
+create index if not exists idx_password_reset_tokens_expires_at on password_reset_tokens(expires_at);
+create table if not exists exercises (id uuid primary key, name text not null unique, category text not null, movement_pattern text, primary_muscle_group text, equipment_type text, default_target_sets integer, default_target_reps integer, default_starting_weight_lbs numeric(6,2) not null, default_increment_lbs numeric(5,2) not null, is_bodyweight boolean not null default false, is_weight_optional boolean not null default false, is_progression_eligible boolean not null default true, is_active boolean not null default true, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
 create table if not exists programs (id uuid primary key, user_id uuid references users(id), source text not null default 'predefined', name text not null, description text, days_per_week integer not null, session_duration_minutes integer not null, difficulty_level text not null, is_active boolean not null default true, deleted_at timestamptz, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
 alter table programs add column if not exists user_id uuid references users(id);
 alter table programs add column if not exists source text not null default 'predefined';
@@ -305,11 +343,26 @@ export async function syncPredefinedProgramCatalog(executor: SqlExecutor) {
 
   for (const exercise of catalogSeedExercises) {
     await executor.query(
-      `insert into exercises (id, name, category, movement_pattern, primary_muscle_group, equipment_type, default_starting_weight_lbs, default_increment_lbs, is_active)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `insert into exercises (id, name, category, movement_pattern, primary_muscle_group, equipment_type, default_target_sets, default_target_reps, default_starting_weight_lbs, default_increment_lbs, is_bodyweight, is_weight_optional, is_progression_eligible, is_active)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        on conflict (id) do update
-       set name = excluded.name, category = excluded.category, movement_pattern = excluded.movement_pattern, primary_muscle_group = excluded.primary_muscle_group, equipment_type = excluded.equipment_type, default_starting_weight_lbs = excluded.default_starting_weight_lbs, default_increment_lbs = excluded.default_increment_lbs, is_active = excluded.is_active, updated_at = now()`,
-      [EXERCISE_IDS[exercise.slug], exercise.name, exercise.category, exercise.movementPattern, exercise.primaryMuscleGroup, exercise.equipmentType, exercise.defaultStartingWeightLbs.toFixed(2), exercise.defaultIncrementLbs.toFixed(2), true]
+       set name = excluded.name, category = excluded.category, movement_pattern = excluded.movement_pattern, primary_muscle_group = excluded.primary_muscle_group, equipment_type = excluded.equipment_type, default_target_sets = excluded.default_target_sets, default_target_reps = excluded.default_target_reps, default_starting_weight_lbs = excluded.default_starting_weight_lbs, default_increment_lbs = excluded.default_increment_lbs, is_bodyweight = excluded.is_bodyweight, is_weight_optional = excluded.is_weight_optional, is_progression_eligible = excluded.is_progression_eligible, is_active = excluded.is_active, updated_at = now()`,
+      [
+        EXERCISE_IDS[exercise.slug],
+        exercise.name,
+        exercise.category,
+        exercise.movementPattern,
+        exercise.primaryMuscleGroup,
+        exercise.equipmentType,
+        exercise.defaultTargetSets,
+        exercise.defaultTargetReps,
+        exercise.defaultStartingWeightLbs.toFixed(2),
+        exercise.defaultIncrementLbs.toFixed(2),
+        exercise.isBodyweight ?? exercise.equipmentType === "bodyweight",
+        exercise.isWeightOptional ?? exercise.equipmentType === "bodyweight",
+        exercise.isProgressionEligible ?? true,
+        true
+      ]
     );
   }
 

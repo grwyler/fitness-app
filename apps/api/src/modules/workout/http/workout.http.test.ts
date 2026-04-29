@@ -1824,7 +1824,8 @@ export const workoutHttpTestCases: HttpTestCase[] = [
               body: JSON.stringify({
                 exerciseId: "exercise-1",
                 targetSets: 3,
-                targetReps: 8
+                targetReps: 8,
+                targetWeight: { value: 155, unit: "lb" }
               })
             }
           );
@@ -1858,6 +1859,8 @@ export const workoutHttpTestCases: HttpTestCase[] = [
           assert.equal(addExercisePayload.data.exercises.length, 1);
           assert.equal(addExercisePayload.data.exercises[0].exerciseName, "Bench Press");
           assert.equal(addExercisePayload.data.exercises[0].sets.length, 3);
+          assert.equal(addExercisePayload.data.exercises[0].targetWeight.value, 155);
+          assert.equal(addExercisePayload.data.exercises[0].sets[0]?.targetWeight.value, 155);
           assert.equal(completeResponse.status, 200);
           assert.equal(completePayload.data.workoutSession.sessionType, "custom");
           assert.equal(completePayload.data.workoutSession.exercises.length, 1);
@@ -1865,6 +1868,56 @@ export const workoutHttpTestCases: HttpTestCase[] = [
           assert.equal(historyResponse.status, 200);
           assert.equal(historyPayload.data.items[0].programName, "Custom Workout");
           assert.equal(historyPayload.data.items[0].exerciseCount, 1);
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "POST /api/v1/workout-sessions/:id/exercises validates sets/reps/weight for custom workouts",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        const server = await startHttpServer(context.db);
+
+        try {
+          const startResponse = await fetch(`${server.baseUrl}/api/v1/workout-sessions/start`, {
+            method: "POST",
+            headers: {
+              Authorization: "Bearer valid-new-user-token",
+              "content-type": "application/json",
+              "Idempotency-Key": "start-custom-validation-http-key"
+            },
+            body: JSON.stringify({
+              sessionType: "custom"
+            })
+          });
+          const startPayload = await readJson(startResponse);
+
+          const invalidResponse = await fetch(
+            `${server.baseUrl}/api/v1/workout-sessions/${startPayload.data.id}/exercises`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: "Bearer valid-new-user-token",
+                "content-type": "application/json",
+                "Idempotency-Key": "add-custom-exercise-invalid-http-key"
+              },
+              body: JSON.stringify({
+                exerciseId: "exercise-1",
+                targetSets: 0,
+                targetReps: 8,
+                targetWeight: { value: -5, unit: "lb" }
+              })
+            }
+          );
+
+          assert.equal(invalidResponse.status, 400);
         } finally {
           await server.close();
         }

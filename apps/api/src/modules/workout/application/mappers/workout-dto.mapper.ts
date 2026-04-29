@@ -244,7 +244,13 @@ export function mapExerciseCatalogItemDto(record: ExerciseRecord): ExerciseCatal
     category: record.category,
     movementPattern: record.movementPattern,
     primaryMuscleGroup: record.primaryMuscleGroup,
-    equipmentType: record.equipmentType
+    equipmentType: record.equipmentType,
+    defaultTargetSets: record.defaultTargetSets,
+    defaultTargetReps: record.defaultTargetReps,
+    defaultStartingWeight: toWeightValueDto(record.defaultStartingWeightLbs),
+    isBodyweight: record.isBodyweight,
+    isWeightOptional: record.isWeightOptional,
+    isProgressionEligible: record.isProgressionEligible
   };
 }
 

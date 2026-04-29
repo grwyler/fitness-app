@@ -94,6 +94,12 @@ export type ExerciseCatalogItemDto = {
   movementPattern: string | null;
   primaryMuscleGroup: string | null;
   equipmentType: string | null;
+  defaultTargetSets: number | null;
+  defaultTargetReps: number | null;
+  defaultStartingWeight: WeightValueDto;
+  isBodyweight: boolean;
+  isWeightOptional: boolean;
+  isProgressionEligible: boolean;
 };
 
 export type ProgramWorkoutExerciseDto = {
@@ -254,6 +260,7 @@ export type AddCustomWorkoutExerciseRequest = {
   exerciseId: UUID;
   targetSets: number;
   targetReps: number;
+  targetWeight?: WeightValueDto;
   restSeconds?: number | null;
 };
 

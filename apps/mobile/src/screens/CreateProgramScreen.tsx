@@ -9,15 +9,10 @@ import type { RootStackParamList } from "../core/navigation/navigation-types";
 import { useCreateCustomProgram } from "../features/workout/hooks/useCreateCustomProgram";
 import { useFollowProgram } from "../features/workout/hooks/useFollowProgram";
 import { useUpdateCustomProgram } from "../features/workout/hooks/useUpdateCustomProgram";
-import {
-  CUSTOM_WORKOUT_DEFAULT_TARGET_REPS,
-  CUSTOM_WORKOUT_DEFAULT_TARGET_SETS
-} from "../features/workout/hooks/useCustomWorkoutExercises";
 import { useExercises } from "../features/workout/hooks/useExercises";
 import { usePrograms } from "../features/workout/hooks/usePrograms";
 import {
   buildAssignedProgramRequest,
-  buildProgramDayWorkoutFromExerciseSelection,
   createProgramDayAssignments,
   getAssignableWorkoutDescription,
   getAssignableWorkoutChoices,
@@ -50,7 +45,6 @@ export function CreateProgramScreen({ navigation, route }: Props) {
   const [days, setDays] = useState<ProgramDayAssignment[]>(createProgramDayAssignments(3));
   const [pickerDayNumber, setPickerDayNumber] = useState<number | null>(null);
   const [customWorkoutDayNumber, setCustomWorkoutDayNumber] = useState<number | null>(null);
-  const [selectedCustomExerciseIds, setSelectedCustomExerciseIds] = useState<string[]>([]);
   const [customWorkoutName, setCustomWorkoutName] = useState("");
   const [customExerciseError, setCustomExerciseError] = useState<string | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -76,12 +70,6 @@ export function CreateProgramScreen({ navigation, route }: Props) {
     [workoutChoices]
   );
   const hasCustomWorkoutChoices = workoutChoices.some((choice) => choice.source === "custom");
-  const selectedCustomExercises = useMemo(() => {
-    const exercisesById = new Map((exercisesQuery.data ?? []).map((exercise) => [exercise.id, exercise]));
-    return selectedCustomExerciseIds
-      .map((exerciseId) => exercisesById.get(exerciseId) ?? null)
-      .filter((exercise) => exercise !== null);
-  }, [exercisesQuery.data, selectedCustomExerciseIds]);
 
   useEffect(() => {
     if (!editProgram || loadedEditProgramId === editProgram.id) {
@@ -136,44 +124,65 @@ export function CreateProgramScreen({ navigation, route }: Props) {
     setCustomWorkoutDayNumber(dayNumber);
     setCustomWorkoutName("");
     setCustomExerciseError(null);
-    setSelectedCustomExerciseIds([]);
   }
 
   function closeCustomWorkoutBuilder() {
     setCustomWorkoutDayNumber(null);
     setCustomWorkoutName("");
     setCustomExerciseError(null);
-    setSelectedCustomExerciseIds([]);
   }
 
-  function toggleCustomExercise(exerciseId: string) {
-    setCustomExerciseError(null);
-    setSelectedCustomExerciseIds((current) =>
-      current.includes(exerciseId)
-        ? current.filter((selectedExerciseId) => selectedExerciseId !== exerciseId)
-        : [...current, exerciseId]
-    );
-  }
-
-  function assignCustomWorkoutToDay() {
+  function assignCustomWorkoutToDay(input: {
+    requests: Array<{
+      exerciseId: string;
+      targetSets: number;
+      targetReps: number;
+      targetWeight?: { value: number; unit: "lb" };
+    }>;
+  }) {
     if (!customWorkoutDayNumber) {
       return;
     }
 
-    if (selectedCustomExercises.length === 0) {
+    if (input.requests.length === 0) {
       setCustomExerciseError("Choose at least one exercise to continue.");
       return;
     }
 
-    assignWorkoutToDay(
-      customWorkoutDayNumber,
-      buildProgramDayWorkoutFromExerciseSelection({
-        exercises: selectedCustomExercises,
-        name: customWorkoutName,
-        targetSets: CUSTOM_WORKOUT_DEFAULT_TARGET_SETS,
-        targetReps: CUSTOM_WORKOUT_DEFAULT_TARGET_REPS
+    const exercisesById = new Map((exercisesQuery.data ?? []).map((exercise) => [exercise.id, exercise]));
+    const selectedExercises = input.requests
+      .map((request) => exercisesById.get(request.exerciseId) ?? null)
+      .filter(Boolean);
+
+    if (selectedExercises.length !== input.requests.length) {
+      setCustomExerciseError("Some selected exercises were not found. Please try again.");
+      return;
+    }
+
+    const normalizedName = customWorkoutName.trim().replace(/\s+/g, " ");
+    const workoutName = normalizedName || "Custom Workout";
+    const workoutIdSuffix = input.requests.map((request) => request.exerciseId).join(":") || "empty";
+
+    assignWorkoutToDay(customWorkoutDayNumber, {
+      id: `custom-builder:${workoutIdSuffix}`,
+      name: workoutName,
+      category: "Full Body",
+      sequenceOrder: 1,
+      estimatedDurationMinutes: null,
+      exercises: input.requests.map((request, index) => {
+        const exercise = exercisesById.get(request.exerciseId)!;
+        return {
+          id: `custom-builder:${request.exerciseId}`,
+          exerciseId: request.exerciseId,
+          exerciseName: exercise.name,
+          category: exercise.category,
+          sequenceOrder: index + 1,
+          targetSets: request.targetSets,
+          targetReps: request.targetReps,
+          restSeconds: null
+        };
       })
-    );
+    });
     closeCustomWorkoutBuilder();
   }
 
@@ -362,14 +371,12 @@ export function CreateProgramScreen({ navigation, route }: Props) {
         loadingExercises={exercisesQuery.isLoading}
         mode="assignToProgramDay"
         {...(customWorkoutDayNumber !== null ? { programDayNumber: customWorkoutDayNumber } : {})}
-        selectedExerciseIds={selectedCustomExerciseIds}
         workoutName={customWorkoutName}
         submitting={false}
         visible={customWorkoutDayNumber !== null}
         onChangeWorkoutName={setCustomWorkoutName}
         onClose={closeCustomWorkoutBuilder}
-        onStart={assignCustomWorkoutToDay}
-        onToggleExercise={toggleCustomExercise}
+        onSubmit={assignCustomWorkoutToDay}
       />
     </Screen>
   );

@@ -114,14 +114,14 @@ export class CompleteWorkoutSessionUseCase {
         const isPartial = workoutSessionGraph.sets.some(
           (set) => set.status === "pending" || set.status === "skipped"
         );
-        const progressionEligibleExerciseEntries = workoutSessionGraph.exerciseEntries.filter((exerciseEntry) => {
+        const completedExerciseEntries = workoutSessionGraph.exerciseEntries.filter((exerciseEntry) => {
           const relatedSets = workoutSessionGraph.sets.filter((set) => set.exerciseEntryId === exerciseEntry.id);
           return (
             relatedSets.length > 0 &&
             relatedSets.every((set) => set.status === "completed" || set.status === "failed")
           );
         });
-        const exerciseIds = progressionEligibleExerciseEntries.map((exerciseEntry) => exerciseEntry.exerciseId);
+        const exerciseIds = completedExerciseEntries.map((exerciseEntry) => exerciseEntry.exerciseId);
         const progressionSeeds = await this.exerciseRepository.findProgressionSeedsByExerciseIds(exerciseIds, {
           tx
         });
@@ -129,9 +129,14 @@ export class CompleteWorkoutSessionUseCase {
           progressionSeeds.map((progressionSeed) => [progressionSeed.exerciseId, progressionSeed])
         );
 
+        const progressionEligibleExerciseEntries = completedExerciseEntries.filter((exerciseEntry) => {
+          const progressionSeed = progressionSeedByExerciseId.get(exerciseEntry.exerciseId);
+          return progressionSeed?.isProgressionEligible ?? true;
+        });
+
         const progressionStates = await this.progressionStateRepository.findByUserIdAndExerciseIds(
           input.context.userId,
-          exerciseIds,
+          progressionEligibleExerciseEntries.map((exerciseEntry) => exerciseEntry.exerciseId),
           { tx }
         );
         const progressionStateByExerciseId = new Map(

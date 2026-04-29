@@ -63,7 +63,6 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
   const [showFinishEarlyConfirmation, setShowFinishEarlyConfirmation] = useState(false);
   const [showDiscardConfirmation, setShowDiscardConfirmation] = useState(false);
   const [isExercisePickerOpen, setIsExercisePickerOpen] = useState(false);
-  const [selectedCustomExerciseIds, setSelectedCustomExerciseIds] = useState<string[]>([]);
   const [customExerciseError, setCustomExerciseError] = useState<string | null>(null);
   const [programDayWorkoutName, setProgramDayWorkoutName] = useState("");
   const [restTimer, setRestTimer] = useState<RestTimerState>(null);
@@ -337,34 +336,32 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
     );
   }
 
-  function handleToggleCustomExercise(exerciseId: string) {
-    setCustomExerciseError(null);
-    setSelectedCustomExerciseIds((current) =>
-      current.includes(exerciseId)
-        ? current.filter((selectedExerciseId) => selectedExerciseId !== exerciseId)
-        : [...current, exerciseId]
-    );
-  }
-
-  async function handleAddCustomExercises() {
+  async function handleAddCustomExercises(input: {
+    requests: Array<{
+      exerciseId: string;
+      targetSets: number;
+      targetReps: number;
+      targetWeight?: { value: number; unit: "lb" };
+    }>;
+  }) {
     if (cancelWorkoutMutation.isPending) {
       return;
     }
 
-    if (selectedCustomExerciseIds.length === 0) {
+    if (input.requests.length === 0) {
       setCustomExerciseError("Choose at least one exercise to continue.");
       return;
     }
 
     try {
       setCustomExerciseError(null);
-      setLastAction(`add_custom_exercises:${selectedCustomExerciseIds.length}`);
+      setLastAction(`add_custom_exercises:${input.requests.length}`);
       let latestWorkout = workout;
 
-      for (const exerciseId of selectedCustomExerciseIds) {
+      for (const request of input.requests) {
         const result = await addCustomWorkoutExerciseMutation.mutateAsync({
           sessionId: workout.id,
-          exerciseId
+          request
         });
         latestWorkout = result.response.data;
       }
@@ -383,7 +380,6 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
           },
           {
             onSuccess: () => {
-              setSelectedCustomExerciseIds([]);
               setIsExercisePickerOpen(false);
               navigation.navigate("CreateProgram", {
                 assignedDayNumber: programDayNumber,
@@ -399,7 +395,6 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
         return;
       }
 
-      setSelectedCustomExerciseIds([]);
       setIsExercisePickerOpen(false);
     } catch {
       setCustomExerciseError("Exercises were not added. Check your connection and try again.");
@@ -605,7 +600,6 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
         loadingExercises={exercisesQuery.isLoading}
         mode={customWorkoutBuilderMode}
         programDayNumber={programDayNumber}
-        selectedExerciseIds={selectedCustomExerciseIds}
         workoutName={programDayWorkoutName}
         submitting={
           addCustomWorkoutExerciseMutation.isPending ||
@@ -616,10 +610,8 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
         onClose={() => {
           setIsExercisePickerOpen(false);
           setCustomExerciseError(null);
-          setSelectedCustomExerciseIds([]);
         }}
-        onStart={handleAddCustomExercises}
-        onToggleExercise={handleToggleCustomExercise}
+        onSubmit={handleAddCustomExercises}
       />
     </Screen>
   );

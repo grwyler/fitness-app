@@ -92,6 +92,8 @@ A user can:
 
 - [x] Start a “Custom Workout”
 - [x] Add exercises from existing list
+- [x] Expand the exercise catalog with a practical starter set (common gym movements + equipment variants)
+- [x] Configure sets/reps/weight before adding an exercise to a custom workout
 - [x] Add sets (reuse existing logging UI)
 - [x] Complete workout → saves to history
 - [x] Make custom workout creation the primary dashboard start path

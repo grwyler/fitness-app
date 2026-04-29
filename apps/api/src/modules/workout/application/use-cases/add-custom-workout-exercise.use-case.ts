@@ -20,6 +20,7 @@ function buildAddCustomExerciseFingerprint(
     exerciseId: request.exerciseId,
     targetSets: request.targetSets,
     targetReps: request.targetReps,
+    targetWeight: request.targetWeight?.value ?? null,
     restSeconds: request.restSeconds ?? null
   });
 }
@@ -121,6 +122,24 @@ export class AddCustomWorkoutExerciseUseCase {
           );
         }
 
+        const targetWeightLbs = input.request.targetWeight?.value ?? progressionState.currentWeightLbs;
+        if (input.request.targetWeight?.value !== undefined && progressionSeed.isProgressionEligible) {
+          await this.progressionStateRepository.updateMany(
+            [
+              {
+                userId: input.context.userId,
+                exerciseId: exercise.id,
+                currentWeightLbs: targetWeightLbs,
+                lastCompletedWeightLbs: progressionState.lastCompletedWeightLbs,
+                consecutiveFailures: progressionState.consecutiveFailures,
+                lastEffortFeedback: progressionState.lastEffortFeedback,
+                lastPerformedAt: progressionState.lastPerformedAt
+              }
+            ],
+            { tx }
+          );
+        }
+
         const nextSequenceOrder =
           workoutSessionGraph.exerciseEntries.reduce(
             (maxSequenceOrder, exerciseEntry) => Math.max(maxSequenceOrder, exerciseEntry.sequenceOrder),
@@ -135,7 +154,7 @@ export class AddCustomWorkoutExerciseUseCase {
               sequenceOrder: nextSequenceOrder,
               targetSets: input.request.targetSets,
               targetReps: input.request.targetReps,
-              targetWeightLbs: progressionState.currentWeightLbs,
+              targetWeightLbs,
               restSeconds: input.request.restSeconds ?? null,
               effortFeedback: null,
               completedAt: null,
@@ -149,7 +168,7 @@ export class AddCustomWorkoutExerciseUseCase {
               setNumber: index + 1,
               targetReps: input.request.targetReps,
               actualReps: null,
-              targetWeightLbs: progressionState.currentWeightLbs,
+              targetWeightLbs,
               actualWeightLbs: null,
               status: "pending",
               completedAt: null

@@ -23,9 +23,9 @@ export function useAddCustomWorkoutExercise() {
   const clearMutationKey = useActiveWorkoutStore((state) => state.clearMutationKey);
 
   return useMutation({
-    mutationFn: async (input: { sessionId: string; exerciseId: string }) => {
-      const request = buildDefaultCustomWorkoutExerciseRequest(input.exerciseId);
-      const scope = `add-custom-workout-exercise:${input.sessionId}:${input.exerciseId}`;
+    mutationFn: async (input: { sessionId: string; request: AddCustomWorkoutExerciseRequest }) => {
+      const request = input.request;
+      const scope = `add-custom-workout-exercise:${input.sessionId}:${request.exerciseId}`;
       const idempotencyKey = getMutationKey(scope, request);
       const response = await addCustomWorkoutExercise({
         sessionId: input.sessionId,

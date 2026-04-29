@@ -40,6 +40,17 @@ create table users (
   updated_at timestamptz not null default now()
 );
 
+create table password_reset_tokens (
+  id text primary key,
+  user_id text not null references users(id),
+  token_hash text not null unique,
+  expires_at timestamptz not null,
+  consumed_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create index idx_password_reset_tokens_user_id on password_reset_tokens(user_id);
+create index idx_password_reset_tokens_expires_at on password_reset_tokens(expires_at);
+
 create table exercises (
   id text primary key,
   name text not null unique,
@@ -47,8 +58,13 @@ create table exercises (
   movement_pattern text,
   primary_muscle_group text,
   equipment_type text,
+  default_target_sets integer,
+  default_target_reps integer,
   default_starting_weight_lbs numeric(6,2) not null,
   default_increment_lbs numeric(5,2) not null,
+  is_bodyweight boolean not null default false,
+  is_weight_optional boolean not null default false,
+  is_progression_eligible boolean not null default true,
   is_active boolean not null default true,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()

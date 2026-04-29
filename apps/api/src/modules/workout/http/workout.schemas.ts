@@ -62,6 +62,7 @@ export const addCustomWorkoutExerciseBodySchema = z.object({
   exerciseId: z.string().min(1),
   targetSets: z.number().int().min(1).max(20),
   targetReps: z.number().int().min(1).max(100),
+  targetWeight: weightValueSchema.optional(),
   restSeconds: z.number().int().min(0).max(1800).nullable().optional()
 });
 

@@ -76,14 +76,16 @@ The system handles everything else.
 
 * User authentication  
 * Pre-generated workouts  
+* Exercise catalog (starter set of common gym exercises + equipment variants)  
 * Simple set logging  
+* MVP-safe custom workouts (build an ad hoc workout by selecting exercises and configuring targets)  
 * Effort feedback (Too Easy / Just Right / Too Hard)  
 * Basic progression tracking  
 * Mobile-first UI optimized for speed
 
 ### **Not Included (for V1)**
 
-* Custom workouts  
+* Saving custom workout templates (completed ad hoc workouts are not automatically promoted into reusable templates)  
 * Social features  
 * Nutrition tracking  
 * Wearables integration  

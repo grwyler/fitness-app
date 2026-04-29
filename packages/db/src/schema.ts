@@ -62,6 +62,23 @@ export const users = pgTable(
   })
 );
 
+export const passwordResetTokens = pgTable(
+  "password_reset_tokens",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").notNull().references(() => users.id),
+    tokenHash: text("token_hash").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => ({
+    tokenHashUnique: uniqueIndex("idx_password_reset_tokens_token_hash").on(table.tokenHash),
+    userIndex: index("idx_password_reset_tokens_user_id").on(table.userId),
+    expiresIndex: index("idx_password_reset_tokens_expires_at").on(table.expiresAt)
+  })
+);
+
 export const exercises = pgTable(
   "exercises",
   {
@@ -71,14 +88,27 @@ export const exercises = pgTable(
     movementPattern: text("movement_pattern"),
     primaryMuscleGroup: text("primary_muscle_group"),
     equipmentType: text("equipment_type"),
+    defaultTargetSets: integer("default_target_sets"),
+    defaultTargetReps: integer("default_target_reps"),
     defaultStartingWeightLbs: numeric("default_starting_weight_lbs", { precision: 6, scale: 2 }).notNull(),
     defaultIncrementLbs: numeric("default_increment_lbs", { precision: 5, scale: 2 }).notNull(),
+    isBodyweight: boolean("is_bodyweight").notNull().default(false),
+    isWeightOptional: boolean("is_weight_optional").notNull().default(false),
+    isProgressionEligible: boolean("is_progression_eligible").notNull().default(true),
     isActive: boolean("is_active").notNull().default(true),
     ...timestamps
   },
   (table) => ({
     nameUnique: uniqueIndex("idx_exercises_name").on(table.name),
     categoryIndex: index("idx_exercises_category").on(table.category),
+    validDefaultTargetSets: check(
+      "chk_exercises_default_target_sets_positive",
+      sql`${table.defaultTargetSets} is null or ${table.defaultTargetSets} > 0`
+    ),
+    validDefaultTargetReps: check(
+      "chk_exercises_default_target_reps_positive",
+      sql`${table.defaultTargetReps} is null or ${table.defaultTargetReps} > 0`
+    ),
     positiveStartingWeight: check(
       "chk_exercises_default_starting_weight_nonnegative",
       sql`${table.defaultStartingWeightLbs} >= 0`
@@ -327,6 +357,7 @@ export const idempotencyRecords = pgTable(
 
 export const schema = {
   users,
+  passwordResetTokens,
   exercises,
   programs,
   workoutTemplates,
