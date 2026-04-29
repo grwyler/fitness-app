@@ -18,6 +18,13 @@ export function PrimaryButton(props: PrimaryButtonProps) {
       : props.tone === "danger"
         ? styles.danger
         : styles.primary;
+  const labelToneStyle =
+    props.tone === "secondary"
+      ? styles.secondaryLabel
+      : props.tone === "danger"
+        ? styles.dangerLabel
+        : styles.primaryLabel;
+  const indicatorColor = props.tone === "primary" || props.tone === undefined ? colors.surface : colors.accent;
   const isDisabled = getPrimaryButtonDisabledState({
     disabled: props.disabled,
     loading: props.loading
@@ -42,7 +49,7 @@ export function PrimaryButton(props: PrimaryButtonProps) {
       },
       props.loading
         ? createElement(ActivityIndicator, {
-            color: colors.surface
+            color: indicatorColor
           })
         : createElement(
             View,
@@ -52,7 +59,7 @@ export function PrimaryButton(props: PrimaryButtonProps) {
             createElement(
               Text,
               {
-                style: styles.label
+                style: [styles.label, labelToneStyle]
               },
               props.label
             )
@@ -68,9 +75,9 @@ export function PrimaryButton(props: PrimaryButtonProps) {
       style={[styles.button, toneStyle, isDisabled && styles.disabled]}
     >
       {props.loading ? (
-        <ActivityIndicator color={colors.surface} />
+        <ActivityIndicator color={indicatorColor} />
       ) : (
-        <Text style={styles.label}>{props.label}</Text>
+        <Text style={[styles.label, labelToneStyle]}>{props.label}</Text>
       )}
     </Pressable>
   );
@@ -79,30 +86,42 @@ export function PrimaryButton(props: PrimaryButtonProps) {
 const styles = StyleSheet.create({
   button: {
     alignItems: "center",
-    borderRadius: 18,
+    borderRadius: 12,
+    borderWidth: 1,
     justifyContent: "center",
-    minHeight: 56,
+    minHeight: 48,
     paddingHorizontal: spacing.md
   },
   primary: {
-    backgroundColor: colors.accentStrong
+    backgroundColor: colors.accent,
+    borderColor: colors.accent
   },
   secondary: {
-    backgroundColor: colors.textSecondary
+    backgroundColor: colors.surface,
+    borderColor: colors.border
   },
   danger: {
-    backgroundColor: "#9c3b31"
+    backgroundColor: colors.surface,
+    borderColor: colors.border
   },
   disabled: {
     opacity: 0.55
   },
   label: {
-    color: colors.surface,
     fontSize: 16,
-    fontWeight: "700"
+    fontWeight: "600",
+    lineHeight: 22
+  },
+  primaryLabel: {
+    color: colors.surface
+  },
+  secondaryLabel: {
+    color: colors.textPrimary
+  },
+  dangerLabel: {
+    color: colors.danger
   },
   webButton: {
-    borderWidth: 0,
     cursor: "pointer"
   },
   webLabelWrap: {

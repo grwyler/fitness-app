@@ -152,14 +152,14 @@ function SelectableChip(props: { label: string; selected: boolean; onPress: () =
 const styles = StyleSheet.create({
   backdrop: {
     alignItems: "center",
-    backgroundColor: "rgba(29, 36, 28, 0.45)",
+    backgroundColor: "rgba(17, 24, 39, 0.46)",
     flex: 1,
     justifyContent: "flex-end",
     padding: spacing.md
   },
   sheet: {
     backgroundColor: colors.surface,
-    borderRadius: 24,
+    borderRadius: 12,
     gap: spacing.md,
     maxWidth: 560,
     padding: spacing.lg,
@@ -173,7 +173,7 @@ const styles = StyleSheet.create({
   title: {
     color: colors.textPrimary,
     fontSize: 24,
-    fontWeight: "800"
+    fontWeight: "600"
   },
   closeButton: {
     paddingVertical: spacing.xs
@@ -181,7 +181,7 @@ const styles = StyleSheet.create({
   closeLabel: {
     color: colors.accentStrong,
     fontSize: 15,
-    fontWeight: "700"
+    fontWeight: "600"
   },
   field: {
     gap: spacing.xs
@@ -189,12 +189,12 @@ const styles = StyleSheet.create({
   label: {
     color: colors.textPrimary,
     fontSize: 15,
-    fontWeight: "700"
+    fontWeight: "600"
   },
   input: {
     backgroundColor: colors.background,
     borderColor: colors.border,
-    borderRadius: 18,
+    borderRadius: 12,
     borderWidth: 1,
     color: colors.textPrimary,
     minHeight: 112,
@@ -231,11 +231,11 @@ const styles = StyleSheet.create({
     color: colors.surface
   },
   validation: {
-    color: "#9c3b31",
+    color: colors.danger,
     fontSize: 14
   },
   error: {
-    color: "#9c3b31",
+    color: colors.danger,
     fontSize: 14
   },
   actions: {
@@ -245,7 +245,7 @@ const styles = StyleSheet.create({
   submitButton: {
     alignItems: "center",
     backgroundColor: colors.accentStrong,
-    borderRadius: 18,
+    borderRadius: 12,
     flex: 1,
     justifyContent: "center",
     minHeight: 56,
@@ -254,7 +254,7 @@ const styles = StyleSheet.create({
   submitLabel: {
     color: colors.surface,
     fontSize: 16,
-    fontWeight: "700"
+    fontWeight: "600"
   },
   disabledButton: {
     opacity: 0.55

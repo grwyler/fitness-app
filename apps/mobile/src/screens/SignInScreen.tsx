@@ -99,14 +99,14 @@ const styles = StyleSheet.create({
   eyebrow: {
     color: colors.accentStrong,
     fontSize: 14,
-    fontWeight: "700",
+    fontWeight: "600",
     letterSpacing: 1,
     textTransform: "uppercase"
   },
   title: {
     color: colors.textPrimary,
     fontSize: 30,
-    fontWeight: "800",
+    fontWeight: "600",
     lineHeight: 36
   },
   subtitle: {
@@ -117,7 +117,7 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
     borderColor: colors.border,
-    borderRadius: 22,
+    borderRadius: 12,
     borderWidth: 1,
     gap: spacing.sm,
     padding: spacing.lg
@@ -125,12 +125,12 @@ const styles = StyleSheet.create({
   label: {
     color: colors.textPrimary,
     fontSize: 14,
-    fontWeight: "700"
+    fontWeight: "600"
   },
   input: {
     backgroundColor: colors.background,
     borderColor: colors.border,
-    borderRadius: 16,
+    borderRadius: 12,
     borderWidth: 1,
     color: colors.textPrimary,
     fontSize: 16,
@@ -138,7 +138,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md
   },
   error: {
-    color: "#9c3b31",
+    color: colors.danger,
     fontSize: 14,
     lineHeight: 20
   }

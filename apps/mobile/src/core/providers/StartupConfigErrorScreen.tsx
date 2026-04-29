@@ -35,7 +35,7 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
     borderColor: colors.border,
-    borderRadius: 20,
+    borderRadius: 12,
     borderWidth: 1,
     gap: spacing.md,
     padding: spacing.lg
@@ -43,13 +43,13 @@ const styles = StyleSheet.create({
   eyebrow: {
     color: colors.accentStrong,
     fontSize: 13,
-    fontWeight: "800",
+    fontWeight: "600",
     textTransform: "uppercase"
   },
   title: {
     color: colors.textPrimary,
     fontSize: 24,
-    fontWeight: "800",
+    fontWeight: "600",
     lineHeight: 30
   },
   message: {
@@ -61,10 +61,10 @@ const styles = StyleSheet.create({
     gap: spacing.xs
   },
   item: {
-    color: "#9c3b31",
+    color: colors.danger,
     fontFamily: "monospace",
     fontSize: 14,
-    fontWeight: "700"
+    fontWeight: "600"
   },
   hint: {
     color: colors.textSecondary,

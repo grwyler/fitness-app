@@ -72,7 +72,7 @@ const styles = StyleSheet.create({
   title: {
     color: colors.textPrimary,
     fontSize: 28,
-    fontWeight: "800"
+    fontWeight: "600"
   },
   subtitle: {
     color: colors.textSecondary,
@@ -86,7 +86,7 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
     borderColor: colors.border,
-    borderRadius: 22,
+    borderRadius: 12,
     borderWidth: 1,
     padding: spacing.lg
   },

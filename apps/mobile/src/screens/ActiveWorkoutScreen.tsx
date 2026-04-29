@@ -568,7 +568,7 @@ const styles = StyleSheet.create({
   title: {
     color: colors.textPrimary,
     fontSize: 28,
-    fontWeight: "800"
+    fontWeight: "600"
   },
   subtitle: {
     color: colors.textSecondary,
@@ -577,7 +577,7 @@ const styles = StyleSheet.create({
   restTimerCard: {
     alignItems: "center",
     backgroundColor: colors.textPrimary,
-    borderRadius: 18,
+    borderRadius: 12,
     flexDirection: "row",
     gap: spacing.md,
     justifyContent: "space-between",
@@ -590,13 +590,13 @@ const styles = StyleSheet.create({
   restTimerLabel: {
     color: colors.surfaceMuted,
     fontSize: 12,
-    fontWeight: "800",
+    fontWeight: "600",
     textTransform: "uppercase"
   },
   restTimerTitle: {
     color: colors.surface,
     fontSize: 15,
-    fontWeight: "700",
+    fontWeight: "600",
     lineHeight: 20
   },
   restTimerValueGroup: {
@@ -606,17 +606,17 @@ const styles = StyleSheet.create({
   restTimerValue: {
     color: colors.surface,
     fontSize: 26,
-    fontWeight: "800"
+    fontWeight: "600"
   },
   restTimerSkip: {
     color: colors.surfaceMuted,
     fontSize: 13,
-    fontWeight: "800"
+    fontWeight: "600"
   },
   footer: {
     backgroundColor: colors.surface,
     borderColor: colors.border,
-    borderRadius: 22,
+    borderRadius: 12,
     borderWidth: 1,
     gap: spacing.md,
     padding: spacing.lg
@@ -627,13 +627,13 @@ const styles = StyleSheet.create({
     lineHeight: 22
   },
   errorText: {
-    color: "#9c3b31",
+    color: colors.danger,
     fontSize: 14,
-    fontWeight: "700"
+    fontWeight: "600"
   },
   confirmation: {
     borderColor: colors.border,
-    borderRadius: 18,
+    borderRadius: 12,
     borderWidth: 1,
     gap: spacing.md,
     padding: spacing.md
@@ -641,7 +641,7 @@ const styles = StyleSheet.create({
   emptyStateCard: {
     backgroundColor: colors.surface,
     borderColor: colors.border,
-    borderRadius: 22,
+    borderRadius: 12,
     borderWidth: 1,
     gap: spacing.sm,
     padding: spacing.lg
@@ -649,12 +649,12 @@ const styles = StyleSheet.create({
   emptyStateTitle: {
     color: colors.textPrimary,
     fontSize: 18,
-    fontWeight: "800"
+    fontWeight: "600"
   },
   confirmationTitle: {
     color: colors.textPrimary,
     fontSize: 18,
-    fontWeight: "800"
+    fontWeight: "600"
   },
   confirmationActions: {
     gap: spacing.sm

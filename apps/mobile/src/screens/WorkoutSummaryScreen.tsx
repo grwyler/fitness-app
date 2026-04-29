@@ -110,13 +110,13 @@ const styles = StyleSheet.create({
   eyebrow: {
     color: colors.accentStrong,
     fontSize: 14,
-    fontWeight: "700",
+    fontWeight: "600",
     textTransform: "uppercase"
   },
   title: {
     color: colors.textPrimary,
     fontSize: 30,
-    fontWeight: "800"
+    fontWeight: "600"
   },
   subtitle: {
     color: colors.textSecondary,
@@ -125,21 +125,21 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
     borderColor: colors.border,
-    borderRadius: 22,
+    borderRadius: 12,
     borderWidth: 1,
     gap: spacing.sm,
     padding: spacing.lg
   },
   successCard: {
     backgroundColor: colors.textPrimary,
-    borderRadius: 22,
+    borderRadius: 12,
     gap: spacing.md,
     padding: spacing.lg
   },
   successTitle: {
     color: colors.surface,
     fontSize: 22,
-    fontWeight: "800"
+    fontWeight: "600"
   },
   successBody: {
     color: colors.surfaceMuted,
@@ -149,7 +149,7 @@ const styles = StyleSheet.create({
   successLabel: {
     color: colors.surfaceMuted,
     fontSize: 12,
-    fontWeight: "800",
+    fontWeight: "600",
     textTransform: "uppercase"
   },
   statGrid: {
@@ -158,8 +158,8 @@ const styles = StyleSheet.create({
     gap: spacing.sm
   },
   statBlock: {
-    backgroundColor: "rgba(255, 250, 242, 0.12)",
-    borderRadius: 16,
+    backgroundColor: "rgba(255, 255, 255, 0.10)",
+    borderRadius: 12,
     flexGrow: 1,
     gap: spacing.xs,
     minWidth: 120,
@@ -168,17 +168,17 @@ const styles = StyleSheet.create({
   statValue: {
     color: colors.surface,
     fontSize: 22,
-    fontWeight: "800"
+    fontWeight: "600"
   },
   statDetail: {
     color: colors.surfaceMuted,
     fontSize: 13,
-    fontWeight: "700"
+    fontWeight: "600"
   },
   cardLabel: {
     color: colors.accentStrong,
     fontSize: 13,
-    fontWeight: "700",
+    fontWeight: "600",
     textTransform: "uppercase"
   },
   row: {
@@ -187,7 +187,7 @@ const styles = StyleSheet.create({
   rowTitle: {
     color: colors.textPrimary,
     fontSize: 18,
-    fontWeight: "700"
+    fontWeight: "600"
   },
   rowBody: {
     color: colors.textSecondary,

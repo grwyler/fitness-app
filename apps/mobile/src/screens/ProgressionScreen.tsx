@@ -143,14 +143,14 @@ const styles = StyleSheet.create({
   eyebrow: {
     color: colors.accentStrong,
     fontSize: 14,
-    fontWeight: "700",
+    fontWeight: "600",
     letterSpacing: 1.1,
     textTransform: "uppercase"
   },
   title: {
     color: colors.textPrimary,
     fontSize: 30,
-    fontWeight: "800",
+    fontWeight: "600",
     lineHeight: 36
   },
   subtitle: {
@@ -166,7 +166,7 @@ const styles = StyleSheet.create({
   statCard: {
     backgroundColor: colors.surface,
     borderColor: colors.border,
-    borderRadius: 18,
+    borderRadius: 12,
     borderWidth: 1,
     flexGrow: 1,
     gap: spacing.xs,
@@ -176,7 +176,7 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
     borderColor: colors.border,
-    borderRadius: 22,
+    borderRadius: 12,
     borderWidth: 1,
     gap: spacing.sm,
     padding: spacing.lg
@@ -184,13 +184,13 @@ const styles = StyleSheet.create({
   cardLabel: {
     color: colors.accentStrong,
     fontSize: 13,
-    fontWeight: "700",
+    fontWeight: "600",
     textTransform: "uppercase"
   },
   cardTitle: {
     color: colors.textPrimary,
     fontSize: 22,
-    fontWeight: "700"
+    fontWeight: "600"
   },
   cardBody: {
     color: colors.textSecondary,
@@ -200,7 +200,7 @@ const styles = StyleSheet.create({
   statValue: {
     color: colors.textPrimary,
     fontSize: 28,
-    fontWeight: "800"
+    fontWeight: "600"
   },
   row: {
     alignItems: "center",
@@ -215,17 +215,17 @@ const styles = StyleSheet.create({
   rowTitle: {
     color: colors.textPrimary,
     fontSize: 17,
-    fontWeight: "700"
+    fontWeight: "600"
   },
   valueText: {
     color: colors.textPrimary,
     fontSize: 16,
-    fontWeight: "800"
+    fontWeight: "600"
   },
   metaLine: {
     color: colors.textSecondary,
     fontSize: 14,
-    fontWeight: "700",
+    fontWeight: "600",
     lineHeight: 20
   },
   exerciseBlock: {

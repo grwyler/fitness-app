@@ -58,7 +58,7 @@ export function AppNavigator() {
               title: "Dashboard",
               headerRight: () => (
                 <Pressable onPress={() => void auth.signOut()}>
-                  <Text style={{ color: colors.accentStrong, fontWeight: "700" }}>Sign Out</Text>
+                  <Text style={{ color: colors.accentStrong, fontWeight: "600" }}>Sign Out</Text>
                 </Pressable>
               )
             }}

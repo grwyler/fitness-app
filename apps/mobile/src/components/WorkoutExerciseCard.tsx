@@ -288,7 +288,7 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
     borderColor: colors.border,
-    borderRadius: 22,
+    borderRadius: 12,
     borderWidth: 1,
     gap: spacing.md,
     padding: spacing.lg
@@ -299,7 +299,7 @@ const styles = StyleSheet.create({
   title: {
     color: colors.textPrimary,
     fontSize: 22,
-    fontWeight: "700"
+    fontWeight: "600"
   },
   subtitle: {
     color: colors.textSecondary,
@@ -315,7 +315,7 @@ const styles = StyleSheet.create({
   setRow: {
     backgroundColor: colors.background,
     borderColor: "transparent",
-    borderRadius: 18,
+    borderRadius: 12,
     borderWidth: 1,
     gap: spacing.sm,
     padding: spacing.md
@@ -336,7 +336,7 @@ const styles = StyleSheet.create({
   setTitle: {
     color: colors.textPrimary,
     fontSize: 18,
-    fontWeight: "700"
+    fontWeight: "600"
   },
   setActions: {
     alignItems: "center",
@@ -354,9 +354,9 @@ const styles = StyleSheet.create({
     paddingVertical: 5
   },
   deleteSetLabel: {
-    color: "#9c3b31",
+    color: colors.danger,
     fontSize: 12,
-    fontWeight: "800"
+    fontWeight: "600"
   },
   setMeta: {
     color: colors.textSecondary,
@@ -367,7 +367,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     color: colors.textSecondary,
     fontSize: 12,
-    fontWeight: "700",
+    fontWeight: "600",
     overflow: "hidden",
     paddingHorizontal: spacing.sm,
     paddingVertical: 5
@@ -377,7 +377,7 @@ const styles = StyleSheet.create({
     color: colors.surface
   },
   statusPillFailed: {
-    backgroundColor: "#9c3b31",
+    backgroundColor: colors.danger,
     color: colors.surface
   },
   pendingSetBody: {
@@ -399,7 +399,7 @@ const styles = StyleSheet.create({
   inputLabel: {
     color: colors.textSecondary,
     fontSize: 13,
-    fontWeight: "700"
+    fontWeight: "600"
   },
   labelRow: {
     alignItems: "center",
@@ -411,7 +411,7 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     flexShrink: 1,
     fontSize: 12,
-    fontWeight: "700",
+    fontWeight: "600",
     textAlign: "right"
   },
   stepperRow: {
@@ -425,7 +425,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: colors.surface,
     borderColor: colors.border,
-    borderRadius: 14,
+    borderRadius: 10,
     borderWidth: 1,
     flexShrink: 0,
     height: 48,
@@ -435,7 +435,7 @@ const styles = StyleSheet.create({
   stepperLabel: {
     color: colors.textPrimary,
     fontSize: 22,
-    fontWeight: "800"
+    fontWeight: "600"
   },
   disabledControl: {
     opacity: 0.55
@@ -443,13 +443,13 @@ const styles = StyleSheet.create({
   setInput: {
     backgroundColor: colors.surface,
     borderColor: colors.border,
-    borderRadius: 14,
+    borderRadius: 10,
     borderWidth: 1,
     color: colors.textPrimary,
     flex: 1,
     flexShrink: 1,
     fontSize: 20,
-    fontWeight: "800",
+    fontWeight: "600",
     minWidth: 48,
     minHeight: 48,
     paddingHorizontal: spacing.sm,
@@ -458,11 +458,11 @@ const styles = StyleSheet.create({
   weightInput: {
     backgroundColor: colors.surface,
     borderColor: colors.border,
-    borderRadius: 14,
+    borderRadius: 10,
     borderWidth: 1,
     color: colors.textPrimary,
     fontSize: 20,
-    fontWeight: "800",
+    fontWeight: "600",
     maxWidth: "100%",
     minHeight: 48,
     minWidth: 0,
@@ -481,7 +481,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: colors.surfaceMuted,
     borderColor: "transparent",
-    borderRadius: 14,
+    borderRadius: 10,
     borderWidth: 1,
     flexBasis: "23%",
     flexGrow: 1,
@@ -491,7 +491,7 @@ const styles = StyleSheet.create({
   weightAdjustLabel: {
     color: colors.textSecondary,
     fontSize: 14,
-    fontWeight: "800"
+    fontWeight: "600"
   },
   setHint: {
     color: colors.textSecondary,
@@ -499,7 +499,7 @@ const styles = StyleSheet.create({
     fontWeight: "600"
   },
   setHintError: {
-    color: "#9c3b31"
+    color: colors.danger
   },
   loggedSummary: {
     color: colors.textSecondary,
@@ -512,7 +512,7 @@ const styles = StyleSheet.create({
   feedbackTitle: {
     color: colors.textPrimary,
     fontSize: 16,
-    fontWeight: "700"
+    fontWeight: "600"
   },
   feedbackOptions: {
     flexDirection: "row",

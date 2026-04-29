@@ -188,13 +188,13 @@ const styles = StyleSheet.create({
   eyebrow: {
     color: colors.accentStrong,
     fontSize: 14,
-    fontWeight: "700",
+    fontWeight: "600",
     textTransform: "uppercase"
   },
   title: {
     color: colors.textPrimary,
     fontSize: 30,
-    fontWeight: "800",
+    fontWeight: "600",
     lineHeight: 36
   },
   subtitle: {
@@ -205,7 +205,7 @@ const styles = StyleSheet.create({
   summaryCard: {
     backgroundColor: colors.surface,
     borderColor: colors.border,
-    borderRadius: 22,
+    borderRadius: 12,
     borderWidth: 1,
     gap: spacing.sm,
     padding: spacing.lg
@@ -213,13 +213,13 @@ const styles = StyleSheet.create({
   cardLabel: {
     color: colors.accentStrong,
     fontSize: 13,
-    fontWeight: "700",
+    fontWeight: "600",
     textTransform: "uppercase"
   },
   cardTitle: {
     color: colors.textPrimary,
     fontSize: 22,
-    fontWeight: "700"
+    fontWeight: "600"
   },
   cardBody: {
     color: colors.textSecondary,
@@ -229,7 +229,7 @@ const styles = StyleSheet.create({
   warningText: {
     color: colors.accentStrong,
     fontSize: 14,
-    fontWeight: "700"
+    fontWeight: "600"
   },
   summaryGrid: {
     flexDirection: "row",
@@ -238,7 +238,7 @@ const styles = StyleSheet.create({
   },
   summaryStat: {
     backgroundColor: colors.background,
-    borderRadius: 16,
+    borderRadius: 12,
     flexGrow: 1,
     gap: spacing.xs,
     minWidth: 120,
@@ -247,7 +247,7 @@ const styles = StyleSheet.create({
   summaryValue: {
     color: colors.textPrimary,
     fontSize: 20,
-    fontWeight: "800"
+    fontWeight: "600"
   },
   highlightList: {
     flexDirection: "row",
@@ -259,7 +259,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     color: colors.textPrimary,
     fontSize: 12,
-    fontWeight: "800",
+    fontWeight: "600",
     overflow: "hidden",
     paddingHorizontal: spacing.sm,
     paddingVertical: 6
@@ -267,7 +267,7 @@ const styles = StyleSheet.create({
   exerciseCard: {
     backgroundColor: colors.surface,
     borderColor: colors.border,
-    borderRadius: 22,
+    borderRadius: 12,
     borderWidth: 1,
     gap: spacing.md,
     padding: spacing.lg
@@ -286,7 +286,7 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     flex: 1,
     fontSize: 22,
-    fontWeight: "800",
+    fontWeight: "600",
     minWidth: 150
   },
   exerciseHighlight: {
@@ -295,7 +295,7 @@ const styles = StyleSheet.create({
     color: colors.surface,
     flexShrink: 1,
     fontSize: 12,
-    fontWeight: "800",
+    fontWeight: "600",
     overflow: "hidden",
     paddingHorizontal: spacing.sm,
     paddingVertical: 6
@@ -303,12 +303,12 @@ const styles = StyleSheet.create({
   exerciseMeta: {
     color: colors.textSecondary,
     fontSize: 15,
-    fontWeight: "700"
+    fontWeight: "600"
   },
   setRow: {
     alignItems: "center",
     backgroundColor: colors.background,
-    borderRadius: 16,
+    borderRadius: 12,
     flexDirection: "row",
     gap: spacing.sm,
     padding: spacing.md
@@ -318,13 +318,13 @@ const styles = StyleSheet.create({
     flexBasis: 56,
     flexShrink: 0,
     fontSize: 15,
-    fontWeight: "800"
+    fontWeight: "600"
   },
   setMeta: {
     color: colors.textSecondary,
     flex: 1,
     fontSize: 15,
-    fontWeight: "700"
+    fontWeight: "600"
   },
   setStatus: {
     backgroundColor: colors.surfaceMuted,
@@ -332,7 +332,7 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     flexShrink: 0,
     fontSize: 12,
-    fontWeight: "800",
+    fontWeight: "600",
     overflow: "hidden",
     paddingHorizontal: spacing.sm,
     paddingVertical: 5
@@ -342,13 +342,13 @@ const styles = StyleSheet.create({
     color: colors.surface
   },
   setStatusFailed: {
-    backgroundColor: "#9c3b31",
+    backgroundColor: colors.danger,
     color: colors.surface
   },
   feedbackText: {
     color: colors.textSecondary,
     fontSize: 14,
-    fontWeight: "700",
+    fontWeight: "600",
     textTransform: "capitalize"
   }
 });

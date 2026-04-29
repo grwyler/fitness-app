@@ -23,7 +23,7 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
     borderColor: colors.border,
-    borderRadius: 20,
+    borderRadius: 12,
     borderWidth: 1,
     gap: spacing.md,
     padding: spacing.lg
@@ -31,7 +31,7 @@ const styles = StyleSheet.create({
   title: {
     color: colors.textPrimary,
     fontSize: 20,
-    fontWeight: "700"
+    fontWeight: "600"
   },
   message: {
     color: colors.textSecondary,

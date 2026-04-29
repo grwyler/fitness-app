@@ -17,7 +17,7 @@ export function AuthLoadingScreen() {
 const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surfaceMuted,
-    borderRadius: 16,
+    borderRadius: 12,
     gap: spacing.xs,
     padding: spacing.md
   },

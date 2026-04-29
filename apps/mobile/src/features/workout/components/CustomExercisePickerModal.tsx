@@ -93,14 +93,14 @@ export function CustomExercisePickerModal(props: {
 const styles = StyleSheet.create({
   modalBackdrop: {
     alignItems: "center",
-    backgroundColor: "rgba(29, 36, 28, 0.45)",
+    backgroundColor: "rgba(17, 24, 39, 0.46)",
     flex: 1,
     justifyContent: "flex-end",
     padding: spacing.md
   },
   modalSheet: {
     backgroundColor: colors.surface,
-    borderRadius: 24,
+    borderRadius: 12,
     gap: spacing.md,
     maxHeight: "92%",
     maxWidth: 620,
@@ -120,13 +120,13 @@ const styles = StyleSheet.create({
   cardLabel: {
     color: colors.accentStrong,
     fontSize: 13,
-    fontWeight: "700",
+    fontWeight: "600",
     textTransform: "uppercase"
   },
   modalTitle: {
     color: colors.textPrimary,
     fontSize: 24,
-    fontWeight: "800"
+    fontWeight: "600"
   },
   cardBody: {
     color: colors.textSecondary,
@@ -139,7 +139,7 @@ const styles = StyleSheet.create({
   closeLabel: {
     color: colors.accentStrong,
     fontSize: 15,
-    fontWeight: "700"
+    fontWeight: "600"
   },
   exerciseChoiceList: {
     gap: spacing.sm
@@ -147,7 +147,7 @@ const styles = StyleSheet.create({
   exerciseChoice: {
     alignItems: "center",
     borderColor: colors.border,
-    borderRadius: 18,
+    borderRadius: 12,
     borderWidth: 1,
     flexDirection: "row",
     gap: spacing.md,
@@ -165,27 +165,27 @@ const styles = StyleSheet.create({
   exerciseName: {
     color: colors.textPrimary,
     fontSize: 17,
-    fontWeight: "800",
+    fontWeight: "600",
     lineHeight: 22
   },
   exerciseMeta: {
     color: colors.textSecondary,
     fontSize: 14,
-    fontWeight: "700",
+    fontWeight: "600",
     lineHeight: 20,
     textTransform: "capitalize"
   },
   selectState: {
     color: colors.textSecondary,
     fontSize: 14,
-    fontWeight: "800"
+    fontWeight: "600"
   },
   selectedState: {
     color: colors.accentStrong
   },
   errorText: {
-    color: "#9c3b31",
+    color: colors.danger,
     fontSize: 14,
-    fontWeight: "700"
+    fontWeight: "600"
   }
 });

@@ -300,13 +300,13 @@ const styles = StyleSheet.create({
   eyebrow: {
     color: colors.accentStrong,
     fontSize: 14,
-    fontWeight: "700",
+    fontWeight: "600",
     textTransform: "uppercase"
   },
   title: {
     color: colors.textPrimary,
     fontSize: 28,
-    fontWeight: "800",
+    fontWeight: "600",
     lineHeight: 34
   },
   subtitle: {
@@ -317,7 +317,7 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
     borderColor: colors.border,
-    borderRadius: 22,
+    borderRadius: 12,
     borderWidth: 1,
     gap: spacing.sm,
     padding: spacing.lg
@@ -325,17 +325,17 @@ const styles = StyleSheet.create({
   label: {
     color: colors.accentStrong,
     fontSize: 13,
-    fontWeight: "700",
+    fontWeight: "600",
     textTransform: "uppercase"
   },
   input: {
     backgroundColor: colors.background,
     borderColor: colors.border,
-    borderRadius: 16,
+    borderRadius: 12,
     borderWidth: 1,
     color: colors.textPrimary,
     fontSize: 17,
-    fontWeight: "700",
+    fontWeight: "600",
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm
   },
@@ -353,7 +353,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: colors.background,
     borderColor: colors.border,
-    borderRadius: 16,
+    borderRadius: 12,
     borderWidth: 1,
     minWidth: 52,
     paddingHorizontal: spacing.md,
@@ -366,14 +366,14 @@ const styles = StyleSheet.create({
   dayOptionText: {
     color: colors.textPrimary,
     fontSize: 16,
-    fontWeight: "800"
+    fontWeight: "600"
   },
   selectedDayOptionText: {
     color: colors.surface
   },
   dayCard: {
     borderColor: colors.border,
-    borderRadius: 16,
+    borderRadius: 12,
     borderWidth: 1,
     gap: spacing.sm,
     padding: spacing.md
@@ -391,13 +391,13 @@ const styles = StyleSheet.create({
   dayLabel: {
     color: colors.accentStrong,
     fontSize: 13,
-    fontWeight: "800",
+    fontWeight: "600",
     textTransform: "uppercase"
   },
   workoutName: {
     color: colors.textPrimary,
     fontSize: 17,
-    fontWeight: "800",
+    fontWeight: "600",
     lineHeight: 22
   },
   workoutTitleGroup: {
@@ -410,29 +410,29 @@ const styles = StyleSheet.create({
   exerciseLine: {
     color: colors.textPrimary,
     fontSize: 15,
-    fontWeight: "700",
+    fontWeight: "600",
     lineHeight: 21
   },
   exerciseMeta: {
     color: colors.textSecondary,
     fontSize: 14,
-    fontWeight: "700",
+    fontWeight: "600",
     lineHeight: 20
   },
   addText: {
     color: colors.accentStrong,
     fontSize: 14,
-    fontWeight: "800"
+    fontWeight: "600"
   },
   removeText: {
-    color: "#9c3b31",
+    color: colors.danger,
     fontSize: 14,
-    fontWeight: "800"
+    fontWeight: "600"
   },
   errorText: {
-    color: "#9c3b31",
+    color: colors.danger,
     fontSize: 14,
-    fontWeight: "700"
+    fontWeight: "600"
   },
   rowHeader: {
     alignItems: "flex-start",
@@ -442,14 +442,14 @@ const styles = StyleSheet.create({
   },
   modalBackdrop: {
     alignItems: "center",
-    backgroundColor: "rgba(29, 36, 28, 0.45)",
+    backgroundColor: "rgba(17, 24, 39, 0.46)",
     flex: 1,
     justifyContent: "flex-end",
     padding: spacing.md
   },
   modalSheet: {
     backgroundColor: colors.surface,
-    borderRadius: 24,
+    borderRadius: 12,
     gap: spacing.md,
     maxHeight: "92%",
     maxWidth: 620,
@@ -463,7 +463,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     color: colors.textPrimary,
     fontSize: 24,
-    fontWeight: "800"
+    fontWeight: "600"
   },
   workoutChoiceList: {
     gap: spacing.md
@@ -474,13 +474,13 @@ const styles = StyleSheet.create({
   groupTitle: {
     color: colors.textPrimary,
     fontSize: 18,
-    fontWeight: "800",
+    fontWeight: "600",
     lineHeight: 24
   },
   workoutChoice: {
     alignItems: "center",
     borderColor: colors.border,
-    borderRadius: 18,
+    borderRadius: 12,
     borderWidth: 1,
     flexDirection: "row",
     gap: spacing.md,

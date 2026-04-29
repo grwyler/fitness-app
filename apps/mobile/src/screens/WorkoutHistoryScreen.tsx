@@ -139,13 +139,13 @@ const styles = StyleSheet.create({
   eyebrow: {
     color: colors.accentStrong,
     fontSize: 14,
-    fontWeight: "700",
+    fontWeight: "600",
     textTransform: "uppercase"
   },
   title: {
     color: colors.textPrimary,
     fontSize: 30,
-    fontWeight: "800",
+    fontWeight: "600",
     lineHeight: 36
   },
   subtitle: {
@@ -156,7 +156,7 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
     borderColor: colors.border,
-    borderRadius: 22,
+    borderRadius: 12,
     borderWidth: 1,
     gap: spacing.sm,
     padding: spacing.lg
@@ -170,7 +170,7 @@ const styles = StyleSheet.create({
   },
   summaryStat: {
     backgroundColor: colors.textPrimary,
-    borderRadius: 18,
+    borderRadius: 12,
     flex: 1,
     gap: spacing.xs,
     padding: spacing.md
@@ -178,12 +178,12 @@ const styles = StyleSheet.create({
   summaryValue: {
     color: colors.surface,
     fontSize: 24,
-    fontWeight: "800"
+    fontWeight: "600"
   },
   summaryLabel: {
     color: colors.surfaceMuted,
     fontSize: 12,
-    fontWeight: "800",
+    fontWeight: "600",
     textTransform: "uppercase"
   },
   cardHeader: {
@@ -199,13 +199,13 @@ const styles = StyleSheet.create({
   cardLabel: {
     color: colors.accentStrong,
     fontSize: 13,
-    fontWeight: "700",
+    fontWeight: "600",
     textTransform: "uppercase"
   },
   cardTitle: {
     color: colors.textPrimary,
     fontSize: 22,
-    fontWeight: "700"
+    fontWeight: "600"
   },
   cardBody: {
     color: colors.textSecondary,
@@ -215,13 +215,13 @@ const styles = StyleSheet.create({
   metaLine: {
     color: colors.textSecondary,
     fontSize: 14,
-    fontWeight: "700",
+    fontWeight: "600",
     lineHeight: 20
   },
   warningText: {
     color: colors.accentStrong,
     fontSize: 14,
-    fontWeight: "700"
+    fontWeight: "600"
   },
   highlightList: {
     flexDirection: "row",
@@ -233,7 +233,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     color: colors.textPrimary,
     fontSize: 12,
-    fontWeight: "800",
+    fontWeight: "600",
     overflow: "hidden",
     paddingHorizontal: spacing.sm,
     paddingVertical: 6
@@ -241,6 +241,6 @@ const styles = StyleSheet.create({
   detailHint: {
     color: colors.accentStrong,
     fontSize: 14,
-    fontWeight: "800"
+    fontWeight: "600"
   }
 });
