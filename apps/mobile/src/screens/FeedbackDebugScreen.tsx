@@ -4,6 +4,7 @@ import { Screen } from "../components/Screen";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { feedbackStorage } from "../features/feedback/storage/feedback-storage";
 import type { FeedbackEntry } from "../features/feedback/types";
+import { buildCodexPromptFromFeedbackEntries } from "../features/feedback/utils/build-codex-prompt";
 import { colors, spacing } from "../theme/tokens";
 
 export function FeedbackDebugScreen() {
@@ -40,6 +41,36 @@ export function FeedbackDebugScreen() {
     }
   }
 
+  async function copyCodexPrompt() {
+    try {
+      const prompt = buildCodexPromptFromFeedbackEntries(entries);
+      const hasNavigatorClipboard =
+        typeof navigator !== "undefined" &&
+        "clipboard" in navigator &&
+        typeof (navigator as any).clipboard?.writeText === "function";
+
+      if (hasNavigatorClipboard) {
+        await (navigator as any).clipboard.writeText(prompt);
+        Alert.alert("Copied", "Codex prompt copied to clipboard.");
+        return;
+      }
+
+      try {
+        const clipboard = await import("expo-clipboard");
+        await clipboard.setStringAsync(prompt);
+        Alert.alert("Copied", "Codex prompt copied to clipboard.");
+      } catch (error) {
+        console.error("Unable to copy prompt to clipboard", error);
+        await Share.share({
+          message: prompt
+        });
+      }
+    } catch (error) {
+      console.error("Unable to build feedback prompt", error);
+      Alert.alert("Copy failed", "Saved feedback could not be formatted for Codex.");
+    }
+  }
+
   return (
     <Screen>
       <View style={styles.header}>
@@ -51,7 +82,12 @@ export function FeedbackDebugScreen() {
 
       <View style={styles.actions}>
         <PrimaryButton label="Refresh" onPress={() => void loadEntries()} tone="secondary" loading={loading} />
-        <PrimaryButton label="Export JSON" onPress={() => void handleExport()} disabled={loading || entries.length === 0} />
+        <PrimaryButton
+          label="Copy Codex Prompt"
+          onPress={() => void copyCodexPrompt()}
+          disabled={loading || entries.length === 0}
+        />
+        <PrimaryButton label="Export JSON" onPress={() => void handleExport()} tone="secondary" disabled={loading || entries.length === 0} />
       </View>
 
       <View style={styles.card}>

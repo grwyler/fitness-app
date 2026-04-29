@@ -93,13 +93,11 @@ export function AppNavigator() {
             component={WorkoutSummaryScreen}
             options={{ title: "Workout Summary" }}
           />
-          {__DEV__ ? (
-            <Stack.Screen
-              name="FeedbackDebug"
-              component={FeedbackDebugScreen}
-              options={{ title: "Feedback Debug" }}
-            />
-          ) : null}
+          <Stack.Screen
+            name="FeedbackDebug"
+            component={FeedbackDebugScreen}
+            options={{ title: "Feedback Debug" }}
+          />
         </>
       )}
     </Stack.Navigator>

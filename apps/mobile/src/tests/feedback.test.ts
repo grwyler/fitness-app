@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { buildFeedbackContext } from "../features/feedback/utils/build-feedback-context.js";
+import { buildCodexPromptFromFeedbackEntries } from "../features/feedback/utils/build-codex-prompt.js";
 import { createFeedbackStorage } from "../features/feedback/storage/feedback-storage.js";
 import { createFeedbackEntry } from "../features/feedback/types.js";
 import {
@@ -70,7 +71,7 @@ export const feedbackTestCases: MobileTestCase[] = [
       assert.equal(shouldShowReviewFeedbackButton({ isDev: true, userEmail: "test@test.com" }), true);
       assert.equal(shouldShowReviewFeedbackButton({ isDev: true, userEmail: "Test@Test.com" }), true);
       assert.equal(shouldShowReviewFeedbackButton({ isDev: true, userEmail: "user@example.com" }), false);
-      assert.equal(shouldShowReviewFeedbackButton({ isDev: false, userEmail: "test@test.com" }), false);
+      assert.equal(shouldShowReviewFeedbackButton({ isDev: false, userEmail: "test@test.com" }), true);
     }
   },
   {
@@ -130,6 +131,37 @@ export const feedbackTestCases: MobileTestCase[] = [
       const exported = await storage.exportEntries();
       assert.match(exported, /"entry-2"/);
       assert.match(exported, /"entry-1"/);
+    }
+  }
+  ,
+  {
+    name: "Codex prompt builder includes JSON and triage instructions",
+    run: () => {
+      const entries = [
+        createFeedbackEntry({
+          id: "entry-1",
+          draft: {
+            description: "Button is confusing",
+            category: "Confusing",
+            severity: "Low"
+          },
+          context: {
+            screenName: "Dashboard",
+            routeName: "Dashboard",
+            timestamp: "2026-04-24T08:00:00.000Z",
+            platform: "web",
+            workoutSessionId: null,
+            appVersion: "0.1.0",
+            lastAction: "clicked_thing"
+          }
+        })
+      ];
+
+      const prompt = buildCodexPromptFromFeedbackEntries(entries);
+      assert.ok(prompt.includes("Triage workflow:"));
+      assert.ok(prompt.includes("Raw feedback entries (JSON):"));
+      assert.ok(prompt.includes("\"entry-1\""));
+      assert.ok(prompt.includes("docs/PRODUCT_ROADMAP.md"));
     }
   }
 ];

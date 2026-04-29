@@ -8,5 +8,5 @@ export function shouldShowReviewFeedbackButton(input: {
   isDev: boolean;
   userEmail: string | null | undefined;
 }) {
-  return input.isDev && isTestUserEmail(input.userEmail);
+  return isTestUserEmail(input.userEmail);
 }

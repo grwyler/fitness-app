@@ -103,9 +103,7 @@ export function createApp(options?: {
           database: options.database
         })
       );
-      if (env.NODE_ENV !== "production") {
-        app.use("/api/v1", createDevResetRouter(options.database));
-      }
+      app.use("/api/v1", createDevResetRouter(options.database));
     }
 
     app.use("/api/v1", options.workoutRouter);

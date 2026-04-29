@@ -9,11 +9,17 @@ The app includes a development/manual-validation reset flow for the seeded test 
 
 This exists only to support fresh end-to-end testing. It is not a general user data deletion feature.
 
+This endpoint is intentionally safe to keep enabled in production because it is hard-gated to the single seeded test account (`test@test.com`) on the backend.
+
 ## Mobile UI
 
 When the authenticated user email is exactly `test@test.com`, the Dashboard shows a low-risk `Dev/Test Tools` card with a `Reset Test Data` button.
 
 The button is hidden for every other authenticated user. The UI gate is only a convenience; the backend enforces the real restriction.
+
+The same test account also has access to a `Review feedback` button, which shows locally-saved `Report issue` entries and allows exporting them as JSON.
+
+For faster triage, the Saved feedback screen also provides a `Copy Codex Prompt` action that formats entries into a Codex-ready prompt. The prompt instructs Codex to either implement an obvious, low-risk fix or log a backlog item in `docs/PRODUCT_ROADMAP.md`.
 
 Before calling the API, the app asks for confirmation:
 
