@@ -2,7 +2,8 @@ import type {
   CreateCustomProgramRequest,
   PredefinedWorkoutCategory,
   ProgramDto,
-  ProgramWorkoutTemplateDto
+  ProgramWorkoutTemplateDto,
+  WorkoutSessionDto
 } from "@fitness/shared";
 import { predefinedWorkoutCategories } from "./dashboard-program.shared";
 
@@ -151,6 +152,33 @@ export function buildAssignedProgramRequest(input: {
       })
     },
     error: null
+  };
+}
+
+export function buildProgramDayWorkoutFromCustomSession(input: {
+  workout: WorkoutSessionDto;
+  name?: string;
+}): ProgramWorkoutTemplateDto {
+  const name = input.name?.trim().replace(/\s+/g, " ") || input.workout.workoutName;
+
+  return {
+    id: `custom-session:${input.workout.id}`,
+    name,
+    category: "Full Body",
+    sequenceOrder: 1,
+    estimatedDurationMinutes: null,
+    exercises: [...input.workout.exercises]
+      .sort((left, right) => left.sequenceOrder - right.sequenceOrder)
+      .map((exercise) => ({
+        id: `custom-session:${input.workout.id}:${exercise.id}`,
+        exerciseId: exercise.exerciseId,
+        exerciseName: exercise.exerciseName,
+        category: exercise.category,
+        sequenceOrder: exercise.sequenceOrder,
+        targetSets: exercise.targetSets,
+        targetReps: exercise.targetReps,
+        restSeconds: exercise.restSeconds
+      }))
   };
 }
 

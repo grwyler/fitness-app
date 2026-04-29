@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ProgramWorkoutTemplateDto } from "@fitness/shared";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
@@ -8,6 +8,7 @@ import type { RootStackParamList } from "../core/navigation/navigation-types";
 import { useCreateCustomProgram } from "../features/workout/hooks/useCreateCustomProgram";
 import { useFollowProgram } from "../features/workout/hooks/useFollowProgram";
 import { usePrograms } from "../features/workout/hooks/usePrograms";
+import { useStartWorkout } from "../features/workout/hooks/useStartWorkout";
 import {
   buildAssignedProgramRequest,
   createProgramDayAssignments,
@@ -25,7 +26,7 @@ type Props = NativeStackScreenProps<RootStackParamList, "CreateProgram">;
 
 const dayOptions = [1, 2, 3, 4, 5, 6] as const;
 
-export function CreateProgramScreen({ navigation }: Props) {
+export function CreateProgramScreen({ navigation, route }: Props) {
   const [programName, setProgramName] = useState("");
   const [daysPerWeek, setDaysPerWeek] = useState(3);
   const [days, setDays] = useState<ProgramDayAssignment[]>(createProgramDayAssignments(3));
@@ -35,6 +36,7 @@ export function CreateProgramScreen({ navigation }: Props) {
   const programsQuery = usePrograms();
   const createProgramMutation = useCreateCustomProgram();
   const followProgramMutation = useFollowProgram();
+  const startWorkoutMutation = useStartWorkout();
 
   const workoutChoices = useMemo(
     () => getAssignableWorkoutChoices(programsQuery.data ?? []),
@@ -45,6 +47,22 @@ export function CreateProgramScreen({ navigation }: Props) {
     [workoutChoices]
   );
   const hasCustomWorkoutChoices = workoutChoices.some((choice) => choice.source === "custom");
+
+  useEffect(() => {
+    const assignedDayNumber = route.params?.assignedDayNumber;
+    const assignedWorkout = route.params?.assignedWorkout;
+
+    if (!assignedDayNumber || !assignedWorkout) {
+      return;
+    }
+
+    assignWorkoutToDay(assignedDayNumber, assignedWorkout);
+    navigation.setParams({
+      assignedDayNumber: undefined,
+      assignedWorkout: undefined,
+      assignmentId: undefined
+    });
+  }, [navigation, route.params?.assignmentId]);
 
   function updateDaysPerWeek(nextDaysPerWeek: number) {
     setDaysPerWeek(nextDaysPerWeek);
@@ -63,6 +81,24 @@ export function CreateProgramScreen({ navigation }: Props) {
     );
     setPickerDayNumber(null);
     setSavedProgramId(null);
+  }
+
+  function createCustomWorkoutForDay(dayNumber: number) {
+    setPickerDayNumber(null);
+    setSavedProgramId(null);
+    startWorkoutMutation.mutate(
+      {
+        sessionType: "custom"
+      },
+      {
+        onSuccess: () => {
+          navigation.navigate("ActiveWorkout", {
+            mode: "assignToProgramDay",
+            programDayNumber: dayNumber
+          });
+        }
+      }
+    );
   }
 
   function handleSaveProgram() {
@@ -135,8 +171,6 @@ export function CreateProgramScreen({ navigation }: Props) {
         <Text style={styles.label}>Program days</Text>
         {programsQuery.isLoading ? (
           <Text style={styles.body}>Loading workouts...</Text>
-        ) : workoutChoices.length === 0 ? (
-          <Text style={styles.body}>No reusable workouts are available yet.</Text>
         ) : (
           days.map((day) => (
             <View key={day.dayNumber} style={styles.dayCard}>
@@ -155,7 +189,7 @@ export function CreateProgramScreen({ navigation }: Props) {
               {day.workout ? (
                 <WorkoutPreview workout={day.workout} />
               ) : (
-                <Text style={styles.body}>Choose a predefined workout for this day.</Text>
+                <Text style={styles.body}>Choose a predefined workout or create one from scratch.</Text>
               )}
             </View>
           ))
@@ -177,6 +211,9 @@ export function CreateProgramScreen({ navigation }: Props) {
       {followProgramMutation.error instanceof Error ? (
         <Text style={styles.errorText}>{followProgramMutation.error.message}</Text>
       ) : null}
+      {startWorkoutMutation.error instanceof Error ? (
+        <Text style={styles.errorText}>{startWorkoutMutation.error.message}</Text>
+      ) : null}
 
       {savedProgramId ? (
         <View style={styles.card}>
@@ -195,7 +232,7 @@ export function CreateProgramScreen({ navigation }: Props) {
       ) : (
         <PrimaryButton
           label="Save Program"
-          disabled={programsQuery.isLoading || workoutChoices.length === 0}
+          disabled={programsQuery.isLoading || startWorkoutMutation.isPending}
           loading={createProgramMutation.isPending}
           onPress={handleSaveProgram}
         />
@@ -205,7 +242,13 @@ export function CreateProgramScreen({ navigation }: Props) {
         groups={workoutGroups}
         loading={programsQuery.isLoading}
         visible={pickerDayNumber !== null}
+        creatingCustomWorkout={startWorkoutMutation.isPending}
         onClose={() => setPickerDayNumber(null)}
+        onCreateCustomWorkout={() => {
+          if (pickerDayNumber !== null) {
+            createCustomWorkoutForDay(pickerDayNumber);
+          }
+        }}
         onSelectWorkout={(choice) => {
           if (pickerDayNumber !== null) {
             assignWorkoutToDay(pickerDayNumber, choice.workout);
@@ -241,7 +284,9 @@ function WorkoutPickerModal(props: {
   groups: AssignableWorkoutGroup[];
   loading: boolean;
   visible: boolean;
+  creatingCustomWorkout: boolean;
   onClose: () => void;
+  onCreateCustomWorkout: () => void;
   onSelectWorkout: (choice: AssignableWorkoutChoice) => void;
 }) {
   return (
@@ -259,10 +304,22 @@ function WorkoutPickerModal(props: {
           </View>
 
           <ScrollView contentContainerStyle={styles.workoutChoiceList}>
+            <Pressable
+              accessibilityRole="button"
+              disabled={props.creatingCustomWorkout}
+              onPress={props.onCreateCustomWorkout}
+              style={[styles.workoutChoice, props.creatingCustomWorkout && styles.disabledChoice]}
+            >
+              <View style={styles.workoutTitleGroup}>
+                <Text style={styles.workoutName}>Create Custom Workout</Text>
+                <Text style={styles.exerciseMeta}>Build this program day from manually added exercises.</Text>
+              </View>
+              <Text style={styles.addText}>{props.creatingCustomWorkout ? "Starting..." : "Create"}</Text>
+            </Pressable>
             {props.loading ? (
               <Text style={styles.body}>Loading workouts...</Text>
             ) : props.groups.length === 0 ? (
-              <Text style={styles.body}>No reusable workouts are available yet.</Text>
+              <Text style={styles.body}>No predefined or reusable workouts are available yet.</Text>
             ) : (
               props.groups.map((group) => (
                 <View key={group.title} style={styles.workoutGroup}>
@@ -486,5 +543,8 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     justifyContent: "space-between",
     padding: spacing.md
+  },
+  disabledChoice: {
+    opacity: 0.6
   }
 });

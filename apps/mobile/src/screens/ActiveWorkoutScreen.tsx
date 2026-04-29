@@ -18,6 +18,8 @@ import { useAddCustomWorkoutExercise } from "../features/workout/hooks/useCustom
 import { useExercises } from "../features/workout/hooks/useExercises";
 import { useAddWorkoutSet, useDeleteWorkoutSet } from "../features/workout/hooks/useWorkoutSets";
 import { useActiveWorkoutStore } from "../features/workout/store/active-workout-store";
+import { type CustomWorkoutBuilderMode } from "../features/workout/utils/custom-workout-builder.shared";
+import { buildProgramDayWorkoutFromCustomSession } from "../features/workout/utils/program-creator.shared";
 import {
   buildCompleteWorkoutRequest,
   getFinishWorkoutPressAction,
@@ -42,7 +44,7 @@ type RestTimerState = {
   setNumber: number;
 } | null;
 
-export function ActiveWorkoutScreen({ navigation }: Props) {
+export function ActiveWorkoutScreen({ navigation, route }: Props) {
   const currentWorkoutQuery = useCurrentWorkout();
   const logSetMutation = useLogSet();
   const addWorkoutSetMutation = useAddWorkoutSet();
@@ -63,6 +65,7 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
   const [isExercisePickerOpen, setIsExercisePickerOpen] = useState(false);
   const [selectedCustomExerciseIds, setSelectedCustomExerciseIds] = useState<string[]>([]);
   const [customExerciseError, setCustomExerciseError] = useState<string | null>(null);
+  const [programDayWorkoutName, setProgramDayWorkoutName] = useState("");
   const [restTimer, setRestTimer] = useState<RestTimerState>(null);
   const inFlightSetIds = useRef<Set<string>>(new Set());
   const completionInFlight = useRef(false);
@@ -70,6 +73,9 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
   const promptedCustomExerciseSessionId = useRef<string | null>(null);
   const activeWorkout = currentWorkoutQuery.data?.activeWorkoutSession ?? null;
   const exercisesQuery = useExercises(isExercisePickerOpen);
+  const customWorkoutBuilderMode: CustomWorkoutBuilderMode = route.params?.mode ?? "start";
+  const isProgramDayCustomWorkoutBuilder = customWorkoutBuilderMode === "assignToProgramDay";
+  const programDayNumber = route.params?.programDayNumber ?? null;
 
   useEffect(() => {
     if (!restTimer) {
@@ -317,6 +323,11 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
       },
       {
         onSuccess: () => {
+          if (isProgramDayCustomWorkoutBuilder) {
+            navigation.navigate("CreateProgram");
+            return;
+          }
+
           navigation.replace("Dashboard");
         },
         onError: () => {
@@ -336,6 +347,10 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
   }
 
   async function handleAddCustomExercises() {
+    if (cancelWorkoutMutation.isPending) {
+      return;
+    }
+
     if (selectedCustomExerciseIds.length === 0) {
       setCustomExerciseError("Choose at least one exercise to continue.");
       return;
@@ -344,12 +359,46 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
     try {
       setCustomExerciseError(null);
       setLastAction(`add_custom_exercises:${selectedCustomExerciseIds.length}`);
+      let latestWorkout = workout;
+
       for (const exerciseId of selectedCustomExerciseIds) {
-        await addCustomWorkoutExerciseMutation.mutateAsync({
+        const result = await addCustomWorkoutExerciseMutation.mutateAsync({
           sessionId: workout.id,
           exerciseId
         });
+        latestWorkout = result.response.data;
       }
+
+      if (isProgramDayCustomWorkoutBuilder && programDayNumber) {
+        const assignedWorkout = buildProgramDayWorkoutFromCustomSession({
+          workout: latestWorkout,
+          name: programDayWorkoutName
+        });
+
+        discardInFlight.current = true;
+        setLastAction(`assign_custom_workout_to_program_day:${programDayNumber}`);
+        cancelWorkoutMutation.mutate(
+          {
+            sessionId: workout.id
+          },
+          {
+            onSuccess: () => {
+              setSelectedCustomExerciseIds([]);
+              setIsExercisePickerOpen(false);
+              navigation.navigate("CreateProgram", {
+                assignedDayNumber: programDayNumber,
+                assignedWorkout,
+                assignmentId: `${workout.id}:${programDayNumber}`
+              });
+            },
+            onError: () => {
+              discardInFlight.current = false;
+            }
+          }
+        );
+        return;
+      }
+
       setSelectedCustomExerciseIds([]);
       setIsExercisePickerOpen(false);
     } catch {
@@ -362,7 +411,9 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
       <View style={styles.header}>
         <Text style={styles.title}>{workout.workoutName}</Text>
         <Text style={styles.subtitle}>
-          {workout.sessionType === "custom"
+          {isProgramDayCustomWorkoutBuilder && programDayNumber
+            ? `Building custom workout for Program Day ${programDayNumber}`
+            : workout.sessionType === "custom"
             ? workout.exercises.length === 0
               ? "Custom workout started."
               : `${workout.exercises.length} exercises in progress`
@@ -469,8 +520,12 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
             {getWorkoutDiscardErrorMessage(cancelWorkoutMutation.error)}
           </Text>
         ) : null}
-        <Text style={styles.footerText}>{completionUiState.footerMessage}</Text>
-        {showFinishEarlyConfirmation ? (
+        <Text style={styles.footerText}>
+          {isProgramDayCustomWorkoutBuilder
+            ? "Choose exercises for this program day, then return to your program."
+            : completionUiState.footerMessage}
+        </Text>
+        {!isProgramDayCustomWorkoutBuilder && showFinishEarlyConfirmation ? (
           <View style={styles.confirmation}>
             <Text style={styles.confirmationTitle}>Finish early?</Text>
             <Text style={styles.footerText}>
@@ -514,19 +569,21 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
             </View>
           </View>
         ) : null}
-        <PrimaryButton
-          label={completionUiState.finishButtonLabel}
-          onPress={handleFinishPress}
-          disabled={
-            completionUiState.finishButtonDisabled ||
-            completionInFlight.current ||
-            cancelWorkoutMutation.isPending
-          }
-          loading={completeWorkoutMutation.isPending}
-        />
+        {!isProgramDayCustomWorkoutBuilder ? (
+          <PrimaryButton
+            label={completionUiState.finishButtonLabel}
+            onPress={handleFinishPress}
+            disabled={
+              completionUiState.finishButtonDisabled ||
+              completionInFlight.current ||
+              cancelWorkoutMutation.isPending
+            }
+            loading={completeWorkoutMutation.isPending}
+          />
+        ) : null}
         {!showDiscardConfirmation ? (
           <PrimaryButton
-            label="Discard Workout"
+            label={isProgramDayCustomWorkoutBuilder ? "Cancel Custom Workout" : "Discard Workout"}
             tone="danger"
             onPress={() => {
               setShowFinishEarlyConfirmation(false);
@@ -546,9 +603,16 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
         errorMessage={customExerciseError}
         exercises={availableCustomExercises}
         loadingExercises={exercisesQuery.isLoading}
+        mode={customWorkoutBuilderMode}
+        programDayNumber={programDayNumber}
         selectedExerciseIds={selectedCustomExerciseIds}
-        submitting={addCustomWorkoutExerciseMutation.isPending}
+        workoutName={programDayWorkoutName}
+        submitting={
+          addCustomWorkoutExerciseMutation.isPending ||
+          (isProgramDayCustomWorkoutBuilder && cancelWorkoutMutation.isPending)
+        }
         visible={isExercisePickerOpen && workout.sessionType === "custom"}
+        onChangeWorkoutName={setProgramDayWorkoutName}
         onClose={() => {
           setIsExercisePickerOpen(false);
           setCustomExerciseError(null);

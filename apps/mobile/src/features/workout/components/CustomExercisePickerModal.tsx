@@ -1,19 +1,27 @@
 import type { ExerciseCatalogItemDto } from "@fitness/shared";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { PrimaryButton } from "../../../components/PrimaryButton";
 import { colors, spacing } from "../../../theme/tokens";
 import {
   CUSTOM_WORKOUT_DEFAULT_TARGET_REPS,
   CUSTOM_WORKOUT_DEFAULT_TARGET_SETS
 } from "../hooks/useCustomWorkoutExercises";
+import {
+  getCustomExercisePickerActionLabel,
+  type CustomWorkoutBuilderMode
+} from "../utils/custom-workout-builder.shared";
 
 export function CustomExercisePickerModal(props: {
   errorMessage: string | null;
   exercises: ExerciseCatalogItemDto[];
   loadingExercises: boolean;
+  mode: CustomWorkoutBuilderMode;
+  programDayNumber?: number | null;
   selectedExerciseIds: string[];
+  workoutName?: string;
   submitting: boolean;
   visible: boolean;
+  onChangeWorkoutName?: (value: string) => void;
   onClose: () => void;
   onStart: () => void;
   onToggleExercise: (exerciseId: string) => void;
@@ -32,6 +40,19 @@ export function CustomExercisePickerModal(props: {
                 Selected exercises start with {CUSTOM_WORKOUT_DEFAULT_TARGET_SETS} x{" "}
                 {CUSTOM_WORKOUT_DEFAULT_TARGET_REPS}. You can add or remove sets while logging.
               </Text>
+              {props.mode === "assignToProgramDay" ? (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Workout name</Text>
+                  <TextInput
+                    autoCapitalize="words"
+                    onChangeText={props.onChangeWorkoutName}
+                    placeholder="Optional"
+                    placeholderTextColor={colors.textSecondary}
+                    style={styles.input}
+                    value={props.workoutName ?? ""}
+                  />
+                </View>
+              ) : null}
             </View>
             <Pressable accessibilityRole="button" onPress={props.onClose} style={styles.closeButton}>
               <Text style={styles.closeLabel}>Close</Text>
@@ -73,13 +94,11 @@ export function CustomExercisePickerModal(props: {
 
           {props.errorMessage ? <Text style={styles.errorText}>{props.errorMessage}</Text> : null}
           <PrimaryButton
-            label={
-              props.selectedExerciseIds.length === 0
-                ? "Choose at least one exercise"
-                : `Start with ${props.selectedExerciseIds.length} exercise${
-                    props.selectedExerciseIds.length === 1 ? "" : "s"
-                  }`
-            }
+            label={getCustomExercisePickerActionLabel({
+              selectedExerciseCount: props.selectedExerciseIds.length,
+              mode: props.mode,
+              programDayNumber: props.programDayNumber
+            })}
             disabled={props.submitting || props.loadingExercises}
             loading={props.submitting}
             onPress={props.onStart}
@@ -132,6 +151,27 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: 16,
     lineHeight: 22
+  },
+  inputGroup: {
+    gap: spacing.xs,
+    marginTop: spacing.xs
+  },
+  inputLabel: {
+    color: colors.accentStrong,
+    fontSize: 13,
+    fontWeight: "600",
+    textTransform: "uppercase"
+  },
+  input: {
+    backgroundColor: colors.background,
+    borderColor: colors.border,
+    borderRadius: 12,
+    borderWidth: 1,
+    color: colors.textPrimary,
+    fontSize: 17,
+    fontWeight: "600",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm
   },
   closeButton: {
     paddingVertical: spacing.xs
