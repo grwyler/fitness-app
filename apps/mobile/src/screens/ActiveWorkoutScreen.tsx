@@ -98,6 +98,22 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
     return () => clearInterval(interval);
   }, [restTimer?.endAtMs]);
 
+  const restSecondsRemaining = restTimer
+    ? getRestTimerSecondsRemaining({ endAtMs: restTimer.endAtMs, nowMs: restTimerNowMs })
+    : 0;
+
+  useEffect(() => {
+    if (!restTimer) {
+      return;
+    }
+
+    if (restSecondsRemaining > 0) {
+      return;
+    }
+
+    setRestTimer(null);
+  }, [restSecondsRemaining, restTimer?.endAtMs]);
+
   useEffect(() => {
     if (Platform.OS !== "web") {
       return undefined;
@@ -212,9 +228,6 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
     hasPendingSetSave
   });
 
-  const restSecondsRemaining = restTimer
-    ? getRestTimerSecondsRemaining({ endAtMs: restTimer.endAtMs, nowMs: restTimerNowMs })
-    : 0;
   const restTimerCard = restTimer ? (
     <View style={styles.restTimerCard}>
       <View style={styles.restTimerTextGroup}>
