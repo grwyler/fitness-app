@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
-import type { ProgramDto, ProgramWorkoutTemplateDto, WorkoutSessionDto } from "@fitness/shared";
+import type {
+  ExerciseCatalogItemDto,
+  ProgramDto,
+  ProgramWorkoutTemplateDto,
+  WorkoutSessionDto
+} from "@fitness/shared";
 import {
   buildAssignedProgramRequest,
+  buildProgramDayWorkoutFromExerciseSelection,
   buildProgramDayWorkoutFromCustomSession,
   createProgramDayAssignments,
   getAssignableWorkoutChoices,
@@ -122,6 +128,33 @@ const customWorkoutSession: WorkoutSessionDto = {
     }
   ]
 };
+
+const selectedExercises: ExerciseCatalogItemDto[] = [
+  {
+    id: "exercise-bench",
+    name: "Bench Press",
+    category: "compound",
+    movementPattern: "horizontal_push",
+    primaryMuscleGroup: "chest",
+    equipmentType: "barbell"
+  },
+  {
+    id: "exercise-row",
+    name: "Barbell Row",
+    category: "compound",
+    movementPattern: "horizontal_pull",
+    primaryMuscleGroup: "back",
+    equipmentType: "barbell"
+  },
+  {
+    id: "exercise-split-squat",
+    name: "Split Squat",
+    category: "compound",
+    movementPattern: "squat",
+    primaryMuscleGroup: "quads",
+    equipmentType: "dumbbell"
+  }
+];
 
 export const programCreatorTestCases: MobileTestCase[] = [
   {
@@ -244,16 +277,38 @@ export const programCreatorTestCases: MobileTestCase[] = [
     }
   },
   {
+    name: "Program creator builds a program-day workout directly from selected exercises",
+    run: () => {
+      const workout = buildProgramDayWorkoutFromExerciseSelection({
+        exercises: selectedExercises,
+        name: "Day 1 Builder",
+        targetSets: 3,
+        targetReps: 8
+      });
+
+      assert.equal(workout.name, "Day 1 Builder");
+      assert.deepEqual(
+        workout.exercises.map((exercise) => exercise.exerciseName),
+        ["Bench Press", "Barbell Row", "Split Squat"]
+      );
+      assert.equal(workout.exercises[0]?.targetSets, 3);
+      assert.equal(workout.exercises[2]?.targetReps, 8);
+    }
+  },
+  {
     name: "Assigned custom workout keeps exercise summary lines for the program day preview",
     run: () => {
-      const customBuiltWorkout = buildProgramDayWorkoutFromCustomSession({
-        workout: customWorkoutSession,
-        name: "Day 1 Builder"
+      const customBuiltWorkout = buildProgramDayWorkoutFromExerciseSelection({
+        exercises: selectedExercises,
+        name: "Day 1 Builder",
+        targetSets: 3,
+        targetReps: 8
       });
 
       assert.deepEqual(getPlannedExerciseLines(customBuiltWorkout, 3), [
         "Bench Press: 3 x 8",
-        "Barbell Row: 3 x 8"
+        "Barbell Row: 3 x 8",
+        "Split Squat: 3 x 8"
       ]);
     }
   },
@@ -261,9 +316,11 @@ export const programCreatorTestCases: MobileTestCase[] = [
     name: "Program creator uses optional custom workout name when assigning builder workout",
     run: () => {
       const [day] = createProgramDayAssignments(1);
-      const customBuiltWorkout = buildProgramDayWorkoutFromCustomSession({
-        workout: customWorkoutSession,
-        name: "  Bench and Rows  "
+      const customBuiltWorkout = buildProgramDayWorkoutFromExerciseSelection({
+        exercises: selectedExercises,
+        name: "  Bench and Rows  ",
+        targetSets: 3,
+        targetReps: 8
       });
       const result = buildAssignedProgramRequest({
         name: "Named Program",

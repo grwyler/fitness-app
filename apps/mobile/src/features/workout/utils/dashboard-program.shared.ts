@@ -61,7 +61,7 @@ export function getNextProgramPositionLabel(activeProgram: ActiveProgramDto | nu
   const week = Math.floor(completedWorkoutCount / daysPerWeek) + 1;
   const day = (completedWorkoutCount % daysPerWeek) + 1;
 
-  return `Week ${week} · Day ${day}`;
+  return `Week ${week} • Day ${day}`;
 }
 
 export function findProgramWorkoutById(input: {
@@ -180,7 +180,7 @@ export function getProgramWorkoutPositionLabel(input: {
   const week = Math.floor((workoutNumber - 1) / daysPerWeek) + 1;
   const day = ((workoutNumber - 1) % daysPerWeek) + 1;
 
-  return `Week ${week} · Day ${day}`;
+  return `Week ${week} • Day ${day}`;
 }
 
 export function getWorkoutIntentSummary(workout: ProgramWorkoutTemplateDto | null | undefined) {
@@ -240,9 +240,12 @@ export function getWorkoutStartActionLabels(input: {
   hasActiveProgram: boolean;
   hasPredefinedChoices: boolean;
   hasRecommendedWorkout: boolean;
+  recommendedWorkoutName?: string | null;
 }) {
   return [
-    ...(input.hasActiveProgram && input.hasRecommendedWorkout ? ["Start Recommended Workout"] : []),
+    ...(input.hasActiveProgram && input.hasRecommendedWorkout
+      ? [`Start ${input.recommendedWorkoutName ?? "Next Workout"}`]
+      : []),
     "Create Custom Workout",
     ...(input.hasPredefinedChoices ? ["Choose Predefined Workout"] : [])
   ];

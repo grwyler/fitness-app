@@ -22,7 +22,6 @@ import {
   getPlannedExerciseLines,
   getProgramSectionActionLabels,
   getProgramWorkoutPositionLabel,
-  getProgramWorkouts,
   getWorkoutStartActionLabels,
   getWorkoutIntentSummary,
   groupPredefinedWorkoutChoicesByCategory,
@@ -143,14 +142,11 @@ export function DashboardScreen({ navigation }: Props) {
   const activeProgram = dashboard.activeProgram;
   const activeWorkout = dashboard.activeWorkoutSession;
   const nextWorkout = dashboard.nextWorkoutTemplate;
-  const programWorkouts = getProgramWorkouts(activeProgram);
   const nextWorkoutPlan = findProgramWorkoutById({
     activeProgram,
     workoutTemplateId: nextWorkout?.id
   });
   const programPositionLabel = getNextProgramPositionLabel(activeProgram);
-  const plannedExerciseLines = getPlannedExerciseLines(nextWorkoutPlan);
-  const hiddenExerciseCount = getHiddenExerciseCount(nextWorkoutPlan, plannedExerciseLines.length);
   const availablePrograms = programsQuery.data ?? [];
   const primarySectionOrder = getDashboardPrimarySectionOrder({
     hasActiveProgram: Boolean(activeProgram)
@@ -168,7 +164,8 @@ export function DashboardScreen({ navigation }: Props) {
     activeWorkout: Boolean(activeWorkout),
     hasActiveProgram: Boolean(activeProgram),
     hasPredefinedChoices,
-    hasRecommendedWorkout: Boolean(nextWorkout)
+    hasRecommendedWorkout: Boolean(nextWorkout),
+    recommendedWorkoutName: nextWorkout?.name
   });
   const isStartingPredefinedWorkout =
     (startWorkoutMutation.isPending || followProgramMutation.isPending) &&
@@ -287,14 +284,20 @@ export function DashboardScreen({ navigation }: Props) {
 
       <View style={styles.card}>
         <Text style={styles.cardLabel}>Start workout</Text>
-        <Text style={styles.cardTitle}>Create Workout</Text>
-        {programPositionLabel ? <Text style={styles.positionText}>{programPositionLabel}</Text> : null}
-        <Text style={styles.cardBody}>
-          Start from a blank workout when you know what you want to train. Predefined workouts are still available when you want structure.
-        </Text>
+        <Text style={styles.cardTitle}>{nextWorkout ? "Next Workout" : "Start Workout"}</Text>
+        {nextWorkout ? (
+          <View style={styles.nextWorkoutSummary}>
+            {programPositionLabel ? <Text style={styles.positionText}>{programPositionLabel}</Text> : null}
+            <Text style={styles.nextWorkoutName}>{nextWorkout.name}</Text>
+            <Text style={styles.metaLine}>
+              {activeProgram?.program.name ?? "Current program"} - estimated{" "}
+              {nextWorkout.estimatedDurationMinutes ?? activeProgram?.program.sessionDurationMinutes ?? 0} minutes
+            </Text>
+          </View>
+        ) : null}
         {nextWorkout ? (
           <PrimaryButton
-            label="Start Recommended Workout"
+            label={workoutStartActionLabels[0] ?? `Start ${nextWorkout.name}`}
             onPress={() => {
               setLastAction("start_recommended_workout");
               setSelectedStartingWorkoutId(nextWorkout.id);
@@ -315,67 +318,50 @@ export function DashboardScreen({ navigation }: Props) {
             loading={isStartingRecommendedWorkout}
           />
         ) : null}
-        <PrimaryButton
-          label="Create Custom Workout"
-          tone="secondary"
-          onPress={() => {
-            setLastAction("start_custom_workout");
-            setSelectedStartingWorkoutId("custom-workout");
-            startWorkoutMutation.mutate(
-              {
-                sessionType: "custom"
-              },
-              {
-                onSuccess: () => {
-                  setSelectedStartingWorkoutId(null);
-                  navigation.navigate("ActiveWorkout");
-                },
-                onError: () => {
-                  setSelectedStartingWorkoutId(null);
-                }
-              }
-            );
-          }}
-          disabled={Boolean(activeWorkout || startWorkoutMutation.isPending)}
-          loading={isStartingCustomWorkout}
-        />
-        {hasPredefinedChoices ? (
+        <View style={styles.secondaryWorkoutActions}>
           <PrimaryButton
-            label="Choose Predefined Workout"
+            label="Create Custom Workout"
             tone="secondary"
-            disabled={Boolean(
-              activeWorkout ||
-                startWorkoutMutation.isPending ||
-                followProgramMutation.isPending ||
-                programsQuery.isLoading
-            )}
             onPress={() => {
-              setLastAction("choose_predefined_workout");
-              setIsWorkoutPickerOpen(true);
+              setLastAction("start_custom_workout");
+              setSelectedStartingWorkoutId("custom-workout");
+              startWorkoutMutation.mutate(
+                {
+                  sessionType: "custom"
+                },
+                {
+                  onSuccess: () => {
+                    setSelectedStartingWorkoutId(null);
+                    navigation.navigate("ActiveWorkout");
+                  },
+                  onError: () => {
+                    setSelectedStartingWorkoutId(null);
+                  }
+                }
+              );
             }}
+            disabled={Boolean(activeWorkout || startWorkoutMutation.isPending)}
+            loading={isStartingCustomWorkout}
           />
-        ) : null}
+          {hasPredefinedChoices ? (
+            <PrimaryButton
+              label="Choose Predefined Workout"
+              tone="secondary"
+              disabled={Boolean(
+                activeWorkout ||
+                  startWorkoutMutation.isPending ||
+                  followProgramMutation.isPending ||
+                  programsQuery.isLoading
+              )}
+              onPress={() => {
+                setLastAction("choose_predefined_workout");
+                setIsWorkoutPickerOpen(true);
+              }}
+            />
+          ) : null}
+        </View>
         {nextWorkout ? (
-          <View style={styles.intentBlock}>
-            <Text style={styles.sectionTitle}>Recommended from your program</Text>
-            <Text style={styles.cardTitle}>{nextWorkout.name}</Text>
-            <Text style={styles.cardBody}>
-              {activeProgram?.program.name ?? "Current program"} - estimated {nextWorkout.estimatedDurationMinutes ?? activeProgram?.program.sessionDurationMinutes ?? 0} minutes
-            </Text>
-            <Text style={styles.cardBody}>{getWorkoutIntentSummary(nextWorkoutPlan)}</Text>
-            {plannedExerciseLines.length > 0 ? (
-              <View style={styles.exerciseList}>
-                {plannedExerciseLines.map((line) => (
-                  <Text key={line} style={styles.exerciseLine}>
-                    {line}
-                  </Text>
-                ))}
-                {hiddenExerciseCount > 0 ? (
-                  <Text style={styles.exerciseLine}>+{hiddenExerciseCount} more planned</Text>
-                ) : null}
-              </View>
-            ) : null}
-          </View>
+          <Text style={styles.cardBody}>{getWorkoutIntentSummary(nextWorkoutPlan)}</Text>
         ) : activeProgram ? (
           <Text style={styles.cardBody}>Your program does not have a workout queued.</Text>
         ) : null}
@@ -760,8 +746,14 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     lineHeight: 22
   },
-  intentBlock: {
+  nextWorkoutSummary: {
     gap: spacing.xs
+  },
+  nextWorkoutName: {
+    color: colors.textPrimary,
+    fontSize: 28,
+    fontWeight: "700",
+    lineHeight: 34
   },
   exerciseList: {
     gap: spacing.xs
@@ -775,10 +767,8 @@ const styles = StyleSheet.create({
   programBlock: {
     gap: spacing.sm
   },
-  sectionTitle: {
-    color: colors.textPrimary,
-    fontSize: 15,
-    fontWeight: "600"
+  secondaryWorkoutActions: {
+    gap: spacing.xs
   },
   errorText: {
     color: colors.accentStrong,

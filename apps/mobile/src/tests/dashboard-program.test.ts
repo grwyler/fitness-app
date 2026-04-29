@@ -118,7 +118,7 @@ function createActiveProgram(overrides?: {
           ? `Workout ${(overrides?.completedWorkoutCount ?? 0) + 1}`
           : `Week ${
               Math.floor((overrides?.completedWorkoutCount ?? 0) / (overrides?.daysPerWeek ?? 3)) + 1
-            } · Day ${((overrides?.completedWorkoutCount ?? 0) % (overrides?.daysPerWeek ?? 3)) + 1}`
+            } • Day ${((overrides?.completedWorkoutCount ?? 0) % (overrides?.daysPerWeek ?? 3)) + 1}`
     }
   };
 }
@@ -154,23 +154,24 @@ export const dashboardProgramTestCases: MobileTestCase[] = [
           activeWorkout: false,
           hasActiveProgram: true,
           hasPredefinedChoices: true,
-          hasRecommendedWorkout: true
+          hasRecommendedWorkout: true,
+          recommendedWorkoutName: "Workout A"
         }),
-        ["Start Recommended Workout", "Create Custom Workout", "Choose Predefined Workout"]
+        ["Start Workout A", "Create Custom Workout", "Choose Predefined Workout"]
       );
     }
   },
   {
     name: "Dashboard program label derives next week and day from completed count",
     run: () => {
-      assert.equal(getNextProgramPositionLabel(createActiveProgram()), "Week 1 · Day 1");
+      assert.equal(getNextProgramPositionLabel(createActiveProgram()), "Week 1 • Day 1");
       assert.equal(
         getNextProgramPositionLabel(createActiveProgram({ completedWorkoutCount: 2 })),
-        "Week 1 · Day 3"
+        "Week 1 • Day 3"
       );
       assert.equal(
         getNextProgramPositionLabel(createActiveProgram({ completedWorkoutCount: 3 })),
-        "Week 2 · Day 1"
+        "Week 2 • Day 1"
       );
     }
   },
@@ -213,9 +214,10 @@ export const dashboardProgramTestCases: MobileTestCase[] = [
           activeWorkout: false,
           hasActiveProgram: true,
           hasPredefinedChoices: true,
-          hasRecommendedWorkout: true
+          hasRecommendedWorkout: true,
+          recommendedWorkoutName: "Workout A"
         }),
-        ["Start Recommended Workout", "Create Custom Workout", "Choose Predefined Workout"]
+        ["Start Workout A", "Create Custom Workout", "Choose Predefined Workout"]
       );
     }
   },
@@ -266,7 +268,8 @@ export const dashboardProgramTestCases: MobileTestCase[] = [
           activeWorkout: false,
           hasActiveProgram: true,
           hasPredefinedChoices: getProgramWorkouts(expandedProgram).length > 0,
-          hasRecommendedWorkout: true
+          hasRecommendedWorkout: true,
+          recommendedWorkoutName: "Workout A"
         })[2],
         "Choose Predefined Workout"
       );
@@ -284,9 +287,10 @@ export const dashboardProgramTestCases: MobileTestCase[] = [
           activeWorkout: true,
           hasActiveProgram: true,
           hasPredefinedChoices: true,
-          hasRecommendedWorkout: true
+          hasRecommendedWorkout: true,
+          recommendedWorkoutName: "Workout A"
         }),
-        ["Start Recommended Workout", "Create Custom Workout", "Choose Predefined Workout"]
+        ["Start Workout A", "Create Custom Workout", "Choose Predefined Workout"]
       );
     }
   },
@@ -305,7 +309,7 @@ export const dashboardProgramTestCases: MobileTestCase[] = [
           activeProgram,
           workout: workoutB
         }),
-        "Week 1 · Day 2"
+        "Week 1 • Day 2"
       );
     }
   },

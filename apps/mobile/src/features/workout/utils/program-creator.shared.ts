@@ -1,5 +1,6 @@
 import type {
   CreateCustomProgramRequest,
+  ExerciseCatalogItemDto,
   PredefinedWorkoutCategory,
   ProgramDto,
   ProgramWorkoutTemplateDto,
@@ -179,6 +180,34 @@ export function buildProgramDayWorkoutFromCustomSession(input: {
         targetReps: exercise.targetReps,
         restSeconds: exercise.restSeconds
       }))
+  };
+}
+
+export function buildProgramDayWorkoutFromExerciseSelection(input: {
+  exercises: ExerciseCatalogItemDto[];
+  name?: string;
+  targetSets: number;
+  targetReps: number;
+}): ProgramWorkoutTemplateDto {
+  const name = input.name?.trim().replace(/\s+/g, " ") || "Custom Workout";
+  const workoutIdSuffix = input.exercises.map((exercise) => exercise.id).join(":") || "empty";
+
+  return {
+    id: `custom-builder:${workoutIdSuffix}`,
+    name,
+    category: "Full Body",
+    sequenceOrder: 1,
+    estimatedDurationMinutes: null,
+    exercises: input.exercises.map((exercise, index) => ({
+      id: `custom-builder:${exercise.id}`,
+      exerciseId: exercise.id,
+      exerciseName: exercise.name,
+      category: exercise.category,
+      sequenceOrder: index + 1,
+      targetSets: input.targetSets,
+      targetReps: input.targetReps,
+      restSeconds: null
+    }))
   };
 }
 
