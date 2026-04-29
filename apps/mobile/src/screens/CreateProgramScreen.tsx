@@ -18,6 +18,7 @@ import {
   buildAssignedProgramRequest,
   buildProgramDayWorkoutFromExerciseSelection,
   createProgramDayAssignments,
+  getAssignableWorkoutDescription,
   getAssignableWorkoutChoices,
   groupAssignableWorkoutChoices,
   resizeProgramDayAssignments,
@@ -387,9 +388,7 @@ function WorkoutPickerModal(props: {
                     >
                       <View style={styles.workoutTitleGroup}>
                         <Text style={styles.workoutName}>{choice.workout.name}</Text>
-                        <Text style={styles.exerciseMeta}>
-                          {choice.programName} - {choice.workout.exercises.length} exercises
-                        </Text>
+                        <Text style={styles.exerciseMeta}>{getAssignableWorkoutDescription(choice)}</Text>
                       </View>
                       <Text style={styles.addText}>Use</Text>
                     </Pressable>

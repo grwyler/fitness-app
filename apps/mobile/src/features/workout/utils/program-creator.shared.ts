@@ -106,6 +106,12 @@ export function groupAssignableWorkoutChoices(
   ];
 }
 
+export function getAssignableWorkoutDescription(choice: AssignableWorkoutChoice) {
+  return `${choice.workout.exercises.length} exercise${
+    choice.workout.exercises.length === 1 ? "" : "s"
+  }`;
+}
+
 export function buildAssignedProgramRequest(input: {
   name: string;
   days: ProgramDayAssignment[];

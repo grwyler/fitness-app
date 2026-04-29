@@ -10,6 +10,7 @@ import {
   buildProgramDayWorkoutFromExerciseSelection,
   buildProgramDayWorkoutFromCustomSession,
   createProgramDayAssignments,
+  getAssignableWorkoutDescription,
   getAssignableWorkoutChoices,
   groupAssignableWorkoutChoices
 } from "../features/workout/utils/program-creator.shared.js";
@@ -192,6 +193,15 @@ export const programCreatorTestCases: MobileTestCase[] = [
         ["Push"]
       );
       assert.equal(groups[0]?.workouts[0]?.workout.name, "Push Strength");
+    }
+  },
+  {
+    name: "Program creator workout picker descriptions describe workouts instead of source programs",
+    run: () => {
+      const [choice] = getAssignableWorkoutChoices([predefinedProgram]);
+
+      assert.equal(choice?.programName, "4-Day Upper/Lower");
+      assert.equal(getAssignableWorkoutDescription(choice!), "1 exercise");
     }
   },
   {
