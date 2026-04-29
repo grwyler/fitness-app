@@ -156,7 +156,7 @@ export const dashboardProgramTestCases: MobileTestCase[] = [
           hasPredefinedChoices: true,
           hasRecommendedWorkout: true
         }),
-        ["Create Workout", "Choose Predefined Workout", "Start Recommended Workout"]
+        ["Start Recommended Workout", "Create Custom Workout", "Choose Predefined Workout"]
       );
     }
   },
@@ -206,7 +206,7 @@ export const dashboardProgramTestCases: MobileTestCase[] = [
     }
   },
   {
-    name: "Dashboard start actions prioritize custom workout creation",
+    name: "Dashboard start actions prioritize recommended workout",
     run: () => {
       assert.deepEqual(
         getWorkoutStartActionLabels({
@@ -215,7 +215,7 @@ export const dashboardProgramTestCases: MobileTestCase[] = [
           hasPredefinedChoices: true,
           hasRecommendedWorkout: true
         }),
-        ["Create Workout", "Choose Predefined Workout", "Start Recommended Workout"]
+        ["Start Recommended Workout", "Create Custom Workout", "Choose Predefined Workout"]
       );
     }
   },
@@ -229,7 +229,7 @@ export const dashboardProgramTestCases: MobileTestCase[] = [
           hasPredefinedChoices: true,
           hasRecommendedWorkout: false
         }),
-        ["Create Workout", "Choose Predefined Workout"]
+        ["Create Custom Workout", "Choose Predefined Workout"]
       );
     }
   },
@@ -267,7 +267,7 @@ export const dashboardProgramTestCases: MobileTestCase[] = [
           hasActiveProgram: true,
           hasPredefinedChoices: getProgramWorkouts(expandedProgram).length > 0,
           hasRecommendedWorkout: true
-        })[1],
+        })[2],
         "Choose Predefined Workout"
       );
       assert.deepEqual(
@@ -277,7 +277,7 @@ export const dashboardProgramTestCases: MobileTestCase[] = [
     }
   },
   {
-    name: "Dashboard start actions keep Create Workout first when a workout is active",
+    name: "Dashboard start actions keep recommended workout first when a workout is active",
     run: () => {
       assert.deepEqual(
         getWorkoutStartActionLabels({
@@ -286,7 +286,7 @@ export const dashboardProgramTestCases: MobileTestCase[] = [
           hasPredefinedChoices: true,
           hasRecommendedWorkout: true
         }),
-        ["Create Workout", "Choose Predefined Workout", "Start Recommended Workout"]
+        ["Start Recommended Workout", "Create Custom Workout", "Choose Predefined Workout"]
       );
     }
   },

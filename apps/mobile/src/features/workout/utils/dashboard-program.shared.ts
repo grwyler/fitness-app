@@ -242,8 +242,8 @@ export function getWorkoutStartActionLabels(input: {
   hasRecommendedWorkout: boolean;
 }) {
   return [
-    "Create Workout",
-    ...(input.hasPredefinedChoices ? ["Choose Predefined Workout"] : []),
-    ...(input.hasActiveProgram && input.hasRecommendedWorkout ? ["Start Recommended Workout"] : [])
+    ...(input.hasActiveProgram && input.hasRecommendedWorkout ? ["Start Recommended Workout"] : []),
+    "Create Custom Workout",
+    ...(input.hasPredefinedChoices ? ["Choose Predefined Workout"] : [])
   ];
 }

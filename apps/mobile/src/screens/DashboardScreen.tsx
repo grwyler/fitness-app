@@ -292,8 +292,32 @@ export function DashboardScreen({ navigation }: Props) {
         <Text style={styles.cardBody}>
           Start from a blank workout when you know what you want to train. Predefined workouts are still available when you want structure.
         </Text>
+        {nextWorkout ? (
+          <PrimaryButton
+            label="Start Recommended Workout"
+            onPress={() => {
+              setLastAction("start_recommended_workout");
+              setSelectedStartingWorkoutId(nextWorkout.id);
+              startWorkoutMutation.mutate(
+                {},
+                {
+                  onSuccess: () => {
+                    setSelectedStartingWorkoutId(null);
+                    navigation.navigate("ActiveWorkout");
+                  },
+                  onError: () => {
+                    setSelectedStartingWorkoutId(null);
+                  }
+                }
+              );
+            }}
+            disabled={Boolean(activeWorkout || !activeProgram || startWorkoutMutation.isPending)}
+            loading={isStartingRecommendedWorkout}
+          />
+        ) : null}
         <PrimaryButton
-          label={workoutStartActionLabels[0] ?? "Create Workout"}
+          label="Create Custom Workout"
+          tone="secondary"
           onPress={() => {
             setLastAction("start_custom_workout");
             setSelectedStartingWorkoutId("custom-workout");
@@ -329,30 +353,6 @@ export function DashboardScreen({ navigation }: Props) {
               setLastAction("choose_predefined_workout");
               setIsWorkoutPickerOpen(true);
             }}
-          />
-        ) : null}
-        {nextWorkout ? (
-          <PrimaryButton
-            label="Start Recommended Workout"
-            tone="secondary"
-            onPress={() => {
-              setLastAction("start_recommended_workout");
-              setSelectedStartingWorkoutId(nextWorkout.id);
-              startWorkoutMutation.mutate(
-                {},
-                {
-                  onSuccess: () => {
-                    setSelectedStartingWorkoutId(null);
-                    navigation.navigate("ActiveWorkout");
-                  },
-                  onError: () => {
-                    setSelectedStartingWorkoutId(null);
-                  }
-                }
-              );
-            }}
-            disabled={Boolean(activeWorkout || !activeProgram || startWorkoutMutation.isPending)}
-            loading={isStartingRecommendedWorkout}
           />
         ) : null}
         {nextWorkout ? (
