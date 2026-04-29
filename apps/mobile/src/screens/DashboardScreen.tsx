@@ -14,6 +14,7 @@ import { usePrograms } from "../features/workout/hooks/usePrograms";
 import { useResetTestUserData } from "../features/workout/hooks/useResetTestUserData";
 import { useStartWorkout } from "../features/workout/hooks/useStartWorkout";
 import {
+  getCurrentProgramWorkoutChoices,
   findProgramWorkoutById,
   getDashboardPrimarySectionOrder,
   getPredefinedWorkoutChoices,
@@ -25,6 +26,7 @@ import {
   getWorkoutStartActionLabels,
   getWorkoutIntentSummary,
   groupPredefinedWorkoutChoicesByCategory,
+  type CurrentProgramWorkoutChoice,
   type PredefinedWorkoutCategoryGroup,
   type PredefinedWorkoutChoice
 } from "../features/workout/utils/dashboard-program.shared";
@@ -63,6 +65,7 @@ function logResetDiagnostic(event: string) {
 
 export function DashboardScreen({ navigation }: Props) {
   const [isProgramPickerOpen, setIsProgramPickerOpen] = useState(false);
+  const [isCurrentProgramWorkoutPickerOpen, setIsCurrentProgramWorkoutPickerOpen] = useState(false);
   const [isWorkoutPickerOpen, setIsWorkoutPickerOpen] = useState(false);
   const [selectedStartingWorkoutId, setSelectedStartingWorkoutId] = useState<string | null>(null);
   const [resetFeedback, setResetFeedback] = useState<string | null>(null);
@@ -146,6 +149,7 @@ export function DashboardScreen({ navigation }: Props) {
     activeProgram,
     workoutTemplateId: nextWorkout?.id
   });
+  const currentProgramWorkoutChoices = getCurrentProgramWorkoutChoices(activeProgram);
   const programPositionLabel = getNextProgramPositionLabel(activeProgram);
   const availablePrograms = programsQuery.data ?? [];
   const primarySectionOrder = getDashboardPrimarySectionOrder({
@@ -213,6 +217,26 @@ export function DashboardScreen({ navigation }: Props) {
         setSelectedStartingWorkoutId(null);
       }
     });
+  }
+
+  function startCurrentProgramWorkout(choice: CurrentProgramWorkoutChoice) {
+    setLastAction(`start_current_program_workout:${choice.workout.id}`);
+    setSelectedStartingWorkoutId(choice.workout.id);
+    startWorkoutMutation.mutate(
+      {
+        workoutTemplateId: choice.workout.id
+      },
+      {
+        onSuccess: () => {
+          setSelectedStartingWorkoutId(null);
+          setIsCurrentProgramWorkoutPickerOpen(false);
+          navigation.navigate("ActiveWorkout");
+        },
+        onError: () => {
+          setSelectedStartingWorkoutId(null);
+        }
+      }
+    );
   }
 
   if (isDevEnvironment) {
@@ -316,6 +340,17 @@ export function DashboardScreen({ navigation }: Props) {
             }}
             disabled={Boolean(activeWorkout || !activeProgram || startWorkoutMutation.isPending)}
             loading={isStartingRecommendedWorkout}
+          />
+        ) : null}
+        {activeProgram && currentProgramWorkoutChoices.length > 1 ? (
+          <PrimaryButton
+            label="Choose Another Day"
+            tone="secondary"
+            disabled={Boolean(activeWorkout || startWorkoutMutation.isPending)}
+            onPress={() => {
+              setLastAction("choose_current_program_workout");
+              setIsCurrentProgramWorkoutPickerOpen(true);
+            }}
           />
         ) : null}
         <View style={styles.secondaryWorkoutActions}>
@@ -496,7 +531,102 @@ export function DashboardScreen({ navigation }: Props) {
         onClose={() => setIsWorkoutPickerOpen(false)}
         onSelectWorkout={startPredefinedWorkout}
       />
+      <CurrentProgramWorkoutPickerModal
+        errorMessage={startWorkoutMutation.error instanceof Error ? startWorkoutMutation.error.message : null}
+        choices={currentProgramWorkoutChoices}
+        loadingWorkouts={false}
+        recommendedWorkoutId={nextWorkout?.id ?? null}
+        selectedStartingWorkoutId={selectedStartingWorkoutId}
+        startingWorkout={Boolean(startWorkoutMutation.isPending && selectedStartingWorkoutId)}
+        visible={isCurrentProgramWorkoutPickerOpen}
+        onClose={() => setIsCurrentProgramWorkoutPickerOpen(false)}
+        onSelectWorkout={startCurrentProgramWorkout}
+      />
     </Screen>
+  );
+}
+
+function CurrentProgramWorkoutPickerModal(props: {
+  errorMessage: string | null;
+  choices: CurrentProgramWorkoutChoice[];
+  loadingWorkouts: boolean;
+  recommendedWorkoutId: string | null;
+  selectedStartingWorkoutId: string | null;
+  startingWorkout: boolean;
+  visible: boolean;
+  onClose: () => void;
+  onSelectWorkout: (choice: CurrentProgramWorkoutChoice) => void;
+}) {
+  return (
+    <Modal animationType="slide" transparent visible={props.visible} onRequestClose={props.onClose}>
+      <View style={styles.modalBackdrop}>
+        <View style={styles.modalSheet}>
+          <View style={styles.modalHeader}>
+            <View style={styles.modalTitleGroup}>
+              <Text style={styles.cardLabel}>Current program</Text>
+              <Text style={styles.modalTitle}>Choose workout day</Text>
+            </View>
+            <Pressable accessibilityRole="button" onPress={props.onClose} style={styles.closeButton}>
+              <Text style={styles.closeLabel}>Close</Text>
+            </Pressable>
+          </View>
+
+          <ScrollView contentContainerStyle={styles.programChoiceList}>
+            {props.loadingWorkouts ? (
+              <Text style={styles.cardBody}>Loading program workouts...</Text>
+            ) : props.choices.length === 0 ? (
+              <Text style={styles.cardBody}>No workouts are available in this program.</Text>
+            ) : (
+              props.choices.map((choice) => {
+                const plannedExerciseLines = getPlannedExerciseLines(choice.workout, 3);
+                const hiddenExerciseCount = getHiddenExerciseCount(
+                  choice.workout,
+                  plannedExerciseLines.length
+                );
+                const isRecommended = choice.workout.id === props.recommendedWorkoutId;
+                const isStartingThisWorkout =
+                  props.startingWorkout && props.selectedStartingWorkoutId === choice.workout.id;
+
+                return (
+                  <View
+                    key={choice.id}
+                    style={[styles.workoutChoice, isRecommended && styles.recommendedWorkoutChoice]}
+                  >
+                    <View style={styles.workoutChoiceHeader}>
+                      <View style={styles.workoutChoiceTitleGroup}>
+                        <Text style={styles.positionText}>{choice.positionLabel}</Text>
+                        <Text style={styles.cardTitle}>{choice.workout.name}</Text>
+                      </View>
+                      {isRecommended ? <Text style={styles.recommendedPill}>Next up</Text> : null}
+                    </View>
+                    <Text style={styles.cardBody}>{getWorkoutIntentSummary(choice.workout)}</Text>
+                    <View style={styles.exerciseList}>
+                      {plannedExerciseLines.map((line) => (
+                        <Text key={line} style={styles.exerciseLine}>
+                          {line}
+                        </Text>
+                      ))}
+                      {hiddenExerciseCount > 0 ? (
+                        <Text style={styles.exerciseLine}>+{hiddenExerciseCount} more planned</Text>
+                      ) : null}
+                    </View>
+                    <PrimaryButton
+                      label={isRecommended ? "Start next workout" : "Start this day"}
+                      disabled={props.startingWorkout && !isStartingThisWorkout}
+                      loading={isStartingThisWorkout}
+                      onPress={() => props.onSelectWorkout(choice)}
+                      tone={isRecommended ? "primary" : "secondary"}
+                    />
+                  </View>
+                );
+              })
+            )}
+          </ScrollView>
+
+          {props.errorMessage ? <Text style={styles.errorText}>{props.errorMessage}</Text> : null}
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -646,10 +776,10 @@ function WorkoutChoice(props: {
     <View style={[styles.workoutChoice, props.isRecommended && styles.recommendedWorkoutChoice]}>
       <View style={styles.workoutChoiceHeader}>
         <View style={styles.workoutChoiceTitleGroup}>
-          <Text style={styles.positionText}>
-            {props.choice.programName} - {props.choice.positionLabel}
-          </Text>
           <Text style={styles.cardTitle}>{props.choice.workout.name}</Text>
+          <Text style={styles.metaLine}>
+            {props.choice.positionLabel} in {props.choice.programName}
+          </Text>
         </View>
         {props.isRecommended ? <Text style={styles.recommendedPill}>Recommended</Text> : null}
       </View>

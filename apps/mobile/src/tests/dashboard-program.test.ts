@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import type { ActiveProgramDto, ProgramWorkoutTemplateDto } from "@fitness/shared";
 import {
   findProgramWorkoutById,
+  getCurrentProgramWorkoutChoices,
   getDashboardPrimarySectionOrder,
   getPredefinedWorkoutChoices,
   getHiddenExerciseCount,
@@ -314,6 +315,22 @@ export const dashboardProgramTestCases: MobileTestCase[] = [
     }
   },
   {
+    name: "Dashboard current program workout choices expose day labels",
+    run: () => {
+      const activeProgram = createActiveProgram();
+      const choices = getCurrentProgramWorkoutChoices(activeProgram);
+
+      assert.deepEqual(
+        choices.map((choice) => choice.positionLabel),
+        ["Day 1", "Day 2"]
+      );
+      assert.deepEqual(
+        choices.map((choice) => choice.workout.name),
+        ["Workout A", "Workout B"]
+      );
+    }
+  },
+  {
     name: "Dashboard groups predefined workout choices by category",
     run: () => {
       const activeProgram = createActiveProgram();
@@ -374,7 +391,7 @@ export const dashboardProgramTestCases: MobileTestCase[] = [
 
       assert.equal(choice?.programId, "program-1");
       assert.equal(choice?.workout.id, "template-1");
-      assert.equal(choice?.positionLabel, "Workout 1");
+      assert.equal(choice?.positionLabel, "Day 1");
     }
   }
 ];

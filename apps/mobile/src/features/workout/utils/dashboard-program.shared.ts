@@ -27,6 +27,29 @@ export type PredefinedWorkoutCategoryGroup = {
   workouts: PredefinedWorkoutChoice[];
 };
 
+export type CurrentProgramWorkoutChoice = {
+  id: string;
+  positionLabel: string;
+  workout: ProgramWorkoutTemplateDto;
+};
+
+export function getProgramWorkoutDayLabel(input: {
+  activeProgram: ActiveProgramDto | null | undefined;
+  workout: ProgramWorkoutTemplateDto;
+}) {
+  const workoutIndex = getProgramWorkouts(input.activeProgram).findIndex(
+    (workout) => workout.id === input.workout.id
+  );
+  const workoutNumber = workoutIndex >= 0 ? workoutIndex + 1 : input.workout.sequenceOrder;
+  const daysPerWeek = input.activeProgram?.program.daysPerWeek ?? 0;
+
+  if (!Number.isInteger(daysPerWeek) || daysPerWeek <= 0) {
+    return `Workout ${workoutNumber}`;
+  }
+
+  return `Day ${((workoutNumber - 1) % daysPerWeek) + 1}`;
+}
+
 export type DashboardPrimarySection = "currentProgram" | "programSetup" | "startWorkout";
 
 export function getDashboardPrimarySectionOrder(input: {
@@ -88,6 +111,19 @@ export function getProgramWorkouts(activeProgram: ActiveProgramDto | null | unde
   );
 }
 
+export function getCurrentProgramWorkoutChoices(
+  activeProgram: ActiveProgramDto | null | undefined
+): CurrentProgramWorkoutChoice[] {
+  return getProgramWorkouts(activeProgram).map((workout) => ({
+    id: workout.id,
+    positionLabel: getProgramWorkoutDayLabel({
+      activeProgram,
+      workout
+    }),
+    workout
+  }));
+}
+
 export function getPredefinedWorkoutChoices(input: {
   activeProgram: ActiveProgramDto | null | undefined;
   programs: ProgramDto[];
@@ -101,7 +137,7 @@ export function getPredefinedWorkoutChoices(input: {
         category: workout.category,
         programId: input.activeProgram.program.id,
         programName: input.activeProgram.program.name,
-        positionLabel: getProgramWorkoutPositionLabel({
+        positionLabel: getProgramWorkoutDayLabel({
           activeProgram: input.activeProgram,
           workout
         }),
@@ -127,7 +163,7 @@ export function getPredefinedWorkoutChoices(input: {
         category: workout.category,
         programId: program.id,
         programName: program.name,
-        positionLabel: `Workout ${workout.sequenceOrder}`,
+        positionLabel: `Day ${workout.sequenceOrder}`,
         workout
       });
     }
