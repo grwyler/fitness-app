@@ -212,6 +212,12 @@ create table if not exists password_reset_tokens (id uuid primary key, user_id u
 create index if not exists idx_password_reset_tokens_user_id on password_reset_tokens(user_id);
 create index if not exists idx_password_reset_tokens_expires_at on password_reset_tokens(expires_at);
 create table if not exists exercises (id uuid primary key, name text not null unique, category text not null, movement_pattern text, primary_muscle_group text, equipment_type text, default_target_sets integer, default_target_reps integer, default_starting_weight_lbs numeric(6,2) not null, default_increment_lbs numeric(5,2) not null, is_bodyweight boolean not null default false, is_weight_optional boolean not null default false, is_progression_eligible boolean not null default true, is_active boolean not null default true, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
+alter table exercises add column if not exists default_target_sets integer;
+alter table exercises add column if not exists default_target_reps integer;
+alter table exercises add column if not exists default_starting_weight_lbs numeric(6,2) not null default 0;
+alter table exercises add column if not exists is_bodyweight boolean not null default false;
+alter table exercises add column if not exists is_weight_optional boolean not null default false;
+alter table exercises add column if not exists is_progression_eligible boolean not null default true;
 create table if not exists programs (id uuid primary key, user_id uuid references users(id), source text not null default 'predefined', name text not null, description text, days_per_week integer not null, session_duration_minutes integer not null, difficulty_level text not null, is_active boolean not null default true, deleted_at timestamptz, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
 alter table programs add column if not exists user_id uuid references users(id);
 alter table programs add column if not exists source text not null default 'predefined';

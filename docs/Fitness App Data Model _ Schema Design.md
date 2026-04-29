@@ -188,6 +188,7 @@ saved program and its workout days.
 * `session_duration_minutes` must be greater than `0`.  
 * `source = predefined` programs are system-managed and shared.
 * `source = custom` programs are user-owned and can be used as reusable workout definitions.
+* For `source = custom` programs, if `description` is null/empty, the API generates a short, dynamic description from the workout contents (e.g., focus buckets + top muscle groups). User-provided descriptions are preserved as-is.
 * Completed one-off custom workout sessions are not promoted into reusable templates yet.
 
 ---

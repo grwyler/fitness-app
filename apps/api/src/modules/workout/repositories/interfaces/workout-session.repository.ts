@@ -49,6 +49,15 @@ export interface WorkoutSessionRepository {
     options?: RepositoryOptions
   ): Promise<WorkoutSessionGraph>;
 
+  updateWorkoutNameSnapshotIfDefault(
+    input: {
+      sessionId: string;
+      workoutNameSnapshot: string;
+      expectedCurrentName: string;
+    },
+    options?: RepositoryOptions
+  ): Promise<boolean>;
+
   appendWorkoutSet(input: AppendWorkoutSetInput, options?: RepositoryOptions): Promise<WorkoutSessionGraph>;
 
   deleteWorkoutSet(input: DeleteWorkoutSetInput, options?: RepositoryOptions): Promise<WorkoutSessionGraph>;

@@ -189,6 +189,8 @@ function createProgramDefinition() {
             exerciseId: "exercise-1",
             exerciseName: "Bench Press",
             category: "compound" as const,
+            movementPattern: null,
+            primaryMuscleGroup: null,
             sequenceOrder: 1,
             targetSets: 3,
             targetReps: 8,
@@ -307,6 +309,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         async appendCustomExercise() {
           throw new Error("Not implemented.");
         },
+        async updateWorkoutNameSnapshotIfDefault() {
+          return false;
+        },
         async appendWorkoutSet() {
           throw new Error("Not implemented.");
         },
@@ -409,6 +414,8 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
                 exerciseId: exercise.exerciseId,
                 exerciseName: exercise.exerciseId === "exercise-1" ? "Bench Press" : "Row",
                 category: "compound",
+                movementPattern: null,
+                primaryMuscleGroup: null,
                 sequenceOrder: index + 1,
                 targetSets: exercise.targetSets,
                 targetReps: exercise.targetReps,
@@ -479,6 +486,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         },
         async appendCustomExercise() {
           throw new Error("Not implemented.");
+        },
+        async updateWorkoutNameSnapshotIfDefault() {
+          return false;
         },
         async appendWorkoutSet() {
           throw new Error("Not implemented.");
@@ -683,6 +693,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         async appendCustomExercise() {
           throw new Error("Not implemented.");
         },
+        async updateWorkoutNameSnapshotIfDefault() {
+          return false;
+        },
         async appendWorkoutSet() {
           throw new Error("Not implemented.");
         },
@@ -807,6 +820,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         },
         async appendCustomExercise() {
           throw new Error("Not implemented.");
+        },
+        async updateWorkoutNameSnapshotIfDefault() {
+          return false;
         },
         async appendWorkoutSet() {
           throw new Error("Not implemented.");
@@ -972,6 +988,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         async appendCustomExercise() {
           throw new Error("Not implemented.");
         },
+        async updateWorkoutNameSnapshotIfDefault() {
+          return false;
+        },
         async appendWorkoutSet() {
           throw new Error("Not implemented.");
         },
@@ -1090,6 +1109,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         },
         async appendCustomExercise() {
           throw new Error("Not implemented.");
+        },
+        async updateWorkoutNameSnapshotIfDefault() {
+          return false;
         },
         async appendWorkoutSet() {
           throw new Error("Not implemented.");
@@ -1358,6 +1380,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         async appendCustomExercise() {
           throw new Error("Not implemented.");
         },
+        async updateWorkoutNameSnapshotIfDefault() {
+          return false;
+        },
         async appendWorkoutSet() {
           throw new Error("Not implemented.");
         },
@@ -1527,6 +1552,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         async appendCustomExercise() {
           throw new Error("Not implemented.");
         },
+        async updateWorkoutNameSnapshotIfDefault() {
+          return false;
+        },
         async appendWorkoutSet() {
           throw new Error("Not implemented.");
         },
@@ -1685,6 +1713,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         },
         async appendCustomExercise() {
           throw new Error("Not implemented.");
+        },
+        async updateWorkoutNameSnapshotIfDefault() {
+          return false;
         },
         async appendWorkoutSet() {
           throw new Error("Not implemented.");

@@ -124,7 +124,7 @@ export class DrizzleProgramRepository implements ProgramRepository {
         userId: input.userId,
         source: "custom",
         name: input.name,
-        description: null,
+        description: input.description,
         daysPerWeek: input.workouts.length,
         sessionDurationMinutes: 60,
         difficultyLevel: "beginner",
@@ -225,6 +225,7 @@ export class DrizzleProgramRepository implements ProgramRepository {
       .update(programs)
       .set({
         name: input.name,
+        description: input.description,
         daysPerWeek: input.workouts.length,
         updatedAt: input.updatedAt
       })
@@ -400,6 +401,8 @@ export class DrizzleProgramRepository implements ProgramRepository {
         exerciseId: row.exercise.id,
         exerciseName: row.exercise.name,
         category: row.exercise.category,
+        movementPattern: row.exercise.movementPattern ?? null,
+        primaryMuscleGroup: row.exercise.primaryMuscleGroup ?? null,
         sequenceOrder: row.templateExercise.sequenceOrder,
         targetSets: row.templateExercise.targetSets,
         targetReps: row.templateExercise.targetReps,

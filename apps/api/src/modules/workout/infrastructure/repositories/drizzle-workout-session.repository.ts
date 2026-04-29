@@ -284,6 +284,32 @@ export class DrizzleWorkoutSessionRepository implements WorkoutSessionRepository
     return graph;
   }
 
+  public async updateWorkoutNameSnapshotIfDefault(
+    input: {
+      sessionId: string;
+      workoutNameSnapshot: string;
+      expectedCurrentName: string;
+    },
+    options?: RepositoryOptions
+  ): Promise<boolean> {
+    const executor = resolveExecutor(this.db, options);
+    const result = await executor
+      .update(workoutSessions)
+      .set({
+        workoutNameSnapshot: input.workoutNameSnapshot,
+        updatedAt: new Date()
+      })
+      .where(
+        and(
+          eq(workoutSessions.id, input.sessionId),
+          eq(workoutSessions.workoutNameSnapshot, input.expectedCurrentName)
+        )
+      );
+
+    const updatedRowCount = Number((result as any)?.rowCount ?? 0);
+    return updatedRowCount > 0;
+  }
+
   public async appendWorkoutSet(
     input: AppendWorkoutSetInput,
     options?: RepositoryOptions

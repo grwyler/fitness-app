@@ -24,6 +24,8 @@ export type ProgramTemplateExerciseRecord = {
   exerciseId: string;
   exerciseName: string;
   category: ExerciseCategory;
+  movementPattern: string | null;
+  primaryMuscleGroup: string | null;
   sequenceOrder: number;
   targetSets: number;
   targetReps: number;
@@ -68,6 +70,7 @@ export type CreateCustomProgramWorkoutInput = {
 export type CreateCustomProgramInput = {
   userId: string;
   name: string;
+  description: string | null;
   workouts: CreateCustomProgramWorkoutInput[];
   createdAt: Date;
 };
@@ -76,6 +79,7 @@ export type UpdateCustomProgramInput = {
   programId: string;
   userId: string;
   name: string;
+  description: string | null;
   workouts: CreateCustomProgramWorkoutInput[];
   updatedAt: Date;
 };

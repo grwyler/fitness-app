@@ -10,6 +10,11 @@ function normalizeName(value: string) {
   return value.trim().replace(/\s+/g, " ");
 }
 
+function normalizeOptionalDescription(value: string | null | undefined) {
+  const normalized = (value ?? "").trim().replace(/\s+/g, " ");
+  return normalized.length > 0 ? normalized : null;
+}
+
 function validateUpdateCustomProgramRequest(request: UpdateCustomProgramRequest) {
   const name = normalizeName(request.name);
   if (!name) {
@@ -57,6 +62,7 @@ function validateUpdateCustomProgramRequest(request: UpdateCustomProgramRequest)
 
   return {
     name,
+    description: normalizeOptionalDescription(request.description),
     workouts
   };
 }
@@ -84,6 +90,7 @@ export class UpdateCustomProgramUseCase {
           programId: input.programId,
           userId: input.context.userId,
           name: validatedRequest.name,
+          description: validatedRequest.description,
           workouts: validatedRequest.workouts,
           updatedAt: new Date()
         },

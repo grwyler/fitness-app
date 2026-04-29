@@ -12,9 +12,15 @@ function normalizeName(value: string) {
   return value.trim().replace(/\s+/g, " ");
 }
 
+function normalizeOptionalDescription(value: string | null | undefined) {
+  const normalized = (value ?? "").trim().replace(/\s+/g, " ");
+  return normalized.length > 0 ? normalized : null;
+}
+
 function buildCreateCustomProgramFingerprint(request: CreateCustomProgramRequest) {
   return JSON.stringify({
     name: normalizeName(request.name),
+    description: normalizeOptionalDescription(request.description),
     workouts: request.workouts.map((workout) => ({
       name: normalizeName(workout.name),
       exercises: workout.exercises.map((exercise) => ({
@@ -74,6 +80,7 @@ function validateCreateCustomProgramRequest(request: CreateCustomProgramRequest)
 
   return {
     name,
+    description: normalizeOptionalDescription(request.description),
     workouts
   };
 }
@@ -112,6 +119,7 @@ export class CreateCustomProgramUseCase {
           {
             userId: input.context.userId,
             name: validatedRequest.name,
+            description: validatedRequest.description,
             workouts: validatedRequest.workouts,
             createdAt: new Date()
           },

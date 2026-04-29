@@ -147,6 +147,7 @@ export type CreateCustomProgramWorkoutRequest = {
 
 export type CreateCustomProgramRequest = {
   name: string;
+  description?: string | null;
   workouts: CreateCustomProgramWorkoutRequest[];
 };
 

@@ -1,5 +1,6 @@
 import type { AddCustomWorkoutExerciseRequest, WorkoutSessionDto } from "@fitness/shared";
-import { isCustomWorkoutProgramId } from "../../domain/models/custom-workout.js";
+import { generateCustomWorkoutNameFromExercises } from "@fitness/shared";
+import { CUSTOM_WORKOUT_TEMPLATE_NAME, isCustomWorkoutProgramId } from "../../domain/models/custom-workout.js";
 import type { ExerciseRepository } from "../../repositories/interfaces/exercise.repository.js";
 import type { IdempotencyRepository } from "../../repositories/interfaces/idempotency.repository.js";
 import type { ProgressionStateRepository } from "../../repositories/interfaces/progression-state.repository.js";
@@ -177,7 +178,42 @@ export class AddCustomWorkoutExerciseUseCase {
           { tx }
         );
 
-        return mapWorkoutSessionDto(updatedGraph);
+        if (workoutSessionGraph.session.workoutNameSnapshot === CUSTOM_WORKOUT_TEMPLATE_NAME) {
+          const allExerciseIds = Array.from(
+            new Set(updatedGraph.exerciseEntries.map((entry) => entry.exerciseId))
+          );
+          const exerciseRecords = await this.exerciseRepository.findByIds(allExerciseIds, { tx });
+          const generatedName = generateCustomWorkoutNameFromExercises(
+            exerciseRecords.map((record) => ({
+              name: record.name,
+              primaryMuscleGroup: record.primaryMuscleGroup,
+              movementPattern: record.movementPattern,
+              category: record.category
+            }))
+          );
+
+          if (generatedName) {
+            await this.workoutSessionRepository.updateWorkoutNameSnapshotIfDefault(
+              {
+                sessionId: workoutSessionGraph.session.id,
+                workoutNameSnapshot: generatedName,
+                expectedCurrentName: CUSTOM_WORKOUT_TEMPLATE_NAME
+              },
+              { tx }
+            );
+          }
+        }
+
+        const refreshedGraph =
+          workoutSessionGraph.session.workoutNameSnapshot === CUSTOM_WORKOUT_TEMPLATE_NAME
+            ? await this.workoutSessionRepository.findOwnedSessionGraphById(
+                input.context.userId,
+                workoutSessionGraph.session.id,
+                { tx }
+              )
+            : updatedGraph;
+
+        return mapWorkoutSessionDto(refreshedGraph ?? updatedGraph);
       }
     });
 

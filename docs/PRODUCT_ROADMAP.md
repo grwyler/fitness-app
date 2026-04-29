@@ -96,6 +96,7 @@ A user can:
 - [x] Configure sets/reps/weight before adding an exercise to a custom workout
 - [x] Add sets (reuse existing logging UI)
 - [x] Complete workout → saves to history
+- [x] Auto-generate names/descriptions for unnamed custom workouts/programs
 - [x] Make custom workout creation the primary dashboard start path
 - [x] Keep predefined program workouts available behind a secondary chooser
 - [x] Group predefined workouts by Push, Pull, Legs, Full Body, and Quick inside the chooser

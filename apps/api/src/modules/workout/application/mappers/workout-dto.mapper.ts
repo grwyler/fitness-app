@@ -18,6 +18,7 @@ import type {
 } from "@fitness/shared";
 import type { UnitSystem } from "@fitness/shared";
 import { isCustomWorkoutProgramId } from "../../domain/models/custom-workout.js";
+import { generateCustomProgramDescription } from "../../domain/services/custom-program-description.js";
 import type { EnrollmentRecord } from "../../repositories/models/enrollment.persistence.js";
 import type { ExerciseRecord } from "../../repositories/models/exercise.persistence.js";
 import type { WorkoutTemplateRecord } from "../../repositories/models/exercise.persistence.js";
@@ -118,11 +119,29 @@ export function mapNextWorkoutTemplateDto(
 }
 
 export function mapProgramDto(definition: ProgramDefinition): ProgramDto {
+  const description =
+    definition.program.description && definition.program.description.trim().length > 0
+      ? definition.program.description
+      : definition.program.source === "custom"
+        ? generateCustomProgramDescription({
+            templates: definition.templates.map((template) => ({
+              exercises: template.exercises.map((exercise) => ({
+                targetReps: exercise.targetReps,
+                exercise: {
+                  name: exercise.exerciseName,
+                  primaryMuscleGroup: exercise.primaryMuscleGroup,
+                  movementPattern: exercise.movementPattern
+                }
+              }))
+            }))
+          })
+        : null;
+
   return {
     id: definition.program.id,
     source: definition.program.source,
     name: definition.program.name,
-    description: definition.program.description,
+    description,
     daysPerWeek: definition.program.daysPerWeek,
     sessionDurationMinutes: definition.program.sessionDurationMinutes,
     difficultyLevel: definition.program.difficultyLevel,

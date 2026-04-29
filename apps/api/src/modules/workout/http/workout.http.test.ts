@@ -1857,6 +1857,7 @@ export const workoutHttpTestCases: HttpTestCase[] = [
 
           assert.equal(addExerciseResponse.status, 201);
           assert.equal(addExercisePayload.data.exercises.length, 1);
+          assert.equal(addExercisePayload.data.workoutName, "Bench Press Workout");
           assert.equal(addExercisePayload.data.exercises[0].exerciseName, "Bench Press");
           assert.equal(addExercisePayload.data.exercises[0].sets.length, 3);
           assert.equal(addExercisePayload.data.exercises[0].targetWeight.value, 155);
@@ -1867,6 +1868,7 @@ export const workoutHttpTestCases: HttpTestCase[] = [
           assert.equal(completePayload.data.nextWorkoutTemplate, null);
           assert.equal(historyResponse.status, 200);
           assert.equal(historyPayload.data.items[0].programName, "Custom Workout");
+          assert.equal(historyPayload.data.items[0].workoutName, "Bench Press Workout");
           assert.equal(historyPayload.data.items[0].exerciseCount, 1);
         } finally {
           await server.close();
