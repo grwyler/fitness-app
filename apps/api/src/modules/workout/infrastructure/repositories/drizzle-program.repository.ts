@@ -14,7 +14,8 @@ import type {
   CreateEnrollmentInput,
   ProgramDefinition,
   ProgramRecord,
-  ProgramTemplateRecord
+  ProgramTemplateRecord,
+  UpdateCustomProgramInput
 } from "../../repositories/models/program.persistence.js";
 import {
   and,
@@ -179,6 +180,152 @@ export class DrizzleProgramRepository implements ProgramRepository {
     const definition = await this.findActiveById(programRow.id, input.userId, options);
     if (!definition) {
       throw new Error("Created custom program could not be loaded.");
+    }
+
+    return definition;
+  }
+
+  public async updateCustomProgram(
+    input: UpdateCustomProgramInput,
+    options?: RepositoryOptions
+  ): Promise<ProgramDefinition | null> {
+    const executor = resolveExecutor(this.db, options);
+    const [programRow] = await executor
+      .select()
+      .from(programs)
+      .where(
+        and(
+          eq(programs.id, input.programId),
+          eq(programs.userId, input.userId),
+          eq(programs.source, "custom"),
+          eq(programs.isActive, true),
+          sql`${programs.deletedAt} is null`
+        )
+      )
+      .limit(1);
+
+    if (!programRow) {
+      return null;
+    }
+
+    const exerciseIds = [...new Set(input.workouts.flatMap((workout) => workout.exercises.map((exercise) => exercise.exerciseId)))];
+    const activeExerciseRows =
+      exerciseIds.length === 0
+        ? []
+        : await executor
+            .select({ id: exercises.id })
+            .from(exercises)
+            .where(and(inArray(exercises.id, exerciseIds), eq(exercises.isActive, true)));
+
+    if (activeExerciseRows.length !== exerciseIds.length) {
+      throw new Error("One or more exercises in the custom program could not be found.");
+    }
+
+    await executor
+      .update(programs)
+      .set({
+        name: input.name,
+        daysPerWeek: input.workouts.length,
+        updatedAt: input.updatedAt
+      })
+      .where(eq(programs.id, input.programId));
+
+    const existingTemplateRows = await executor
+      .select()
+      .from(workoutTemplates)
+      .where(eq(workoutTemplates.programId, input.programId))
+      .orderBy(asc(workoutTemplates.sequenceOrder));
+
+    const templatesBySequenceOrder = new Map<number, typeof workoutTemplates.$inferSelect>();
+    for (const templateRow of existingTemplateRows) {
+      templatesBySequenceOrder.set(templateRow.sequenceOrder, templateRow);
+    }
+
+    const activeTemplateIds: string[] = [];
+    for (const workout of input.workouts) {
+      const existingTemplate = templatesBySequenceOrder.get(workout.sequenceOrder);
+      const templateId = existingTemplate?.id ?? randomUUID();
+      activeTemplateIds.push(templateId);
+
+      if (existingTemplate) {
+        await executor
+          .update(workoutTemplates)
+          .set({
+            name: workout.name,
+            category: "Full Body",
+            estimatedDurationMinutes: null,
+            isActive: true,
+            deletedAt: null,
+            updatedAt: input.updatedAt
+          })
+          .where(eq(workoutTemplates.id, templateId));
+      } else {
+        await executor.insert(workoutTemplates).values({
+          id: templateId,
+          programId: input.programId,
+          name: workout.name,
+          category: "Full Body",
+          sequenceOrder: workout.sequenceOrder,
+          estimatedDurationMinutes: null,
+          isActive: true,
+          deletedAt: null,
+          createdAt: input.updatedAt,
+          updatedAt: input.updatedAt
+        });
+      }
+
+      await executor
+        .delete(workoutTemplateExerciseEntries)
+        .where(eq(workoutTemplateExerciseEntries.workoutTemplateId, templateId));
+
+      await executor.insert(workoutTemplateExerciseEntries).values(
+        workout.exercises.map((exercise, index) => ({
+          id: randomUUID(),
+          workoutTemplateId: templateId,
+          exerciseId: exercise.exerciseId,
+          sequenceOrder: index + 1,
+          targetSets: exercise.targetSets,
+          targetReps: exercise.targetReps,
+          restSeconds: exercise.restSeconds,
+          createdAt: input.updatedAt,
+          updatedAt: input.updatedAt
+        }))
+      );
+    }
+
+    const inactiveTemplateIds = existingTemplateRows
+      .filter((templateRow: typeof workoutTemplates.$inferSelect) => !activeTemplateIds.includes(templateRow.id))
+      .map((templateRow: typeof workoutTemplates.$inferSelect) => templateRow.id);
+
+    if (inactiveTemplateIds.length > 0) {
+      await executor
+        .update(workoutTemplates)
+        .set({
+          isActive: false,
+          deletedAt: input.updatedAt,
+          updatedAt: input.updatedAt
+        })
+        .where(inArray(workoutTemplates.id, inactiveTemplateIds));
+
+      await executor
+        .update(userProgramEnrollments)
+        .set({
+          currentWorkoutTemplateId: activeTemplateIds[0],
+          updatedAt: input.updatedAt
+        })
+        .where(
+          and(
+            eq(userProgramEnrollments.userId, input.userId),
+            eq(userProgramEnrollments.programId, input.programId),
+            eq(userProgramEnrollments.status, "active"),
+            inArray(userProgramEnrollments.currentWorkoutTemplateId, inactiveTemplateIds)
+          )
+        );
+    }
+
+    const definition = await this.findActiveById(input.programId, input.userId, options);
+    if (!definition) {
+      throw new Error("Updated custom program could not be loaded.");
     }
 
     return definition;

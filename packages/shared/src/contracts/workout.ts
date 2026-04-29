@@ -148,6 +148,12 @@ export type CreateCustomProgramResponse = {
   program: ProgramDto;
 };
 
+export type UpdateCustomProgramRequest = CreateCustomProgramRequest;
+
+export type UpdateCustomProgramResponse = {
+  program: ProgramDto;
+};
+
 export type ActiveProgramDto = {
   enrollmentId: UUID;
   program: ProgramDto;

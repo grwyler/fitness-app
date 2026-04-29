@@ -2,7 +2,8 @@ import type { RepositoryOptions } from "../models/persistence-context.js";
 import type {
   CreateCustomProgramInput,
   CreateEnrollmentInput,
-  ProgramDefinition
+  ProgramDefinition,
+  UpdateCustomProgramInput
 } from "../models/program.persistence.js";
 import type { EnrollmentRecord } from "../models/enrollment.persistence.js";
 
@@ -19,6 +20,11 @@ export interface ProgramRepository {
     input: CreateCustomProgramInput,
     options?: RepositoryOptions
   ): Promise<ProgramDefinition>;
+
+  updateCustomProgram?(
+    input: UpdateCustomProgramInput,
+    options?: RepositoryOptions
+  ): Promise<ProgramDefinition | null>;
 
   createEnrollment(input: CreateEnrollmentInput, options?: RepositoryOptions): Promise<EnrollmentRecord>;
 }

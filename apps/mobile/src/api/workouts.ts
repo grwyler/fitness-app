@@ -18,6 +18,8 @@ import type {
   LogSetRequest,
   LogSetResponse,
   StartWorkoutSessionRequest,
+  UpdateCustomProgramRequest,
+  UpdateCustomProgramResponse,
   WorkoutSessionDto
 } from "@fitness/shared";
 import { apiRequest } from "./client";
@@ -50,6 +52,16 @@ export async function createCustomProgram(input: {
     method: "POST",
     body: input.request,
     idempotencyKey: input.idempotencyKey
+  });
+}
+
+export async function updateCustomProgram(input: {
+  programId: string;
+  request: UpdateCustomProgramRequest;
+}) {
+  return apiRequest<UpdateCustomProgramResponse>(`/programs/${input.programId}`, {
+    method: "PUT",
+    body: input.request
   });
 }
 

@@ -9,6 +9,7 @@ import {
   fetchWorkoutHistoryDetail,
   addCustomWorkoutExercise,
   createCustomProgram,
+  updateCustomProgram,
   resetTestUserData,
   startWorkoutSession,
   logSet,
@@ -412,6 +413,66 @@ export const mobileApiTestCases: MobileTestCase[] = [
                 exerciseId: "exercise-1",
                 targetSets: 3,
                 targetReps: 8
+              }
+            ]
+          }
+        ]
+      });
+    }
+  },
+  {
+    name: "Workout API sends custom program edits to the selected program",
+    run: async () => {
+      let requestPath: string | undefined;
+      let requestBody: string | undefined;
+
+      setMockFetch(async (input, init) => {
+        requestPath = input.toString();
+        requestBody = init?.body as string | undefined;
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            data: {
+              program: {
+                id: "program-custom-1"
+              }
+            },
+            meta: {}
+          })
+        };
+      });
+
+      await updateCustomProgram({
+        programId: "program-custom-1",
+        request: {
+          name: "Updated Push Pull",
+          workouts: [
+            {
+              name: "Updated Push",
+              exercises: [
+                {
+                  exerciseId: "exercise-1",
+                  targetSets: 4,
+                  targetReps: 6
+                }
+              ]
+            }
+          ]
+        }
+      });
+
+      assert.match(requestPath ?? "", /\/programs\/program-custom-1$/);
+      assert.deepEqual(JSON.parse(requestBody ?? "{}"), {
+        name: "Updated Push Pull",
+        workouts: [
+          {
+            name: "Updated Push",
+            exercises: [
+              {
+                exerciseId: "exercise-1",
+                targetSets: 4,
+                targetReps: 6
               }
             ]
           }

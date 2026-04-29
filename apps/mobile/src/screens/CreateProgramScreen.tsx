@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { ProgramWorkoutTemplateDto } from "@fitness/shared";
+import type { ProgramDto, ProgramWorkoutTemplateDto } from "@fitness/shared";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Screen } from "../components/Screen";
@@ -8,6 +8,7 @@ import { CustomExercisePickerModal } from "../features/workout/components/Custom
 import type { RootStackParamList } from "../core/navigation/navigation-types";
 import { useCreateCustomProgram } from "../features/workout/hooks/useCreateCustomProgram";
 import { useFollowProgram } from "../features/workout/hooks/useFollowProgram";
+import { useUpdateCustomProgram } from "../features/workout/hooks/useUpdateCustomProgram";
 import {
   CUSTOM_WORKOUT_DEFAULT_TARGET_REPS,
   CUSTOM_WORKOUT_DEFAULT_TARGET_SETS
@@ -33,7 +34,17 @@ type Props = NativeStackScreenProps<RootStackParamList, "CreateProgram">;
 
 const dayOptions = [1, 2, 3, 4, 5, 6] as const;
 
+function buildProgramDayAssignmentsFromProgram(program: ProgramDto): ProgramDayAssignment[] {
+  return [...program.workouts]
+    .sort((left, right) => left.sequenceOrder - right.sequenceOrder)
+    .map((workout, index) => ({
+      dayNumber: index + 1,
+      workout
+    }));
+}
+
 export function CreateProgramScreen({ navigation, route }: Props) {
+  const editProgramId = route.params?.editProgramId;
   const [programName, setProgramName] = useState("");
   const [daysPerWeek, setDaysPerWeek] = useState(3);
   const [days, setDays] = useState<ProgramDayAssignment[]>(createProgramDayAssignments(3));
@@ -44,10 +55,17 @@ export function CreateProgramScreen({ navigation, route }: Props) {
   const [customExerciseError, setCustomExerciseError] = useState<string | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [savedProgramId, setSavedProgramId] = useState<string | null>(null);
+  const [loadedEditProgramId, setLoadedEditProgramId] = useState<string | null>(null);
   const programsQuery = usePrograms();
   const exercisesQuery = useExercises(customWorkoutDayNumber !== null);
   const createProgramMutation = useCreateCustomProgram();
+  const updateProgramMutation = useUpdateCustomProgram();
   const followProgramMutation = useFollowProgram();
+  const editProgram = useMemo(
+    () => (editProgramId ? (programsQuery.data ?? []).find((program) => program.id === editProgramId) ?? null : null),
+    [editProgramId, programsQuery.data]
+  );
+  const isEditing = Boolean(editProgramId);
 
   const workoutChoices = useMemo(
     () => getAssignableWorkoutChoices(programsQuery.data ?? []),
@@ -64,6 +82,18 @@ export function CreateProgramScreen({ navigation, route }: Props) {
       .map((exerciseId) => exercisesById.get(exerciseId) ?? null)
       .filter((exercise) => exercise !== null);
   }, [exercisesQuery.data, selectedCustomExerciseIds]);
+
+  useEffect(() => {
+    if (!editProgram || loadedEditProgramId === editProgram.id) {
+      return;
+    }
+
+    setProgramName(editProgram.name);
+    setDaysPerWeek(editProgram.daysPerWeek);
+    setDays(buildProgramDayAssignmentsFromProgram(editProgram));
+    setSavedProgramId(null);
+    setLoadedEditProgramId(editProgram.id);
+  }, [editProgram, loadedEditProgramId]);
 
   useEffect(() => {
     const assignedDayNumber = route.params?.assignedDayNumber;
@@ -159,6 +189,21 @@ export function CreateProgramScreen({ navigation, route }: Props) {
     }
 
     setValidationError(null);
+    if (editProgramId) {
+      updateProgramMutation.mutate(
+        {
+          programId: editProgramId,
+          request: result.request
+        },
+        {
+          onSuccess: (response) => {
+            setSavedProgramId(response.data.program.id);
+          }
+        }
+      );
+      return;
+    }
+
     createProgramMutation.mutate(result.request, {
       onSuccess: (response) => {
         setSavedProgramId(response.data.program.id);
@@ -169,12 +214,21 @@ export function CreateProgramScreen({ navigation, route }: Props) {
   return (
     <Screen>
       <View style={styles.header}>
-        <Text style={styles.eyebrow}>Create Program</Text>
-        <Text style={styles.title}>Build a weekly plan from workouts.</Text>
+        <Text style={styles.eyebrow}>{isEditing ? "Edit Program" : "Create Program"}</Text>
+        <Text style={styles.title}>
+          {isEditing ? "Update your weekly training plan." : "Build a weekly plan from workouts."}
+        </Text>
         <Text style={styles.subtitle}>
           Name the program, choose training days, then assign a workout to each day.
         </Text>
       </View>
+
+      {isEditing && programsQuery.isLoading ? (
+        <Text style={styles.body}>Loading program...</Text>
+      ) : null}
+      {isEditing && !programsQuery.isLoading && !editProgram ? (
+        <Text style={styles.errorText}>We couldn't find that custom program.</Text>
+      ) : null}
 
       <View style={styles.card}>
         <Text style={styles.label}>Program name</Text>
@@ -254,6 +308,9 @@ export function CreateProgramScreen({ navigation, route }: Props) {
       {createProgramMutation.error instanceof Error ? (
         <Text style={styles.errorText}>{createProgramMutation.error.message}</Text>
       ) : null}
+      {updateProgramMutation.error instanceof Error ? (
+        <Text style={styles.errorText}>{updateProgramMutation.error.message}</Text>
+      ) : null}
       {followProgramMutation.error instanceof Error ? (
         <Text style={styles.errorText}>{followProgramMutation.error.message}</Text>
       ) : null}
@@ -261,7 +318,9 @@ export function CreateProgramScreen({ navigation, route }: Props) {
       {savedProgramId ? (
         <View style={styles.card}>
           <Text style={styles.label}>Saved</Text>
-          <Text style={styles.body}>Your program is ready to follow.</Text>
+          <Text style={styles.body}>
+            {isEditing ? "Your program changes are saved." : "Your program is ready to follow."}
+          </Text>
           <PrimaryButton
             label="Follow Program"
             loading={followProgramMutation.isPending}
@@ -274,9 +333,9 @@ export function CreateProgramScreen({ navigation, route }: Props) {
         </View>
       ) : (
         <PrimaryButton
-          label="Save Program"
-          disabled={programsQuery.isLoading}
-          loading={createProgramMutation.isPending}
+          label={isEditing ? "Save Changes" : "Save Program"}
+          disabled={programsQuery.isLoading || (isEditing && !editProgram)}
+          loading={createProgramMutation.isPending || updateProgramMutation.isPending}
           onPress={handleSaveProgram}
         />
       )}

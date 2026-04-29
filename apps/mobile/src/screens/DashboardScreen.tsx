@@ -507,6 +507,10 @@ export function DashboardScreen({ navigation }: Props) {
           setIsProgramPickerOpen(false);
           navigation.navigate("CreateProgram");
         }}
+        onEditProgram={(programId) => {
+          setIsProgramPickerOpen(false);
+          navigation.navigate("CreateProgram", { editProgramId: programId });
+        }}
         onSelectProgram={(programId) => {
           setLastAction("switch_program");
           followProgramMutation.mutate(programId, {
@@ -639,6 +643,7 @@ function ProgramPickerModal(props: {
   visible: boolean;
   onClose: () => void;
   onCreateProgram: () => void;
+  onEditProgram: (programId: string) => void;
   onSelectProgram: (programId: string) => void;
 }) {
   return (
@@ -676,6 +681,14 @@ function ProgramPickerModal(props: {
                       {program.daysPerWeek} days/week - {program.sessionDurationMinutes} minutes - {program.difficultyLevel}
                     </Text>
                     <Text style={styles.cardBody}>{workoutNames}</Text>
+                    {program.source === "custom" ? (
+                      <PrimaryButton
+                        label="Edit Program"
+                        disabled={props.selectingProgram}
+                        onPress={() => props.onEditProgram(program.id)}
+                        tone="secondary"
+                      />
+                    ) : null}
                     <PrimaryButton
                       label={isCurrentProgram ? "Current program" : "Switch to this program"}
                       disabled={isCurrentProgram || props.selectingProgram}

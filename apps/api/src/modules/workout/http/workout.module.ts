@@ -24,6 +24,7 @@ import { ListExercisesUseCase } from "../application/use-cases/list-exercises.us
 import { ListProgramsUseCase } from "../application/use-cases/list-programs.use-case.js";
 import { LogSetUseCase } from "../application/use-cases/log-set.use-case.js";
 import { StartWorkoutSessionUseCase } from "../application/use-cases/start-workout-session.use-case.js";
+import { UpdateCustomProgramUseCase } from "../application/use-cases/update-custom-program.use-case.js";
 import { createWorkoutRouter } from "./workout.routes.js";
 
 export type WorkoutDatabase = PostgresDatabase | PgliteDatabase | any;
@@ -102,6 +103,10 @@ export function createWorkoutHttpRouter(database: WorkoutDatabase) {
     transactionManager,
     idempotencyRepository
   );
+  const updateCustomProgramUseCase = new UpdateCustomProgramUseCase(
+    programRepository,
+    transactionManager
+  );
   const listExercisesUseCase = new ListExercisesUseCase(exerciseRepository);
   const followProgramUseCase = new FollowProgramUseCase(
     programRepository,
@@ -122,6 +127,7 @@ export function createWorkoutHttpRouter(database: WorkoutDatabase) {
     listProgramsUseCase,
     getProgramUseCase,
     createCustomProgramUseCase,
+    updateCustomProgramUseCase,
     listExercisesUseCase,
     followProgramUseCase,
     getDashboardUseCase,

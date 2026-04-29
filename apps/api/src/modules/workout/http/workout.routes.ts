@@ -17,11 +17,13 @@ import type { ListExercisesUseCase } from "../application/use-cases/list-exercis
 import type { ListProgramsUseCase } from "../application/use-cases/list-programs.use-case.js";
 import type { LogSetUseCase } from "../application/use-cases/log-set.use-case.js";
 import type { StartWorkoutSessionUseCase } from "../application/use-cases/start-workout-session.use-case.js";
+import type { UpdateCustomProgramUseCase } from "../application/use-cases/update-custom-program.use-case.js";
 
 export function createWorkoutRouter(dependencies: {
   listProgramsUseCase: ListProgramsUseCase;
   getProgramUseCase: GetProgramUseCase;
   createCustomProgramUseCase: CreateCustomProgramUseCase;
+  updateCustomProgramUseCase: UpdateCustomProgramUseCase;
   listExercisesUseCase: ListExercisesUseCase;
   followProgramUseCase: FollowProgramUseCase;
   getDashboardUseCase: GetDashboardUseCase;
@@ -43,6 +45,7 @@ export function createWorkoutRouter(dependencies: {
   router.get("/programs", handlers.listPrograms);
   router.post("/programs", handlers.createCustomProgram);
   router.get("/programs/:programId", handlers.getProgram);
+  router.put("/programs/:programId", handlers.updateCustomProgram);
   router.get("/exercises", handlers.listExercises);
   router.post("/programs/:programId/follow", handlers.followProgram);
   router.get("/dashboard", handlers.getDashboard);

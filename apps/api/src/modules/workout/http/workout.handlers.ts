@@ -6,7 +6,8 @@ import type {
   CreateCustomProgramRequest,
   DeleteWorkoutSetRequest,
   LogSetRequest,
-  StartWorkoutSessionRequest
+  StartWorkoutSessionRequest,
+  UpdateCustomProgramRequest
 } from "@fitness/shared";
 import { success } from "../../../lib/http/envelope.js";
 import { getRequestContext } from "../../../lib/auth/request-context.middleware.js";
@@ -46,11 +47,13 @@ import type { ListExercisesUseCase } from "../application/use-cases/list-exercis
 import type { ListProgramsUseCase } from "../application/use-cases/list-programs.use-case.js";
 import type { LogSetUseCase } from "../application/use-cases/log-set.use-case.js";
 import type { StartWorkoutSessionUseCase } from "../application/use-cases/start-workout-session.use-case.js";
+import type { UpdateCustomProgramUseCase } from "../application/use-cases/update-custom-program.use-case.js";
 
 export type WorkoutHttpHandlers = {
   listPrograms: RequestHandler;
   getProgram: RequestHandler;
   createCustomProgram: RequestHandler;
+  updateCustomProgram: RequestHandler;
   listExercises: RequestHandler;
   followProgram: RequestHandler;
   getDashboard: RequestHandler;
@@ -71,6 +74,7 @@ export function createWorkoutHandlers(dependencies: {
   listProgramsUseCase: ListProgramsUseCase;
   getProgramUseCase: GetProgramUseCase;
   createCustomProgramUseCase: CreateCustomProgramUseCase;
+  updateCustomProgramUseCase: UpdateCustomProgramUseCase;
   listExercisesUseCase: ListExercisesUseCase;
   followProgramUseCase: FollowProgramUseCase;
   getDashboardUseCase: GetDashboardUseCase;
@@ -126,6 +130,31 @@ export function createWorkoutHandlers(dependencies: {
         idempotencyKey
       });
       response.status(201).json(success(result.data, result.meta));
+    }),
+
+    updateCustomProgram: asyncHandler(async (request, response) => {
+      const context = getRequestContext(request);
+      const params = validateParams(programParamsSchema, request);
+      const body = validateBody(createCustomProgramBodySchema, request);
+      const useCaseRequest: UpdateCustomProgramRequest = {
+        name: body.name,
+        workouts: body.workouts.map((workout) => ({
+          name: workout.name,
+          exercises: workout.exercises.map((exercise) => ({
+            exerciseId: exercise.exerciseId,
+            targetSets: exercise.targetSets,
+            targetReps: exercise.targetReps,
+            ...(exercise.restSeconds !== undefined ? { restSeconds: exercise.restSeconds } : {})
+          }))
+        }))
+      };
+
+      const result = await dependencies.updateCustomProgramUseCase.execute({
+        context,
+        programId: params.programId,
+        request: useCaseRequest
+      });
+      response.json(success(result.data, result.meta));
     }),
 
     listExercises: asyncHandler(async (_request, response) => {

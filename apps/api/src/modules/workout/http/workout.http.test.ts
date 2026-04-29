@@ -1325,6 +1325,39 @@ export const workoutHttpTestCases: HttpTestCase[] = [
           const createPayload = await readJson(createResponse);
           const programId = createPayload.data.program.id;
 
+          const updateResponse = await fetch(`${server.baseUrl}/api/v1/programs/${programId}`, {
+            method: "PUT",
+            headers: createAuthHeaders({
+              "content-type": "application/json"
+            }),
+            body: JSON.stringify({
+              name: "Push Pull Updated",
+              workouts: [
+                {
+                  name: "Push Updated",
+                  exercises: [
+                    {
+                      exerciseId: "exercise-1",
+                      targetSets: 4,
+                      targetReps: 6
+                    }
+                  ]
+                },
+                {
+                  name: "Pull Updated",
+                  exercises: [
+                    {
+                      exerciseId: "exercise-3",
+                      targetSets: 3,
+                      targetReps: 10
+                    }
+                  ]
+                }
+              ]
+            })
+          });
+          const updatePayload = await readJson(updateResponse);
+
           const listResponse = await fetch(`${server.baseUrl}/api/v1/programs`, {
             headers: createAuthHeaders()
           });
@@ -1341,6 +1374,29 @@ export const workoutHttpTestCases: HttpTestCase[] = [
             headers: {
               Authorization: "Bearer valid-new-user-token"
             }
+          });
+
+          const otherUserUpdateResponse = await fetch(`${server.baseUrl}/api/v1/programs/${programId}`, {
+            method: "PUT",
+            headers: {
+              Authorization: "Bearer valid-new-user-token",
+              "content-type": "application/json"
+            },
+            body: JSON.stringify({
+              name: "Stolen Program",
+              workouts: [
+                {
+                  name: "Nope",
+                  exercises: [
+                    {
+                      exerciseId: "exercise-1",
+                      targetSets: 3,
+                      targetReps: 8
+                    }
+                  ]
+                }
+              ]
+            })
           });
 
           const followResponse = await fetch(`${server.baseUrl}/api/v1/programs/${programId}/follow`, {
@@ -1371,6 +1427,11 @@ export const workoutHttpTestCases: HttpTestCase[] = [
           assert.equal(createPayload.data.program.workouts[0].name, "Push");
           assert.equal(createPayload.data.program.workouts[0].exercises[0].targetSets, 3);
           assert.equal(createPayload.data.program.workouts[1].exercises[0].targetReps, 10);
+          assert.equal(updateResponse.status, 200);
+          assert.equal(updatePayload.data.program.name, "Push Pull Updated");
+          assert.equal(updatePayload.data.program.workouts.length, 2);
+          assert.equal(updatePayload.data.program.workouts[0].name, "Push Updated");
+          assert.equal(updatePayload.data.program.workouts[0].exercises[0].targetSets, 4);
           assert.equal(listResponse.status, 200);
           assert.ok(
             listPayload.data.programs.some((program: { id: string; source: string }) => program.id === programId && program.source === "custom")
@@ -1381,19 +1442,20 @@ export const workoutHttpTestCases: HttpTestCase[] = [
             false
           );
           assert.equal(otherUserDetailResponse.status, 404);
+          assert.equal(otherUserUpdateResponse.status, 404);
           assert.equal(followResponse.status, 201);
           assert.equal(followPayload.data.activeProgram.program.id, programId);
-          assert.equal(followPayload.data.activeProgram.nextWorkoutTemplate.name, "Push");
+          assert.equal(followPayload.data.activeProgram.nextWorkoutTemplate.name, "Push Updated");
           assert.equal(dashboardResponse.status, 200);
-          assert.equal(dashboardPayload.data.activeProgram.program.name, "Push Pull Legs");
-          assert.equal(dashboardPayload.data.nextWorkoutTemplate.name, "Push");
+          assert.equal(dashboardPayload.data.activeProgram.program.name, "Push Pull Updated");
+          assert.equal(dashboardPayload.data.nextWorkoutTemplate.name, "Push Updated");
           assert.equal(startResponse.status, 201);
-          assert.equal(startPayload.data.programName, "Push Pull Legs");
-          assert.equal(startPayload.data.workoutName, "Push");
+          assert.equal(startPayload.data.programName, "Push Pull Updated");
+          assert.equal(startPayload.data.workoutName, "Push Updated");
           assert.equal(startPayload.data.exercises[0].exerciseName, "Bench Press");
-          assert.equal(startPayload.data.exercises[0].targetSets, 3);
-          assert.equal(startPayload.data.exercises[0].targetReps, 8);
-          assert.equal(startPayload.data.exercises[0].sets.length, 3);
+          assert.equal(startPayload.data.exercises[0].targetSets, 4);
+          assert.equal(startPayload.data.exercises[0].targetReps, 6);
+          assert.equal(startPayload.data.exercises[0].sets.length, 4);
         } finally {
           await server.close();
         }

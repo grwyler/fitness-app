@@ -7,6 +7,7 @@ export type RootStackParamList = {
   Dashboard: undefined;
   CreateProgram:
     | {
+        editProgramId?: string;
         assignedDayNumber?: number;
         assignedWorkout?: ProgramWorkoutTemplateDto;
         assignmentId?: string;

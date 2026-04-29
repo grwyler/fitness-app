@@ -71,3 +71,11 @@ export type CreateCustomProgramInput = {
   workouts: CreateCustomProgramWorkoutInput[];
   createdAt: Date;
 };
+
+export type UpdateCustomProgramInput = {
+  programId: string;
+  userId: string;
+  name: string;
+  workouts: CreateCustomProgramWorkoutInput[];
+  updatedAt: Date;
+};
