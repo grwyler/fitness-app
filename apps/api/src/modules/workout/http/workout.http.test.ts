@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHmac } from "node:crypto";
 import { createServer } from "node:http";
 import {
   exerciseEntries,
@@ -15,7 +16,9 @@ import {
 } from "@fitness/db";
 import type { Request } from "express";
 import { createApp } from "../../../app.js";
+import { env } from "../../../config/env.js";
 import { createAuthenticateRequestMiddleware } from "../../../lib/auth/auth.middleware.js";
+import { hashPassword } from "../../../lib/auth/password.js";
 import { issueAuthToken } from "../../../lib/auth/token.js";
 import { AppError } from "../../../lib/http/errors.js";
 import { DEV_USER_ID, bootstrapDevelopmentDatabase } from "../../../lib/db/dev-bootstrap.js";
@@ -29,6 +32,34 @@ import {
   seedUpperLowerArmsProgram,
   seedInProgressWorkout
 } from "../infrastructure/test-helpers/integration-db.js";
+
+function base64UrlEncode(value: string) {
+  return Buffer.from(value).toString("base64url");
+}
+
+function signAuthToken(unsignedToken: string, secret: string) {
+  return createHmac("sha256", secret).update(unsignedToken).digest("base64url");
+}
+
+function createCustomAuthToken(input: {
+  email: string;
+  exp: number;
+  iat: number;
+  userId: string;
+}) {
+  const header = base64UrlEncode(JSON.stringify({ alg: "HS256", typ: "JWT" }));
+  const payload = base64UrlEncode(
+    JSON.stringify({
+      email: input.email,
+      exp: input.exp,
+      iat: input.iat,
+      sub: input.userId
+    })
+  );
+  const unsignedToken = `${header}.${payload}`;
+
+  return `${unsignedToken}.${signAuthToken(unsignedToken, env.JWT_SECRET)}`;
+}
 
 function createTestAuth() {
   return {
@@ -434,6 +465,383 @@ export const workoutHttpTestCases: HttpTestCase[] = [
 
           assert.equal(meResponse.status, 200);
           assert.equal(mePayload.data.user.email, "mvp@example.com");
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "POST /api/v1/auth/signin rejects unknown email",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        const server = await startHttpServer(context.db, null);
+
+        try {
+          const response = await fetch(`${server.baseUrl}/api/v1/auth/signin`, {
+            body: JSON.stringify({ email: "unknown@example.com", password: "password123" }),
+            headers: { "Content-Type": "application/json" },
+            method: "POST"
+          });
+          const payload = await readJson(response);
+
+          assert.equal(response.status, 401);
+          assert.equal(payload.error.code, "UNAUTHENTICATED");
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "POST /api/v1/auth/signin rejects wrong password",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        const server = await startHttpServer(context.db, null);
+
+        try {
+          const signupResponse = await fetch(`${server.baseUrl}/api/v1/auth/signup`, {
+            body: JSON.stringify({ email: "wrong-pass@example.com", password: "password123" }),
+            headers: { "Content-Type": "application/json" },
+            method: "POST"
+          });
+          assert.equal(signupResponse.status, 201);
+
+          const signinResponse = await fetch(`${server.baseUrl}/api/v1/auth/signin`, {
+            body: JSON.stringify({ email: "wrong-pass@example.com", password: "password999" }),
+            headers: { "Content-Type": "application/json" },
+            method: "POST"
+          });
+          const payload = await readJson(signinResponse);
+
+          assert.equal(signinResponse.status, 401);
+          assert.equal(payload.error.code, "UNAUTHENTICATED");
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "POST /api/v1/auth/signup returns 409 for duplicate email",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        const server = await startHttpServer(context.db, null);
+
+        try {
+          const first = await fetch(`${server.baseUrl}/api/v1/auth/signup`, {
+            body: JSON.stringify({ email: "duplicate@example.com", password: "password123" }),
+            headers: { "Content-Type": "application/json" },
+            method: "POST"
+          });
+          const second = await fetch(`${server.baseUrl}/api/v1/auth/signup`, {
+            body: JSON.stringify({ email: "duplicate@example.com", password: "password123" }),
+            headers: { "Content-Type": "application/json" },
+            method: "POST"
+          });
+          const payload = await readJson(second);
+
+          assert.equal(first.status, 201);
+          assert.equal(second.status, 409);
+          assert.equal(payload.error.code, "CONFLICT");
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "POST /api/v1/auth/signin rejects users without password hash",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+      const now = new Date("2026-04-24T10:00:00.000Z");
+
+      try {
+        await context.db.insert(users).values({
+          id: "hashless-user",
+          authProviderId: "hashless-user",
+          email: "hashless@example.com",
+          passwordHash: null,
+          displayName: "hashless",
+          timezone: "America/New_York",
+          unitSystem: "imperial",
+          experienceLevel: "beginner",
+          createdAt: now,
+          updatedAt: now
+        });
+
+        const server = await startHttpServer(context.db, null);
+
+        try {
+          const response = await fetch(`${server.baseUrl}/api/v1/auth/signin`, {
+            body: JSON.stringify({ email: "hashless@example.com", password: "password123" }),
+            headers: { "Content-Type": "application/json" },
+            method: "POST"
+          });
+          const payload = await readJson(response);
+
+          assert.equal(response.status, 401);
+          assert.equal(payload.error.code, "UNAUTHENTICATED");
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "POST /api/v1/auth/signin rejects soft-deleted users",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+      const now = new Date("2026-04-24T10:00:00.000Z");
+      const passwordHash = await hashPassword("password123");
+
+      try {
+        await context.db.insert(users).values({
+          id: "deleted-user",
+          authProviderId: "deleted-user",
+          email: "deleted@example.com",
+          passwordHash,
+          displayName: "deleted",
+          timezone: "America/New_York",
+          unitSystem: "imperial",
+          experienceLevel: "beginner",
+          deletedAt: now,
+          createdAt: now,
+          updatedAt: now
+        });
+
+        const server = await startHttpServer(context.db, null);
+
+        try {
+          const response = await fetch(`${server.baseUrl}/api/v1/auth/signin`, {
+            body: JSON.stringify({ email: "deleted@example.com", password: "password123" }),
+            headers: { "Content-Type": "application/json" },
+            method: "POST"
+          });
+          const payload = await readJson(response);
+
+          assert.equal(response.status, 401);
+          assert.equal(payload.error.code, "UNAUTHENTICATED");
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "GET /api/v1/auth/me rejects missing bearer token",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        const server = await startHttpServer(context.db, null);
+
+        try {
+          const response = await fetch(`${server.baseUrl}/api/v1/auth/me`);
+          const payload = await readJson(response);
+
+          assert.equal(response.status, 401);
+          assert.equal(payload.error.code, "UNAUTHENTICATED");
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "GET /api/v1/auth/me rejects malformed token",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        const server = await startHttpServer(context.db, null);
+
+        try {
+          const response = await fetch(`${server.baseUrl}/api/v1/auth/me`, {
+            headers: { Authorization: "Bearer not-a-jwt" }
+          });
+          const payload = await readJson(response);
+
+          assert.equal(response.status, 401);
+          assert.equal(payload.error.code, "UNAUTHENTICATED");
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "GET /api/v1/auth/me rejects expired token",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+      const nowSeconds = Math.floor(Date.now() / 1000);
+      const token = createCustomAuthToken({
+        email: "mvp@example.com",
+        exp: nowSeconds - 10,
+        iat: nowSeconds - 20,
+        userId: "user-1"
+      });
+
+      try {
+        await context.db.insert(users).values({
+          id: "user-1",
+          authProviderId: "user-1",
+          email: "mvp@example.com",
+          passwordHash: await hashPassword("password123"),
+          displayName: "mvp",
+          timezone: "America/New_York",
+          unitSystem: "imperial",
+          experienceLevel: "beginner",
+          createdAt: new Date("2026-04-24T10:00:00.000Z"),
+          updatedAt: new Date("2026-04-24T10:00:00.000Z")
+        });
+
+        const server = await startHttpServer(context.db, null);
+
+        try {
+          const response = await fetch(`${server.baseUrl}/api/v1/auth/me`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          const payload = await readJson(response);
+
+          assert.equal(response.status, 401);
+          assert.equal(payload.error.code, "UNAUTHENTICATED");
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "GET /api/v1/auth/me rejects tokens with iat in the future",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+      const nowSeconds = Math.floor(Date.now() / 1000);
+      const token = createCustomAuthToken({
+        email: "future-iat@example.com",
+        exp: nowSeconds + 60,
+        iat: nowSeconds + 60 * 60,
+        userId: "future-iat-user"
+      });
+
+      try {
+        const server = await startHttpServer(context.db, null);
+
+        try {
+          const response = await fetch(`${server.baseUrl}/api/v1/auth/me`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          const payload = await readJson(response);
+
+          assert.equal(response.status, 401);
+          assert.equal(payload.error.code, "UNAUTHENTICATED");
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "GET /api/v1/auth/me rejects soft-deleted users",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+      const now = new Date("2026-04-24T10:00:00.000Z");
+      const nowSeconds = Math.floor(Date.now() / 1000);
+      const token = createCustomAuthToken({
+        email: "deleted-me@example.com",
+        exp: nowSeconds + 60,
+        iat: nowSeconds - 10,
+        userId: "deleted-me-user"
+      });
+
+      try {
+        await context.db.insert(users).values({
+          id: "deleted-me-user",
+          authProviderId: "deleted-me-user",
+          email: "deleted-me@example.com",
+          passwordHash: await hashPassword("password123"),
+          displayName: "deleted-me",
+          timezone: "America/New_York",
+          unitSystem: "imperial",
+          experienceLevel: "beginner",
+          deletedAt: now,
+          createdAt: now,
+          updatedAt: now
+        });
+
+        const server = await startHttpServer(context.db, null);
+
+        try {
+          const response = await fetch(`${server.baseUrl}/api/v1/auth/me`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          const payload = await readJson(response);
+
+          assert.equal(response.status, 401);
+          assert.equal(payload.error.code, "UNAUTHENTICATED");
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "POST /api/v1/auth/signin rate limits repeated attempts",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        const server = await startHttpServer(context.db, null);
+
+        try {
+          let lastStatus = 0;
+          for (let i = 0; i < 12; i += 1) {
+            const response = await fetch(`${server.baseUrl}/api/v1/auth/signin`, {
+              body: JSON.stringify({ email: "rate-limited@example.com", password: "password123" }),
+              headers: { "Content-Type": "application/json" },
+              method: "POST"
+            });
+            lastStatus = response.status;
+          }
+
+          const finalResponse = await fetch(`${server.baseUrl}/api/v1/auth/signin`, {
+            body: JSON.stringify({ email: "rate-limited@example.com", password: "password123" }),
+            headers: { "Content-Type": "application/json" },
+            method: "POST"
+          });
+          const payload = await readJson(finalResponse);
+
+          assert.equal(lastStatus >= 0, true);
+          assert.equal(finalResponse.status, 429);
+          assert.equal(payload.error.code, "RATE_LIMITED");
         } finally {
           await server.close();
         }
@@ -1938,6 +2346,42 @@ export const workoutHttpTestCases: HttpTestCase[] = [
 ];
 
 workoutHttpTestCases.push(
+  {
+    name: "Development bootstrap is idempotent for test@test.com and preserves password login",
+    run: async () => {
+      const client = createPgliteClient();
+
+      try {
+        await bootstrapDevelopmentDatabase(client as any);
+        await bootstrapDevelopmentDatabase(client as any);
+
+        const rows = (await client.query(
+          "select count(*) as count from users where email = $1",
+          ["test@test.com"]
+        )) as { rows: Array<{ count: string }> };
+        assert.equal(Number(rows.rows[0]?.count ?? "0"), 1);
+
+        const db = createPgliteDatabase(client);
+        const server = await startHttpServer(db as any, null);
+
+        try {
+          const response = await fetch(`${server.baseUrl}/api/v1/auth/signin`, {
+            body: JSON.stringify({ email: "test@test.com", password: "password" }),
+            headers: { "Content-Type": "application/json" },
+            method: "POST"
+          });
+          const payload = await readJson(response);
+
+          assert.equal(response.status, 200);
+          assert.equal(payload.data.user.email, "test@test.com");
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await (client as any).close?.();
+      }
+    }
+  },
   {
     name: "Missing bearer token returns 401",
     run: async () => {

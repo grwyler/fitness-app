@@ -106,6 +106,7 @@ A user can:
 ## Priority 5 — Auth & Stability
 
 - [x] Replace hosted dev auth with first-party MVP auth
+- [ ] Production auth hardening roadmap: see `docs/AUTH_ROADMAP.md`
 - [ ] Add session restore test
 - [ ] Add basic error boundaries in mobile
 

@@ -130,7 +130,8 @@ export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[]
             "4-Day Upper/Lower + Arms",
             "5-Day Push/Pull/Legs",
             "3-Day Strength Focus",
-            "4-Day Hypertrophy Focus"
+            "4-Day Hypertrophy Focus",
+            "User Custom Program"
           ]
         );
         assert.equal(activeEnrollmentRows.rows.length, 1);

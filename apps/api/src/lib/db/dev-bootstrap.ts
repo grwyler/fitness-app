@@ -1,6 +1,9 @@
 import { seedExercises as catalogSeedExercises, seedPrograms as catalogSeedPrograms } from "@fitness/db";
+import { hashPassword } from "../auth/password.js";
 
 export const DEV_USER_ID = "11111111-1111-1111-1111-111111111111";
+export const TEST_USER_ID = "99999999-9999-9999-9999-999999999999";
+export const TEST_USER_EMAIL = "test@test.com";
 const PROGRAM_ID = "22222222-2222-2222-2222-222222222222";
 const UPPER_LOWER_ARMS_PROGRAM_ID = "22222222-2222-2222-2222-222222222223";
 const CUSTOM_WORKOUT_PROGRAM_ID = "22222222-2222-2222-2222-222222222299";
@@ -214,6 +217,22 @@ export async function bootstrapDevelopmentDatabase(executor: SqlExecutor) {
       await executor.query(statement);
     }
   }
+
+  const testUserPasswordHash = await hashPassword("password");
+
+  await executor.query(
+    `insert into users (id, auth_provider_id, email, password_hash, display_name, timezone, unit_system, experience_level)
+     values ($1, $2, $3, $4, $5, $6, $7, $8)
+     on conflict (email) do update
+     set password_hash = excluded.password_hash,
+         deleted_at = null,
+         display_name = excluded.display_name,
+         timezone = excluded.timezone,
+         unit_system = excluded.unit_system,
+         experience_level = excluded.experience_level,
+         updated_at = now()`,
+    [TEST_USER_ID, TEST_USER_ID, TEST_USER_EMAIL, testUserPasswordHash, "test", "America/New_York", "imperial", "beginner"]
+  );
 
   await executor.query(
     `insert into users (id, auth_provider_id, email, display_name, timezone, unit_system, experience_level)

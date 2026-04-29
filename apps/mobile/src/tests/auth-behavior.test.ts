@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { apiRequest } from "../api/client.js";
+import { signInWithPassword } from "../api/auth.js";
 import { registerAuthBridge, setLastKnownAuthToken } from "../core/auth/auth-bridge.js";
 import { deriveAuthStatus } from "../core/auth/auth-state.js";
+import { restoreSession } from "../core/auth/restore-session.js";
 import { getPrimaryButtonDisabledState, handleWebPrimaryButtonClick } from "../components/primary-button.shared.js";
 import { isDashboardQueryEnabled } from "../features/workout/hooks/dashboard-query.shared.js";
 import { requestResetTestDataConfirmation } from "../features/workout/utils/reset-test-data.shared.js";
@@ -273,6 +275,57 @@ export const authBehaviorTestCases: MobileTestCase[] = [
         setLastKnownAuthToken(null, "test_case_cleanup");
         unregister();
       }
+    }
+  },
+  {
+    name: "Sign-in surfaces backend error message for wrong credentials",
+    run: async () => {
+      setMockFetch(async () => {
+        return {
+          ok: false,
+          status: 401,
+          json: async () => ({
+            error: {
+              code: "UNAUTHENTICATED",
+              message: "Email or password is incorrect."
+            }
+          })
+        };
+      });
+
+      await assert.rejects(
+        () => signInWithPassword({ email: "user@example.com", password: "wrong-pass" }),
+        (error: unknown) => error instanceof Error && error.message === "Email or password is incorrect."
+      );
+    }
+  },
+  {
+    name: "Session restore clears stored token on failure",
+    run: async () => {
+      let clearedCount = 0;
+      const events: Array<{ token: string | null; source: string }> = [];
+
+      const result = await restoreSession({
+        clearStoredToken: async () => {
+          clearedCount += 1;
+        },
+        fetchCurrentUser: async () => {
+          throw new Error("Token invalid.");
+        },
+        readStoredToken: async () => "stored-token",
+        setLastKnownAuthToken: (token, source) => {
+          events.push({ token, source });
+        }
+      });
+
+      assert.equal(clearedCount, 1);
+      assert.deepEqual(events, [
+        { token: "stored-token", source: "stored_app_auth" },
+        { token: null, source: "restore_failed" }
+      ]);
+      assert.equal(result.status, "unauthenticated");
+      assert.equal(result.token, null);
+      assert.equal(result.user, null);
     }
   }
 ];

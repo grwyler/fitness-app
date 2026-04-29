@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { users } from "@fitness/db";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { Router } from "express";
 import { z } from "zod";
 import { failure, success } from "../http/envelope.js";
+import { createRateLimitMiddleware } from "../http/rate-limit.js";
 import { hashPassword, verifyPassword } from "./password.js";
 import { issueAuthToken } from "./token.js";
 
@@ -24,15 +25,47 @@ function publicUser(user: { email: string; id: string }) {
   };
 }
 
+function isUniqueConstraintViolation(error: unknown) {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const errorCode = (error as { code?: unknown }).code;
+  if (errorCode === "23505") {
+    return true;
+  }
+
+  const message = (error as { message?: unknown }).message;
+  if (typeof message !== "string") {
+    return false;
+  }
+
+  return (
+    message.toLowerCase().includes("unique constraint") ||
+    message.toLowerCase().includes("unique constraint failed") ||
+    message.toLowerCase().includes("duplicate key value")
+  );
+}
+
+function normalizeEmailFromBody(value: unknown) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  return normalized.length > 0 ? normalized : null;
+}
+
 async function findUserByEmail(database: DatabaseLike, email: string) {
   const rows = await database
     .select({
       email: users.email,
       id: users.id,
-      passwordHash: users.passwordHash
+      passwordHash: users.passwordHash,
+      deletedAt: users.deletedAt
     })
     .from(users)
-    .where(eq(users.email, email))
+    .where(and(eq(users.email, email), isNull(users.deletedAt)))
     .limit(1);
 
   return rows[0] ?? null;
@@ -42,10 +75,11 @@ async function findUserById(database: DatabaseLike, userId: string) {
   const rows = await database
     .select({
       email: users.email,
-      id: users.id
+      id: users.id,
+      deletedAt: users.deletedAt
     })
     .from(users)
-    .where(eq(users.id, userId))
+    .where(and(eq(users.id, userId), isNull(users.deletedAt)))
     .limit(1);
 
   return rows[0] ?? null;
@@ -54,7 +88,18 @@ async function findUserById(database: DatabaseLike, userId: string) {
 export function createPublicAuthRouter(database: DatabaseLike) {
   const router = Router();
 
-  router.post("/auth/signup", async (request, response, next) => {
+  const signUpRateLimit = createRateLimitMiddleware({
+    key: (request) => `auth_signup|email=${normalizeEmailFromBody((request.body as any)?.email) ?? "none"}`,
+    max: 5,
+    windowMs: 60_000
+  });
+  const signInRateLimit = createRateLimitMiddleware({
+    key: (request) => `auth_signin|email=${normalizeEmailFromBody((request.body as any)?.email) ?? "none"}`,
+    max: 10,
+    windowMs: 60_000
+  });
+
+  router.post("/auth/signup", signUpRateLimit, async (request, response, next) => {
     try {
       const parsedCredentials = credentialsSchema.safeParse(request.body);
       if (!parsedCredentials.success) {
@@ -70,13 +115,22 @@ export function createPublicAuthRouter(database: DatabaseLike) {
 
       const userId = randomUUID();
       const passwordHash = await hashPassword(parsedCredentials.data.password);
-      await database.insert(users).values({
-        id: userId,
-        authProviderId: userId,
-        email: parsedCredentials.data.email,
-        displayName: parsedCredentials.data.email.split("@")[0] ?? null,
-        passwordHash
-      });
+      try {
+        await database.insert(users).values({
+          id: userId,
+          authProviderId: userId,
+          email: parsedCredentials.data.email,
+          displayName: parsedCredentials.data.email.split("@")[0] ?? null,
+          passwordHash
+        });
+      } catch (error) {
+        if (isUniqueConstraintViolation(error)) {
+          response.status(409).json(failure("CONFLICT", "An account already exists for this email."));
+          return;
+        }
+
+        throw error;
+      }
 
       const token = issueAuthToken({
         email: parsedCredentials.data.email,
@@ -95,7 +149,7 @@ export function createPublicAuthRouter(database: DatabaseLike) {
     }
   });
 
-  router.post("/auth/signin", async (request, response, next) => {
+  router.post("/auth/signin", signInRateLimit, async (request, response, next) => {
     try {
       const parsedCredentials = credentialsSchema.safeParse(request.body);
       if (!parsedCredentials.success) {

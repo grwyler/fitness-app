@@ -2,6 +2,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { env } from "../../config/env.js";
 
 const TOKEN_TTL_SECONDS = 60 * 60 * 24 * 30;
+const CLOCK_SKEW_SECONDS = 60 * 5;
 
 export type AuthTokenPayload = {
   email: string;
@@ -61,11 +62,27 @@ export function verifyAuthToken(token: string): AuthTokenPayload {
   }
 
   const parsedPayload = JSON.parse(base64UrlDecode(payload)) as AuthTokenPayload;
-  if (!parsedPayload.sub || !parsedPayload.email || !parsedPayload.exp) {
+  if (
+    typeof parsedPayload.sub !== "string" ||
+    parsedPayload.sub.length === 0 ||
+    typeof parsedPayload.email !== "string" ||
+    parsedPayload.email.length === 0 ||
+    typeof parsedPayload.exp !== "number" ||
+    typeof parsedPayload.iat !== "number"
+  ) {
     throw new Error("Invalid auth token payload.");
   }
 
   const now = Math.floor(Date.now() / 1000);
+  if (!Number.isInteger(parsedPayload.exp) || !Number.isInteger(parsedPayload.iat)) {
+    throw new Error("Invalid auth token payload.");
+  }
+  if (parsedPayload.iat > now + CLOCK_SKEW_SECONDS) {
+    throw new Error("Invalid auth token payload.");
+  }
+  if (parsedPayload.exp <= parsedPayload.iat) {
+    throw new Error("Invalid auth token payload.");
+  }
   if (parsedPayload.exp <= now) {
     throw new Error("Expired auth token.");
   }

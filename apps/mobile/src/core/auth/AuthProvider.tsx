@@ -4,6 +4,7 @@ import type { AuthUser } from "../../api/auth";
 import { fetchCurrentUser } from "../../api/auth";
 import { registerAuthBridge, setLastKnownAuthToken } from "./auth-bridge";
 import { clearStoredAuthToken, readStoredAuthToken, writeStoredAuthToken } from "./token-storage";
+import { restoreSession } from "./restore-session";
 import { queryClient } from "../providers/query-client";
 import { useActiveWorkoutStore } from "../../features/workout/store/active-workout-store";
 
@@ -53,36 +54,24 @@ export function AuthProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     let cancelled = false;
 
-    async function restoreSession() {
-      const storedToken = await readStoredAuthToken();
-      if (!storedToken) {
-        if (!cancelled) {
-          setStatus("unauthenticated");
-        }
+    async function restoreAppSession() {
+      const result = await restoreSession({
+        clearStoredToken: clearStoredAuthToken,
+        fetchCurrentUser,
+        readStoredToken: readStoredAuthToken,
+        setLastKnownAuthToken
+      });
+
+      if (cancelled) {
         return;
       }
 
-      setLastKnownAuthToken(storedToken, "stored_app_auth");
-      setToken(storedToken);
-
-      try {
-        const restoredUser = await fetchCurrentUser();
-        if (!cancelled) {
-          setUser(restoredUser);
-          setStatus("authenticated");
-        }
-      } catch {
-        await clearStoredAuthToken();
-        setLastKnownAuthToken(null, "restore_failed");
-        if (!cancelled) {
-          setToken(null);
-          setUser(null);
-          setStatus("unauthenticated");
-        }
-      }
+      setToken(result.token);
+      setUser(result.user);
+      setStatus(result.status);
     }
 
-    void restoreSession();
+    void restoreAppSession();
 
     return () => {
       cancelled = true;
