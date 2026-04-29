@@ -145,6 +145,11 @@ export function formatRestTimer(secondsRemaining: number) {
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
+export function getRestTimerSecondsRemaining(input: { endAtMs: number; nowMs?: number }) {
+  const nowMs = input.nowMs ?? Date.now();
+  return Math.max(0, Math.ceil((input.endAtMs - nowMs) / 1000));
+}
+
 export function getSetStatusLabel(set: SetDto) {
   if (set.status === "completed") {
     return "Done";

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { ExerciseEntryDto, SetDto } from "@fitness/shared";
-import { StyleSheet, Text, View } from "react-native";
+import { Platform, StyleSheet, Text, View } from "react-native";
+import { useKeepAwake } from "expo-keep-awake";
 import { Screen } from "../components/Screen";
 import { LoadingState } from "../components/LoadingState";
 import { ErrorState } from "../components/ErrorState";
@@ -32,6 +33,7 @@ import {
   buildLogSetRequestFromDraft,
   formatRestTimer,
   getRestDurationSeconds,
+  getRestTimerSecondsRemaining,
   isMaterialOverperformanceLog,
   type SetLogDraft
 } from "../features/workout/utils/set-logging.shared";
@@ -41,11 +43,13 @@ type Props = NativeStackScreenProps<RootStackParamList, "ActiveWorkout">;
 
 type RestTimerState = {
   exerciseName: string;
-  secondsRemaining: number;
+  endAtMs: number;
   setNumber: number;
 } | null;
 
 export function ActiveWorkoutScreen({ navigation, route }: Props) {
+  useKeepAwake();
+
   const currentWorkoutQuery = useCurrentWorkout();
   const logSetMutation = useLogSet();
   const updateLoggedSetMutation = useUpdateLoggedSet();
@@ -69,6 +73,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
   const [customExerciseError, setCustomExerciseError] = useState<string | null>(null);
   const [programDayWorkoutName, setProgramDayWorkoutName] = useState("");
   const [restTimer, setRestTimer] = useState<RestTimerState>(null);
+  const [restTimerNowMs, setRestTimerNowMs] = useState(() => Date.now());
   const inFlightSetIds = useRef<Set<string>>(new Set());
   const completionInFlight = useRef(false);
   const discardInFlight = useRef(false);
@@ -84,26 +89,66 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
       return undefined;
     }
 
-    if (restTimer.secondsRemaining <= 0) {
-      return undefined;
-    }
+    setRestTimerNowMs(Date.now());
 
     const interval = setInterval(() => {
-      setRestTimer((current) => {
-        if (!current) {
-          return null;
-        }
-
-        const nextSeconds = Math.max(0, current.secondsRemaining - 1);
-        return {
-          ...current,
-          secondsRemaining: nextSeconds
-        };
-      });
+      setRestTimerNowMs(Date.now());
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [restTimer]);
+  }, [restTimer?.endAtMs]);
+
+  useEffect(() => {
+    if (Platform.OS !== "web") {
+      return undefined;
+    }
+
+    let wakeLock: { release?: () => Promise<void> } | null = null;
+    let isDisposed = false;
+
+    async function requestWakeLock() {
+      try {
+        const navigatorAny = (globalThis as any).navigator as undefined | { wakeLock?: { request: (type: "screen") => Promise<any> } };
+        if (!navigatorAny?.wakeLock?.request) {
+          return;
+        }
+
+        const lock = await navigatorAny.wakeLock.request("screen");
+        if (isDisposed) {
+          await lock.release?.();
+          return;
+        }
+
+        wakeLock = lock;
+      } catch {
+        // Best effort: some browsers require HTTPS and user gesture.
+      }
+    }
+
+    requestWakeLock();
+
+    const documentAny = (globalThis as any).document as
+      | undefined
+      | {
+          visibilityState?: string;
+          addEventListener?: (event: string, handler: () => void) => void;
+          removeEventListener?: (event: string, handler: () => void) => void;
+        };
+
+    function handleVisibilityChange() {
+      if (documentAny?.visibilityState === "visible") {
+        void requestWakeLock();
+      }
+    }
+
+    documentAny?.addEventListener?.("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      documentAny?.removeEventListener?.("visibilitychange", handleVisibilityChange);
+      isDisposed = true;
+      void wakeLock?.release?.();
+    };
+  }, []);
 
   useEffect(() => {
     if (
@@ -167,6 +212,26 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
     hasPendingSetSave
   });
 
+  const restSecondsRemaining = restTimer
+    ? getRestTimerSecondsRemaining({ endAtMs: restTimer.endAtMs, nowMs: restTimerNowMs })
+    : 0;
+  const restTimerCard = restTimer ? (
+    <View style={styles.restTimerCard}>
+      <View style={styles.restTimerTextGroup}>
+        <Text style={styles.restTimerLabel}>{restSecondsRemaining > 0 ? "Rest timer" : "Rest done"}</Text>
+        <Text style={styles.restTimerTitle}>
+          {restTimer.exerciseName} after set {restTimer.setNumber}
+        </Text>
+      </View>
+      <View style={styles.restTimerValueGroup}>
+        <Text style={styles.restTimerValue}>{formatRestTimer(restSecondsRemaining)}</Text>
+        <Text style={styles.restTimerSkip} onPress={() => setRestTimer(null)}>
+          Skip
+        </Text>
+      </View>
+    </View>
+  ) : null;
+
   function handleLogSet(exercise: ExerciseEntryDto, set: SetDto, draft: SetLogDraft) {
     if (submittingSetIds[set.id] || inFlightSetIds.current.has(set.id) || set.status !== "pending") {
       return;
@@ -203,7 +268,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
     if (hasAnotherPendingSet) {
       setRestTimer({
         exerciseName: exercise.exerciseName,
-        secondsRemaining: restSeconds,
+        endAtMs: Date.now() + restSeconds * 1000,
         setNumber: set.setNumber
       });
     } else {
@@ -477,7 +542,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
   }
 
   return (
-    <Screen>
+    <Screen fixedFooter={restTimerCard} fixedFooterHeight={restTimer ? 92 : 0}>
       <View style={styles.header}>
         <Text style={styles.title}>{workout.workoutName}</Text>
         <Text style={styles.subtitle}>
@@ -490,25 +555,6 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
             : `${workout.exercises.length} exercises in ${workout.programName}`}
         </Text>
       </View>
-
-      {restTimer ? (
-        <View style={styles.restTimerCard}>
-          <View style={styles.restTimerTextGroup}>
-            <Text style={styles.restTimerLabel}>
-              {restTimer.secondsRemaining > 0 ? "Rest timer" : "Rest done"}
-            </Text>
-            <Text style={styles.restTimerTitle}>
-              {restTimer.exerciseName} after set {restTimer.setNumber}
-            </Text>
-          </View>
-          <View style={styles.restTimerValueGroup}>
-            <Text style={styles.restTimerValue}>{formatRestTimer(restTimer.secondsRemaining)}</Text>
-            <Text style={styles.restTimerSkip} onPress={() => setRestTimer(null)}>
-              Skip
-            </Text>
-          </View>
-        </View>
-      ) : null}
 
       {workout.exercises.length === 0 ? (
         <View style={styles.emptyStateCard}>

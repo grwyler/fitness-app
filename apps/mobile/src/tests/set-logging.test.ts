@@ -4,6 +4,7 @@ import {
   adjustWeightText,
   buildLogSetRequestFromDraft,
   formatRestTimer,
+  getRestTimerSecondsRemaining,
   getPreviousLoggedSet,
   getRestDurationSeconds,
   getSetLogDefaultDraft,
@@ -148,6 +149,9 @@ export const setLoggingTestCases: MobileTestCase[] = [
       assert.equal(getRestDurationSeconds({ restSeconds: null, exerciseCategory: "compound" }), 120);
       assert.equal(formatRestTimer(75), "1:15");
       assert.equal(formatRestTimer(0), "0:00");
+      assert.equal(getRestTimerSecondsRemaining({ endAtMs: 10_000, nowMs: 9_000 }), 1);
+      assert.equal(getRestTimerSecondsRemaining({ endAtMs: 10_000, nowMs: 10_000 }), 0);
+      assert.equal(getRestTimerSecondsRemaining({ endAtMs: 10_000, nowMs: 11_000 }), 0);
     }
   }
 ];
