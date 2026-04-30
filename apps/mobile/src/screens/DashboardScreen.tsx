@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ProgramDto } from "@fitness/shared";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -219,6 +219,26 @@ export function DashboardScreen({ navigation }: Props) {
     });
   }
 
+  function startCustomWorkout() {
+    setLastAction("start_custom_workout");
+    setSelectedStartingWorkoutId("custom-workout");
+    startWorkoutMutation.mutate(
+      {
+        sessionType: "custom"
+      },
+      {
+        onSuccess: () => {
+          setSelectedStartingWorkoutId(null);
+          setIsWorkoutPickerOpen(false);
+          navigation.navigate("ActiveWorkout");
+        },
+        onError: () => {
+          setSelectedStartingWorkoutId(null);
+        }
+      }
+    );
+  }
+
   function startCurrentProgramWorkout(choice: CurrentProgramWorkoutChoice) {
     setLastAction(`start_current_program_workout:${choice.workout.id}`);
     setSelectedStartingWorkoutId(choice.workout.id);
@@ -355,32 +375,15 @@ export function DashboardScreen({ navigation }: Props) {
         ) : null}
         <View style={styles.secondaryWorkoutActions}>
           <PrimaryButton
-            label="Create Custom Workout"
-            tone="secondary"
-            onPress={() => {
-              setLastAction("start_custom_workout");
-              setSelectedStartingWorkoutId("custom-workout");
-              startWorkoutMutation.mutate(
-                {
-                  sessionType: "custom"
-                },
-                {
-                  onSuccess: () => {
-                    setSelectedStartingWorkoutId(null);
-                    navigation.navigate("ActiveWorkout");
-                  },
-                  onError: () => {
-                    setSelectedStartingWorkoutId(null);
-                  }
-                }
-              );
-            }}
+            label="Build Custom Workout"
+            tone="primary"
+            onPress={startCustomWorkout}
             disabled={Boolean(activeWorkout || startWorkoutMutation.isPending)}
             loading={isStartingCustomWorkout}
           />
           {hasPredefinedChoices ? (
             <PrimaryButton
-              label="Choose Predefined Workout"
+              label="Suggested Workouts"
               tone="secondary"
               disabled={Boolean(
                 activeWorkout ||
@@ -389,7 +392,7 @@ export function DashboardScreen({ navigation }: Props) {
                   programsQuery.isLoading
               )}
               onPress={() => {
-                setLastAction("choose_predefined_workout");
+                setLastAction("choose_workout");
                 setIsWorkoutPickerOpen(true);
               }}
             />
@@ -531,8 +534,10 @@ export function DashboardScreen({ navigation }: Props) {
         recommendedWorkoutId={nextWorkout?.id ?? null}
         selectedStartingWorkoutId={selectedStartingWorkoutId}
         startingWorkout={isStartingPredefinedWorkout}
+        startingCustomWorkout={isStartingCustomWorkout}
         visible={isWorkoutPickerOpen}
         onClose={() => setIsWorkoutPickerOpen(false)}
+        onStartCustomWorkout={startCustomWorkout}
         onSelectWorkout={startPredefinedWorkout}
       />
       <CurrentProgramWorkoutPickerModal
@@ -719,51 +724,125 @@ function WorkoutPickerModal(props: {
   startingWorkout: boolean;
   visible: boolean;
   onClose: () => void;
+  onStartCustomWorkout: () => void;
+  startingCustomWorkout: boolean;
   onSelectWorkout: (choice: PredefinedWorkoutChoice) => void;
 }) {
+  const [tab, setTab] = useState<"custom" | "suggested">("custom");
+  const hasSuggestedWorkouts = props.groups.length > 0;
+
+  useEffect(() => {
+    if (!props.visible) {
+      return;
+    }
+
+    setTab("custom");
+  }, [props.visible]);
+
   return (
     <Modal animationType="slide" transparent visible={props.visible} onRequestClose={props.onClose}>
       <View style={styles.modalBackdrop}>
         <View style={styles.modalSheet}>
           <View style={styles.modalHeader}>
             <View style={styles.modalTitleGroup}>
-              <Text style={styles.cardLabel}>Predefined workouts</Text>
-              <Text style={styles.modalTitle}>Choose workout</Text>
+              <Text style={styles.cardLabel}>Start workout</Text>
+              <Text style={styles.modalTitle}>
+                {tab === "custom" ? "Build custom workout" : "Suggested workouts"}
+              </Text>
             </View>
             <Pressable accessibilityRole="button" onPress={props.onClose} style={styles.closeButton}>
               <Text style={styles.closeLabel}>Close</Text>
             </Pressable>
           </View>
 
-          <ScrollView contentContainerStyle={styles.programChoiceList}>
-            {props.loadingWorkouts ? (
-              <Text style={styles.cardBody}>Loading predefined workouts...</Text>
-            ) : props.groups.length === 0 ? (
-              <Text style={styles.cardBody}>No workouts are available for this program.</Text>
-            ) : (
-              props.groups.map((group) => (
-                <View key={group.category} style={styles.workoutCategoryGroup}>
-                  <Text style={styles.categoryHeader}>{group.category}</Text>
-                  {group.workouts.map((choice) => {
-                    const isRecommended = choice.workout.id === props.recommendedWorkoutId;
-                    const isStartingThisWorkout =
-                      props.startingWorkout && props.selectedStartingWorkoutId === choice.workout.id;
+          <View style={styles.workoutPickerTabs}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ selected: tab === "custom" }}
+              onPress={() => setTab("custom")}
+              style={[styles.workoutPickerTab, tab === "custom" && styles.workoutPickerTabActive]}
+            >
+              <Text style={[styles.workoutPickerTabLabel, tab === "custom" && styles.workoutPickerTabLabelActive]}>
+                Custom
+              </Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ selected: tab === "suggested", disabled: !hasSuggestedWorkouts }}
+              disabled={!hasSuggestedWorkouts}
+              onPress={() => setTab("suggested")}
+              style={[
+                styles.workoutPickerTab,
+                tab === "suggested" && styles.workoutPickerTabActive,
+                !hasSuggestedWorkouts && styles.workoutPickerTabDisabled
+              ]}
+            >
+              <Text
+                style={[
+                  styles.workoutPickerTabLabel,
+                  tab === "suggested" && styles.workoutPickerTabLabelActive,
+                  !hasSuggestedWorkouts && styles.workoutPickerTabLabelDisabled
+                ]}
+              >
+                Suggested
+              </Text>
+            </Pressable>
+          </View>
 
-                    return (
-                      <WorkoutChoice
-                        key={choice.id}
-                        choice={choice}
-                        isRecommended={isRecommended}
-                        isStarting={isStartingThisWorkout}
-                        startingWorkout={props.startingWorkout}
-                        onSelectWorkout={props.onSelectWorkout}
-                      />
-                    );
-                  })}
-                </View>
-              ))
-            )}
-          </ScrollView>
+          {tab === "custom" ? (
+            <View style={styles.customWorkoutTab}>
+              <Text style={styles.cardBody}>
+                Build today's workout by choosing the exact exercises you want.
+              </Text>
+              <PrimaryButton
+                label="Start Custom Workout"
+                tone="primary"
+                disabled={props.startingCustomWorkout}
+                loading={props.startingCustomWorkout}
+                onPress={props.onStartCustomWorkout}
+              />
+              <Pressable
+                accessibilityRole="button"
+                disabled={!hasSuggestedWorkouts}
+                onPress={() => setTab("suggested")}
+                style={[styles.suggestedLink, !hasSuggestedWorkouts && styles.suggestedLinkDisabled]}
+              >
+                <Text style={[styles.suggestedLinkLabel, !hasSuggestedWorkouts && styles.suggestedLinkLabelDisabled]}>
+                  Or browse suggested workouts
+                </Text>
+              </Pressable>
+            </View>
+          ) : (
+            <ScrollView contentContainerStyle={styles.programChoiceList}>
+              {props.loadingWorkouts ? (
+                <Text style={styles.cardBody}>Loading workouts...</Text>
+              ) : props.groups.length === 0 ? (
+                <Text style={styles.cardBody}>No suggested workouts are available for this program.</Text>
+              ) : (
+                props.groups.map((group) => (
+                  <View key={group.category} style={styles.workoutCategoryGroup}>
+                    <Text style={styles.categoryHeader}>{group.category}</Text>
+                    {group.workouts.map((choice) => {
+                      const isRecommended = choice.workout.id === props.recommendedWorkoutId;
+                      const isStartingThisWorkout =
+                        props.startingWorkout && props.selectedStartingWorkoutId === choice.workout.id;
+
+                      return (
+                        <WorkoutChoice
+                          key={choice.id}
+                          choice={choice}
+                          isRecommended={isRecommended}
+                          isStarting={isStartingThisWorkout}
+                          startingWorkout={props.startingWorkout}
+                          onSelectWorkout={props.onSelectWorkout}
+                        />
+                      );
+                    })}
+                  </View>
+                ))
+              )}
+            </ScrollView>
+          )}
 
           {props.errorMessage ? <Text style={styles.errorText}>{props.errorMessage}</Text> : null}
         </View>
@@ -847,6 +926,60 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     gap: spacing.sm,
     padding: spacing.lg
+  },
+  workoutPickerTabs: {
+    flexDirection: "row",
+    gap: spacing.xs,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.sm
+  },
+  workoutPickerTab: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 999,
+    paddingVertical: spacing.sm,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.surface
+  },
+  workoutPickerTabActive: {
+    backgroundColor: colors.accentMuted,
+    borderColor: colors.accentStrong
+  },
+  workoutPickerTabDisabled: {
+    opacity: 0.55
+  },
+  workoutPickerTabLabel: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    fontWeight: "600"
+  },
+  workoutPickerTabLabelActive: {
+    color: colors.textPrimary
+  },
+  workoutPickerTabLabelDisabled: {
+    color: colors.textSecondary
+  },
+  customWorkoutTab: {
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.lg,
+    gap: spacing.md
+  },
+  suggestedLink: {
+    alignSelf: "center",
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm
+  },
+  suggestedLinkDisabled: {
+    opacity: 0.6
+  },
+  suggestedLinkLabel: {
+    color: colors.accentStrong,
+    fontWeight: "600"
+  },
+  suggestedLinkLabelDisabled: {
+    color: colors.textSecondary
   },
   cardLabel: {
     color: colors.accentStrong,
