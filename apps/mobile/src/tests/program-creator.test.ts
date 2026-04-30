@@ -7,6 +7,7 @@ import type {
 } from "@fitness/shared";
 import {
   buildAssignedProgramRequest,
+  buildCustomWorkoutExerciseRequestsFromProgramWorkout,
   buildProgramDayWorkoutFromExerciseSelection,
   buildProgramDayWorkoutFromCustomSession,
   createProgramDayAssignments,
@@ -357,6 +358,19 @@ export const programCreatorTestCases: MobileTestCase[] = [
 
       assert.equal(customBuiltWorkout.name, "Bench and Rows");
       assert.equal(result.request?.workouts[0]?.name, "Day 1: Bench and Rows");
+    }
+  },
+  {
+    name: "Program creator can build custom-workout edit requests from a workout template",
+    run: () => {
+      const requests = buildCustomWorkoutExerciseRequestsFromProgramWorkout(customWorkout);
+
+      assert.deepEqual(
+        requests.map((request) => request.exerciseId),
+        ["exercise-2"]
+      );
+      assert.equal(requests[0]?.targetSets, 4);
+      assert.equal(requests[0]?.targetReps, 8);
     }
   }
 ];

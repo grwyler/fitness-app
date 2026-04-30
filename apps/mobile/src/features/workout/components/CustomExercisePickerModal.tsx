@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { AddCustomWorkoutExerciseRequest, ExerciseCatalogItemDto } from "@fitness/shared";
 import {
   Modal,
@@ -66,6 +66,8 @@ export function CustomExercisePickerModal(props: {
   errorMessage: string | null;
   exercises: ExerciseCatalogItemDto[];
   loadingExercises: boolean;
+  initialRequests?: AddCustomWorkoutExerciseRequest[] | null;
+  initializationKey?: string | number;
   mode: CustomWorkoutBuilderMode;
   programDayNumber?: number | null;
   workoutName?: string;
@@ -81,6 +83,7 @@ export function CustomExercisePickerModal(props: {
   const [selectedExerciseIds, setSelectedExerciseIds] = useState<string[]>([]);
   const [configureIndex, setConfigureIndex] = useState(0);
   const [configByExerciseId, setConfigByExerciseId] = useState<Record<string, ExerciseConfigDraft>>({});
+  const pendingInitialRequestsRef = useRef<AddCustomWorkoutExerciseRequest[] | null>(null);
 
   useEffect(() => {
     if (!props.visible) {
@@ -93,7 +96,50 @@ export function CustomExercisePickerModal(props: {
     setConfigureIndex(0);
     setConfigByExerciseId({});
     setValidationError(null);
-  }, [props.visible]);
+
+    const initialRequests = props.initialRequests?.length ? props.initialRequests : null;
+    pendingInitialRequestsRef.current = initialRequests;
+    if (initialRequests) {
+      setSelectedExerciseIds(initialRequests.map((request) => request.exerciseId));
+    }
+  }, [props.visible, props.initializationKey]);
+
+  useEffect(() => {
+    if (!props.visible) {
+      return;
+    }
+
+    const pending = pendingInitialRequestsRef.current;
+    if (!pending || pending.length === 0) {
+      return;
+    }
+
+    setConfigByExerciseId((current) => {
+      let didChange = false;
+      const next = { ...current };
+      const remaining: AddCustomWorkoutExerciseRequest[] = [];
+
+      for (const request of pending) {
+        const exercise = props.exercises.find((candidate) => candidate.id === request.exerciseId);
+        if (!exercise) {
+          remaining.push(request);
+          continue;
+        }
+
+        const defaults = buildDefaultConfig(exercise);
+        next[exercise.id] = {
+          ...defaults,
+          targetSetsText: String(request.targetSets),
+          targetRepsText: String(request.targetReps),
+          ...(request.targetWeight ? { targetWeightText: String(request.targetWeight.value) } : {})
+        };
+        didChange = true;
+      }
+
+      pendingInitialRequestsRef.current = remaining.length > 0 ? remaining : null;
+      return didChange ? next : current;
+    });
+  }, [props.exercises, props.visible]);
 
   const selectedExerciseIdSet = useMemo(() => new Set(selectedExerciseIds), [selectedExerciseIds]);
   const selectedExercises = useMemo(

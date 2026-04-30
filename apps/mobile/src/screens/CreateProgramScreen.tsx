@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { ProgramDto, ProgramWorkoutTemplateDto } from "@fitness/shared";
+import type { AddCustomWorkoutExerciseRequest, ProgramDto, ProgramWorkoutTemplateDto } from "@fitness/shared";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Screen } from "../components/Screen";
@@ -13,10 +13,12 @@ import { useExercises } from "../features/workout/hooks/useExercises";
 import { usePrograms } from "../features/workout/hooks/usePrograms";
 import {
   buildAssignedProgramRequest,
+  buildCustomWorkoutExerciseRequestsFromProgramWorkout,
   createProgramDayAssignments,
   getAssignableWorkoutDescription,
   getAssignableWorkoutChoices,
   groupAssignableWorkoutChoices,
+  isProgramDayWorkoutBuilderWorkout,
   resizeProgramDayAssignments,
   type AssignableWorkoutChoice,
   type AssignableWorkoutGroup,
@@ -47,6 +49,10 @@ export function CreateProgramScreen({ navigation, route }: Props) {
   const [customWorkoutDayNumber, setCustomWorkoutDayNumber] = useState<number | null>(null);
   const [customWorkoutName, setCustomWorkoutName] = useState("");
   const [customExerciseError, setCustomExerciseError] = useState<string | null>(null);
+  const [customWorkoutInitialRequests, setCustomWorkoutInitialRequests] = useState<
+    AddCustomWorkoutExerciseRequest[] | null
+  >(null);
+  const [customWorkoutInitKey, setCustomWorkoutInitKey] = useState(0);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [savedProgramId, setSavedProgramId] = useState<string | null>(null);
   const [loadedEditProgramId, setLoadedEditProgramId] = useState<string | null>(null);
@@ -124,12 +130,25 @@ export function CreateProgramScreen({ navigation, route }: Props) {
     setCustomWorkoutDayNumber(dayNumber);
     setCustomWorkoutName("");
     setCustomExerciseError(null);
+    setCustomWorkoutInitialRequests(null);
+    setCustomWorkoutInitKey((current) => current + 1);
+  }
+
+  function openCustomWorkoutEditorForDay(dayNumber: number, workout: ProgramWorkoutTemplateDto) {
+    setPickerDayNumber(null);
+    setSavedProgramId(null);
+    setCustomWorkoutDayNumber(dayNumber);
+    setCustomWorkoutName(workout.name);
+    setCustomExerciseError(null);
+    setCustomWorkoutInitialRequests(buildCustomWorkoutExerciseRequestsFromProgramWorkout(workout));
+    setCustomWorkoutInitKey((current) => current + 1);
   }
 
   function closeCustomWorkoutBuilder() {
     setCustomWorkoutDayNumber(null);
     setCustomWorkoutName("");
     setCustomExerciseError(null);
+    setCustomWorkoutInitialRequests(null);
   }
 
   function assignCustomWorkoutToDay(input: {
@@ -288,12 +307,22 @@ export function CreateProgramScreen({ navigation, route }: Props) {
                   <Text style={styles.dayLabel}>Day {day.dayNumber}</Text>
                   <Text style={styles.workoutName}>{day.workout?.name ?? "No workout selected"}</Text>
                 </View>
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => setPickerDayNumber(day.dayNumber)}
-                >
-                  <Text style={styles.addText}>{day.workout ? "Change" : "Choose"}</Text>
-                </Pressable>
+                <View style={styles.dayActions}>
+                  {day.workout && isProgramDayWorkoutBuilderWorkout(day.workout) ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={() => openCustomWorkoutEditorForDay(day.dayNumber, day.workout!)}
+                    >
+                      <Text style={styles.addText}>Edit</Text>
+                    </Pressable>
+                  ) : null}
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => setPickerDayNumber(day.dayNumber)}
+                  >
+                    <Text style={styles.addText}>{day.workout ? "Change" : "Choose"}</Text>
+                  </Pressable>
+                </View>
               </View>
               {day.workout ? (
                 <WorkoutPreview workout={day.workout} />
@@ -369,6 +398,8 @@ export function CreateProgramScreen({ navigation, route }: Props) {
         errorMessage={customExerciseError}
         exercises={exercisesQuery.data ?? []}
         loadingExercises={exercisesQuery.isLoading}
+        initialRequests={customWorkoutInitialRequests}
+        initializationKey={customWorkoutInitKey}
         mode="assignToProgramDay"
         {...(customWorkoutDayNumber !== null ? { programDayNumber: customWorkoutDayNumber } : {})}
         workoutName={customWorkoutName}
@@ -559,6 +590,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: spacing.md,
     justifyContent: "space-between"
+  },
+  dayActions: {
+    flexDirection: "row",
+    gap: spacing.md
   },
   dayTitleGroup: {
     flex: 1,

@@ -1,4 +1,5 @@
 import type {
+  AddCustomWorkoutExerciseRequest,
   CreateCustomProgramRequest,
   ExerciseCatalogItemDto,
   PredefinedWorkoutCategory,
@@ -7,6 +8,8 @@ import type {
   WorkoutSessionDto
 } from "@fitness/shared";
 import { predefinedWorkoutCategories } from "./dashboard-program.shared";
+
+export const CUSTOM_WORKOUT_BUILDER_PREFIX = "custom-builder:";
 
 export type AssignableWorkoutSource = "predefined" | "custom";
 
@@ -199,13 +202,13 @@ export function buildProgramDayWorkoutFromExerciseSelection(input: {
   const workoutIdSuffix = input.exercises.map((exercise) => exercise.id).join(":") || "empty";
 
   return {
-    id: `custom-builder:${workoutIdSuffix}`,
+    id: `${CUSTOM_WORKOUT_BUILDER_PREFIX}${workoutIdSuffix}`,
     name,
     category: "Full Body",
     sequenceOrder: 1,
     estimatedDurationMinutes: null,
     exercises: input.exercises.map((exercise, index) => ({
-      id: `custom-builder:${exercise.id}`,
+      id: `${CUSTOM_WORKOUT_BUILDER_PREFIX}${exercise.id}`,
       exerciseId: exercise.id,
       exerciseName: exercise.name,
       category: exercise.category,
@@ -215,6 +218,23 @@ export function buildProgramDayWorkoutFromExerciseSelection(input: {
       restSeconds: null
     }))
   };
+}
+
+export function isProgramDayWorkoutBuilderWorkout(workout: ProgramWorkoutTemplateDto | null | undefined) {
+  return Boolean(workout?.id.startsWith(CUSTOM_WORKOUT_BUILDER_PREFIX));
+}
+
+export function buildCustomWorkoutExerciseRequestsFromProgramWorkout(
+  workout: ProgramWorkoutTemplateDto
+): AddCustomWorkoutExerciseRequest[] {
+  return [...workout.exercises]
+    .sort((left, right) => left.sequenceOrder - right.sequenceOrder)
+    .map((exercise) => ({
+      exerciseId: exercise.exerciseId,
+      targetSets: exercise.targetSets,
+      targetReps: exercise.targetReps,
+      ...(exercise.restSeconds !== null ? { restSeconds: exercise.restSeconds } : {})
+    }));
 }
 
 function compareAssignableWorkoutChoices(
