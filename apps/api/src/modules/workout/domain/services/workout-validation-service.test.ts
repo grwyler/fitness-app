@@ -104,10 +104,9 @@ export const workoutValidationServiceTestCases: DomainTestCase[] = [
     }
   },
   {
-    name: "WorkoutValidationService rejects workout completion when exercise feedback is missing",
+    name: "WorkoutValidationService allows workout completion when exercise feedback is missing",
     run: () => {
-      assert.throws(
-        () =>
+      assert.doesNotThrow(() =>
           validationService.assertWorkoutCanBeCompleted({
             workoutSessionStatus: "in_progress",
             allowPartialCompletion: false,
@@ -119,7 +118,6 @@ export const workoutValidationServiceTestCases: DomainTestCase[] = [
             ],
             exerciseFeedback: {}
           }),
-        WorkoutDomainError
       );
     }
   }

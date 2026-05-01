@@ -3,6 +3,7 @@ import type { CompleteWorkoutSessionRequest, EffortFeedback, WorkoutSessionDto }
 export type WorkoutCompletionUiState = {
   hasPendingSets: boolean;
   hasCompleteFeedback: boolean;
+  missingEffortFeedbackCompletedExerciseCount: number;
   finishButtonLabel: "End workout" | "Complete workout";
   finishButtonDisabled: boolean;
   footerMessage: string;
@@ -20,6 +21,18 @@ export function getWorkoutCompletionUiState(
   const hasPendingSets = workout.exercises.some((exercise) =>
     exercise.sets.some((set) => set.status === "pending")
   );
+  const completedExercisesMissingFeedback = workout.exercises.filter((exercise) => {
+    if (exercise.sets.length === 0) {
+      return false;
+    }
+
+    const isFullyCompleted = exercise.sets.every((set) => set.status === "completed" || set.status === "failed");
+    if (!isFullyCompleted) {
+      return false;
+    }
+
+    return feedbackByEntryId[exercise.id] === undefined;
+  });
   const hasCompleteFeedback = hasExercises && workout.exercises.every(
     (exercise) => feedbackByEntryId[exercise.id] !== undefined
   );
@@ -27,6 +40,7 @@ export function getWorkoutCompletionUiState(
   return {
     hasPendingSets,
     hasCompleteFeedback,
+    missingEffortFeedbackCompletedExerciseCount: completedExercisesMissingFeedback.length,
     finishButtonLabel: hasPendingSets ? "End workout" : "Complete workout",
     finishButtonDisabled: hasPendingSetSave || !hasExercises || (!hasPendingSets && !hasCompleteFeedback),
     footerMessage:
@@ -34,11 +48,11 @@ export function getWorkoutCompletionUiState(
         ? "Saving your last set before finishing."
         : !hasExercises
           ? "Add at least one exercise to continue."
-        : !hasPendingSets && hasCompleteFeedback
-        ? "All sets are logged and feedback is ready."
         : hasPendingSets
           ? "You can finish early. Unlogged sets will be marked skipped, and exercises with skipped sets won't update progression."
-          : "Choose feedback for every exercise to complete the workout."
+          : hasCompleteFeedback
+            ? "All sets are logged and feedback is ready."
+            : "Rate effort for each exercise to unlock progression updates."
   };
 }
 

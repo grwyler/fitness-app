@@ -227,6 +227,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
   const completionUiState = getWorkoutCompletionUiState(workout, feedbackByEntryId, {
     hasPendingSetSave
   });
+  const showFinishEarlyFeedbackWarning = completionUiState.missingEffortFeedbackCompletedExerciseCount > 0;
 
   const restTimerCard = restTimer ? (
     <View style={styles.restTimerCard}>
@@ -667,15 +668,20 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
             <Text style={styles.footerText}>
               You haven't completed all planned sets. Finish this workout anyway?
             </Text>
+            {showFinishEarlyFeedbackWarning ? (
+              <Text style={styles.footerText}>
+                Some completed exercises are missing effort feedback. Progression will be skipped for those exercises.
+              </Text>
+            ) : null}
             <View style={styles.confirmationActions}>
               <PrimaryButton
-                label="Keep working out"
+                label={showFinishEarlyFeedbackWarning ? "Go back and rate effort" : "Keep working out"}
                 tone="secondary"
                 onPress={() => setShowFinishEarlyConfirmation(false)}
                 disabled={completeWorkoutMutation.isPending}
               />
               <PrimaryButton
-                label="Finish workout"
+                label="Finish anyway"
                 tone="danger"
                 onPress={handleCompleteWorkout}
                 loading={completeWorkoutMutation.isPending}

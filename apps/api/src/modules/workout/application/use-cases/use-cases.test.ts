@@ -1616,6 +1616,193 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
     }
   },
   {
+    name: "CompleteWorkoutSessionUseCase completes without effort feedback and returns skipped progression update",
+    run: async () => {
+      const idempotency = createMockIdempotencyRepository();
+      let graphReadCount = 0;
+
+      const baseGraph = createBaseWorkoutSessionGraph();
+      const inProgressGraph: WorkoutSessionGraph = {
+        ...baseGraph,
+        session: {
+          ...baseGraph.session,
+          programId: CUSTOM_WORKOUT_PROGRAM_ID
+        },
+        sets: baseGraph.sets.map((set) => ({
+          ...set,
+          actualReps: 8,
+          actualWeightLbs: 135,
+          status: "completed",
+          completedAt: new Date("2026-04-24T10:10:00.000Z")
+        }))
+      };
+
+      let completedGraph: WorkoutSessionGraph | null = null;
+
+      const workoutSessionRepository: WorkoutSessionRepository = {
+        async findInProgressByUserId() {
+          return null;
+        },
+        async findOwnedById() {
+          return null;
+        },
+        async findOwnedSessionGraphById() {
+          return graphReadCount++ === 0 ? inProgressGraph : completedGraph;
+        },
+        async findOwnedSetForLogging() {
+          return null;
+        },
+        async createSessionGraph() {
+          throw new Error("Not implemented.");
+        },
+        async appendCustomExercise() {
+          throw new Error("Not implemented.");
+        },
+        async updateWorkoutNameSnapshotIfDefault() {
+          return false;
+        },
+        async appendWorkoutSet() {
+          throw new Error("Not implemented.");
+        },
+        async deleteWorkoutSet() {
+          throw new Error("Not implemented.");
+        },
+        async updateLoggedSet() {
+          throw new Error("Not implemented.");
+        },
+        async persistExerciseEntryFeedback() {},
+        async skipPendingWorkoutSets() {
+          return 0;
+        },
+        async completeSession(input) {
+          completedGraph = {
+            ...inProgressGraph,
+            session: {
+              ...inProgressGraph.session,
+              status: "completed",
+              completedAt: input.completedAt,
+              durationSeconds: input.durationSeconds,
+              isPartial: input.isPartial,
+              userEffortFeedback: input.userEffortFeedback
+            },
+            sets: [...inProgressGraph.sets]
+          };
+
+          return completedGraph.session;
+        },
+        async cancelSession() {
+          throw new Error("Not implemented.");
+        },
+        async listRecentCompletedByUserId() {
+          return [];
+        },
+        async countCompletedByUserIdWithinRange() {
+          return 0;
+        },
+        async countCompletedByUserId() {
+          return 0;
+        },
+        async countCompletedByUserIdAndProgramId() {
+          return 0;
+        },
+        async listCompletedProgressionByUserId() {
+          return [];
+        }
+      };
+
+      const enrollmentRepository: EnrollmentRepository = {
+        async findActiveByUserId() {
+          return null;
+        },
+        async updateNextWorkoutTemplate() {
+          throw new Error("Not implemented.");
+        },
+        async cancelEnrollment() {
+          throw new Error("Not implemented.");
+        }
+      };
+
+      const progressionStateRepository: ProgressionStateRepository = {
+        async findByUserIdAndExerciseIds() {
+          return [];
+        },
+        async createMany() {
+          return [];
+        },
+        async updateMany() {
+          return [];
+        }
+      };
+
+      const exerciseRepository: ExerciseRepository = {
+        async listActive() {
+          return [];
+        },
+        async findTemplateDefinitionById() {
+          return null;
+        },
+        async findProgressionSeedsByExerciseIds() {
+          return [
+            {
+              exerciseId: "exercise-1",
+              exerciseName: "Bench Press",
+              exerciseCategory: "compound",
+              defaultStartingWeightLbs: 135,
+              incrementLbs: 5,
+              isBodyweight: false,
+              isWeightOptional: false,
+              isProgressionEligible: true
+            }
+          ];
+        },
+        async findActiveTemplatesByProgramId() {
+          return [];
+        },
+        async findByIds() {
+          return [];
+        },
+        async findTemplateExerciseEntryIdsByTemplateIdAndSequenceOrders() {
+          return [];
+        }
+      };
+
+      const progressMetricRepository: ProgressMetricRepository = {
+        async createMany() {
+          return [];
+        },
+        async listRecentByUserId() {
+          return [];
+        }
+      };
+
+      const useCase = new CompleteWorkoutSessionUseCase(
+        workoutSessionRepository,
+        enrollmentRepository,
+        progressionStateRepository,
+        defaultProgressionStateV2Repository,
+        exerciseRepository,
+        progressMetricRepository,
+        new MockTransactionManager(),
+        idempotency.repository
+      );
+
+      const result = await useCase.execute({
+        context: { userId: "user-1", unitSystem: "imperial" },
+        sessionId: "session-1",
+        request: {
+          exerciseFeedback: []
+        },
+        idempotencyKey: "complete-missing-feedback-key-1"
+      });
+
+      assert.equal(result.data.workoutSession.status, "completed");
+      assert.equal(result.data.workoutSession.isPartial, false);
+      assert.equal(result.data.progressionUpdates.length, 1);
+      assert.equal(result.data.progressionUpdates[0]?.result, "skipped");
+      assert.match(result.data.progressionUpdates[0]?.reason ?? "", /effort feedback was not provided/i);
+    }
+  },
+  {
     name: "CompleteWorkoutSessionUseCase recalibrates dramatic heavier-weight lower-rep performance",
     run: async () => {
       const idempotency = createMockIdempotencyRepository();

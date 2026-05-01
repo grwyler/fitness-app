@@ -40,14 +40,6 @@ export class WorkoutValidationService {
       if (hasIncompleteSets) {
         continue;
       }
-
-      const feedback = input.exerciseFeedback[exercise.exerciseEntryId];
-      if (!feedback) {
-        throw new WorkoutDomainError(
-          "MISSING_EFFORT_FEEDBACK",
-          `Exercise entry ${exercise.exerciseEntryId} is missing effort feedback.`
-        );
-      }
     }
   }
 }

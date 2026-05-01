@@ -100,7 +100,7 @@ export const activeWorkoutScreenTestCases: MobileTestCase[] = [
     }
   },
   {
-    name: "Full completion behavior still requires feedback before enabling completion",
+    name: "Full completion requires feedback before enabling completion",
     run: () => {
       const workout = createWorkout({
         setStatuses: ["completed", "completed", "completed"]
@@ -112,6 +112,10 @@ export const activeWorkoutScreenTestCases: MobileTestCase[] = [
 
       assert.equal(missingFeedbackState.finishButtonLabel, "Complete workout");
       assert.equal(missingFeedbackState.finishButtonDisabled, true);
+      assert.equal(
+        missingFeedbackState.footerMessage,
+        "Rate effort for each exercise to unlock progression updates."
+      );
       assert.equal(completeFeedbackState.finishButtonDisabled, false);
       assert.equal(
         getFinishWorkoutPressAction({
@@ -120,6 +124,55 @@ export const activeWorkoutScreenTestCases: MobileTestCase[] = [
         }),
         "complete_workout"
       );
+      assert.equal(
+        getFinishWorkoutPressAction({
+          hasPendingSets: missingFeedbackState.hasPendingSets,
+          finishButtonDisabled: missingFeedbackState.finishButtonDisabled
+        }),
+        "blocked"
+      );
+    }
+  },
+  {
+    name: "Finish-early UI surfaces missing feedback count for completed exercises",
+    run: () => {
+      const workout: WorkoutSessionDto = {
+        ...createWorkout({
+          setStatuses: ["completed", "pending", "pending"]
+        }),
+        exercises: [
+          {
+            ...createWorkout({
+              setStatuses: ["completed", "completed", "completed"]
+            }).exercises[0]!,
+            id: "entry-1",
+            sets: createWorkout({
+              setStatuses: ["completed", "completed", "completed"]
+            }).exercises[0]!.sets.map((set) => ({
+              ...set,
+              exerciseEntryId: "entry-1"
+            }))
+          },
+          {
+            ...createWorkout({
+              setStatuses: ["completed", "pending", "pending"]
+            }).exercises[0]!,
+            id: "entry-2",
+            sets: createWorkout({
+              setStatuses: ["completed", "pending", "pending"]
+            }).exercises[0]!.sets.map((set) => ({
+              ...set,
+              id: `set-2-${set.setNumber}`,
+              exerciseEntryId: "entry-2"
+            }))
+          }
+        ]
+      };
+      const state = getWorkoutCompletionUiState(workout, {});
+
+      assert.equal(state.finishButtonLabel, "End workout");
+      assert.equal(state.finishButtonDisabled, false);
+      assert.equal(state.missingEffortFeedbackCompletedExerciseCount, 1);
     }
   },
   {
