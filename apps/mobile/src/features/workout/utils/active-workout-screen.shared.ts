@@ -42,7 +42,7 @@ export function getWorkoutCompletionUiState(
     hasCompleteFeedback,
     missingEffortFeedbackCompletedExerciseCount: completedExercisesMissingFeedback.length,
     finishButtonLabel: hasPendingSets ? "End workout" : "Complete workout",
-    finishButtonDisabled: hasPendingSetSave || !hasExercises || (!hasPendingSets && !hasCompleteFeedback),
+    finishButtonDisabled: hasPendingSetSave || !hasExercises,
     footerMessage:
       hasPendingSetSave
         ? "Saving your last set before finishing."

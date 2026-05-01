@@ -5,6 +5,8 @@ import {
   getWorkoutSummaryHeadline,
   getWorkoutSummaryOutcomes,
   getWorkoutSummaryStats,
+  getProgressionUpdateReasonText,
+  getProgressionUpdateResultLabel,
   getProgressionUpdateSummaryText
 } from "../features/workout/utils/workout-summary.shared.js";
 import type { MobileTestCase } from "./mobile-test-case.js";
@@ -178,6 +180,48 @@ export const workoutSummaryTestCases: MobileTestCase[] = [
           reason: "No weight progression because Pull-Ups is weight-optional and you logged 0 lb of external load."
         }),
         "No progression update"
+      );
+    }
+  },
+  {
+    name: "Workout summary maps progression results to user-friendly labels",
+    run: () => {
+      assert.equal(getProgressionUpdateResultLabel("increased"), "Increased");
+      assert.equal(getProgressionUpdateResultLabel("repeated"), "Repeated");
+      assert.equal(getProgressionUpdateResultLabel("reduced"), "Reduced");
+      assert.equal(getProgressionUpdateResultLabel("recalibrated"), "Recalibrated");
+      assert.equal(getProgressionUpdateResultLabel("skipped"), "Skipped");
+    }
+  },
+  {
+    name: "Workout summary presents skipped progression reasons without sounding scary",
+    run: () => {
+      assert.equal(
+        getProgressionUpdateReasonText({
+          exerciseId: "exercise-1",
+          exerciseName: "Bench Press",
+          previousWeight: { value: 135, unit: "lb" },
+          nextWeight: { value: 135, unit: "lb" },
+          previousRepGoal: 8,
+          nextRepGoal: 8,
+          result: "skipped",
+          reason: "Effort feedback was not provided."
+        }),
+        "Progression skipped because effort feedback was not provided."
+      );
+
+      assert.equal(
+        getProgressionUpdateReasonText({
+          exerciseId: "exercise-1",
+          exerciseName: "Bench Press",
+          previousWeight: { value: 135, unit: "lb" },
+          nextWeight: { value: 135, unit: "lb" },
+          previousRepGoal: 8,
+          nextRepGoal: 8,
+          result: "skipped",
+          reason: "because effort feedback was not provided."
+        }),
+        "Progression skipped because effort feedback was not provided."
       );
     }
   },

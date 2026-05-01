@@ -100,7 +100,7 @@ export const activeWorkoutScreenTestCases: MobileTestCase[] = [
     }
   },
   {
-    name: "Full completion requires feedback before enabling completion",
+    name: "Full completion keeps finish enabled with missing feedback (UI highlights on press)",
     run: () => {
       const workout = createWorkout({
         setStatuses: ["completed", "completed", "completed"]
@@ -111,7 +111,7 @@ export const activeWorkoutScreenTestCases: MobileTestCase[] = [
       });
 
       assert.equal(missingFeedbackState.finishButtonLabel, "Complete workout");
-      assert.equal(missingFeedbackState.finishButtonDisabled, true);
+      assert.equal(missingFeedbackState.finishButtonDisabled, false);
       assert.equal(
         missingFeedbackState.footerMessage,
         "Rate effort for each exercise to unlock progression updates."
@@ -129,7 +129,7 @@ export const activeWorkoutScreenTestCases: MobileTestCase[] = [
           hasPendingSets: missingFeedbackState.hasPendingSets,
           finishButtonDisabled: missingFeedbackState.finishButtonDisabled
         }),
-        "blocked"
+        "complete_workout"
       );
     }
   },

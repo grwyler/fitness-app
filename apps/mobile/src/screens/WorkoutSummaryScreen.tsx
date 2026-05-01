@@ -10,7 +10,10 @@ import {
   getWorkoutSummaryEncouragement,
   getWorkoutSummaryHeadline,
   getWorkoutSummaryOutcomes,
-  getProgressionUpdateSummaryText
+  getProgressionUpdateReasonText,
+  getProgressionUpdateRepGoalChangeText,
+  getProgressionUpdateResultLabel,
+  getProgressionUpdateWeightChangeText
 } from "../features/workout/utils/workout-summary.shared";
 import { colors, spacing } from "../theme/tokens";
 
@@ -55,10 +58,42 @@ export function WorkoutSummaryScreen({ navigation, route }: Props) {
           <Text style={styles.rowBody}>No progression changes for this workout.</Text>
         ) : (
           summary.progressionUpdates.map((update: ProgressionUpdateDto) => (
-            <View key={update.exerciseId} style={styles.row}>
-              <Text style={styles.rowTitle}>{update.exerciseName}</Text>
-              <Text style={styles.rowBody}>{getProgressionUpdateSummaryText(update)}</Text>
-              <Text style={styles.rowBody}>{update.reason}</Text>
+            <View key={`${update.exerciseId}:${update.result}`} style={styles.progressionRow}>
+              <View style={styles.progressionRowHeader}>
+                <Text style={styles.rowTitle}>{update.exerciseName}</Text>
+                <View
+                  style={[
+                    styles.progressionBadge,
+                    update.result === "skipped" ? styles.progressionBadgeSkipped : styles.progressionBadgeDefault
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.progressionBadgeText,
+                      update.result === "skipped"
+                        ? styles.progressionBadgeTextSkipped
+                        : styles.progressionBadgeTextDefault
+                    ]}
+                  >
+                    {getProgressionUpdateResultLabel(update.result)}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.progressionDetails}>
+                <Text style={styles.rowBody}>
+                  <Text style={styles.progressionDetailLabel}>Weight: </Text>
+                  {getProgressionUpdateWeightChangeText(update)}
+                </Text>
+                {getProgressionUpdateRepGoalChangeText(update) ? (
+                  <Text style={styles.rowBody}>
+                    <Text style={styles.progressionDetailLabel}>Rep goal: </Text>
+                    {getProgressionUpdateRepGoalChangeText(update)}
+                  </Text>
+                ) : null}
+              </View>
+
+              <Text style={styles.progressionReason}>{getProgressionUpdateReasonText(update)}</Text>
             </View>
           ))
         )}
@@ -181,9 +216,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     textTransform: "uppercase"
   },
-  row: {
-    gap: 4
-  },
   rowTitle: {
     color: colors.textPrimary,
     fontSize: 18,
@@ -193,5 +225,47 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: 15,
     lineHeight: 21
+  },
+  progressionRow: {
+    gap: 6,
+    paddingTop: spacing.xs
+  },
+  progressionRowHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between"
+  },
+  progressionBadge: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4
+  },
+  progressionBadgeDefault: {
+    backgroundColor: colors.textPrimary
+  },
+  progressionBadgeSkipped: {
+    backgroundColor: colors.surfaceMuted
+  },
+  progressionBadgeText: {
+    fontSize: 12,
+    fontWeight: "600"
+  },
+  progressionBadgeTextDefault: {
+    color: colors.surface
+  },
+  progressionBadgeTextSkipped: {
+    color: colors.textPrimary
+  },
+  progressionDetails: {
+    gap: 2
+  },
+  progressionDetailLabel: {
+    color: colors.textPrimary,
+    fontWeight: "600"
+  },
+  progressionReason: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    lineHeight: 20
   }
 });

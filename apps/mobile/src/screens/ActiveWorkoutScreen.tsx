@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { ExerciseEntryDto, SetDto } from "@fitness/shared";
 import { Platform, StyleSheet, Text, View } from "react-native";
-import { useKeepAwake } from "expo-keep-awake";
+import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import { Screen } from "../components/Screen";
 import { LoadingState } from "../components/LoadingState";
 import { ErrorState } from "../components/ErrorState";
@@ -48,7 +48,27 @@ type RestTimerState = {
 } | null;
 
 export function ActiveWorkoutScreen({ navigation, route }: Props) {
-  useKeepAwake();
+  useEffect(() => {
+    if (Platform.OS === "web") {
+      return undefined;
+    }
+
+    void (async () => {
+      try {
+        await activateKeepAwakeAsync();
+      } catch {
+        // Best-effort only; keep-awake is non-critical.
+      }
+    })();
+
+    return () => {
+      try {
+        deactivateKeepAwake();
+      } catch {
+        // Ignore.
+      }
+    };
+  }, []);
 
   const currentWorkoutQuery = useCurrentWorkout();
   const logSetMutation = useLogSet();
@@ -78,6 +98,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
   const completionInFlight = useRef(false);
   const discardInFlight = useRef(false);
   const promptedCustomExerciseSessionId = useRef<string | null>(null);
+  const [showMissingFeedbackHighlights, setShowMissingFeedbackHighlights] = useState(false);
   const activeWorkout = currentWorkoutQuery.data?.activeWorkoutSession ?? null;
   const exercisesQuery = useExercises(isExercisePickerOpen);
   const customWorkoutBuilderMode: CustomWorkoutBuilderMode = route.params?.mode ?? "start";
@@ -228,6 +249,23 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
     hasPendingSetSave
   });
   const showFinishEarlyFeedbackWarning = completionUiState.missingEffortFeedbackCompletedExerciseCount > 0;
+
+  const missingFeedbackExerciseEntryIds = new Set(
+    workout.exercises
+      .filter((exercise) => {
+        if (exercise.sets.length === 0) {
+          return false;
+        }
+
+        const isFullyCompleted = exercise.sets.every((set) => set.status === "completed" || set.status === "failed");
+        if (!isFullyCompleted) {
+          return false;
+        }
+
+        return feedbackByEntryId[exercise.id] === undefined;
+      })
+      .map((exercise) => exercise.id)
+  );
 
   const restTimerCard = restTimer ? (
     <View style={styles.restTimerCard}>
@@ -456,6 +494,11 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
     }
 
     if (action === "complete_workout") {
+      if (!completionUiState.hasPendingSets && !completionUiState.hasCompleteFeedback) {
+        setLastAction("highlight_missing_effort_feedback");
+        setShowMissingFeedbackHighlights(true);
+        return;
+      }
       handleCompleteWorkout();
       return;
     }
@@ -603,6 +646,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
             <WorkoutExerciseCard
               key={exercise.id}
               exercise={exercise}
+              highlightMissingFeedback={showMissingFeedbackHighlights && missingFeedbackExerciseEntryIds.has(exercise.id)}
               {...(feedbackByEntryId[exercise.id]
                 ? { selectedFeedback: feedbackByEntryId[exercise.id] }
                 : {})}
@@ -662,6 +706,14 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
             ? "Choose exercises for this program day, then return to your program."
             : completionUiState.footerMessage}
         </Text>
+        {!completionUiState.hasPendingSets && showMissingFeedbackHighlights && !completionUiState.hasCompleteFeedback ? (
+          <View style={styles.missingFeedbackCallout}>
+            <Text style={styles.missingFeedbackCalloutTitle}>Effort feedback needed</Text>
+            <Text style={styles.missingFeedbackCalloutBody}>
+              Rate effort for the highlighted exercises to finish this workout.
+            </Text>
+          </View>
+        ) : null}
         {!isProgramDayCustomWorkoutBuilder && showFinishEarlyConfirmation ? (
           <View style={styles.confirmation}>
             <Text style={styles.confirmationTitle}>Finish early?</Text>
@@ -861,5 +913,23 @@ const styles = StyleSheet.create({
   },
   confirmationActions: {
     gap: spacing.sm
+  },
+  missingFeedbackCallout: {
+    backgroundColor: colors.accentMuted,
+    borderColor: colors.accent,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: spacing.xs,
+    padding: spacing.md
+  },
+  missingFeedbackCalloutTitle: {
+    color: colors.textPrimary,
+    fontSize: 14,
+    fontWeight: "600"
+  },
+  missingFeedbackCalloutBody: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    lineHeight: 20
   }
 });

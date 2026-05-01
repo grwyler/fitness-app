@@ -24,6 +24,17 @@ function formatNumber(value: number) {
   return Math.round(value).toLocaleString();
 }
 
+function formatWeight(value: number) {
+  return `${formatDelta(value)} lb`;
+}
+
+function lowerCaseFirstLetter(value: string) {
+  if (!value) {
+    return value;
+  }
+  return value.slice(0, 1).toLowerCase() + value.slice(1);
+}
+
 export function getWorkoutSummaryStats(workout: WorkoutSessionDto): WorkoutSummaryStats {
   const sets = workout.exercises.flatMap((exercise) => exercise.sets);
   const completedSets = sets.filter((set) => set.status === "completed");
@@ -121,7 +132,7 @@ export function getProgressionUpdateSummaryText(update: CompleteWorkoutSessionRe
     return `Adjusted to ${formatDelta(nextWeight)} lb next time`;
   }
 
-  if (delta === 0 && update.nextRepGoal > update.previousRepGoal) {
+  if (delta === 0 && update.nextRepGoal != null && update.previousRepGoal != null && update.nextRepGoal > update.previousRepGoal) {
     return `Increase reps from ${update.previousRepGoal} to ${update.nextRepGoal}`;
   }
 
@@ -130,6 +141,59 @@ export function getProgressionUpdateSummaryText(update: CompleteWorkoutSessionRe
   }
 
   return `Stays at ${formatDelta(nextWeight)} lb next time`;
+}
+
+export function getProgressionUpdateResultLabel(result: CompleteWorkoutSessionResponse["progressionUpdates"][number]["result"]) {
+  switch (result) {
+    case "increased":
+      return "Increased";
+    case "repeated":
+      return "Repeated";
+    case "reduced":
+      return "Reduced";
+    case "recalibrated":
+      return "Recalibrated";
+    case "skipped":
+      return "Skipped";
+    default: {
+      const exhaustiveCheck: never = result;
+      return exhaustiveCheck;
+    }
+  }
+}
+
+export function getProgressionUpdateWeightChangeText(update: CompleteWorkoutSessionResponse["progressionUpdates"][number]) {
+  return `${formatWeight(update.previousWeight.value)} → ${formatWeight(update.nextWeight.value)}`;
+}
+
+export function getProgressionUpdateRepGoalChangeText(update: CompleteWorkoutSessionResponse["progressionUpdates"][number]) {
+  if (update.previousRepGoal == null || update.nextRepGoal == null) {
+    return null;
+  }
+
+  return `${update.previousRepGoal} → ${update.nextRepGoal}`;
+}
+
+export function getProgressionUpdateReasonText(update: CompleteWorkoutSessionResponse["progressionUpdates"][number]) {
+  const reason = update.reason.trim();
+
+  if (update.result !== "skipped") {
+    return reason;
+  }
+
+  if (!reason) {
+    return "Progression skipped.";
+  }
+
+  if (reason.toLowerCase().startsWith("progression skipped")) {
+    return reason;
+  }
+
+  if (reason.toLowerCase().startsWith("because")) {
+    return `Progression skipped ${reason}`;
+  }
+
+  return `Progression skipped because ${lowerCaseFirstLetter(reason)}`;
 }
 
 export function getWorkoutSummaryOutcomes(summary: CompleteWorkoutSessionResponse): WorkoutSummaryOutcome[] {

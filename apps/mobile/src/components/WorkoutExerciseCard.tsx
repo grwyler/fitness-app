@@ -32,6 +32,7 @@ function formatFeedbackLabel(feedback: EffortFeedback) {
 export function WorkoutExerciseCard(props: {
   exercise: ExerciseEntryDto;
   selectedFeedback?: EffortFeedback;
+  highlightMissingFeedback?: boolean;
   loggingSetId?: string | null;
   editingSetId?: string | null;
   submittingSetIds?: Record<string, boolean>;
@@ -53,7 +54,7 @@ export function WorkoutExerciseCard(props: {
   );
 
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, props.highlightMissingFeedback && styles.cardNeedsFeedback]}>
       <View style={styles.header}>
         <Text style={styles.title}>{props.exercise.exerciseName}</Text>
         <Text style={styles.subtitle}>
@@ -293,6 +294,9 @@ export function WorkoutExerciseCard(props: {
 
       <View style={styles.feedbackSection}>
         <Text style={styles.feedbackTitle}>How did this exercise feel?</Text>
+        {props.highlightMissingFeedback && props.selectedFeedback === undefined ? (
+          <Text style={styles.feedbackHint}>Rate effort to finish this workout.</Text>
+        ) : null}
         <View style={styles.feedbackOptions}>
           {effortOptions.map((option) => {
             const selected = props.selectedFeedback === option;
@@ -323,6 +327,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     gap: spacing.md,
     padding: spacing.lg
+  },
+  cardNeedsFeedback: {
+    backgroundColor: colors.accentMuted,
+    borderColor: colors.accent
   },
   header: {
     gap: spacing.xs
@@ -556,6 +564,11 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     fontSize: 16,
     fontWeight: "600"
+  },
+  feedbackHint: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    lineHeight: 20
   },
   feedbackOptions: {
     flexDirection: "row",
