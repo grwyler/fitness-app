@@ -11,7 +11,7 @@
     "build": "tsc -b",
     "build:api": "tsc -b packages/shared packages/db apps/api",
     "build:api:vercel": "tsc -b packages/shared packages/db && npm run build:vercel --workspace @fitness/api",
-    "build:mobile:web": "npm run build:web --workspace @fitness/mobile",
+    "build:mobile:web": "npm run build --workspace @fitness/shared && npm run build:web --workspace @fitness/mobile",
     "smoke:api:url": "node scripts/smoke-api-url.mjs",
     "smoke:mobile:web": "node scripts/smoke-mobile-web-build.mjs",
     "smoke:url": "node scripts/smoke-url.mjs",
