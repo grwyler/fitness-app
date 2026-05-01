@@ -171,6 +171,12 @@ export function DashboardScreen({ navigation }: Props) {
     hasRecommendedWorkout: Boolean(nextWorkout),
     recommendedWorkoutName: nextWorkout?.name
   });
+  const createWorkoutLabel = activeProgram
+    ? (workoutStartActionLabels[1] ?? "Create a workout")
+    : (workoutStartActionLabels[0] ?? "Create a workout");
+  const workoutLibraryLabel = activeProgram
+    ? (workoutStartActionLabels[2] ?? "Workout library")
+    : (workoutStartActionLabels[1] ?? "Workout library");
   const isStartingPredefinedWorkout =
     (startWorkoutMutation.isPending || followProgramMutation.isPending) &&
     selectedStartingWorkoutId !== null &&
@@ -375,7 +381,7 @@ export function DashboardScreen({ navigation }: Props) {
         ) : null}
         <View style={styles.secondaryWorkoutActions}>
           <PrimaryButton
-            label={workoutStartActionLabels[1] ?? "Create a workout"}
+            label={createWorkoutLabel}
             tone={activeProgram ? "secondary" : "primary"}
             onPress={startCustomWorkout}
             disabled={Boolean(activeWorkout || startWorkoutMutation.isPending)}
@@ -383,7 +389,7 @@ export function DashboardScreen({ navigation }: Props) {
           />
           {hasPredefinedChoices ? (
             <PrimaryButton
-              label={workoutStartActionLabels[2] ?? "Workout library"}
+              label={workoutLibraryLabel}
               tone="secondary"
               disabled={Boolean(
                 activeWorkout ||
