@@ -3,7 +3,8 @@ import type {
   ExerciseCategory,
   PredefinedWorkoutCategory,
   ProgramSource,
-  ProgressionStrategy
+  ProgressionStrategy,
+  TrainingGoal
 } from "@fitness/shared";
 
 export type ProgramRecord = {
@@ -15,6 +16,7 @@ export type ProgramRecord = {
   daysPerWeek: number;
   sessionDurationMinutes: number;
   difficultyLevel: DifficultyLevel;
+  trainingGoal: TrainingGoal | null;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;

@@ -1,4 +1,10 @@
-import type { EffortFeedback, ExerciseCategory, ProgressionResult } from "@fitness/shared";
+import type {
+  EffortFeedback,
+  ExerciseCategory,
+  ExperienceLevel,
+  ProgressionResult,
+  TrainingGoal
+} from "@fitness/shared";
 
 export type ProgressionStateSnapshot = {
   currentWeightLbs: number;
@@ -40,6 +46,8 @@ export type ProgressionComputationInput = {
   exercise: ExerciseProgressionContext;
   outcome: ExerciseWorkoutOutcome;
   performedAt?: Date;
+  experienceLevel?: ExperienceLevel | null;
+  trainingGoal?: TrainingGoal | null;
 };
 
 export type ProgressionComputationInputV2 = {
@@ -47,6 +55,8 @@ export type ProgressionComputationInputV2 = {
   exercise: ExerciseProgressionContext;
   outcome: ExerciseWorkoutOutcome;
   performedAt?: Date;
+  experienceLevel?: ExperienceLevel | null;
+  trainingGoal?: TrainingGoal | null;
 };
 
 export type ProgressionComputationResult = {

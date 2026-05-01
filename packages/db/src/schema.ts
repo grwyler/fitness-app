@@ -23,6 +23,7 @@ import {
   progressMetricTypes,
   progressionStrategies,
   setStatuses,
+  trainingGoals,
   unitSystems,
   workoutSessionStatuses
 } from "@fitness/shared";
@@ -37,6 +38,7 @@ const setStatusEnum = pgEnum("set_status", setStatuses);
 const progressMetricTypeEnum = pgEnum("progress_metric_type", progressMetricTypes);
 const progressionStrategyEnum = pgEnum("progression_strategy", progressionStrategies);
 const programSourceEnum = pgEnum("program_source", programSources);
+const trainingGoalEnum = pgEnum("training_goal", trainingGoals);
 const idempotencyStatusEnum = pgEnum("idempotency_status", ["pending", "completed"]);
 
 const timestamps = {
@@ -55,6 +57,7 @@ export const users = pgTable(
     timezone: text("timezone").notNull().default("America/New_York"),
     unitSystem: unitSystemEnum("unit_system").notNull().default("imperial"),
     experienceLevel: difficultyLevelEnum("experience_level"),
+    trainingGoal: trainingGoalEnum("training_goal"),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     ...timestamps
   },
@@ -130,6 +133,7 @@ export const programs = pgTable(
     daysPerWeek: integer("days_per_week").notNull(),
     sessionDurationMinutes: integer("session_duration_minutes").notNull(),
     difficultyLevel: difficultyLevelEnum("difficulty_level").notNull(),
+    trainingGoal: trainingGoalEnum("training_goal"),
     isActive: boolean("is_active").notNull().default(true),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     ...timestamps

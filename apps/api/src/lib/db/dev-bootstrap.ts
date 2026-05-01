@@ -218,7 +218,7 @@ const templateEntries = [
 ] as const;
 
 const schemaSql = `
-create table if not exists users (id uuid primary key, auth_provider_id text not null unique, email text not null unique, password_hash text, display_name text, timezone text not null default 'America/New_York', unit_system text not null default 'imperial', experience_level text, deleted_at timestamptz, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
+create table if not exists users (id uuid primary key, auth_provider_id text not null unique, email text not null unique, password_hash text, display_name text, timezone text not null default 'America/New_York', unit_system text not null default 'imperial', experience_level text, training_goal text, deleted_at timestamptz, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
 alter table users add column if not exists password_hash text;
 create table if not exists password_reset_tokens (id uuid primary key, user_id uuid not null references users(id), token_hash text not null unique, expires_at timestamptz not null, consumed_at timestamptz, created_at timestamptz not null default now());
 create index if not exists idx_password_reset_tokens_user_id on password_reset_tokens(user_id);
@@ -230,7 +230,7 @@ alter table exercises add column if not exists default_starting_weight_lbs numer
 alter table exercises add column if not exists is_bodyweight boolean not null default false;
 alter table exercises add column if not exists is_weight_optional boolean not null default false;
 alter table exercises add column if not exists is_progression_eligible boolean not null default true;
-create table if not exists programs (id uuid primary key, user_id uuid references users(id), source text not null default 'predefined', name text not null, description text, days_per_week integer not null, session_duration_minutes integer not null, difficulty_level text not null, is_active boolean not null default true, deleted_at timestamptz, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
+create table if not exists programs (id uuid primary key, user_id uuid references users(id), source text not null default 'predefined', name text not null, description text, days_per_week integer not null, session_duration_minutes integer not null, difficulty_level text not null, training_goal text, is_active boolean not null default true, deleted_at timestamptz, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
 alter table programs add column if not exists user_id uuid references users(id);
 alter table programs add column if not exists source text not null default 'predefined';
 create index if not exists idx_programs_user_source on programs(user_id, source);

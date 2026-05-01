@@ -27,6 +27,8 @@ import { DrizzleProgressMetricRepository } from "../repositories/drizzle-progres
 import { DrizzleProgressionStateRepository } from "../repositories/drizzle-progression-state.repository.js";
 import { DrizzleProgressionStateV2Repository } from "../repositories/drizzle-progression-state-v2.repository.js";
 import { DrizzleProgressionRecommendationEventRepository } from "../repositories/drizzle-progression-recommendation-event.repository.js";
+import { DrizzleProgramRepository } from "../repositories/drizzle-program.repository.js";
+import { DrizzleUserRepository } from "../repositories/drizzle-user.repository.js";
 import { DrizzleWorkoutSessionRepository } from "../repositories/drizzle-workout-session.repository.js";
 
 const schemaSql = `
@@ -39,6 +41,7 @@ create table users (
   timezone text not null default 'America/New_York',
   unit_system text not null default 'imperial',
   experience_level text,
+  training_goal text,
   deleted_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -83,6 +86,7 @@ create table programs (
   days_per_week integer not null,
   session_duration_minutes integer not null,
   difficulty_level text not null,
+  training_goal text,
   is_active boolean not null default true,
   deleted_at timestamptz,
   created_at timestamptz not null default now(),
@@ -295,6 +299,8 @@ export type WorkoutInfrastructureTestContext = {
   repositories: {
     workoutSessionRepository: DrizzleWorkoutSessionRepository;
     enrollmentRepository: DrizzleEnrollmentRepository;
+    programRepository: DrizzleProgramRepository;
+    userRepository: DrizzleUserRepository;
     progressionStateRepository: DrizzleProgressionStateRepository;
     progressionStateV2Repository: DrizzleProgressionStateV2Repository;
     exerciseRepository: DrizzleExerciseRepository;
@@ -317,6 +323,8 @@ export async function createWorkoutInfrastructureTestContext(): Promise<WorkoutI
     repositories: {
       workoutSessionRepository: new DrizzleWorkoutSessionRepository(db),
       enrollmentRepository: new DrizzleEnrollmentRepository(db),
+      programRepository: new DrizzleProgramRepository(db),
+      userRepository: new DrizzleUserRepository(db),
       progressionStateRepository: new DrizzleProgressionStateRepository(db),
       progressionStateV2Repository: new DrizzleProgressionStateV2Repository(db),
       exerciseRepository: new DrizzleExerciseRepository(db),

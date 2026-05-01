@@ -3,7 +3,9 @@ import type {
   CompleteWorkoutSessionResponse,
   EffortFeedback,
   ProgressionUpdateDto,
-  ProgressionStrategy
+  ProgressionStrategy,
+  TrainingGoal,
+  ExperienceLevel
 } from "@fitness/shared";
 import { progressionStrategies } from "@fitness/shared";
 import { isCustomWorkoutProgramId } from "../../domain/models/custom-workout.js";
@@ -13,10 +15,12 @@ import { WorkoutValidationService } from "../../domain/services/workout-validati
 import type { EnrollmentRepository } from "../../repositories/interfaces/enrollment.repository.js";
 import type { ExerciseRepository } from "../../repositories/interfaces/exercise.repository.js";
 import type { IdempotencyRepository } from "../../repositories/interfaces/idempotency.repository.js";
+import type { ProgramRepository } from "../../repositories/interfaces/program.repository.js";
 import type { ProgressMetricRepository } from "../../repositories/interfaces/progress-metric.repository.js";
 import type { ProgressionStateRepository } from "../../repositories/interfaces/progression-state.repository.js";
 import type { ProgressionStateV2Repository } from "../../repositories/interfaces/progression-state-v2.repository.js";
 import type { WorkoutSessionRepository } from "../../repositories/interfaces/workout-session.repository.js";
+import type { UserRepository } from "../../repositories/interfaces/user.repository.js";
 import {
   mapNextWorkoutTemplateDto,
   mapProgressMetricDto,
@@ -51,6 +55,9 @@ function buildProgressionExplanation(input: {
   missingActualWeight: boolean;
   lastPerformedAt: Date | null;
   performedAt: Date | null;
+  trainingGoal: TrainingGoal;
+  goalSource: "user" | "program" | "default";
+  experienceLevel: ExperienceLevel | null;
 }) {
   const reasonCodes: string[] = [];
   const evidence: string[] = [];
@@ -109,6 +116,18 @@ function buildProgressionExplanation(input: {
   } else {
     reasonCodes.push("HISTORY_LIMITED");
     evidence.push("No recent training history available");
+  }
+
+  if (input.goalSource !== "default") {
+    reasonCodes.push(input.goalSource === "user" ? "GOAL_FROM_USER" : "GOAL_FROM_PROGRAM");
+  }
+  if (input.trainingGoal !== "general_fitness") {
+    reasonCodes.push(`GOAL_${input.trainingGoal.toUpperCase()}`);
+    evidence.push(`Training goal: ${input.trainingGoal}`);
+  }
+  if (input.experienceLevel === "intermediate" || input.experienceLevel === "advanced") {
+    reasonCodes.push(`EXPERIENCE_${input.experienceLevel.toUpperCase()}`);
+    evidence.push(`Experience level: ${input.experienceLevel}`);
   }
 
   switch (input.result) {
@@ -244,6 +263,8 @@ export class CompleteWorkoutSessionUseCase {
     private readonly progressionStateRepository: ProgressionStateRepository,
     private readonly progressionStateV2Repository: ProgressionStateV2Repository,
     private readonly exerciseRepository: ExerciseRepository,
+    private readonly userRepository: UserRepository,
+    private readonly programRepository: ProgramRepository,
     private readonly progressMetricRepository: ProgressMetricRepository,
     private readonly progressionRecommendationEventRepository: ProgressionRecommendationEventRepository,
     private readonly transactionManager: TransactionManager,
@@ -307,6 +328,27 @@ export class CompleteWorkoutSessionUseCase {
             "The user does not have an active enrollment."
           );
         }
+
+        const userTrainingProfile = await this.userRepository.findTrainingProfile(input.context.userId, { tx });
+        const experienceLevel = userTrainingProfile?.experienceLevel ?? null;
+        const userTrainingGoal = userTrainingProfile?.trainingGoal ?? null;
+
+        const programDefinition = isCustomWorkout
+          ? null
+          : await this.programRepository.findActiveById(
+              workoutSessionGraph.session.programId,
+              input.context.userId,
+              { tx }
+            );
+        const programTrainingGoal = programDefinition?.program.trainingGoal ?? null;
+
+        const goalSource: "user" | "program" | "default" = userTrainingGoal
+          ? "user"
+          : programTrainingGoal
+            ? "program"
+            : "default";
+        const trainingGoal: TrainingGoal = userTrainingGoal ?? programTrainingGoal ?? "general_fitness";
+        const progressionGoal: TrainingGoal | null = goalSource === "default" ? null : trainingGoal;
 
         const completedAt = input.request.completedAt ? new Date(input.request.completedAt) : new Date();
         const hasPendingSets = workoutSessionGraph.sets.some((set) => set.status === "pending");
@@ -615,6 +657,8 @@ export class CompleteWorkoutSessionUseCase {
 
           const progressionResult = this.progressionEngine.calculateWithStrategyV2({
             strategy: progressionStrategy,
+            experienceLevel,
+            trainingGoal: progressionGoal,
             state: {
               currentWeightLbs: progressionStateV2.currentWeightLbs,
               lastCompletedWeightLbs: progressionStateV2.lastCompletedWeightLbs,
@@ -763,6 +807,8 @@ export class CompleteWorkoutSessionUseCase {
           }
 
           const progressionResult = this.progressionEngine.calculate({
+            experienceLevel,
+            trainingGoal: progressionGoal,
             state: {
               currentWeightLbs: progressionState.currentWeightLbs,
               lastCompletedWeightLbs: progressionState.lastCompletedWeightLbs,
@@ -1041,7 +1087,10 @@ export class CompleteWorkoutSessionUseCase {
             hasFailedSets: loggedSets.some((set) => set.status === "failed"),
             missingActualWeight,
             lastPerformedAt: v2StateByTemplateEntryId.get(workoutTemplateExerciseEntryId)?.lastPerformedAt ?? null,
-            performedAt: completedAt
+            performedAt: completedAt,
+            trainingGoal,
+            goalSource,
+            experienceLevel
           });
 
           progressionUpdates.push(
@@ -1101,7 +1150,10 @@ export class CompleteWorkoutSessionUseCase {
             hasFailedSets: loggedSets.some((set) => set.status === "failed"),
             missingActualWeight,
             lastPerformedAt: progressionState?.lastPerformedAt ?? null,
-            performedAt: completedAt
+            performedAt: completedAt,
+            trainingGoal,
+            goalSource,
+            experienceLevel
           });
 
           progressionUpdates.push(
@@ -1167,7 +1219,10 @@ export class CompleteWorkoutSessionUseCase {
             hasFailedSets: loggedSets.some((set) => set.status === "failed"),
             missingActualWeight,
             lastPerformedAt: progressionStateV2.lastPerformedAt,
-            performedAt: completedAt
+            performedAt: completedAt,
+            trainingGoal,
+            goalSource,
+            experienceLevel
           });
 
           progressionUpdates.push(
@@ -1233,7 +1288,10 @@ export class CompleteWorkoutSessionUseCase {
             hasFailedSets: loggedSets.some((set) => set.status === "failed"),
             missingActualWeight,
             lastPerformedAt: progressionState.lastPerformedAt,
-            performedAt: completedAt
+            performedAt: completedAt,
+            trainingGoal,
+            goalSource,
+            experienceLevel
           });
 
           progressionUpdates.push(
@@ -1294,7 +1352,10 @@ export class CompleteWorkoutSessionUseCase {
               (set) => (set.status === "completed" || set.status === "failed") && set.actualWeightLbs === null
             ),
             lastPerformedAt: null,
-            performedAt: completedAt
+            performedAt: completedAt,
+            trainingGoal,
+            goalSource,
+            experienceLevel
           });
 
           const workoutTemplateExerciseEntryId =

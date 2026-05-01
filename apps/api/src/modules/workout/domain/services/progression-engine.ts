@@ -1,4 +1,10 @@
-import { MATERIAL_OVERPERFORMANCE_MULTIPLIER, type ExerciseCategory, type ProgressionStrategy } from "@fitness/shared";
+import {
+  MATERIAL_OVERPERFORMANCE_MULTIPLIER,
+  type ExerciseCategory,
+  type ExperienceLevel,
+  type ProgressionStrategy,
+  type TrainingGoal
+} from "@fitness/shared";
 import type {
   ProgressionComputationInput,
   ProgressionComputationResult,
@@ -14,6 +20,7 @@ const MIN_RECALIBRATION_SET_COUNT = 2;
 const MAX_RECALIBRATION_JUMP_MULTIPLIER = 1.75;
 const RECENT_TRAINING_REPEAT_THRESHOLD_DAYS = 14;
 const RECENT_TRAINING_REDUCTION_THRESHOLD_DAYS = 30;
+const DEFAULT_TRAINING_GOAL: TrainingGoal = "general_fitness";
 
 function roundToTwoDecimals(value: number) {
   return Math.round(value * 100) / 100;
@@ -38,6 +45,43 @@ function getSuccessIncreaseStepCount(category: ExerciseCategory, effortFeedback:
   }
 
   return 1;
+}
+
+function getAggressiveSuccessStepCount(input: {
+  category: ExerciseCategory;
+  effortFeedback: ExerciseWorkoutOutcome["effortFeedback"];
+  experienceLevel: ExperienceLevel | null;
+}) {
+  const base = getSuccessIncreaseStepCount(input.category, input.effortFeedback);
+  if (input.effortFeedback !== "too_easy") {
+    return base;
+  }
+
+  if (input.experienceLevel === "intermediate" || input.experienceLevel === "advanced") {
+    return 1;
+  }
+
+  return base;
+}
+
+function resolveTrainingGoal(trainingGoal: TrainingGoal | null | undefined): TrainingGoal | null {
+  return trainingGoal ?? null;
+}
+
+function withPolicySuffix(reason: string, policy: { trainingGoal: TrainingGoal | null; experienceLevel: ExperienceLevel | null }) {
+  const tags: string[] = [];
+  if (policy.trainingGoal) {
+    tags.push(`goal=${policy.trainingGoal}`);
+  }
+  if (policy.experienceLevel === "intermediate" || policy.experienceLevel === "advanced") {
+    tags.push(`experience=${policy.experienceLevel}`);
+  }
+
+  if (tags.length === 0) {
+    return reason;
+  }
+
+  return `${reason} (Policy: ${tags.join(", ")})`;
 }
 
 function daysSince(input: { previous: Date; current: Date }) {
@@ -93,18 +137,19 @@ export class ProgressionEngine {
   public calculateWithStrategyV2(
     input: ProgressionComputationInputV2 & { strategy: ProgressionStrategy }
   ): ProgressionComputationResultV2 {
+    const trainingGoal = resolveTrainingGoal(input.trainingGoal);
     switch (input.strategy) {
       case "double_progression": {
-        return this.calculateDoubleProgression(input);
+        return this.calculateDoubleProgression({ ...input, trainingGoal });
       }
       case "fixed_weight": {
-        return this.calculateFixedWeight(input);
+        return this.calculateFixedWeight({ ...input, trainingGoal });
       }
       case "bodyweight_reps": {
-        return this.calculateBodyweightReps(input);
+        return this.calculateBodyweightReps({ ...input, trainingGoal });
       }
       case "bodyweight_weighted": {
-        return this.calculateBodyweightWeighted(input);
+        return this.calculateBodyweightWeighted({ ...input, trainingGoal });
       }
       case "no_progression": {
         const { state, outcome } = input;
@@ -130,7 +175,10 @@ export class ProgressionEngine {
           previousRepGoal,
           nextRepGoal: previousRepGoal,
           result: "skipped",
-          reason: "Progression skipped because this exercise is marked no_progression.",
+          reason: withPolicySuffix("Progression skipped because this exercise is marked no_progression.", {
+            trainingGoal,
+            experienceLevel: input.experienceLevel ?? null
+          }),
           nextState
         };
       }
@@ -139,6 +187,7 @@ export class ProgressionEngine {
 
   public calculate(input: ProgressionComputationInput): ProgressionComputationResult {
     const { exercise, outcome, state } = input;
+    const trainingGoal = resolveTrainingGoal(input.trainingGoal);
     const previousWeightLbs = roundToTwoDecimals(state.currentWeightLbs);
     const lastPerformedAt = state.lastPerformedAt ?? null;
     const performedAt = input.performedAt ?? new Date(0);
@@ -239,11 +288,12 @@ export class ProgressionEngine {
       return recalibrationResult;
     }
 
-    return this.calculateSuccessResult(input, previousWeightLbs);
+    return this.calculateSuccessResult({ ...input, trainingGoal }, previousWeightLbs);
   }
 
   public calculateDoubleProgression(input: ProgressionComputationInputV2): ProgressionComputationResultV2 {
     const { exercise, outcome, state } = input;
+    const trainingGoal = resolveTrainingGoal(input.trainingGoal);
 
     const previousWeightLbs = roundToTwoDecimals(state.currentWeightLbs);
     const previousRepGoal = state.repGoal;
@@ -440,9 +490,45 @@ export class ProgressionEngine {
       };
     }
 
-    if (previousRepGoal < repRangeMax) {
+    if (trainingGoal === "maintenance" && outcome.effortFeedback !== "too_easy") {
+      const nextState: ProgressionStateSnapshotV2 = {
+        currentWeightLbs: previousWeightLbs,
+        lastCompletedWeightLbs: previousWeightLbs,
+        consecutiveFailures: 0,
+        lastEffortFeedback: outcome.effortFeedback,
+        lastPerformedAt,
+        repGoal: previousRepGoal,
+        repRangeMin,
+        repRangeMax
+      };
+
+      return {
+        previousWeightLbs,
+        nextWeightLbs: previousWeightLbs,
+        previousRepGoal,
+        nextRepGoal: previousRepGoal,
+        result: "repeated",
+        reason: withPolicySuffix("Repeated because the training goal is maintenance.", {
+          trainingGoal,
+          experienceLevel: input.experienceLevel ?? null
+        }),
+        nextState
+      };
+    }
+
+    const strengthRepCeiling = Math.min(repRangeMax, repRangeMin + 1);
+    const shouldFavorWeight =
+      trainingGoal === "strength" && repRangeMax > repRangeMin && previousRepGoal >= strengthRepCeiling;
+
+    if (!shouldFavorWeight && previousRepGoal < repRangeMax) {
       const increaseSteps =
-        repRangeMax > repRangeMin ? getSuccessIncreaseStepCount(exercise.exerciseCategory, outcome.effortFeedback) : 1;
+        repRangeMax > repRangeMin
+          ? getAggressiveSuccessStepCount({
+              category: exercise.exerciseCategory,
+              effortFeedback: outcome.effortFeedback,
+              experienceLevel: input.experienceLevel ?? null
+            })
+          : 1;
       const nextRepGoal = clampInteger(previousRepGoal + increaseSteps, repRangeMin, repRangeMax);
       const nextState: ProgressionStateSnapshotV2 = {
         currentWeightLbs: previousWeightLbs,
@@ -466,8 +552,44 @@ export class ProgressionEngine {
       };
     }
 
+    if ((trainingGoal === "endurance" || trainingGoal === "general_fitness") && outcome.effortFeedback !== "too_easy") {
+      const nextState: ProgressionStateSnapshotV2 = {
+        currentWeightLbs: previousWeightLbs,
+        lastCompletedWeightLbs: previousWeightLbs,
+        consecutiveFailures: 0,
+        lastEffortFeedback: outcome.effortFeedback,
+        lastPerformedAt,
+        repGoal: previousRepGoal,
+        repRangeMin,
+        repRangeMax
+      };
+
+      return {
+        previousWeightLbs,
+        nextWeightLbs: previousWeightLbs,
+        previousRepGoal,
+        nextRepGoal: previousRepGoal,
+        result: "repeated",
+        reason: withPolicySuffix(
+          `Repeated at the top of the rep range because the goal (${trainingGoal}) prioritizes reps/volume before load.`,
+          { trainingGoal, experienceLevel: input.experienceLevel ?? null }
+        ),
+        nextState
+      };
+    }
+
+    const rawIncreaseSteps =
+      repRangeMax > repRangeMin
+        ? getAggressiveSuccessStepCount({
+            category: exercise.exerciseCategory,
+            effortFeedback: outcome.effortFeedback,
+            experienceLevel: input.experienceLevel ?? null
+          })
+        : 1;
     const increaseSteps =
-      repRangeMax > repRangeMin ? getSuccessIncreaseStepCount(exercise.exerciseCategory, outcome.effortFeedback) : 1;
+      trainingGoal === "hypertrophy" || trainingGoal === "endurance" || trainingGoal === "general_fitness"
+        ? 1
+        : rawIncreaseSteps;
     const increaseLbs = roundToTwoDecimals(increaseSteps * exercise.incrementLbs);
     const nextWeightLbs = roundDownToIncrement(previousWeightLbs + increaseLbs, exercise.incrementLbs);
     const nextRepGoal = repRangeMin;
@@ -488,13 +610,17 @@ export class ProgressionEngine {
       previousRepGoal,
       nextRepGoal,
       result: "increased",
-      reason: `Increased weight from ${previousWeightLbs} to ${nextWeightLbs} and reset reps to ${repRangeMin}.`,
+      reason: withPolicySuffix(
+        `Increased weight from ${previousWeightLbs} to ${nextWeightLbs} and reset reps to ${repRangeMin}.`,
+        { trainingGoal, experienceLevel: input.experienceLevel ?? null }
+      ),
       nextState
     };
   }
 
   private calculateFixedWeight(input: ProgressionComputationInputV2): ProgressionComputationResultV2 {
     const { state, outcome, exercise } = input;
+    const trainingGoal = resolveTrainingGoal(input.trainingGoal);
 
     const fixedRepGoal = state.repGoal;
     const repRangeMin = state.repRangeMin;
@@ -514,7 +640,9 @@ export class ProgressionEngine {
         effortFeedback: outcome.effortFeedback,
         ...(outcome.sets ? { sets: outcome.sets } : {}),
         ...(typeof outcome.hasFailure === "boolean" ? { hasFailure: outcome.hasFailure } : {})
-      }
+      },
+      experienceLevel: input.experienceLevel ?? null,
+      trainingGoal
     });
 
     const nextState: ProgressionStateSnapshotV2 = {
@@ -573,7 +701,8 @@ export class ProgressionEngine {
     // Unlike double progression, allow progression to proceed when current external load is 0.
     const nextExercise = {
       ...exercise,
-      isWeightOptional: false
+      isWeightOptional: false,
+      isBodyweight: false
     };
 
     return this.calculateDoubleProgression({
@@ -584,6 +713,7 @@ export class ProgressionEngine {
 
   private calculateBodyweightReps(input: ProgressionComputationInputV2): ProgressionComputationResultV2 {
     const { exercise, outcome, state } = input;
+    const trainingGoal = resolveTrainingGoal(input.trainingGoal);
 
     const previousWeightLbs = roundToTwoDecimals(state.currentWeightLbs);
     const previousRepGoal = state.repGoal;
@@ -735,9 +865,41 @@ export class ProgressionEngine {
       };
     }
 
+    if (trainingGoal === "maintenance" && outcome.effortFeedback !== "too_easy") {
+      const nextState: ProgressionStateSnapshotV2 = {
+        currentWeightLbs: previousWeightLbs,
+        lastCompletedWeightLbs: previousWeightLbs,
+        consecutiveFailures: 0,
+        lastEffortFeedback: outcome.effortFeedback,
+        lastPerformedAt,
+        repGoal: previousRepGoal,
+        repRangeMin,
+        repRangeMax
+      };
+
+      return {
+        previousWeightLbs,
+        nextWeightLbs: previousWeightLbs,
+        previousRepGoal,
+        nextRepGoal: previousRepGoal,
+        result: "repeated",
+        reason: withPolicySuffix("Repeated because the training goal is maintenance.", {
+          trainingGoal,
+          experienceLevel: input.experienceLevel ?? null
+        }),
+        nextState
+      };
+    }
+
     if (previousRepGoal < repRangeMax) {
       const increaseSteps =
-        repRangeMax > repRangeMin ? getSuccessIncreaseStepCount(exercise.exerciseCategory, outcome.effortFeedback) : 1;
+        repRangeMax > repRangeMin
+          ? getAggressiveSuccessStepCount({
+              category: exercise.exerciseCategory,
+              effortFeedback: outcome.effortFeedback,
+              experienceLevel: input.experienceLevel ?? null
+            })
+          : 1;
       const nextRepGoal = clampInteger(previousRepGoal + increaseSteps, repRangeMin, repRangeMax);
       const nextState: ProgressionStateSnapshotV2 = {
         currentWeightLbs: previousWeightLbs,
@@ -895,6 +1057,7 @@ export class ProgressionEngine {
     previousWeightLbs: number
   ): ProgressionComputationResult {
     const { exercise, outcome } = input;
+    const trainingGoal = resolveTrainingGoal(input.trainingGoal);
 
     if (outcome.effortFeedback === "too_hard") {
       const nextState: ProgressionStateSnapshot = {
@@ -913,7 +1076,35 @@ export class ProgressionEngine {
       };
     }
 
-    const increaseSteps = getSuccessIncreaseStepCount(exercise.exerciseCategory, outcome.effortFeedback);
+    if (trainingGoal === "maintenance" && outcome.effortFeedback !== "too_easy") {
+      const nextState: ProgressionStateSnapshot = {
+        currentWeightLbs: previousWeightLbs,
+        lastCompletedWeightLbs: previousWeightLbs,
+        consecutiveFailures: 0,
+        lastEffortFeedback: outcome.effortFeedback
+      };
+
+      return {
+        previousWeightLbs,
+        nextWeightLbs: previousWeightLbs,
+        result: "repeated",
+        reason: withPolicySuffix("Repeated because the training goal is maintenance.", {
+          trainingGoal,
+          experienceLevel: input.experienceLevel ?? null
+        }),
+        nextState
+      };
+    }
+
+    const rawIncreaseSteps = getAggressiveSuccessStepCount({
+      category: exercise.exerciseCategory,
+      effortFeedback: outcome.effortFeedback,
+      experienceLevel: input.experienceLevel ?? null
+    });
+    const increaseSteps =
+      trainingGoal === "hypertrophy" || trainingGoal === "endurance" || trainingGoal === "general_fitness"
+        ? 1
+        : rawIncreaseSteps;
     const increaseLbs = roundToTwoDecimals(increaseSteps * exercise.incrementLbs);
 
     const nextWeightLbs = roundDownToIncrement(previousWeightLbs + increaseLbs, exercise.incrementLbs);
@@ -928,10 +1119,12 @@ export class ProgressionEngine {
       previousWeightLbs,
       nextWeightLbs,
       result: "increased",
-      reason:
+      reason: withPolicySuffix(
         outcome.effortFeedback === "too_easy"
           ? `Increased from ${previousWeightLbs} lb to ${nextWeightLbs} lb because all sets were completed and effort was marked too easy.`
           : `Increased from ${previousWeightLbs} lb to ${nextWeightLbs} lb because all sets were completed and effort was marked manageable.`,
+        { trainingGoal, experienceLevel: input.experienceLevel ?? null }
+      ),
       nextState
     };
   }

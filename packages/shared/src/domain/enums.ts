@@ -63,3 +63,12 @@ export const progressionStrategies = [
   "no_progression"
 ] as const;
 export type ProgressionStrategy = (typeof progressionStrategies)[number];
+
+export const trainingGoals = [
+  "strength",
+  "hypertrophy",
+  "general_fitness",
+  "endurance",
+  "maintenance"
+] as const;
+export type TrainingGoal = (typeof trainingGoals)[number];

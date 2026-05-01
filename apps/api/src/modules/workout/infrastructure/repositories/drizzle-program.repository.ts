@@ -36,6 +36,7 @@ function mapProgramRecord(row: typeof programs.$inferSelect): ProgramRecord {
     daysPerWeek: row.daysPerWeek,
     sessionDurationMinutes: row.sessionDurationMinutes,
     difficultyLevel: row.difficultyLevel,
+    trainingGoal: row.trainingGoal ?? null,
     isActive: row.isActive,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt
@@ -128,6 +129,7 @@ export class DrizzleProgramRepository implements ProgramRepository {
         daysPerWeek: input.workouts.length,
         sessionDurationMinutes: 60,
         difficultyLevel: "beginner",
+        trainingGoal: null,
         isActive: true,
         deletedAt: null,
         createdAt: input.createdAt,
