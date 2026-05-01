@@ -8,6 +8,7 @@ import type { EnrollmentRepository } from "../../repositories/interfaces/enrollm
 import type { ExerciseRepository } from "../../repositories/interfaces/exercise.repository.js";
 import type { IdempotencyRepository } from "../../repositories/interfaces/idempotency.repository.js";
 import type { ProgressionStateRepository } from "../../repositories/interfaces/progression-state.repository.js";
+import type { ProgressionStateV2Repository } from "../../repositories/interfaces/progression-state-v2.repository.js";
 import type { WorkoutSessionRepository } from "../../repositories/interfaces/workout-session.repository.js";
 import { mapWorkoutSessionDto } from "../mappers/workout-dto.mapper.js";
 import { WorkoutApplicationError } from "../errors/workout-application.error.js";
@@ -32,6 +33,7 @@ export class StartWorkoutSessionUseCase {
     private readonly workoutSessionRepository: WorkoutSessionRepository,
     private readonly enrollmentRepository: EnrollmentRepository,
     private readonly progressionStateRepository: ProgressionStateRepository,
+    private readonly progressionStateV2Repository: ProgressionStateV2Repository,
     private readonly exerciseRepository: ExerciseRepository,
     private readonly transactionManager: TransactionManager,
     idempotencyRepository: IdempotencyRepository
@@ -111,7 +113,13 @@ export class StartWorkoutSessionUseCase {
           );
         }
 
-        const exerciseIds = workoutTemplateDefinition.exercises.map(({ exercise }) => exercise.id);
+        const templateExercises = workoutTemplateDefinition.exercises.map(({ exercise, templateExercise }) => ({
+          exerciseId: exercise.id,
+          templateExerciseEntryId: templateExercise.id,
+          templateTargetReps: templateExercise.targetReps
+        }));
+
+        const exerciseIds = templateExercises.map((row) => row.exerciseId);
         const progressionSeeds = await this.exerciseRepository.findProgressionSeedsByExerciseIds(
           exerciseIds,
           { tx }
@@ -152,13 +160,120 @@ export class StartWorkoutSessionUseCase {
             : [];
 
         const progressionStates = [...existingProgressionStates, ...createdProgressionStates];
+        const progressionStateByExerciseId = new Map(
+          progressionStates.map((progressionState) => [progressionState.exerciseId, progressionState])
+        );
+        const progressionSeedByExerciseId = new Map(
+          progressionSeeds.map((progressionSeed) => [progressionSeed.exerciseId, progressionSeed])
+        );
+
+        const templateEntryIds = templateExercises.map((row) => row.templateExerciseEntryId);
+        const existingV2States = await this.progressionStateV2Repository.findByUserIdAndTemplateEntryIds(
+          input.context.userId,
+          templateEntryIds,
+          { tx }
+        );
+
+        const v2StateByTemplateEntryId = new Map(
+          existingV2States.map((state) => [state.workoutTemplateExerciseEntryId, state])
+        );
+
+        const rangeUpdateInputs = templateExercises
+          .map((row) => {
+            const existing = v2StateByTemplateEntryId.get(row.templateExerciseEntryId);
+            if (!existing) {
+              return null;
+            }
+
+            const nextRepRangeMin = row.templateTargetReps;
+            const nextRepRangeMax = row.templateTargetReps;
+            const nextRepGoal = Math.min(nextRepRangeMax, Math.max(nextRepRangeMin, existing.repGoal));
+
+            const needsUpdate =
+              existing.repRangeMin !== nextRepRangeMin ||
+              existing.repRangeMax !== nextRepRangeMax ||
+              existing.repGoal !== nextRepGoal;
+
+            return needsUpdate
+              ? {
+                  userId: existing.userId,
+                  workoutTemplateExerciseEntryId: existing.workoutTemplateExerciseEntryId,
+                  currentWeightLbs: existing.currentWeightLbs,
+                  lastCompletedWeightLbs: existing.lastCompletedWeightLbs,
+                  repGoal: nextRepGoal,
+                  repRangeMin: nextRepRangeMin,
+                  repRangeMax: nextRepRangeMax,
+                  consecutiveFailures: existing.consecutiveFailures,
+                  lastEffortFeedback: existing.lastEffortFeedback,
+                  lastPerformedAt: existing.lastPerformedAt
+                }
+              : null;
+          })
+          .filter((value): value is NonNullable<typeof value> => value !== null);
+
+        const updatedV2States =
+          rangeUpdateInputs.length > 0
+            ? await this.progressionStateV2Repository.updateMany(rangeUpdateInputs, { tx })
+            : [];
+
+        for (const updated of updatedV2States) {
+          v2StateByTemplateEntryId.set(updated.workoutTemplateExerciseEntryId, updated);
+        }
+
+        const missingV2Inputs = templateExercises
+          .filter((row) => !v2StateByTemplateEntryId.has(row.templateExerciseEntryId))
+          .map((row) => {
+            const v1State = progressionStateByExerciseId.get(row.exerciseId) ?? null;
+            const progressionSeed = progressionSeedByExerciseId.get(row.exerciseId);
+            if (!progressionSeed) {
+              throw new WorkoutApplicationError(
+                "PROGRESSION_SEED_NOT_FOUND",
+                `Progression seed not found for exercise ${row.exerciseId}.`
+              );
+            }
+
+            const repRangeMin = row.templateTargetReps;
+            const repRangeMax = row.templateTargetReps;
+            const repGoal = repRangeMin;
+
+            return {
+              userId: input.context.userId,
+              workoutTemplateExerciseEntryId: row.templateExerciseEntryId,
+              currentWeightLbs: v1State?.currentWeightLbs ?? progressionSeed.defaultStartingWeightLbs,
+              lastCompletedWeightLbs: v1State?.lastCompletedWeightLbs ?? null,
+              repGoal,
+              repRangeMin,
+              repRangeMax,
+              consecutiveFailures: v1State?.consecutiveFailures ?? 0,
+              lastEffortFeedback: v1State?.lastEffortFeedback ?? null,
+              lastPerformedAt: v1State?.lastPerformedAt ?? null
+            };
+          });
+
+        const createdV2States =
+          missingV2Inputs.length > 0
+            ? await this.progressionStateV2Repository.createMany(missingV2Inputs, { tx })
+            : [];
+
+        for (const created of createdV2States) {
+          v2StateByTemplateEntryId.set(created.workoutTemplateExerciseEntryId, created);
+        }
+
+        const progressionStatesV2 = templateEntryIds.map((templateEntryId) => {
+          const state = v2StateByTemplateEntryId.get(templateEntryId);
+          if (!state) {
+            throw new Error(`Missing progression state v2 for template entry ${templateEntryId}.`);
+          }
+
+          return state;
+        });
 
         const workoutSessionGraphInput = this.workoutSessionFactory.build({
           userId: input.context.userId,
           programId: workoutTemplateDefinition.template.programId,
           programName: workoutTemplateDefinition.template.programName,
           workoutTemplateDefinition,
-          progressionStates,
+          progressionStatesV2,
           startedAt: input.request.startedAt ? new Date(input.request.startedAt) : new Date()
         });
 

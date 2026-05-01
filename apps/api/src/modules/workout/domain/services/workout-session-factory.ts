@@ -1,6 +1,6 @@
 import type { EffortFeedback } from "@fitness/shared";
 import type { WorkoutTemplateDefinition } from "../../repositories/models/exercise.persistence.js";
-import type { ProgressionStateRecord } from "../../repositories/models/progression-state.persistence.js";
+import type { ProgressionStateV2Record } from "../../repositories/models/progression-state-v2.persistence.js";
 import type { CreateWorkoutSessionGraphInput } from "../../repositories/models/workout-session.persistence.js";
 
 export type BuildWorkoutSessionGraphInput = {
@@ -8,14 +8,17 @@ export type BuildWorkoutSessionGraphInput = {
   programId: string;
   programName: string;
   workoutTemplateDefinition: WorkoutTemplateDefinition;
-  progressionStates: ProgressionStateRecord[];
+  progressionStatesV2: ProgressionStateV2Record[];
   startedAt: Date;
 };
 
 export class WorkoutSessionFactory {
   public build(input: BuildWorkoutSessionGraphInput): CreateWorkoutSessionGraphInput {
-    const progressionStateByExerciseId = new Map(
-      input.progressionStates.map((progressionState) => [progressionState.exerciseId, progressionState])
+    const progressionStateByTemplateEntryId = new Map(
+      input.progressionStatesV2.map((progressionState) => [
+        progressionState.workoutTemplateExerciseEntryId,
+        progressionState
+      ])
     );
 
     const session: CreateWorkoutSessionGraphInput["session"] = {
@@ -34,17 +37,18 @@ export class WorkoutSessionFactory {
 
     const exerciseEntries: CreateWorkoutSessionGraphInput["exerciseEntries"] =
       input.workoutTemplateDefinition.exercises.map(({ exercise, templateExercise }) => {
-        const progressionState = progressionStateByExerciseId.get(exercise.id);
+        const progressionState = progressionStateByTemplateEntryId.get(templateExercise.id);
         if (!progressionState) {
-          throw new Error(`Missing progression state for exercise ${exercise.id}.`);
+          throw new Error(`Missing progression state for template exercise entry ${templateExercise.id}.`);
         }
 
         return {
           workoutSessionId: "__SESSION__",
           exerciseId: exercise.id,
+          workoutTemplateExerciseEntryId: templateExercise.id,
           sequenceOrder: templateExercise.sequenceOrder,
           targetSets: templateExercise.targetSets,
-          targetReps: templateExercise.targetReps,
+          targetReps: progressionState.repGoal,
           targetWeightLbs: progressionState.currentWeightLbs,
           restSeconds: templateExercise.restSeconds,
           effortFeedback: null,

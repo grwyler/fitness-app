@@ -28,4 +28,10 @@ export interface ExerciseRepository {
     exerciseIds: string[],
     options?: RepositoryOptions
   ): Promise<ExerciseRecord[]>;
+
+  findTemplateExerciseEntryIdsByTemplateIdAndSequenceOrders(
+    templateId: string,
+    sequenceOrders: number[],
+    options?: RepositoryOptions
+  ): Promise<Array<{ sequenceOrder: number; workoutTemplateExerciseEntryId: string }>>;
 }

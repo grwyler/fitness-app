@@ -1,4 +1,4 @@
-import { exerciseEntries, sets, workoutSessions } from "@fitness/db";
+import { exerciseEntries, progressionStatesV2, sets, workoutSessions } from "@fitness/db";
 import { randomUUID } from "node:crypto";
 import type { WorkoutSessionRepository } from "../../repositories/interfaces/workout-session.repository.js";
 import type { RepositoryOptions } from "../../repositories/models/persistence-context.js";
@@ -58,6 +58,7 @@ function mapExerciseEntryRecord(row: typeof exerciseEntries.$inferSelect): Exerc
     id: row.id,
     workoutSessionId: row.workoutSessionId,
     exerciseId: row.exerciseId,
+    workoutTemplateExerciseEntryId: row.workoutTemplateExerciseEntryId ?? null,
     sequenceOrder: row.sequenceOrder,
     targetSets: row.targetSets,
     targetReps: row.targetReps,
@@ -92,6 +93,14 @@ function mapSetRecord(row: typeof sets.$inferSelect): SetRecord {
 export class DrizzleWorkoutSessionRepository implements WorkoutSessionRepository {
   public constructor(private readonly db: any) {}
 
+  private applyRepRangeDefaults(exerciseEntries: ExerciseEntryRecord[]): ExerciseEntryRecord[] {
+    return exerciseEntries.map((entry) => ({
+      ...entry,
+      repRangeMin: entry.targetReps,
+      repRangeMax: entry.targetReps
+    }));
+  }
+
   private async loadSessionGraph(
     sessionId: string,
     executor: any
@@ -118,9 +127,50 @@ export class DrizzleWorkoutSessionRepository implements WorkoutSessionRepository
             .where(inArray(sets.exerciseEntryId, exerciseEntryRows.map((row: any) => row.id)))
             .orderBy(asc(sets.setNumber));
 
+    const baseExerciseEntries = exerciseEntryRows.map(mapExerciseEntryRecord);
+
+    const templateEntryIds = baseExerciseEntries
+      .map((entry: ExerciseEntryRecord) => entry.workoutTemplateExerciseEntryId)
+      .filter((id: string | null): id is string => Boolean(id));
+
+    const repRangeByTemplateEntryId: Map<string, { repRangeMin: number; repRangeMax: number }> =
+      templateEntryIds.length === 0
+        ? new Map<string, { repRangeMin: number; repRangeMax: number }>()
+        : new Map(
+            (
+              await executor
+                .select({
+                  workoutTemplateExerciseEntryId: progressionStatesV2.workoutTemplateExerciseEntryId,
+                  repRangeMin: progressionStatesV2.repRangeMin,
+                  repRangeMax: progressionStatesV2.repRangeMax
+                })
+                .from(progressionStatesV2)
+                .where(
+                  and(
+                    eq(progressionStatesV2.userId, sessionRow.userId),
+                    inArray(progressionStatesV2.workoutTemplateExerciseEntryId, templateEntryIds)
+                  )
+                )
+            ).map((row: any) => [
+              row.workoutTemplateExerciseEntryId,
+              { repRangeMin: row.repRangeMin, repRangeMax: row.repRangeMax }
+            ])
+          );
+
+    const exerciseEntriesWithRanges = this.applyRepRangeDefaults(baseExerciseEntries).map((entry: ExerciseEntryRecord) => {
+      if (!entry.workoutTemplateExerciseEntryId) {
+        return entry;
+      }
+
+      const repRange = repRangeByTemplateEntryId.get(entry.workoutTemplateExerciseEntryId);
+      return repRange
+        ? { ...entry, repRangeMin: repRange.repRangeMin, repRangeMax: repRange.repRangeMax }
+        : entry;
+    });
+
     return {
       session: mapWorkoutSessionRecord(sessionRow),
-      exerciseEntries: exerciseEntryRows.map(mapExerciseEntryRecord),
+      exerciseEntries: exerciseEntriesWithRanges,
       sets: setRows.map(mapSetRecord)
     };
   }
@@ -241,9 +291,50 @@ export class DrizzleWorkoutSessionRepository implements WorkoutSessionRepository
       insertedSets.push(setRow);
     }
 
+    const insertedExerciseEntryRecords = insertedExerciseEntries.map(mapExerciseEntryRecord);
+    const repRangeByTemplateEntryId: Map<string, { repRangeMin: number; repRangeMax: number }> =
+      insertedExerciseEntryRecords.length === 0
+        ? new Map<string, { repRangeMin: number; repRangeMax: number }>()
+        : new Map(
+            (
+              await executor
+                .select({
+                  workoutTemplateExerciseEntryId: progressionStatesV2.workoutTemplateExerciseEntryId,
+                  repRangeMin: progressionStatesV2.repRangeMin,
+                  repRangeMax: progressionStatesV2.repRangeMax
+                })
+                .from(progressionStatesV2)
+                .where(
+                  and(
+                    eq(progressionStatesV2.userId, sessionRow.userId),
+                    inArray(
+                      progressionStatesV2.workoutTemplateExerciseEntryId,
+                      insertedExerciseEntryRecords
+                        .map((entry: ExerciseEntryRecord) => entry.workoutTemplateExerciseEntryId)
+                        .filter((id: string | null): id is string => Boolean(id))
+                    )
+                  )
+                )
+            ).map((row: any) => [
+              row.workoutTemplateExerciseEntryId,
+              { repRangeMin: row.repRangeMin, repRangeMax: row.repRangeMax }
+            ])
+          );
+
+    const exerciseEntriesWithRanges = this.applyRepRangeDefaults(insertedExerciseEntryRecords).map((entry: ExerciseEntryRecord) => {
+      if (!entry.workoutTemplateExerciseEntryId) {
+        return entry;
+      }
+
+      const repRange = repRangeByTemplateEntryId.get(entry.workoutTemplateExerciseEntryId);
+      return repRange
+        ? { ...entry, repRangeMin: repRange.repRangeMin, repRangeMax: repRange.repRangeMax }
+        : entry;
+    });
+
     return {
       session: mapWorkoutSessionRecord(sessionRow),
-      exerciseEntries: insertedExerciseEntries.map(mapExerciseEntryRecord),
+      exerciseEntries: exerciseEntriesWithRanges,
       sets: insertedSets.map(mapSetRecord)
     };
   }

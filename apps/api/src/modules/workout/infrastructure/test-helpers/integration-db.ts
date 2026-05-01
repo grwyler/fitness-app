@@ -4,6 +4,7 @@ import {
   idempotencyRecords,
   progressMetrics,
   progressionStates,
+  progressionStatesV2,
   programs,
   sets,
   userProgramEnrollments,
@@ -23,6 +24,7 @@ import { DrizzleExerciseRepository } from "../repositories/drizzle-exercise.repo
 import { DrizzleIdempotencyRepository } from "../repositories/drizzle-idempotency.repository.js";
 import { DrizzleProgressMetricRepository } from "../repositories/drizzle-progress-metric.repository.js";
 import { DrizzleProgressionStateRepository } from "../repositories/drizzle-progression-state.repository.js";
+import { DrizzleProgressionStateV2Repository } from "../repositories/drizzle-progression-state-v2.repository.js";
 import { DrizzleWorkoutSessionRepository } from "../repositories/drizzle-workout-session.repository.js";
 
 const schemaSql = `
@@ -148,6 +150,7 @@ create table exercise_entries (
   id text primary key,
   workout_session_id text not null references workout_sessions(id),
   exercise_id text not null references exercises(id),
+  workout_template_exercise_entry_id text references workout_template_exercise_entries(id),
   sequence_order integer not null,
   target_sets integer not null,
   target_reps integer not null,
@@ -162,6 +165,7 @@ create table exercise_entries (
   updated_at timestamptz not null default now()
 );
 create unique index idx_exercise_entries_session_sequence on exercise_entries(workout_session_id, sequence_order);
+create index idx_exercise_entries_template_entry_id on exercise_entries(workout_template_exercise_entry_id);
 
 create table sets (
   id text primary key,
@@ -191,6 +195,28 @@ create table progression_states (
   updated_at timestamptz not null default now()
 );
 create unique index idx_progression_states_user_exercise on progression_states(user_id, exercise_id);
+
+create table progression_states_v2 (
+  id text primary key,
+  user_id text not null references users(id),
+  workout_template_exercise_entry_id text not null references workout_template_exercise_entries(id),
+  current_weight_lbs numeric(6,2) not null,
+  last_completed_weight_lbs numeric(6,2),
+  rep_goal integer not null,
+  rep_range_min integer not null,
+  rep_range_max integer not null,
+  consecutive_failures integer not null default 0,
+  last_effort_feedback text,
+  last_performed_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint chk_progression_states_v2_current_weight check (current_weight_lbs >= 0),
+  constraint chk_progression_states_v2_rep_range_min check (rep_range_min > 0),
+  constraint chk_progression_states_v2_rep_range_max check (rep_range_max >= rep_range_min),
+  constraint chk_progression_states_v2_rep_goal check (rep_goal between rep_range_min and rep_range_max)
+);
+create unique index idx_progression_states_v2_user_template_entry on progression_states_v2(user_id, workout_template_exercise_entry_id);
+create index idx_progression_states_v2_user_id on progression_states_v2(user_id);
 
 create table progress_metrics (
   id text primary key,
@@ -243,6 +269,7 @@ export type WorkoutInfrastructureTestContext = {
     workoutSessionRepository: DrizzleWorkoutSessionRepository;
     enrollmentRepository: DrizzleEnrollmentRepository;
     progressionStateRepository: DrizzleProgressionStateRepository;
+    progressionStateV2Repository: DrizzleProgressionStateV2Repository;
     exerciseRepository: DrizzleExerciseRepository;
     progressMetricRepository: DrizzleProgressMetricRepository;
     idempotencyRepository: DrizzleIdempotencyRepository;
@@ -263,6 +290,7 @@ export async function createWorkoutInfrastructureTestContext(): Promise<WorkoutI
       workoutSessionRepository: new DrizzleWorkoutSessionRepository(db),
       enrollmentRepository: new DrizzleEnrollmentRepository(db),
       progressionStateRepository: new DrizzleProgressionStateRepository(db),
+      progressionStateV2Repository: new DrizzleProgressionStateV2Repository(db),
       exerciseRepository: new DrizzleExerciseRepository(db),
       progressMetricRepository: new DrizzleProgressMetricRepository(db),
       idempotencyRepository: new DrizzleIdempotencyRepository(db)
@@ -668,6 +696,7 @@ export async function seedInProgressWorkout(context: WorkoutInfrastructureTestCo
     id: "entry-1",
     workoutSessionId: "session-1",
     exerciseId: "exercise-1",
+    workoutTemplateExerciseEntryId: "template-entry-1",
     sequenceOrder: 1,
     targetSets: 3,
     targetReps: 8,
@@ -700,12 +729,13 @@ export async function seedInProgressWorkout(context: WorkoutInfrastructureTestCo
 }
 
 export async function countRecords(context: WorkoutInfrastructureTestContext) {
-  const [sessionsResult, exerciseEntriesResult, setsResult, progressionStatesResult, idempotencyResult] =
+  const [sessionsResult, exerciseEntriesResult, setsResult, progressionStatesResult, progressionStatesV2Result, idempotencyResult] =
     await Promise.all([
       context.db.select().from(workoutSessions),
       context.db.select().from(exerciseEntries),
       context.db.select().from(sets),
       context.db.select().from(progressionStates),
+      context.db.select().from(progressionStatesV2),
       context.db.select().from(idempotencyRecords)
     ]);
 
@@ -714,6 +744,7 @@ export async function countRecords(context: WorkoutInfrastructureTestContext) {
     exerciseEntries: exerciseEntriesResult.length,
     sets: setsResult.length,
     progressionStates: progressionStatesResult.length,
+    progressionStatesV2: progressionStatesV2Result.length,
     idempotencyRecords: idempotencyResult.length
   };
 }
@@ -722,6 +753,9 @@ export {
   idempotencyRecords,
   progressMetrics,
   progressionStates,
+  progressionStatesV2,
   userProgramEnrollments,
+  workoutTemplateExerciseEntries,
+  workoutTemplates,
   workoutSessions
 };

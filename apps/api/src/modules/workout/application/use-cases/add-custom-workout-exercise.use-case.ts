@@ -152,6 +152,7 @@ export class AddCustomWorkoutExerciseUseCase {
             sessionId: workoutSessionGraph.session.id,
             exerciseEntry: {
               exerciseId: exercise.id,
+              workoutTemplateExerciseEntryId: null,
               sequenceOrder: nextSequenceOrder,
               targetSets: input.request.targetSets,
               targetReps: input.request.targetReps,

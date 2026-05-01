@@ -6,8 +6,10 @@ import type { IdempotencyRepository } from "../../repositories/interfaces/idempo
 import type { ProgramRepository } from "../../repositories/interfaces/program.repository.js";
 import type { ProgressMetricRepository } from "../../repositories/interfaces/progress-metric.repository.js";
 import type { ProgressionStateRepository } from "../../repositories/interfaces/progression-state.repository.js";
+import type { ProgressionStateV2Repository } from "../../repositories/interfaces/progression-state-v2.repository.js";
 import type { WorkoutSessionRepository } from "../../repositories/interfaces/workout-session.repository.js";
 import type { IdempotencyRecord } from "../../repositories/models/idempotency.persistence.js";
+import type { ProgressionStateV2Record } from "../../repositories/models/progression-state-v2.persistence.js";
 import type { WorkoutSessionGraph } from "../../repositories/models/workout-session.persistence.js";
 import {
   CUSTOM_WORKOUT_PROGRAM_ID,
@@ -50,6 +52,7 @@ function createBaseWorkoutSessionGraph(): WorkoutSessionGraph {
         id: "entry-1",
         workoutSessionId: "session-1",
         exerciseId: "exercise-1",
+        workoutTemplateExerciseEntryId: "template-exercise-1",
         sequenceOrder: 1,
         targetSets: 3,
         targetReps: 8,
@@ -160,6 +163,34 @@ function createMockIdempotencyRepository() {
     records
   };
 }
+
+function createMockProgressionStateV2Repository(input?: {
+  findRows?: ProgressionStateV2Record[];
+}): ProgressionStateV2Repository {
+  return {
+    async findByUserIdAndTemplateEntryIds() {
+      return input?.findRows ?? [];
+    },
+    async createMany(inputs) {
+      return inputs.map((value, index) => ({
+        id: `progression-v2-${index + 1}`,
+        ...value,
+        createdAt: new Date("2026-04-24T10:00:00.000Z"),
+        updatedAt: new Date("2026-04-24T10:00:00.000Z")
+      }));
+    },
+    async updateMany(inputs) {
+      return inputs.map((value, index) => ({
+        id: `progression-v2-updated-${index + 1}`,
+        ...value,
+        createdAt: new Date("2026-04-24T10:00:00.000Z"),
+        updatedAt: new Date("2026-04-24T10:00:00.000Z")
+      }));
+    }
+  };
+}
+
+const defaultProgressionStateV2Repository = createMockProgressionStateV2Repository();
 
 function createProgramDefinition() {
   return {
@@ -286,6 +317,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
           ];
         },
         async findByIds() {
+          return [];
+        },
+        async findTemplateExerciseEntryIdsByTemplateIdAndSequenceOrders() {
           return [];
         }
       };
@@ -639,13 +673,19 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         },
         async findByIds() {
           return [];
+        },
+        async findTemplateExerciseEntryIdsByTemplateIdAndSequenceOrders() {
+          return [];
         }
       };
+
+      const progressionStateV2Repository = defaultProgressionStateV2Repository;
 
       const useCase = new StartWorkoutSessionUseCase(
         workoutSessionRepository,
         enrollmentRepository,
         progressionStateRepository,
+        defaultProgressionStateV2Repository,
         exerciseRepository,
         new MockTransactionManager(),
         idempotency.repository
@@ -781,14 +821,20 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         },
         async findByIds() {
           return [];
+        },
+        async findTemplateExerciseEntryIdsByTemplateIdAndSequenceOrders() {
+          return [];
         }
       };
+
+      const progressionStateV2Repository = defaultProgressionStateV2Repository;
 
       const idempotency = createMockIdempotencyRepository();
       const useCase = new StartWorkoutSessionUseCase(
         workoutSessionRepository,
         enrollmentRepository,
         progressionStateRepository,
+        defaultProgressionStateV2Repository,
         exerciseRepository,
         new MockTransactionManager(),
         idempotency.repository
@@ -933,6 +979,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         },
         async findByIds() {
           return [];
+        },
+        async findTemplateExerciseEntryIdsByTemplateIdAndSequenceOrders() {
+          return [];
         }
       };
 
@@ -940,6 +989,7 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         workoutSessionRepository,
         enrollmentRepository,
         progressionStateRepository,
+        progressionStateV2Repository,
         exerciseRepository,
         new MockTransactionManager(),
         idempotency.repository
@@ -1237,6 +1287,26 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         }
       };
 
+      const progressionStateV2RepositoryCustom = createMockProgressionStateV2Repository({
+        findRows: [
+          {
+            id: "progression-v2-1",
+            userId: "user-1",
+            workoutTemplateExerciseEntryId: "template-exercise-1",
+            currentWeightLbs: 135,
+            lastCompletedWeightLbs: 130,
+            repGoal: 8,
+            repRangeMin: 8,
+            repRangeMax: 8,
+            consecutiveFailures: 0,
+            lastEffortFeedback: "just_right",
+            lastPerformedAt: new Date("2026-04-20T10:00:00.000Z"),
+            createdAt: new Date("2026-04-01T00:00:00.000Z"),
+            updatedAt: new Date("2026-04-20T10:00:00.000Z")
+          }
+        ]
+      });
+
       const exerciseRepository: ExerciseRepository = {
         async listActive() {
           return [];
@@ -1286,6 +1356,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         },
         async findByIds() {
           return [];
+        },
+        async findTemplateExerciseEntryIdsByTemplateIdAndSequenceOrders() {
+          return [];
         }
       };
 
@@ -1306,6 +1379,7 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         workoutSessionRepository,
         enrollmentRepository,
         progressionStateRepository,
+        progressionStateV2RepositoryCustom,
         exerciseRepository,
         progressMetricRepository,
         new MockTransactionManager(),
@@ -1467,6 +1541,8 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         }
       };
 
+      const progressionStateV2Repository = defaultProgressionStateV2Repository;
+
       const exerciseRepository: ExerciseRepository = {
         async listActive() {
           return [];
@@ -1493,6 +1569,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         },
         async findByIds() {
           return [];
+        },
+        async findTemplateExerciseEntryIdsByTemplateIdAndSequenceOrders() {
+          return [];
         }
       };
 
@@ -1509,6 +1588,7 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         workoutSessionRepository,
         enrollmentRepository,
         progressionStateRepository,
+        defaultProgressionStateV2Repository,
         exerciseRepository,
         progressMetricRepository,
         new MockTransactionManager(),
@@ -1714,6 +1794,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         },
         async findByIds() {
           return [];
+        },
+        async findTemplateExerciseEntryIdsByTemplateIdAndSequenceOrders() {
+          return [];
         }
       };
       const progressMetricRepository: ProgressMetricRepository = {
@@ -1733,6 +1816,7 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         workoutSessionRepository,
         enrollmentRepository,
         progressionStateRepository,
+        defaultProgressionStateV2Repository,
         exerciseRepository,
         progressMetricRepository,
         new MockTransactionManager(),
@@ -1881,13 +1965,19 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         },
         async findByIds() {
           return [];
+        },
+        async findTemplateExerciseEntryIdsByTemplateIdAndSequenceOrders() {
+          return [];
         }
       };
+
+      const progressionStateV2Repository = defaultProgressionStateV2Repository;
 
       const useCase = new StartWorkoutSessionUseCase(
         workoutSessionRepository,
         enrollmentRepository,
         progressionStateRepository,
+        progressionStateV2Repository,
         exerciseRepository,
         new MockTransactionManager(),
         idempotency.repository
@@ -2060,6 +2150,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
           ];
         },
         async findByIds() {
+          return [];
+        },
+        async findTemplateExerciseEntryIdsByTemplateIdAndSequenceOrders() {
           return [];
         }
       };

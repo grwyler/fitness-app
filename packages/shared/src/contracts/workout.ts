@@ -45,11 +45,14 @@ export type SetDto = {
 export type ExerciseEntryDto = {
   id: UUID;
   exerciseId: UUID;
+  workoutTemplateExerciseEntryId?: UUID | null;
   exerciseName: string;
   category: ExerciseCategory;
   sequenceOrder: number;
   targetSets: number;
   targetReps: number;
+  repRangeMin?: number;
+  repRangeMax?: number;
   targetWeight: WeightValueDto;
   restSeconds: number | null;
   effortFeedback: EffortFeedback | null;

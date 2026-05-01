@@ -21,9 +21,12 @@ export type ExerciseEntryRecord = {
   id: string;
   workoutSessionId: string;
   exerciseId: string;
+  workoutTemplateExerciseEntryId: string | null;
   sequenceOrder: number;
   targetSets: number;
   targetReps: number;
+  repRangeMin?: number;
+  repRangeMax?: number;
   targetWeightLbs: number;
   restSeconds: number | null;
   effortFeedback: EffortFeedback | null;

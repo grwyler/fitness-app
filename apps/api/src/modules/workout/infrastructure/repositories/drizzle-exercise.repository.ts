@@ -187,4 +187,40 @@ export class DrizzleExerciseRepository implements ExerciseRepository {
 
     return rows.map(mapExerciseRecord);
   }
+
+  public async findTemplateExerciseEntryIdsByTemplateIdAndSequenceOrders(
+    templateId: string,
+    sequenceOrders: number[],
+    options?: RepositoryOptions
+  ): Promise<Array<{ sequenceOrder: number; workoutTemplateExerciseEntryId: string }>> {
+    if (sequenceOrders.length === 0) {
+      return [];
+    }
+
+    const uniqueOrders = [...new Set(sequenceOrders)];
+    const executor = resolveExecutor(this.db, options);
+    const rows = await executor
+      .select({
+        sequenceOrder: workoutTemplateExerciseEntries.sequenceOrder,
+        workoutTemplateExerciseEntryId: workoutTemplateExerciseEntries.id
+      })
+      .from(workoutTemplateExerciseEntries)
+      .where(
+        and(
+          eq(workoutTemplateExerciseEntries.workoutTemplateId, templateId),
+          inArray(workoutTemplateExerciseEntries.sequenceOrder, uniqueOrders)
+        )
+      );
+
+    const rowBySequenceOrder = new Map<number, { sequenceOrder: number; workoutTemplateExerciseEntryId: string }>(
+      rows.map((row: any) => [
+        row.sequenceOrder,
+        { sequenceOrder: row.sequenceOrder, workoutTemplateExerciseEntryId: row.workoutTemplateExerciseEntryId }
+      ])
+    );
+
+    return uniqueOrders
+      .filter((order) => rowBySequenceOrder.has(order))
+      .map((order) => rowBySequenceOrder.get(order)!);
+  }
 }

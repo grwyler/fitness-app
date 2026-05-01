@@ -6,6 +6,7 @@ import { DrizzleIdempotencyRepository } from "../infrastructure/repositories/dri
 import { DrizzleProgramRepository } from "../infrastructure/repositories/drizzle-program.repository.js";
 import { DrizzleProgressMetricRepository } from "../infrastructure/repositories/drizzle-progress-metric.repository.js";
 import { DrizzleProgressionStateRepository } from "../infrastructure/repositories/drizzle-progression-state.repository.js";
+import { DrizzleProgressionStateV2Repository } from "../infrastructure/repositories/drizzle-progression-state-v2.repository.js";
 import { DrizzleWorkoutSessionRepository } from "../infrastructure/repositories/drizzle-workout-session.repository.js";
 import { CompleteWorkoutSessionUseCase } from "../application/use-cases/complete-workout-session.use-case.js";
 import { CancelWorkoutSessionUseCase } from "../application/use-cases/cancel-workout-session.use-case.js";
@@ -35,6 +36,7 @@ export function createWorkoutHttpRouter(database: WorkoutDatabase) {
   const enrollmentRepository = new DrizzleEnrollmentRepository(database);
   const programRepository = new DrizzleProgramRepository(database);
   const progressionStateRepository = new DrizzleProgressionStateRepository(database);
+  const progressionStateV2Repository = new DrizzleProgressionStateV2Repository(database);
   const exerciseRepository = new DrizzleExerciseRepository(database);
   const progressMetricRepository = new DrizzleProgressMetricRepository(database);
   const idempotencyRepository = new DrizzleIdempotencyRepository(database);
@@ -44,6 +46,7 @@ export function createWorkoutHttpRouter(database: WorkoutDatabase) {
     workoutSessionRepository,
     enrollmentRepository,
     progressionStateRepository,
+    progressionStateV2Repository,
     exerciseRepository,
     transactionManager,
     idempotencyRepository
@@ -85,6 +88,7 @@ export function createWorkoutHttpRouter(database: WorkoutDatabase) {
     workoutSessionRepository,
     enrollmentRepository,
     progressionStateRepository,
+    progressionStateV2Repository,
     exerciseRepository,
     progressMetricRepository,
     transactionManager,

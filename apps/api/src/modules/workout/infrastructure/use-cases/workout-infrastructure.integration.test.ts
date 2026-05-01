@@ -6,6 +6,7 @@ import { CompleteWorkoutSessionUseCase } from "../../application/use-cases/compl
 import { LogSetUseCase } from "../../application/use-cases/log-set.use-case.js";
 import { StartWorkoutSessionUseCase } from "../../application/use-cases/start-workout-session.use-case.js";
 import type { InfrastructureTestCase } from "../test-helpers/infrastructure-test-case.js";
+import { eq } from "../db/drizzle-helpers.js";
 import {
   countRecords,
   createWorkoutInfrastructureTestContext,
@@ -13,9 +14,12 @@ import {
   idempotencyRecords,
   progressMetrics,
   progressionStates,
+  progressionStatesV2,
   seedBaseWorkoutProgram,
   seedInProgressWorkout,
   userProgramEnrollments,
+  workoutTemplateExerciseEntries,
+  workoutTemplates,
   workoutSessions
 } from "../test-helpers/integration-db.js";
 
@@ -159,6 +163,7 @@ export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[]
           context.repositories.workoutSessionRepository,
           context.repositories.enrollmentRepository,
           context.repositories.progressionStateRepository,
+          context.repositories.progressionStateV2Repository,
           context.repositories.exerciseRepository,
           context.transactionManager,
           context.repositories.idempotencyRepository
@@ -179,7 +184,138 @@ export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[]
         assert.equal(counts.exerciseEntries, 1);
         assert.equal(counts.sets, 3);
         assert.equal(counts.progressionStates, 1);
+        assert.equal(counts.progressionStatesV2, 1);
         assert.equal(counts.idempotencyRecords, 1);
+        assert.equal(result.data.exercises[0]?.workoutTemplateExerciseEntryId, "template-entry-1");
+        assert.equal(result.data.exercises[0]?.repRangeMin, 8);
+        assert.equal(result.data.exercises[0]?.repRangeMax, 8);
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "Start workout seeds progression v2 from existing v1 state",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+
+        await context.db.insert(progressionStates).values({
+          id: "progression-1",
+          userId: "user-1",
+          exerciseId: "exercise-1",
+          currentWeightLbs: "150.00",
+          lastCompletedWeightLbs: "145.00",
+          consecutiveFailures: 0,
+          lastEffortFeedback: "just_right",
+          lastPerformedAt: new Date("2026-04-20T10:00:00.000Z"),
+          createdAt: new Date("2026-04-20T10:00:00.000Z"),
+          updatedAt: new Date("2026-04-20T10:00:00.000Z")
+        });
+
+        const useCase = new StartWorkoutSessionUseCase(
+          context.repositories.workoutSessionRepository,
+          context.repositories.enrollmentRepository,
+          context.repositories.progressionStateRepository,
+          context.repositories.progressionStateV2Repository,
+          context.repositories.exerciseRepository,
+          context.transactionManager,
+          context.repositories.idempotencyRepository
+        );
+
+        const result = await useCase.execute({
+          context: { userId: "user-1", unitSystem: "imperial" },
+          request: {},
+          idempotencyKey: "start-key-seed-v2"
+        });
+
+        const [row] = await context.db.select().from(progressionStatesV2);
+
+        assert.equal(result.data.exercises[0]?.targetWeight.value, 150);
+        assert.equal(String(row?.currentWeightLbs), "150.00");
+        assert.equal(String(row?.lastCompletedWeightLbs), "145.00");
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "Progression v2 is independent per template entry for the same exercise",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+
+        await context.db.insert(workoutTemplates).values({
+          id: "template-2b",
+          programId: "program-1",
+          name: "Workout B",
+          category: "Full Body",
+          sequenceOrder: 2,
+          estimatedDurationMinutes: 55,
+          isActive: true,
+          createdAt: new Date("2026-04-24T10:00:00.000Z"),
+          updatedAt: new Date("2026-04-24T10:00:00.000Z")
+        });
+
+        await context.db.insert(workoutTemplateExerciseEntries).values({
+          id: "template-entry-2b",
+          workoutTemplateId: "template-2b",
+          exerciseId: "exercise-1",
+          sequenceOrder: 1,
+          targetSets: 3,
+          targetReps: 8,
+          restSeconds: 120,
+          createdAt: new Date("2026-04-24T10:00:00.000Z"),
+          updatedAt: new Date("2026-04-24T10:00:00.000Z")
+        });
+
+        await context.db
+          .update(userProgramEnrollments)
+          .set({ currentWorkoutTemplateId: "template-1" })
+          .where(eq(userProgramEnrollments.id, "enrollment-1"));
+
+        const startUseCase = new StartWorkoutSessionUseCase(
+          context.repositories.workoutSessionRepository,
+          context.repositories.enrollmentRepository,
+          context.repositories.progressionStateRepository,
+          context.repositories.progressionStateV2Repository,
+          context.repositories.exerciseRepository,
+          context.transactionManager,
+          context.repositories.idempotencyRepository
+        );
+
+        await startUseCase.execute({
+          context: { userId: "user-1", unitSystem: "imperial" },
+          request: {},
+          idempotencyKey: "start-template-1"
+        });
+
+        await context.db
+          .update(progressionStatesV2)
+          .set({ currentWeightLbs: "200.00" })
+          .where(eq(progressionStatesV2.workoutTemplateExerciseEntryId, "template-entry-1"));
+
+        await context.db
+          .update(userProgramEnrollments)
+          .set({ currentWorkoutTemplateId: "template-2b" })
+          .where(eq(userProgramEnrollments.id, "enrollment-1"));
+
+        await startUseCase.execute({
+          context: { userId: "user-1", unitSystem: "imperial" },
+          request: {},
+          idempotencyKey: "start-template-2b"
+        });
+
+        const v2Rows = await context.db.select().from(progressionStatesV2);
+        const row1 = v2Rows.find((row) => row.workoutTemplateExerciseEntryId === "template-entry-1");
+        const row2 = v2Rows.find((row) => row.workoutTemplateExerciseEntryId === "template-entry-2b");
+
+        assert.equal(String(row1?.currentWeightLbs), "200.00");
+        assert.equal(String(row2?.currentWeightLbs), "135.00");
       } finally {
         await disposeWorkoutInfrastructureTestContext(context);
       }
@@ -239,6 +375,7 @@ export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[]
           context.repositories.workoutSessionRepository,
           context.repositories.enrollmentRepository,
           context.repositories.progressionStateRepository,
+          context.repositories.progressionStateV2Repository,
           context.repositories.exerciseRepository,
           context.repositories.progressMetricRepository,
           context.transactionManager,
@@ -263,6 +400,7 @@ export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[]
 
         const [persistedSession] = await context.db.select().from(workoutSessions);
         const [persistedProgressionState] = await context.db.select().from(progressionStates);
+        const [persistedProgressionStateV2] = await context.db.select().from(progressionStatesV2);
         const persistedMetrics = await context.db.select().from(progressMetrics);
         const [persistedEnrollment] = await context.db.select().from(userProgramEnrollments);
 
@@ -272,6 +410,9 @@ export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[]
         assert.equal(String(persistedProgressionState?.currentWeightLbs), "140.00");
         assert.equal(String(persistedProgressionState?.lastCompletedWeightLbs), "135.00");
         assert.equal(persistedProgressionState?.consecutiveFailures, 0);
+        assert.equal(String(persistedProgressionStateV2?.currentWeightLbs), "140.00");
+        assert.equal(String(persistedProgressionStateV2?.lastCompletedWeightLbs), "135.00");
+        assert.equal(persistedProgressionStateV2?.repGoal, 8);
         assert.equal(persistedMetrics.length, 2);
         assert.equal(persistedEnrollment?.currentWorkoutTemplateId, "template-2");
       } finally {
@@ -346,6 +487,7 @@ export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[]
           context.repositories.workoutSessionRepository,
           context.repositories.enrollmentRepository,
           context.repositories.progressionStateRepository,
+          context.repositories.progressionStateV2Repository,
           context.repositories.exerciseRepository,
           context.transactionManager,
           context.repositories.idempotencyRepository

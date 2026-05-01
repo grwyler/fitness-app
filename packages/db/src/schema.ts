@@ -239,6 +239,9 @@ export const exerciseEntries = pgTable(
     id: uuid("id").defaultRandom().primaryKey(),
     workoutSessionId: uuid("workout_session_id").notNull().references(() => workoutSessions.id),
     exerciseId: uuid("exercise_id").notNull().references(() => exercises.id),
+    workoutTemplateExerciseEntryId: uuid("workout_template_exercise_entry_id").references(
+      () => workoutTemplateExerciseEntries.id
+    ),
     sequenceOrder: integer("sequence_order").notNull(),
     targetSets: integer("target_sets").notNull(),
     targetReps: integer("target_reps").notNull(),
@@ -254,6 +257,9 @@ export const exerciseEntries = pgTable(
   (table) => ({
     sessionIndex: index("idx_exercise_entries_workout_session_id").on(table.workoutSessionId),
     exerciseIndex: index("idx_exercise_entries_exercise_id").on(table.exerciseId),
+    templateEntryIndex: index("idx_exercise_entries_template_entry_id").on(
+      table.workoutTemplateExerciseEntryId
+    ),
     sessionSequenceUnique: uniqueIndex("idx_exercise_entries_session_sequence").on(
       table.workoutSessionId,
       table.sequenceOrder
@@ -306,6 +312,53 @@ export const progressionStates = pgTable(
     userIndex: index("idx_progression_states_user_id").on(table.userId),
     validCurrentWeight: check("chk_progression_states_current_weight", sql`${table.currentWeightLbs} >= 0`),
     validFailureCount: check("chk_progression_states_consecutive_failures", sql`${table.consecutiveFailures} >= 0`)
+  })
+);
+
+export const progressionStatesV2 = pgTable(
+  "progression_states_v2",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").notNull().references(() => users.id),
+    workoutTemplateExerciseEntryId: uuid("workout_template_exercise_entry_id")
+      .notNull()
+      .references(() => workoutTemplateExerciseEntries.id),
+    currentWeightLbs: numeric("current_weight_lbs", { precision: 6, scale: 2 }).notNull(),
+    lastCompletedWeightLbs: numeric("last_completed_weight_lbs", { precision: 6, scale: 2 }),
+    repGoal: integer("rep_goal").notNull(),
+    repRangeMin: integer("rep_range_min").notNull(),
+    repRangeMax: integer("rep_range_max").notNull(),
+    consecutiveFailures: integer("consecutive_failures").notNull().default(0),
+    lastEffortFeedback: effortFeedbackEnum("last_effort_feedback"),
+    lastPerformedAt: timestamp("last_performed_at", { withTimezone: true }),
+    ...timestamps
+  },
+  (table) => ({
+    userTemplateEntryUnique: uniqueIndex("idx_progression_states_v2_user_template_entry").on(
+      table.userId,
+      table.workoutTemplateExerciseEntryId
+    ),
+    userIndex: index("idx_progression_states_v2_user_id").on(table.userId),
+    templateEntryIndex: index("idx_progression_states_v2_template_entry_id").on(
+      table.workoutTemplateExerciseEntryId
+    ),
+    validCurrentWeight: check(
+      "chk_progression_states_v2_current_weight",
+      sql`${table.currentWeightLbs} >= 0`
+    ),
+    validRepRangeMin: check("chk_progression_states_v2_rep_range_min", sql`${table.repRangeMin} > 0`),
+    validRepRangeMax: check(
+      "chk_progression_states_v2_rep_range_max",
+      sql`${table.repRangeMax} >= ${table.repRangeMin}`
+    ),
+    validRepGoal: check(
+      "chk_progression_states_v2_rep_goal",
+      sql`${table.repGoal} between ${table.repRangeMin} and ${table.repRangeMax}`
+    ),
+    validFailureCount: check(
+      "chk_progression_states_v2_consecutive_failures",
+      sql`${table.consecutiveFailures} >= 0`
+    )
   })
 );
 
@@ -386,6 +439,7 @@ export const schema = {
   exerciseEntries,
   sets,
   progressionStates,
+  progressionStatesV2,
   progressMetrics,
   idempotencyRecords,
   feedbackEntries
