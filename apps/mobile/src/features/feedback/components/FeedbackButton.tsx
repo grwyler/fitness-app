@@ -3,8 +3,8 @@ import Constants from "expo-constants";
 import { useRoute } from "@react-navigation/native";
 import { Alert, Platform } from "react-native";
 import { PrimaryButton } from "../../../components/PrimaryButton";
+import { submitFeedbackEntry } from "../../../api/feedback";
 import { buildFeedbackContext } from "../utils/build-feedback-context";
-import { feedbackStorage } from "../storage/feedback-storage";
 import { createFeedbackEntry, type FeedbackDraft } from "../types";
 import { FeedbackModal } from "./FeedbackModal";
 
@@ -45,12 +45,12 @@ export function FeedbackButton({
         context
       });
 
-      await feedbackStorage.saveEntry(entry);
+      await submitFeedbackEntry(entry);
       setIsOpen(false);
-      Alert.alert("Feedback saved", "Your note was stored on this device.");
+      Alert.alert("Feedback submitted", "Thanks! Your note is available on any device.");
     } catch (error) {
       console.error("Unable to save feedback entry", error);
-      setErrorMessage("We couldn't save your feedback locally. Please try again.");
+      setErrorMessage("We couldn't submit your feedback. Please try again.");
     } finally {
       setIsSaving(false);
     }

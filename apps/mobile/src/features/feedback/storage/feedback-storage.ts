@@ -51,6 +51,14 @@ export function createFeedbackStorage(storage: FeedbackStorageAdapter) {
       await storage.setItem(FEEDBACK_STORAGE_KEY, JSON.stringify(nextEntries));
       return nextEntries;
     },
+    async replaceEntries(entries: FeedbackEntry[]) {
+      await storage.setItem(FEEDBACK_STORAGE_KEY, JSON.stringify(entries));
+      return entries;
+    },
+    async clearEntries() {
+      await storage.setItem(FEEDBACK_STORAGE_KEY, JSON.stringify([]));
+      return [] as FeedbackEntry[];
+    },
     async exportEntries() {
       const entries = await this.listEntries();
       return JSON.stringify(entries, null, 2);

@@ -253,6 +253,9 @@ create unique index if not exists idx_progression_states_user_exercise on progre
 create table if not exists progress_metrics (id uuid primary key, user_id uuid not null references users(id), exercise_id uuid references exercises(id), workout_session_id uuid references workout_sessions(id), metric_type text not null, metric_value numeric(8,2), display_text text not null, recorded_at timestamptz not null, created_at timestamptz not null default now());
 create table if not exists idempotency_records (id uuid primary key, user_id text not null, key text not null, route_family text not null, target_resource_id text not null default '', request_fingerprint text not null, status text not null, response_status_code integer, response_body text, completed_at timestamptz, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
 create unique index if not exists idx_idempotency_scope on idempotency_records(user_id, key, route_family, target_resource_id);
+create table if not exists feedback_entries (id text primary key, reporter_user_id uuid not null references users(id), created_at timestamptz not null, updated_at timestamptz not null default now(), description text not null, category text not null, severity text not null, priority text not null, context jsonb not null);
+create index if not exists idx_feedback_entries_reporter_user_id on feedback_entries(reporter_user_id);
+create index if not exists idx_feedback_entries_created_at on feedback_entries(created_at);
 `;
 
 type SqlExecutor = {

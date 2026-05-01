@@ -355,6 +355,25 @@ export const idempotencyRecords = pgTable(
   })
 );
 
+export const feedbackEntries = pgTable(
+  "feedback_entries",
+  {
+    id: text("id").primaryKey(),
+    reporterUserId: uuid("reporter_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    description: text("description").notNull(),
+    category: text("category").notNull(),
+    severity: text("severity").notNull(),
+    priority: text("priority").notNull(),
+    context: jsonb("context").notNull()
+  },
+  (table) => ({
+    reporterIndex: index("idx_feedback_entries_reporter_user_id").on(table.reporterUserId),
+    createdAtIndex: index("idx_feedback_entries_created_at").on(table.createdAt)
+  })
+);
+
 export const schema = {
   users,
   passwordResetTokens,
@@ -368,5 +387,6 @@ export const schema = {
   sets,
   progressionStates,
   progressMetrics,
-  idempotencyRecords
+  idempotencyRecords,
+  feedbackEntries
 };

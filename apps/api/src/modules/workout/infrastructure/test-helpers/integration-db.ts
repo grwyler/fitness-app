@@ -219,6 +219,20 @@ create table idempotency_records (
   updated_at timestamptz not null default now()
 );
 create unique index idx_idempotency_scope on idempotency_records(user_id, key, route_family, target_resource_id);
+
+create table feedback_entries (
+  id text primary key,
+  reporter_user_id text not null references users(id),
+  created_at timestamptz not null,
+  updated_at timestamptz not null default now(),
+  description text not null,
+  category text not null,
+  severity text not null,
+  priority text not null,
+  context jsonb not null
+);
+create index idx_feedback_entries_reporter_user_id on feedback_entries(reporter_user_id);
+create index idx_feedback_entries_created_at on feedback_entries(created_at);
 `;
 
 export type WorkoutInfrastructureTestContext = {

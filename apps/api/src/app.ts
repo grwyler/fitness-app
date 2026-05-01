@@ -73,7 +73,9 @@ export function createApp(options?: {
   };
   database?: DatabaseLike;
   workoutRouter?: Router;
+  feedbackRouter?: Router;
 }) {
+  const resolvedOptions = options ?? {};
   const app = express();
   const corsOptions = createCorsOptions();
 
@@ -90,23 +92,32 @@ export function createApp(options?: {
 
   app.use(healthRouter);
   app.use("/api/v1", healthRouter);
-  if (options?.workoutRouter) {
-    if (options.database) {
-      const authenticateRequest = options.auth?.authenticateRequest ?? createAuthenticateRequestMiddleware();
 
-      app.use("/api/v1", createPublicAuthRouter(options.database));
+  const hasApiRouters = Boolean(resolvedOptions.workoutRouter || resolvedOptions.feedbackRouter);
+
+  if (hasApiRouters) {
+    if (resolvedOptions.database) {
+      const authenticateRequest = resolvedOptions.auth?.authenticateRequest ?? createAuthenticateRequestMiddleware();
+
+      app.use("/api/v1", createPublicAuthRouter(resolvedOptions.database));
       app.use("/api/v1", authenticateRequest);
-      app.use("/api/v1", createProtectedAuthRouter(options.database));
+      app.use("/api/v1", createProtectedAuthRouter(resolvedOptions.database));
       app.use(
         "/api/v1",
         createRequestContextMiddleware({
-          database: options.database
+          database: resolvedOptions.database
         })
       );
-      app.use("/api/v1", createDevResetRouter(options.database));
+      app.use("/api/v1", createDevResetRouter(resolvedOptions.database));
     }
 
-    app.use("/api/v1", options.workoutRouter);
+    if (resolvedOptions.workoutRouter) {
+      app.use("/api/v1", resolvedOptions.workoutRouter);
+    }
+
+    if (resolvedOptions.feedbackRouter) {
+      app.use("/api/v1", resolvedOptions.feedbackRouter);
+    }
   }
 
   app.use((_request, response) => {

@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { Alert, Platform, Share, StyleSheet, Text, TextInput, View } from "react-native";
 import { Screen } from "../components/Screen";
 import { PrimaryButton } from "../components/PrimaryButton";
-import { feedbackStorage } from "../features/feedback/storage/feedback-storage";
+import { deleteFeedbackEntry, listFeedbackEntries, submitFeedbackEntry, updateFeedbackEntry } from "../api/feedback";
+import { feedbackStorage as legacyFeedbackStorage } from "../features/feedback/storage/feedback-storage";
 import { feedbackCategories, feedbackPriorities, feedbackSeverities, type FeedbackEntry, type FeedbackPriority } from "../features/feedback/types";
 import { buildCodexPromptFromFeedbackEntry } from "../features/feedback/utils/build-codex-prompt";
 import { colors, spacing } from "../theme/tokens";
@@ -41,11 +42,37 @@ export function FeedbackDebugScreen() {
     setLoading(true);
 
     try {
-      const nextEntries = await feedbackStorage.listEntries();
-      setEntries(nextEntries);
+      let serverEntries = (await listFeedbackEntries()).data;
+
+      try {
+        const legacyEntries = await legacyFeedbackStorage.listEntries();
+        const serverIds = new Set(serverEntries.map((entry) => entry.id));
+        const legacyToUpload = legacyEntries.filter((entry) => !serverIds.has(entry.id));
+
+        if (legacyToUpload.length > 0) {
+          const results = await Promise.allSettled(
+            legacyToUpload.map((entry) => submitFeedbackEntry(entry))
+          );
+
+          const uploadedIds = legacyToUpload
+            .filter((_, index) => results[index]?.status === "fulfilled")
+            .map((entry) => entry.id);
+
+          if (uploadedIds.length > 0) {
+            await legacyFeedbackStorage.replaceEntries(
+              legacyEntries.filter((entry) => !uploadedIds.includes(entry.id))
+            );
+            serverEntries = (await listFeedbackEntries()).data;
+          }
+        }
+      } catch (error) {
+        console.warn("Unable to upload legacy locally saved feedback entries", error);
+      }
+
+      setEntries(serverEntries);
     } catch (error) {
       console.error("Unable to load feedback entries", error);
-      Alert.alert("Feedback unavailable", "Saved feedback could not be loaded.");
+      Alert.alert("Feedback unavailable", "Saved feedback could not be loaded from the server.");
     } finally {
       setLoading(false);
     }
@@ -71,7 +98,7 @@ export function FeedbackDebugScreen() {
         return;
       }
 
-      await feedbackStorage.updateEntry(entryId, {
+      await updateFeedbackEntry(entryId, {
         description: nextDescription,
         category: feedbackCategories[editCategoryIndex] ?? feedbackCategories[0],
         severity: feedbackSeverities[editSeverityIndex] ?? feedbackSeverities[0],
@@ -89,7 +116,7 @@ export function FeedbackDebugScreen() {
   async function deleteEntry(entryId: string) {
     const performDelete = async () => {
       try {
-        await feedbackStorage.deleteEntry(entryId);
+        await deleteFeedbackEntry(entryId);
         if (editingId === entryId) {
           setEditingId(null);
         }
@@ -104,7 +131,7 @@ export function FeedbackDebugScreen() {
       const webGlobal = globalThis as unknown as { confirm?: (message: string) => boolean };
       const shouldDelete =
         typeof webGlobal.confirm === "function"
-          ? webGlobal.confirm("Delete feedback?\n\nThis will remove the saved entry from this device.")
+          ? webGlobal.confirm("Delete feedback?\n\nThis will remove the saved entry from the server.")
           : true;
 
       if (shouldDelete) {
@@ -113,7 +140,7 @@ export function FeedbackDebugScreen() {
       return;
     }
 
-    Alert.alert("Delete feedback?", "This will remove the saved entry from this device.", [
+    Alert.alert("Delete feedback?", "This will remove the saved entry from the server.", [
       { text: "Cancel", style: "cancel" },
       { text: "Delete", style: "destructive", onPress: () => void performDelete() }
     ]);
@@ -221,7 +248,7 @@ export function FeedbackDebugScreen() {
         <Text style={styles.subtitle}>
           {loading
             ? "Loading feedback..."
-            : `${entries.length} entr${entries.length === 1 ? "y" : "ies"} saved locally • ${filteredEntries.length} shown`}
+            : `${entries.length} entr${entries.length === 1 ? "y" : "ies"} saved in the backend • ${filteredEntries.length} shown`}
         </Text>
       </View>
 
