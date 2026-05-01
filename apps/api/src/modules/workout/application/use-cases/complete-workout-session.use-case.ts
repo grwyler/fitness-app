@@ -211,6 +211,75 @@ function buildProgressionExplanation(input: {
   };
 }
 
+function holdLoadWhenWeightNotConfirmedV2(input: {
+  missingActualWeight: boolean;
+  performedAt: Date;
+  effortFeedback: EffortFeedback;
+  previous: {
+    weightLbs: number;
+    repGoal: number;
+    repRangeMin: number;
+    repRangeMax: number;
+  };
+  base: ReturnType<ProgressionEngine["calculateDoubleProgression"]>;
+}) {
+  if (!input.missingActualWeight) {
+    return input.base;
+  }
+
+  if (input.base.nextWeightLbs <= input.base.previousWeightLbs) {
+    return input.base;
+  }
+
+  return {
+    previousWeightLbs: input.base.previousWeightLbs,
+    nextWeightLbs: input.base.previousWeightLbs,
+    previousRepGoal: input.base.previousRepGoal,
+    nextRepGoal: input.base.previousRepGoal,
+    result: "repeated" as const,
+    reason: "Weight was not confirmed, so target load was held.",
+    nextState: {
+      currentWeightLbs: input.base.previousWeightLbs,
+      lastCompletedWeightLbs: input.base.previousWeightLbs,
+      consecutiveFailures: 0,
+      lastEffortFeedback: input.effortFeedback,
+      lastPerformedAt: input.performedAt,
+      repGoal: input.base.previousRepGoal,
+      repRangeMin: input.previous.repRangeMin,
+      repRangeMax: input.previous.repRangeMax
+    }
+  };
+}
+
+function holdLoadWhenWeightNotConfirmedV1(input: {
+  missingActualWeight: boolean;
+  performedAt: Date;
+  effortFeedback: EffortFeedback;
+  base: ReturnType<ProgressionEngine["calculate"]>;
+}) {
+  if (!input.missingActualWeight) {
+    return input.base;
+  }
+
+  if (input.base.nextWeightLbs <= input.base.previousWeightLbs) {
+    return input.base;
+  }
+
+  return {
+    previousWeightLbs: input.base.previousWeightLbs,
+    nextWeightLbs: input.base.previousWeightLbs,
+    result: "repeated" as const,
+    reason: "Weight was not confirmed, so target load was held.",
+    nextState: {
+      currentWeightLbs: input.base.previousWeightLbs,
+      lastCompletedWeightLbs: input.base.previousWeightLbs,
+      consecutiveFailures: 0,
+      lastEffortFeedback: input.effortFeedback,
+      lastPerformedAt: input.performedAt
+    }
+  };
+}
+
 function buildRecommendationEventInput(input: {
   userId: string;
   exerciseId: string | null;
@@ -664,7 +733,10 @@ export class CompleteWorkoutSessionUseCase {
             continue;
           }
 
-          const progressionResult = this.progressionEngine.calculateWithStrategyV2({
+          const loggedSets = relatedSets.filter((set) => set.status === "completed" || set.status === "failed");
+          const missingActualWeight = loggedSets.some((set) => set.actualWeightLbs === null);
+
+          const baseProgressionResult = this.progressionEngine.calculateWithStrategyV2({
             strategy: progressionStrategy,
             experienceLevel,
             trainingGoal: progressionGoal,
@@ -697,6 +769,18 @@ export class CompleteWorkoutSessionUseCase {
               }))
             },
             performedAt: completedAt
+          });
+          const progressionResult = holdLoadWhenWeightNotConfirmedV2({
+            missingActualWeight,
+            performedAt: completedAt,
+            effortFeedback,
+            previous: {
+              weightLbs: progressionStateV2.currentWeightLbs,
+              repGoal: progressionStateV2.repGoal,
+              repRangeMin: progressionStateV2.repRangeMin,
+              repRangeMax: progressionStateV2.repRangeMax
+            },
+            base: baseProgressionResult
           });
 
           computedProgressionUpdatesV2.push({
@@ -816,7 +900,10 @@ export class CompleteWorkoutSessionUseCase {
             continue;
           }
 
-          const progressionResult = this.progressionEngine.calculate({
+          const loggedSets = relatedSets.filter((set) => set.status === "completed" || set.status === "failed");
+          const missingActualWeight = loggedSets.some((set) => set.actualWeightLbs === null);
+
+          const baseProgressionResult = this.progressionEngine.calculate({
             experienceLevel,
             trainingGoal: progressionGoal,
             recoveryState,
@@ -845,6 +932,12 @@ export class CompleteWorkoutSessionUseCase {
               }))
             },
             performedAt: completedAt
+          });
+          const progressionResult = holdLoadWhenWeightNotConfirmedV1({
+            missingActualWeight,
+            performedAt: completedAt,
+            effortFeedback,
+            base: baseProgressionResult
           });
 
           computedProgressionUpdatesV1Direct.push({
@@ -925,27 +1018,54 @@ export class CompleteWorkoutSessionUseCase {
           );
         }
 
-        const progressionUpdatesV1FromV2 = computedProgressionUpdatesV2
-          .filter(({ progressionResult }) => progressionResult.nextWeightLbs !== progressionResult.previousWeightLbs)
-          .map(({ exerciseEntry, progressionResult }) => {
+        if (skippedProgressionUpdatesV2.length > 0) {
+          await this.progressionStateV2Repository.updateMany(
+            skippedProgressionUpdatesV2.map(({ workoutTemplateExerciseEntryId }) => {
+              const existing = v2StateByTemplateEntryId.get(workoutTemplateExerciseEntryId);
+              if (!existing) {
+                throw new WorkoutApplicationError(
+                  "PROGRESSION_STATE_NOT_FOUND",
+                  `Progression state v2 not found for template entry ${workoutTemplateExerciseEntryId}.`
+                );
+              }
+
+              return {
+                userId: input.context.userId,
+                workoutTemplateExerciseEntryId,
+                currentWeightLbs: existing.currentWeightLbs,
+                lastCompletedWeightLbs: existing.lastCompletedWeightLbs,
+                repGoal: existing.repGoal,
+                repRangeMin: existing.repRangeMin,
+                repRangeMax: existing.repRangeMax,
+                consecutiveFailures: existing.consecutiveFailures,
+                lastEffortFeedback: existing.lastEffortFeedback,
+                lastPerformedAt: completedAt
+              };
+            }),
+            { tx }
+          );
+        }
+
+        const progressionUpdatesV1FromV2 = computedProgressionUpdatesV2.map(({ exerciseEntry, progressionResult }) => {
           const progressionState = progressionStateV1ByExerciseId.get(exerciseEntry.exerciseId);
           if (!progressionState) {
-            throw new WorkoutApplicationError(
-              "PROGRESSION_STATE_NOT_FOUND",
-              `Progression state not found for exercise ${exerciseEntry.exerciseId}.`
-            );
+            return null;
           }
+
+          const shouldSyncWeights = progressionResult.nextWeightLbs !== progressionResult.previousWeightLbs;
 
           return {
             userId: input.context.userId,
             exerciseId: exerciseEntry.exerciseId,
-            currentWeightLbs: progressionResult.nextState.currentWeightLbs,
-            lastCompletedWeightLbs: progressionResult.nextState.lastCompletedWeightLbs,
-            consecutiveFailures: 0,
-            lastEffortFeedback: progressionResult.nextState.lastEffortFeedback,
+            currentWeightLbs:
+              shouldSyncWeights ? progressionResult.nextState.currentWeightLbs : progressionState.currentWeightLbs,
+            lastCompletedWeightLbs:
+              shouldSyncWeights ? progressionResult.nextState.lastCompletedWeightLbs : progressionState.lastCompletedWeightLbs,
+            consecutiveFailures: shouldSyncWeights ? 0 : progressionState.consecutiveFailures,
+            lastEffortFeedback: shouldSyncWeights ? progressionResult.nextState.lastEffortFeedback : progressionState.lastEffortFeedback,
             lastPerformedAt: completedAt
           };
-        });
+        }).filter((value): value is NonNullable<typeof value> => value !== null);
 
         const progressionUpdatesV1DirectPersist = computedProgressionUpdatesV1Direct.map(({ exerciseEntry, progressionResult }) => ({
           userId: input.context.userId,
@@ -957,7 +1077,49 @@ export class CompleteWorkoutSessionUseCase {
           lastPerformedAt: completedAt
         }));
 
-        const progressionUpdatesV1 = [...progressionUpdatesV1FromV2, ...progressionUpdatesV1DirectPersist];
+        const progressionUpdatesV1SkippedDirectPersist = skippedProgressionUpdatesV1Direct.map(({ exerciseEntry }) => {
+          const existing = progressionStateV1ByExerciseId.get(exerciseEntry.exerciseId);
+          if (!existing) {
+            throw new WorkoutApplicationError(
+              "PROGRESSION_STATE_NOT_FOUND",
+              `Progression state not found for exercise ${exerciseEntry.exerciseId}.`
+            );
+          }
+
+          return {
+            userId: input.context.userId,
+            exerciseId: exerciseEntry.exerciseId,
+            currentWeightLbs: existing.currentWeightLbs,
+            lastCompletedWeightLbs: existing.lastCompletedWeightLbs,
+            consecutiveFailures: existing.consecutiveFailures,
+            lastEffortFeedback: existing.lastEffortFeedback,
+            lastPerformedAt: completedAt
+          };
+        });
+
+        const progressionUpdatesV1SkippedFromV2Persist = skippedProgressionUpdatesV2.map(({ exerciseEntry }) => {
+          const existing = progressionStateV1ByExerciseId.get(exerciseEntry.exerciseId);
+          if (!existing) {
+            return null;
+          }
+
+          return {
+            userId: input.context.userId,
+            exerciseId: exerciseEntry.exerciseId,
+            currentWeightLbs: existing.currentWeightLbs,
+            lastCompletedWeightLbs: existing.lastCompletedWeightLbs,
+            consecutiveFailures: existing.consecutiveFailures,
+            lastEffortFeedback: existing.lastEffortFeedback,
+            lastPerformedAt: completedAt
+          };
+        }).filter((value): value is NonNullable<typeof value> => value !== null);
+
+        const progressionUpdatesV1 = [
+          ...progressionUpdatesV1FromV2,
+          ...progressionUpdatesV1DirectPersist,
+          ...progressionUpdatesV1SkippedDirectPersist,
+          ...progressionUpdatesV1SkippedFromV2Persist
+        ];
 
         if (progressionUpdatesV1.length > 0) {
           await this.progressionStateRepository.updateMany(progressionUpdatesV1, { tx });

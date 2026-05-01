@@ -790,6 +790,14 @@ export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[]
 
         assert.equal(result.data.progressionUpdates[0]?.result, "skipped");
 
+        const [persistedProgressionStateV2] = await context.db.select().from(progressionStatesV2);
+        assert.equal(persistedProgressionStateV2?.repGoal, 8);
+        assert.equal(String(persistedProgressionStateV2?.currentWeightLbs), "135.00");
+        assert.equal(
+          persistedProgressionStateV2?.lastPerformedAt?.toISOString(),
+          new Date("2026-04-24T10:45:00.000Z").toISOString()
+        );
+
         const events = await context.db
           .select()
           .from(progressionRecommendationEvents)
@@ -797,6 +805,187 @@ export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[]
 
         assert.equal(events.length, 1);
         assert.equal(events[0]?.result, "skipped");
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "Skipped progression updates lastPerformedAt when strategy is no_progression",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        await seedInProgressWorkout(context);
+
+        await context.db
+          .update(workoutTemplateExerciseEntries)
+          .set({ progressionStrategy: "no_progression" })
+          .where(eq(workoutTemplateExerciseEntries.id, "template-entry-1"));
+
+        const useCase = new CompleteWorkoutSessionUseCase(
+          context.repositories.workoutSessionRepository,
+          context.repositories.enrollmentRepository,
+          context.repositories.progressionStateRepository,
+          context.repositories.progressionStateV2Repository,
+          context.repositories.exerciseRepository,
+          context.repositories.userRepository,
+          context.repositories.programRepository,
+          context.repositories.progressMetricRepository,
+          context.repositories.progressionRecommendationEventRepository,
+          context.transactionManager,
+          context.repositories.idempotencyRepository
+        );
+
+        const result = await useCase.execute({
+          context: { userId: "user-1", unitSystem: "imperial" },
+          sessionId: "session-1",
+          request: {
+            completedAt: "2026-04-24T10:45:00.000Z",
+            exerciseFeedback: []
+          },
+          idempotencyKey: "complete-event-no-progression-key-1"
+        });
+
+        assert.equal(result.data.progressionUpdates[0]?.result, "skipped");
+
+        const [persistedProgressionStateV2] = await context.db.select().from(progressionStatesV2);
+        assert.equal(String(persistedProgressionStateV2?.currentWeightLbs), "135.00");
+        assert.equal(persistedProgressionStateV2?.repGoal, 8);
+        assert.equal(
+          persistedProgressionStateV2?.lastPerformedAt?.toISOString(),
+          new Date("2026-04-24T10:45:00.000Z").toISOString()
+        );
+
+        const events = await context.db
+          .select()
+          .from(progressionRecommendationEvents)
+          .where(eq(progressionRecommendationEvents.workoutSessionId, "session-1"));
+
+        assert.equal(events.length, 1);
+        assert.equal(events[0]?.result, "skipped");
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "Partially logged exercises do not update progression state bookkeeping",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        await seedInProgressWorkout(context, { setStatuses: ["completed", "pending", "pending"] });
+
+        await context.db.insert(progressionStatesV2).values({
+          id: "v2-template-1",
+          userId: "user-1",
+          workoutTemplateExerciseEntryId: "template-entry-1",
+          currentWeightLbs: "135.00",
+          lastCompletedWeightLbs: "130.00",
+          repGoal: 8,
+          repRangeMin: 8,
+          repRangeMax: 8,
+          consecutiveFailures: 0,
+          lastEffortFeedback: "just_right",
+          lastPerformedAt: new Date("2026-04-20T10:00:00.000Z"),
+          createdAt: new Date("2026-04-24T10:00:00.000Z"),
+          updatedAt: new Date("2026-04-24T10:00:00.000Z")
+        });
+
+        const useCase = new CompleteWorkoutSessionUseCase(
+          context.repositories.workoutSessionRepository,
+          context.repositories.enrollmentRepository,
+          context.repositories.progressionStateRepository,
+          context.repositories.progressionStateV2Repository,
+          context.repositories.exerciseRepository,
+          context.repositories.userRepository,
+          context.repositories.programRepository,
+          context.repositories.progressMetricRepository,
+          context.repositories.progressionRecommendationEventRepository,
+          context.transactionManager,
+          context.repositories.idempotencyRepository
+        );
+
+        const result = await useCase.execute({
+          context: { userId: "user-1", unitSystem: "imperial" },
+          sessionId: "session-1",
+          request: {
+            completedAt: "2026-04-24T10:45:00.000Z",
+            exerciseFeedback: [{ exerciseEntryId: "entry-1", effortFeedback: "just_right" }],
+            finishEarly: true
+          },
+          idempotencyKey: "complete-event-partial-skipped-key-1"
+        });
+
+        assert.equal(result.data.workoutSession.isPartial, true);
+        assert.equal(result.data.progressionUpdates[0]?.result, "skipped");
+
+        const [persistedProgressionStateV2] = await context.db.select().from(progressionStatesV2);
+        assert.equal(
+          persistedProgressionStateV2?.lastPerformedAt?.toISOString(),
+          new Date("2026-04-20T10:00:00.000Z").toISOString()
+        );
+
+        const events = await context.db
+          .select()
+          .from(progressionRecommendationEvents)
+          .where(eq(progressionRecommendationEvents.workoutSessionId, "session-1"));
+
+        assert.equal(events.length, 1);
+        assert.equal(events[0]?.result, "skipped");
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "Missing actual weight holds target load and does not increase weight",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        await seedInProgressWorkout(context);
+
+        await context.db.update(sets).set({ actualWeightLbs: null }).where(eq(sets.id, "set-1"));
+
+        const useCase = new CompleteWorkoutSessionUseCase(
+          context.repositories.workoutSessionRepository,
+          context.repositories.enrollmentRepository,
+          context.repositories.progressionStateRepository,
+          context.repositories.progressionStateV2Repository,
+          context.repositories.exerciseRepository,
+          context.repositories.userRepository,
+          context.repositories.programRepository,
+          context.repositories.progressMetricRepository,
+          context.repositories.progressionRecommendationEventRepository,
+          context.transactionManager,
+          context.repositories.idempotencyRepository
+        );
+
+        const result = await useCase.execute({
+          context: { userId: "user-1", unitSystem: "imperial" },
+          sessionId: "session-1",
+          request: {
+            completedAt: "2026-04-24T10:45:00.000Z",
+            exerciseFeedback: [{ exerciseEntryId: "entry-1", effortFeedback: "just_right" }]
+          },
+          idempotencyKey: "complete-event-missing-weight-hold-key-1"
+        });
+
+        assert.equal(result.data.progressionUpdates[0]?.result, "repeated");
+        assert.equal(result.data.progressionUpdates[0]?.nextWeight.value, 135);
+        assert.equal(
+          result.data.progressionUpdates[0]?.reason,
+          "Weight was not confirmed, so target load was held."
+        );
+        assert.equal(result.data.progressionUpdates[0]?.confidence, "low");
+
+        const [persistedProgressionStateV2] = await context.db.select().from(progressionStatesV2);
+        assert.equal(String(persistedProgressionStateV2?.currentWeightLbs), "135.00");
       } finally {
         await disposeWorkoutInfrastructureTestContext(context);
       }
