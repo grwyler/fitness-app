@@ -61,16 +61,28 @@ export async function apiRequest<TData, TMeta extends Record<string, unknown> = 
       url: requestUrl
     });
   }
-  const response = await fetch(requestUrl, {
-    method: options?.method ?? "GET",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(options?.idempotencyKey ? { "Idempotency-Key": options.idempotencyKey } : {})
-    },
-    body: options?.body === undefined ? undefined : JSON.stringify(options.body)
-  });
+  let response: Response;
+  try {
+    response = await fetch(requestUrl, {
+      method: options?.method ?? "GET",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(options?.idempotencyKey ? { "Idempotency-Key": options.idempotencyKey } : {})
+      },
+      body: options?.body === undefined ? undefined : JSON.stringify(options.body)
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const debugMessage = `Network request failed for ${path}. url=${requestUrl}. message=${message}`;
+    appendAuthDebugTimeline("api_request_network_error", debugMessage);
+    setLastAuthDebugMessage(debugMessage);
+    if (isDevEnvironment) {
+      console.warn("[mobile-api] network_error", { path, url: requestUrl, message });
+    }
+    throw error;
+  }
 
   const payload = (await response.json()) as unknown;
   logSafeAuthDiagnostic("api_response_received", {

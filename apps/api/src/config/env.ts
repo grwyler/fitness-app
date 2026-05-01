@@ -6,9 +6,13 @@ import { z } from "zod";
 
 const currentFileDirectory = dirname(fileURLToPath(import.meta.url));
 const envCandidatePaths = [
+  resolve(process.cwd(), ".env.local"),
   resolve(process.cwd(), ".env"),
+  resolve(process.cwd(), "..", ".env.local"),
   resolve(process.cwd(), "..", ".env"),
+  resolve(process.cwd(), "..", "..", ".env.local"),
   resolve(process.cwd(), "..", "..", ".env"),
+  resolve(currentFileDirectory, "..", "..", "..", "..", ".env.local"),
   resolve(currentFileDirectory, "..", "..", "..", "..", ".env")
 ];
 const resolvedEnvPath = envCandidatePaths.find((candidatePath) => existsSync(candidatePath));

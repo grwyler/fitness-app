@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { generateCustomWorkoutNameFromExercises } from "@fitness/shared";
 import type { AddCustomWorkoutExerciseRequest, ProgramDto, ProgramWorkoutTemplateDto } from "@fitness/shared";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
@@ -7,6 +8,7 @@ import { PrimaryButton } from "../components/PrimaryButton";
 import { CustomExercisePickerModal } from "../features/workout/components/CustomExercisePickerModal";
 import type { RootStackParamList } from "../core/navigation/navigation-types";
 import { useCreateCustomProgram } from "../features/workout/hooks/useCreateCustomProgram";
+import { useDashboard } from "../features/workout/hooks/useDashboard";
 import { useFollowProgram } from "../features/workout/hooks/useFollowProgram";
 import { useUpdateCustomProgram } from "../features/workout/hooks/useUpdateCustomProgram";
 import { useExercises } from "../features/workout/hooks/useExercises";
@@ -55,7 +57,9 @@ export function CreateProgramScreen({ navigation, route }: Props) {
   const [customWorkoutInitKey, setCustomWorkoutInitKey] = useState(0);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [savedProgramId, setSavedProgramId] = useState<string | null>(null);
+  const [autoFollowPending, setAutoFollowPending] = useState(false);
   const [loadedSourceProgramId, setLoadedSourceProgramId] = useState<string | null>(null);
+  const dashboardQuery = useDashboard();
   const programsQuery = usePrograms();
   const exercisesQuery = useExercises(customWorkoutDayNumber !== null);
   const createProgramMutation = useCreateCustomProgram();
@@ -184,7 +188,17 @@ export function CreateProgramScreen({ navigation, route }: Props) {
     }
 
     const normalizedName = customWorkoutName.trim().replace(/\s+/g, " ");
-    const workoutName = normalizedName || "Custom Workout";
+    const suggestedName =
+      generateCustomWorkoutNameFromExercises(
+        selectedExercises.map((exercise) => ({
+          name: exercise.name,
+          primaryMuscleGroup: exercise.primaryMuscleGroup,
+          movementPattern: exercise.movementPattern,
+          category: exercise.category
+        }))
+      ) ?? null;
+
+    const workoutName = normalizedName || suggestedName || "Workout";
     const workoutIdSuffix = input.requests.map((request) => request.exerciseId).join(":") || "empty";
 
     assignWorkoutToDay(customWorkoutDayNumber, {
@@ -239,7 +253,25 @@ export function CreateProgramScreen({ navigation, route }: Props) {
 
     createProgramMutation.mutate(result.request, {
       onSuccess: (response) => {
-        setSavedProgramId(response.data.program.id);
+        const createdProgramId = response.data.program.id;
+        setSavedProgramId(createdProgramId);
+
+        const hasActiveProgram = Boolean(dashboardQuery.data?.activeProgram);
+        const shouldAutoFollow =
+          !isEditing &&
+          !isCloning &&
+          dashboardQuery.data !== undefined &&
+          !hasActiveProgram;
+
+        if (!shouldAutoFollow) {
+          return;
+        }
+
+        setAutoFollowPending(true);
+        followProgramMutation.mutate(createdProgramId, {
+          onSuccess: () => navigation.navigate("Dashboard"),
+          onSettled: () => setAutoFollowPending(false)
+        });
       }
     });
   }
@@ -373,6 +405,7 @@ export function CreateProgramScreen({ navigation, route }: Props) {
           <PrimaryButton
             label="Follow Program"
             loading={followProgramMutation.isPending}
+            disabled={followProgramMutation.isPending || autoFollowPending}
             onPress={() =>
               followProgramMutation.mutate(savedProgramId, {
                 onSuccess: () => navigation.navigate("Dashboard")

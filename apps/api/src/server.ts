@@ -7,7 +7,7 @@ async function main() {
   const { app, databaseMode } = await createRuntimeApp();
   const server = createServer(app);
 
-  server.listen(env.PORT, () => {
+  server.listen(env.PORT, "0.0.0.0", () => {
     logger.info("fitness-api listening", {
       url: `http://localhost:${env.PORT}`,
       nodeEnv: env.NODE_ENV,

@@ -39,7 +39,7 @@ function resolveExpoExtra(name: string) {
     const expoConstantsModule = runtimeRequire("expo-constants") as {
       default?: {
         expoConfig?: { extra?: Record<string, string | undefined> };
-        manifest?: { extra?: Record<string, string | undefined> };
+        manifest?: { extra?: Record<string, string | undefined>; debuggerHost?: string; hostUri?: string };
         manifest2?: { extra?: { expoClient?: { extra?: Record<string, string | undefined> } } };
       };
     };
@@ -55,12 +55,48 @@ function resolveExpoExtra(name: string) {
   }
 }
 
+function resolveExpoDebuggerHost() {
+  try {
+    if (!runtimeRequire) {
+      return undefined;
+    }
+
+    const expoConstantsModule = runtimeRequire("expo-constants") as {
+      default?: {
+        expoConfig?: { hostUri?: string };
+        manifest?: { debuggerHost?: string; hostUri?: string };
+      };
+    };
+    const constants = expoConstantsModule.default;
+
+    return constants?.expoConfig?.hostUri ?? constants?.manifest?.debuggerHost ?? constants?.manifest?.hostUri;
+  } catch {
+    return undefined;
+  }
+}
+
+function extractHostnameFromHostUri(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const withoutScheme = trimmed.replace(/^[a-z]+:\/\//i, "");
+  const beforePath = withoutScheme.split("/")[0] ?? "";
+  const hostPart = beforePath.split("@").pop() ?? "";
+  const hostname = (hostPart.split(":")[0] ?? "").trim();
+
+  return hostname ? hostname : null;
+}
+
 const platformOs = resolvePlatformOs();
 
-const defaultApiBaseUrl =
-  platformOs === "android"
-    ? "http://10.0.2.2:4000/api/v1"
-    : "http://127.0.0.1:4000/api/v1";
+const expoDebuggerHost = resolveExpoDebuggerHost();
+const inferredDevHostname = expoDebuggerHost ? extractHostnameFromHostUri(expoDebuggerHost) : null;
+const defaultDevHostname =
+  inferredDevHostname ?? (platformOs === "android" ? "10.0.2.2" : "127.0.0.1");
+
+const defaultApiBaseUrl = `http://${defaultDevHostname}:4000/api/v1`;
 
 const configuredApiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL ?? resolveExpoExtra("apiBaseUrl");
 export const isApiBaseUrlConfigured = Boolean(configuredApiBaseUrl);

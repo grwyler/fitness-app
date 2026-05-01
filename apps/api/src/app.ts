@@ -34,6 +34,39 @@ const developmentAllowedOrigins = [
   "http://127.0.0.1:8081"
 ];
 
+function isPrivateNetworkOrigin(origin: string) {
+  if (!/^http:\/\//i.test(origin)) {
+    return false;
+  }
+
+  try {
+    const url = new URL(origin);
+    const hostname = url.hostname;
+
+    if (hostname === "localhost" || hostname === "127.0.0.1") {
+      return true;
+    }
+
+    if (/^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname)) {
+      return true;
+    }
+
+    if (/^192\.168\.\d{1,3}\.\d{1,3}$/.test(hostname)) {
+      return true;
+    }
+
+    const match172 = hostname.match(/^172\.(\d{1,2})\.\d{1,3}\.\d{1,3}$/);
+    if (match172) {
+      const block = Number(match172[1]);
+      return Number.isFinite(block) && block >= 16 && block <= 31;
+    }
+
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 function resolveAllowedOrigins() {
   const defaultAllowedOrigins =
     env.NODE_ENV === "production"
@@ -58,6 +91,11 @@ export function createCorsOptions(): CorsOptions {
     preflightContinue: true,
     origin(origin, callback) {
       if (!origin || allowedOrigins.has(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      if (env.NODE_ENV !== "production" && isPrivateNetworkOrigin(origin)) {
         callback(null, true);
         return;
       }

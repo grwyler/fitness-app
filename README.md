@@ -36,9 +36,15 @@ The production mobile web app is served by the repo-root Vercel project, and the
 For a full local run, use:
 
 1. `Copy-Item .env.example .env`
-2. `npm run setup:dev --workspace @fitness/api`
-3. `npm run dev --workspace @fitness/api`
-4. `npm run dev --workspace @fitness/mobile`
+2. `Copy-Item .env.example .env.local`
+3. In `.env.local`, set `USE_PGLITE_DEV=true` and `PORT=4000` for mobile-on-LAN development.
+4. `npm run setup:dev --workspace @fitness/api`
+5. `npm run dev:api`
+6. `npm run dev:mobile`
+
+Notes:
+- `.env.local` is ignored by git and is the recommended place for local-only overrides.
+- For physical devices, the API should be reachable at `http://<your-ip>:4000/api/v1`.
 
 For a hosted tester environment, follow [DEPLOYMENT.md](C:\Users\Grwyl\repos\fitness-app\DEPLOYMENT.md), including the one-time `npm run setup:dev --workspace @fitness/api` against the hosted Postgres database before deploying the API.
 

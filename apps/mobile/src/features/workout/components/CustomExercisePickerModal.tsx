@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { AddCustomWorkoutExerciseRequest, ExerciseCatalogItemDto } from "@fitness/shared";
 import {
+  FlatList,
+  Keyboard,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -26,6 +30,12 @@ type ExerciseConfigDraft = {
   targetSetsText: string;
   targetRepsText: string;
   targetWeightText: string;
+};
+
+type FilterOption = {
+  key: string;
+  label: string;
+  count: number;
 };
 
 function parseIntDraft(value: string) {
@@ -62,6 +72,34 @@ function buildExerciseMeta(exercise: ExerciseCatalogItemDto) {
   return [exercise.category, exercise.primaryMuscleGroup, exercise.equipmentType].filter(Boolean).join(" - ");
 }
 
+function normalizeFilterKey(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function buildTopFilterOptions(input: { values: Array<string | null | undefined>; limit: number }): FilterOption[] {
+  const counts = new Map<string, { label: string; count: number }>();
+
+  for (const rawValue of input.values) {
+    const value = rawValue?.trim();
+    if (!value) {
+      continue;
+    }
+
+    const key = normalizeFilterKey(value);
+    const existing = counts.get(key);
+    if (existing) {
+      existing.count++;
+      continue;
+    }
+    counts.set(key, { label: value, count: 1 });
+  }
+
+  return Array.from(counts.entries())
+    .map(([key, value]) => ({ key, label: value.label, count: value.count }))
+    .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label))
+    .slice(0, input.limit);
+}
+
 export function CustomExercisePickerModal(props: {
   errorMessage: string | null;
   exercises: ExerciseCatalogItemDto[];
@@ -80,6 +118,12 @@ export function CustomExercisePickerModal(props: {
   const [step, setStep] = useState<Step>("select");
   const [validationError, setValidationError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
+  const [detailsExpanded, setDetailsExpanded] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedMuscleGroup, setSelectedMuscleGroup] = useState<string | null>(null);
+  const [selectedEquipmentType, setSelectedEquipmentType] = useState<string | null>(null);
   const [selectedExerciseIds, setSelectedExerciseIds] = useState<string[]>([]);
   const [configureIndex, setConfigureIndex] = useState(0);
   const [configByExerciseId, setConfigByExerciseId] = useState<Record<string, ExerciseConfigDraft>>({});
@@ -92,6 +136,12 @@ export function CustomExercisePickerModal(props: {
 
     setStep("select");
     setSearchQuery("");
+    setIsSearchFocused(false);
+    setFiltersExpanded(false);
+    setDetailsExpanded(false);
+    setSelectedCategory(null);
+    setSelectedMuscleGroup(null);
+    setSelectedEquipmentType(null);
     setSelectedExerciseIds([]);
     setConfigureIndex(0);
     setConfigByExerciseId({});
@@ -147,22 +197,80 @@ export function CustomExercisePickerModal(props: {
     [props.exercises, selectedExerciseIds]
   ) as ExerciseCatalogItemDto[];
 
+  const categoryOptions = useMemo(
+    () => buildTopFilterOptions({ values: props.exercises.map((exercise) => exercise.category), limit: 8 }),
+    [props.exercises]
+  );
+
+  const muscleGroupOptions = useMemo(
+    () => buildTopFilterOptions({ values: props.exercises.map((exercise) => exercise.primaryMuscleGroup), limit: 10 }),
+    [props.exercises]
+  );
+
+  const equipmentOptions = useMemo(
+    () => buildTopFilterOptions({ values: props.exercises.map((exercise) => exercise.equipmentType), limit: 8 }),
+    [props.exercises]
+  );
+
+  const hasAnyFilter = Boolean(selectedCategory || selectedMuscleGroup || selectedEquipmentType);
+  const isHeaderCompact = step === "select" && isSearchFocused;
+
   const filteredExercises = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
-    if (!normalizedQuery) {
-      return props.exercises;
-    }
 
     return props.exercises.filter((exercise) => {
+      if (selectedCategory && normalizeFilterKey(exercise.category) !== selectedCategory) {
+        return false;
+      }
+
+      if (
+        selectedMuscleGroup &&
+        normalizeFilterKey(exercise.primaryMuscleGroup ?? "") !== selectedMuscleGroup
+      ) {
+        return false;
+      }
+
+      if (
+        selectedEquipmentType &&
+        normalizeFilterKey(exercise.equipmentType ?? "") !== selectedEquipmentType
+      ) {
+        return false;
+      }
+
+      if (!normalizedQuery) {
+        return true;
+      }
+
       const haystack = `${exercise.name} ${exercise.category} ${exercise.primaryMuscleGroup ?? ""} ${
         exercise.equipmentType ?? ""
       }`.toLowerCase();
       return haystack.includes(normalizedQuery);
     });
-  }, [props.exercises, searchQuery]);
+  }, [props.exercises, searchQuery, selectedCategory, selectedEquipmentType, selectedMuscleGroup]);
 
   const activeExercise = selectedExercises[configureIndex] ?? null;
   const activeExerciseConfig = activeExercise ? configByExerciseId[activeExercise.id] ?? null : null;
+
+  function clearFilters() {
+    setSelectedCategory(null);
+    setSelectedMuscleGroup(null);
+    setSelectedEquipmentType(null);
+  }
+
+  function toggleFilter(current: string | null, nextKey: string, setter: (value: string | null) => void) {
+    Keyboard.dismiss();
+    setter(current === nextKey ? null : nextKey);
+  }
+
+  function toggleFiltersExpanded() {
+    Keyboard.dismiss();
+    setFiltersExpanded((current) => !current);
+  }
+
+  function toggleDetailsExpanded() {
+    Keyboard.dismiss();
+    setDetailsExpanded((current) => !current);
+  }
 
   function handleToggleExercise(exerciseId: string) {
     setValidationError(null);
@@ -278,34 +386,20 @@ export function CustomExercisePickerModal(props: {
   return (
     <Modal animationType="slide" transparent visible={props.visible} onRequestClose={props.onClose}>
       <View style={styles.modalBackdrop}>
-        <View style={styles.modalSheet}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          style={[styles.modalSheet, isHeaderCompact && styles.modalSheetCompact]}
+        >
           <View style={styles.modalHeader}>
             <View style={styles.modalTitleGroup}>
               <Text style={styles.cardLabel}>Custom workout</Text>
-              <Text style={styles.modalTitle}>
+              <Text style={[styles.modalTitle, step === "select" && styles.modalTitleSelect]}>
                 {step === "select" ? "Choose exercises" : "Configure exercise"}
               </Text>
-              {step === "select" ? (
-                <Text style={styles.cardBody}>
-                  Pick exercises, then set sets/reps/weight before adding them.
-                </Text>
-              ) : activeExercise ? (
+              {step === "configure" && activeExercise ? (
                 <Text style={styles.cardBody}>
                   {configureIndex + 1} of {selectedExercises.length}: {activeExercise.name}
                 </Text>
-              ) : null}
-              {props.mode === "assignToProgramDay" ? (
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Workout name</Text>
-                  <TextInput
-                    autoCapitalize="words"
-                    onChangeText={props.onChangeWorkoutName}
-                    placeholder="Optional"
-                    placeholderTextColor={colors.textSecondary}
-                    style={styles.input}
-                    value={props.workoutName ?? ""}
-                  />
-                </View>
               ) : null}
             </View>
             <Pressable accessibilityRole="button" onPress={props.onClose} style={styles.closeButton}>
@@ -315,45 +409,200 @@ export function CustomExercisePickerModal(props: {
 
           {step === "select" ? (
             <>
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Search</Text>
-                <TextInput
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  onChangeText={setSearchQuery}
-                  placeholder="Bench press, curl, cable..."
-                  placeholderTextColor={colors.textSecondary}
-                  style={styles.input}
-                  value={searchQuery}
-                />
-              </View>
-              <ScrollView contentContainerStyle={styles.exerciseChoiceList}>
-                {props.loadingExercises ? (
-                  <Text style={styles.cardBody}>Loading exercises...</Text>
-                ) : filteredExercises.length === 0 ? (
-                  <Text style={styles.cardBody}>No exercises match your search.</Text>
-                ) : (
-                  filteredExercises.map((exercise) => {
-                    const isSelected = selectedExerciseIdSet.has(exercise.id);
-                    return (
-                      <Pressable
-                        accessibilityRole="button"
-                        key={exercise.id}
-                        onPress={() => handleToggleExercise(exercise.id)}
-                        style={[styles.exerciseChoice, isSelected && styles.selectedExerciseChoice]}
-                      >
-                        <View style={styles.exerciseChoiceText}>
-                          <Text style={styles.exerciseName}>{exercise.name}</Text>
-                          <Text style={styles.exerciseMeta}>{buildExerciseMeta(exercise)}</Text>
-                        </View>
-                        <Text style={[styles.selectState, isSelected && styles.selectedState]}>
-                          {isSelected ? "Selected" : "Add"}
+              <FlatList
+                data={props.loadingExercises ? [] : filteredExercises}
+                keyExtractor={(exercise) => exercise.id}
+                keyboardDismissMode="on-drag"
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={styles.exerciseChoiceList}
+                style={styles.exerciseList}
+                ListHeaderComponent={
+                  <View style={styles.listHeader}>
+                    {!isHeaderCompact ? (
+                      <View style={styles.detailsRow}>
+                        <Pressable accessibilityRole="button" onPress={toggleDetailsExpanded} style={styles.detailsToggle}>
+                          <Text style={styles.detailsToggleText}>
+                            {detailsExpanded ? "Hide details" : "Workout details"}
+                          </Text>
+                        </Pressable>
+                      </View>
+                    ) : null}
+
+                    {detailsExpanded && !isHeaderCompact ? (
+                      <View style={styles.detailsPanel}>
+                        <Text style={styles.cardBody}>
+                          Pick exercises, then set sets/reps/weight before adding them.
                         </Text>
-                      </Pressable>
-                    );
-                  })
-                )}
-              </ScrollView>
+                        {props.mode === "assignToProgramDay" ? (
+                          <View style={styles.inputGroup}>
+                            <Text style={styles.inputLabel}>Workout name</Text>
+                            <TextInput
+                              autoCapitalize="words"
+                              onChangeText={props.onChangeWorkoutName}
+                              placeholder="Optional"
+                              placeholderTextColor={colors.textSecondary}
+                              style={styles.input}
+                              value={props.workoutName ?? ""}
+                            />
+                          </View>
+                        ) : null}
+                      </View>
+                    ) : null}
+
+                    <View style={styles.inputGroup}>
+                      <View style={styles.searchHeaderRow}>
+                        <Text style={styles.inputLabel}>Search</Text>
+                        <Pressable
+                          accessibilityRole="button"
+                          onPress={toggleFiltersExpanded}
+                          style={styles.filtersToggle}
+                        >
+                          <Text style={styles.filtersToggleText}>
+                            {filtersExpanded ? "Hide filters" : hasAnyFilter ? "Filters (on)" : "Filters"}
+                          </Text>
+                        </Pressable>
+                      </View>
+                      <TextInput
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        onChangeText={setSearchQuery}
+                        onFocus={() => setIsSearchFocused(true)}
+                        onBlur={() => setIsSearchFocused(false)}
+                        placeholder="Bench press, curl, cable..."
+                        placeholderTextColor={colors.textSecondary}
+                        style={styles.input}
+                        value={searchQuery}
+                      />
+                    </View>
+
+                    {filtersExpanded ? (
+                      <View style={styles.filterSection}>
+                        <ScrollView
+                          horizontal
+                          keyboardShouldPersistTaps="handled"
+                          showsHorizontalScrollIndicator={false}
+                          contentContainerStyle={styles.filterRow}
+                        >
+                          <Text style={styles.filterRowLabel}>Category</Text>
+                          {categoryOptions.map((option) => (
+                            <Pressable
+                              accessibilityRole="button"
+                              key={`category:${option.key}`}
+                              onPress={() => toggleFilter(selectedCategory, option.key, setSelectedCategory)}
+                              style={[
+                                styles.filterChip,
+                                selectedCategory === option.key && styles.filterChipSelected
+                              ]}
+                            >
+                              <Text
+                                style={[
+                                  styles.filterChipText,
+                                  selectedCategory === option.key && styles.filterChipTextSelected
+                                ]}
+                              >
+                                {option.label}
+                              </Text>
+                            </Pressable>
+                          ))}
+                        </ScrollView>
+
+                        <ScrollView
+                          horizontal
+                          keyboardShouldPersistTaps="handled"
+                          showsHorizontalScrollIndicator={false}
+                          contentContainerStyle={styles.filterRow}
+                        >
+                          <Text style={styles.filterRowLabel}>Muscle</Text>
+                          {muscleGroupOptions.map((option) => (
+                            <Pressable
+                              accessibilityRole="button"
+                              key={`muscle:${option.key}`}
+                              onPress={() => toggleFilter(selectedMuscleGroup, option.key, setSelectedMuscleGroup)}
+                              style={[
+                                styles.filterChip,
+                                selectedMuscleGroup === option.key && styles.filterChipSelected
+                              ]}
+                            >
+                              <Text
+                                style={[
+                                  styles.filterChipText,
+                                  selectedMuscleGroup === option.key && styles.filterChipTextSelected
+                                ]}
+                              >
+                                {option.label}
+                              </Text>
+                            </Pressable>
+                          ))}
+                        </ScrollView>
+
+                        <ScrollView
+                          horizontal
+                          keyboardShouldPersistTaps="handled"
+                          showsHorizontalScrollIndicator={false}
+                          contentContainerStyle={styles.filterRow}
+                        >
+                          <Text style={styles.filterRowLabel}>Equipment</Text>
+                          {equipmentOptions.map((option) => (
+                            <Pressable
+                              accessibilityRole="button"
+                              key={`equipment:${option.key}`}
+                              onPress={() => toggleFilter(selectedEquipmentType, option.key, setSelectedEquipmentType)}
+                              style={[
+                                styles.filterChip,
+                                selectedEquipmentType === option.key && styles.filterChipSelected
+                              ]}
+                            >
+                              <Text
+                                style={[
+                                  styles.filterChipText,
+                                  selectedEquipmentType === option.key && styles.filterChipTextSelected
+                                ]}
+                              >
+                                {option.label}
+                              </Text>
+                            </Pressable>
+                          ))}
+
+                          {hasAnyFilter ? (
+                            <Pressable accessibilityRole="button" onPress={clearFilters} style={styles.clearChip}>
+                              <Text style={styles.clearChipText}>Clear</Text>
+                            </Pressable>
+                          ) : null}
+                        </ScrollView>
+                      </View>
+                    ) : null}
+                  </View>
+                }
+                ListEmptyComponent={
+                  props.loadingExercises ? (
+                    <Text style={styles.cardBody}>Loading exercises...</Text>
+                  ) : (
+                    <Text style={styles.cardBody}>
+                      {hasAnyFilter || searchQuery.trim()
+                        ? "No exercises match your search."
+                        : "No exercises available."}
+                    </Text>
+                  )
+                }
+                renderItem={({ item: exercise }) => {
+                  const isSelected = selectedExerciseIdSet.has(exercise.id);
+                  return (
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={() => handleToggleExercise(exercise.id)}
+                      style={[styles.exerciseChoice, isSelected && styles.selectedExerciseChoice]}
+                    >
+                      <View style={styles.exerciseChoiceText}>
+                        <Text style={styles.exerciseName}>{exercise.name}</Text>
+                        <Text style={styles.exerciseMeta}>{buildExerciseMeta(exercise)}</Text>
+                      </View>
+                      <Text style={[styles.selectState, isSelected && styles.selectedState]}>
+                        {isSelected ? "Selected" : "Add"}
+                      </Text>
+                    </Pressable>
+                  );
+                }}
+              />
 
               {props.errorMessage ? <Text style={styles.errorText}>{props.errorMessage}</Text> : null}
               {validationError ? <Text style={styles.errorText}>{validationError}</Text> : null}
@@ -438,7 +687,7 @@ export function CustomExercisePickerModal(props: {
           ) : (
             <Text style={styles.cardBody}>Choose an exercise to continue.</Text>
           )}
-        </View>
+        </KeyboardAvoidingView>
       </View>
     </Modal>
   );
@@ -456,10 +705,15 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: 12,
     gap: spacing.md,
+    flex: 1,
     maxHeight: "92%",
     maxWidth: 620,
     padding: spacing.lg,
     width: "100%"
+  },
+  modalSheetCompact: {
+    gap: spacing.sm,
+    padding: spacing.md
   },
   modalHeader: {
     alignItems: "flex-start",
@@ -482,6 +736,9 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "600"
   },
+  modalTitleSelect: {
+    fontSize: 20
+  },
   cardBody: {
     color: colors.textSecondary,
     fontSize: 16,
@@ -490,6 +747,20 @@ const styles = StyleSheet.create({
   inputGroup: {
     gap: spacing.xs,
     marginTop: spacing.xs
+  },
+  searchHeaderRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between"
+  },
+  filtersToggle: {
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 6
+  },
+  filtersToggleText: {
+    color: colors.accentStrong,
+    fontSize: 14,
+    fontWeight: "700"
   },
   inlineInputGroup: {
     gap: spacing.xs
@@ -521,6 +792,81 @@ const styles = StyleSheet.create({
   },
   exerciseChoiceList: {
     gap: spacing.sm
+  },
+  exerciseList: {
+    flex: 1
+  },
+  listHeader: {
+    gap: spacing.sm,
+    paddingBottom: spacing.xs
+  },
+  detailsRow: {
+    alignItems: "flex-start"
+  },
+  detailsToggle: {
+    paddingVertical: 4
+  },
+  detailsToggleText: {
+    color: colors.accentStrong,
+    fontSize: 14,
+    fontWeight: "700"
+  },
+  detailsPanel: {
+    backgroundColor: colors.surfaceMuted,
+    borderColor: colors.border,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: spacing.sm,
+    padding: spacing.md
+  },
+  filterSection: {
+    gap: spacing.xs
+  },
+  filterRow: {
+    alignItems: "center",
+    gap: spacing.xs,
+    paddingVertical: 2
+  },
+  filterRowLabel: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    fontWeight: "700",
+    marginRight: spacing.xs,
+    textTransform: "uppercase"
+  },
+  filterChip: {
+    backgroundColor: colors.background,
+    borderColor: colors.border,
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6
+  },
+  filterChipSelected: {
+    backgroundColor: colors.accentMuted,
+    borderColor: colors.accentStrong
+  },
+  filterChipText: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    fontWeight: "700",
+    textTransform: "capitalize"
+  },
+  filterChipTextSelected: {
+    color: colors.accentStrong
+  },
+  clearChip: {
+    backgroundColor: "transparent",
+    borderColor: colors.border,
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6
+  },
+  clearChipText: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    fontWeight: "700"
   },
   exerciseChoice: {
     alignItems: "center",
