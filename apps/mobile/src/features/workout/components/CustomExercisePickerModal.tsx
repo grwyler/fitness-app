@@ -56,6 +56,37 @@ function parseFloatDraft(value: string) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function parseRepGoalDraft(value: string) {
+  const raw = value.trim();
+  if (!raw) {
+    return null;
+  }
+
+  const normalized = raw.replace(/\s+/g, "");
+  const rangeParts = normalized.split(/[-–]/);
+
+  if (rangeParts.length === 1) {
+    const reps = parseIntDraft(rangeParts[0] ?? "");
+    if (reps === null) {
+      return null;
+    }
+
+    return { repGoal: reps, repRangeMin: null as number | null, repRangeMax: null as number | null };
+  }
+
+  if (rangeParts.length !== 2) {
+    return null;
+  }
+
+  const min = parseIntDraft(rangeParts[0] ?? "");
+  const max = parseIntDraft(rangeParts[1] ?? "");
+  if (min === null || max === null) {
+    return null;
+  }
+
+  return { repGoal: min, repRangeMin: min, repRangeMax: max };
+}
+
 function buildDefaultConfig(exercise: ExerciseCatalogItemDto): ExerciseConfigDraft {
   const sets = exercise.defaultTargetSets ?? CUSTOM_WORKOUT_DEFAULT_TARGET_SETS;
   const reps = exercise.defaultTargetReps ?? CUSTOM_WORKOUT_DEFAULT_TARGET_REPS;
@@ -180,7 +211,10 @@ export function CustomExercisePickerModal(props: {
         next[exercise.id] = {
           ...defaults,
           targetSetsText: String(request.targetSets),
-          targetRepsText: String(request.targetReps),
+          targetRepsText:
+            request.repRangeMin != null && request.repRangeMax != null && request.repRangeMax > request.repRangeMin
+              ? `${request.repRangeMin}-${request.repRangeMax}`
+              : String(request.targetReps),
           ...(request.targetWeight ? { targetWeightText: String(request.targetWeight.value) } : {})
         };
         didChange = true;
@@ -314,9 +348,27 @@ export function CustomExercisePickerModal(props: {
       return { ok: false, message: "Sets must be between 1 and 20." };
     }
 
-    const reps = parseIntDraft(activeExerciseConfig.targetRepsText);
-    if (reps === null || reps < 1 || reps > 100) {
+    const repDraft = parseRepGoalDraft(activeExerciseConfig.targetRepsText);
+    if (!repDraft) {
+      return { ok: false, message: "Reps must be a number like 8 or a range like 8-12." };
+    }
+
+    const reps = repDraft.repGoal;
+    const repRangeMin = repDraft.repRangeMin;
+    const repRangeMax = repDraft.repRangeMax;
+
+    if (reps < 1 || reps > 100) {
       return { ok: false, message: "Target reps must be between 1 and 100." };
+    }
+
+    if (repRangeMin !== null && repRangeMax !== null) {
+      if (repRangeMin < 1 || repRangeMin > 100 || repRangeMax < 1 || repRangeMax > 100) {
+        return { ok: false, message: "Rep ranges must be between 1 and 100." };
+      }
+
+      if (repRangeMax < repRangeMin) {
+        return { ok: false, message: "Rep range max must be greater than or equal to min." };
+      }
     }
 
     const weight = parseFloatDraft(activeExerciseConfig.targetWeightText);
@@ -328,7 +380,7 @@ export function CustomExercisePickerModal(props: {
       return { ok: false, message: "Weight is required for this exercise." };
     }
 
-    return { ok: true as const, sets, reps, weight };
+    return { ok: true as const, sets, reps, repRangeMin, repRangeMax, weight };
   }
 
   function updateActiveConfig(patch: Partial<ExerciseConfigDraft>) {
@@ -363,13 +415,19 @@ export function CustomExercisePickerModal(props: {
     const requests: AddCustomWorkoutExerciseRequest[] = selectedExercises.map((exercise) => {
       const config = configByExerciseId[exercise.id] ?? buildDefaultConfig(exercise);
       const sets = parseIntDraft(config.targetSetsText) ?? CUSTOM_WORKOUT_DEFAULT_TARGET_SETS;
-      const reps = parseIntDraft(config.targetRepsText) ?? CUSTOM_WORKOUT_DEFAULT_TARGET_REPS;
+      const repDraft = parseRepGoalDraft(config.targetRepsText);
+      const reps = repDraft?.repGoal ?? CUSTOM_WORKOUT_DEFAULT_TARGET_REPS;
+      const repRangeMin = repDraft?.repRangeMin ?? null;
+      const repRangeMax = repDraft?.repRangeMax ?? null;
       const weight = parseFloatDraft(config.targetWeightText);
 
       return {
         exerciseId: exercise.id,
         targetSets: sets,
         targetReps: reps,
+        ...(repRangeMin !== null && repRangeMax !== null && repRangeMax > repRangeMin
+          ? { repRangeMin, repRangeMax }
+          : {}),
         ...(weight !== null ? { targetWeight: { value: weight, unit: "lb" } } : {})
       };
     });
@@ -635,9 +693,9 @@ export function CustomExercisePickerModal(props: {
                     />
                   </View>
                   <View style={styles.inlineInputGroup}>
-                    <Text style={styles.inputLabel}>Target reps</Text>
+                    <Text style={styles.inputLabel}>Reps (e.g. 8 or 8-12)</Text>
                     <TextInput
-                      keyboardType="number-pad"
+                      keyboardType={Platform.OS === "ios" ? "numbers-and-punctuation" : "default"}
                       onChangeText={(value) => updateActiveConfig({ targetRepsText: value })}
                       placeholder="8"
                       placeholderTextColor={colors.textSecondary}

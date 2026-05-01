@@ -166,6 +166,8 @@ export function mapProgramDto(definition: ProgramDefinition): ProgramDto {
             sequenceOrder: exercise.sequenceOrder,
             targetSets: exercise.targetSets,
             targetReps: exercise.targetReps,
+            ...(exercise.repRangeMin != null ? { repRangeMin: exercise.repRangeMin } : {}),
+            ...(exercise.repRangeMax != null ? { repRangeMax: exercise.repRangeMax } : {}),
             restSeconds: exercise.restSeconds
           }))
       }))
@@ -285,6 +287,9 @@ export function mapProgressionUpdateDto(input: {
   nextRepGoal: number;
   result: ProgressionUpdateDto["result"];
   reason: string;
+  confidence: ProgressionUpdateDto["confidence"];
+  reasonCodes: ProgressionUpdateDto["reasonCodes"];
+  evidence: ProgressionUpdateDto["evidence"];
 }): ProgressionUpdateDto {
   return {
     exerciseId: input.exerciseId,
@@ -294,7 +299,10 @@ export function mapProgressionUpdateDto(input: {
     previousRepGoal: input.previousRepGoal,
     nextRepGoal: input.nextRepGoal,
     result: input.result,
-    reason: input.reason
+    reason: input.reason,
+    confidence: input.confidence,
+    reasonCodes: input.reasonCodes,
+    evidence: input.evidence
   };
 }
 

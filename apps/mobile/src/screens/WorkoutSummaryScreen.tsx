@@ -10,6 +10,8 @@ import {
   getWorkoutSummaryEncouragement,
   getWorkoutSummaryHeadline,
   getWorkoutSummaryOutcomes,
+  getProgressionUpdateConfidenceLabel,
+  getProgressionUpdateEvidence,
   getProgressionUpdateReasonText,
   getProgressionUpdateRepGoalChangeText,
   getProgressionUpdateResultLabel,
@@ -61,22 +63,43 @@ export function WorkoutSummaryScreen({ navigation, route }: Props) {
             <View key={`${update.exerciseId}:${update.result}`} style={styles.progressionRow}>
               <View style={styles.progressionRowHeader}>
                 <Text style={styles.rowTitle}>{update.exerciseName}</Text>
-                <View
-                  style={[
-                    styles.progressionBadge,
-                    update.result === "skipped" ? styles.progressionBadgeSkipped : styles.progressionBadgeDefault
-                  ]}
-                >
-                  <Text
+                <View style={styles.badgeRow}>
+                  <View
                     style={[
-                      styles.progressionBadgeText,
-                      update.result === "skipped"
-                        ? styles.progressionBadgeTextSkipped
-                        : styles.progressionBadgeTextDefault
+                      styles.progressionBadge,
+                      update.result === "skipped" ? styles.progressionBadgeSkipped : styles.progressionBadgeDefault
                     ]}
                   >
-                    {getProgressionUpdateResultLabel(update.result)}
-                  </Text>
+                    <Text
+                      style={[
+                        styles.progressionBadgeText,
+                        update.result === "skipped"
+                          ? styles.progressionBadgeTextSkipped
+                          : styles.progressionBadgeTextDefault
+                      ]}
+                    >
+                      {getProgressionUpdateResultLabel(update.result)}
+                    </Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.confidenceBadge,
+                      update.confidence === "high"
+                        ? styles.confidenceBadgeHigh
+                        : update.confidence === "low"
+                          ? styles.confidenceBadgeLow
+                          : styles.confidenceBadgeMedium
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.confidenceBadgeText,
+                        (update.confidence === "high" || update.confidence === "low") && styles.confidenceBadgeTextOnStrong
+                      ]}
+                    >
+                      {getProgressionUpdateConfidenceLabel(update.confidence)}
+                    </Text>
+                  </View>
                 </View>
               </View>
 
@@ -94,6 +117,15 @@ export function WorkoutSummaryScreen({ navigation, route }: Props) {
               </View>
 
               <Text style={styles.progressionReason}>{getProgressionUpdateReasonText(update)}</Text>
+              {getProgressionUpdateEvidence(update).length > 0 ? (
+                <View style={styles.evidenceList}>
+                  {getProgressionUpdateEvidence(update).slice(0, 4).map((item, index) => (
+                    <Text key={`${update.exerciseId}:evidence:${index}`} style={styles.evidenceItem}>
+                      {"\u2022"} {item}
+                    </Text>
+                  ))}
+                </View>
+              ) : null}
             </View>
           ))
         )}
@@ -221,6 +253,13 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "600"
   },
+  badgeRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.xs,
+    justifyContent: "flex-end"
+  },
   rowBody: {
     color: colors.textSecondary,
     fontSize: 15,
@@ -252,6 +291,37 @@ const styles = StyleSheet.create({
   },
   progressionBadgeTextDefault: {
     color: colors.surface
+  },
+  confidenceBadge: {
+    borderRadius: 999,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 5
+  },
+  confidenceBadgeHigh: {
+    backgroundColor: colors.success
+  },
+  confidenceBadgeMedium: {
+    backgroundColor: colors.surfaceMuted
+  },
+  confidenceBadgeLow: {
+    backgroundColor: colors.danger
+  },
+  confidenceBadgeText: {
+    color: colors.textPrimary,
+    fontSize: 12,
+    fontWeight: "600"
+  },
+  confidenceBadgeTextOnStrong: {
+    color: colors.surface
+  },
+  evidenceList: {
+    gap: 4
+  },
+  evidenceItem: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    fontWeight: "600",
+    lineHeight: 18
   },
   progressionBadgeTextSkipped: {
     color: colors.textPrimary

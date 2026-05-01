@@ -35,6 +35,137 @@ export const progressionEngineTestCases: DomainTestCase[] = [
     }
   },
   {
+    name: "ProgressionEngine repeats after 14+ days off even if the workout was successful",
+    run: () => {
+      const performedAt = new Date("2026-05-01T10:00:00.000Z");
+      const lastPerformedAt = new Date("2026-04-17T10:00:00.000Z");
+
+      const result = engine.calculate({
+        performedAt,
+        state: {
+          currentWeightLbs: 135,
+          lastCompletedWeightLbs: 130,
+          consecutiveFailures: 0,
+          lastEffortFeedback: "just_right",
+          lastPerformedAt
+        },
+        exercise: {
+          exerciseName: "Bench Press",
+          exerciseCategory: "compound",
+          incrementLbs: 5,
+          isBodyweight: false,
+          isWeightOptional: false
+        },
+        outcome: {
+          effortFeedback: "just_right",
+          hasFailure: false
+        }
+      });
+
+      assert.equal(result.result, "repeated");
+      assert.equal(result.nextWeightLbs, 135);
+      assert.match(result.reason, /not been trained recently/i);
+    }
+  },
+  {
+    name: "ProgressionEngine reduces after 30+ days off even if the workout was successful",
+    run: () => {
+      const performedAt = new Date("2026-05-01T10:00:00.000Z");
+      const lastPerformedAt = new Date("2026-04-01T10:00:00.000Z");
+
+      const result = engine.calculate({
+        performedAt,
+        state: {
+          currentWeightLbs: 135,
+          lastCompletedWeightLbs: 130,
+          consecutiveFailures: 0,
+          lastEffortFeedback: "just_right",
+          lastPerformedAt
+        },
+        exercise: {
+          exerciseName: "Bench Press",
+          exerciseCategory: "compound",
+          incrementLbs: 5,
+          isBodyweight: false,
+          isWeightOptional: false
+        },
+        outcome: {
+          effortFeedback: "just_right",
+          hasFailure: false
+        }
+      });
+
+      assert.equal(result.result, "reduced");
+      assert.equal(result.nextWeightLbs, 130);
+      assert.match(result.reason, /over 30 days/i);
+    }
+  },
+  {
+    name: "ProgressionEngine preserves normal progression when lastPerformedAt is missing",
+    run: () => {
+      const performedAt = new Date("2026-05-01T10:00:00.000Z");
+
+      const result = engine.calculate({
+        performedAt,
+        state: {
+          currentWeightLbs: 135,
+          lastCompletedWeightLbs: 130,
+          consecutiveFailures: 0,
+          lastEffortFeedback: "just_right",
+          lastPerformedAt: null
+        },
+        exercise: {
+          exerciseName: "Bench Press",
+          exerciseCategory: "compound",
+          incrementLbs: 5,
+          isBodyweight: false,
+          isWeightOptional: false
+        },
+        outcome: {
+          effortFeedback: "just_right",
+          hasFailure: false
+        }
+      });
+
+      assert.equal(result.result, "increased");
+      assert.equal(result.nextWeightLbs, 140);
+    }
+  },
+  {
+    name: "ProgressionEngine keeps failure logic even after a long training gap",
+    run: () => {
+      const performedAt = new Date("2026-05-01T10:00:00.000Z");
+      const lastPerformedAt = new Date("2026-03-01T10:00:00.000Z");
+
+      const result = engine.calculate({
+        performedAt,
+        state: {
+          currentWeightLbs: 135,
+          lastCompletedWeightLbs: 130,
+          consecutiveFailures: 0,
+          lastEffortFeedback: "just_right",
+          lastPerformedAt
+        },
+        exercise: {
+          exerciseName: "Bench Press",
+          exerciseCategory: "compound",
+          incrementLbs: 5,
+          isBodyweight: false,
+          isWeightOptional: false
+        },
+        outcome: {
+          effortFeedback: "just_right",
+          hasFailure: true
+        }
+      });
+
+      assert.equal(result.result, "repeated");
+      assert.equal(result.nextWeightLbs, 135);
+      assert.equal(result.nextState.consecutiveFailures, 1);
+      assert.doesNotMatch(result.reason, /not been trained/i);
+    }
+  },
+  {
     name: "ProgressionEngine respects 10 lb per-exercise increments on success",
     run: () => {
       const result = engine.calculate({
@@ -445,11 +576,13 @@ export const progressionEngineTestCases: DomainTestCase[] = [
     name: "ProgressionEngine (double) increases rep goal within the rep range before increasing weight",
     run: () => {
       const result = engine.calculateDoubleProgression({
+        performedAt: new Date("2026-05-01T10:00:00.000Z"),
         state: {
           currentWeightLbs: 135,
           lastCompletedWeightLbs: 130,
           consecutiveFailures: 0,
           lastEffortFeedback: "just_right",
+          lastPerformedAt: new Date("2026-04-28T10:00:00.000Z"),
           repGoal: 8,
           repRangeMin: 6,
           repRangeMax: 10
@@ -481,14 +614,215 @@ export const progressionEngineTestCases: DomainTestCase[] = [
     }
   },
   {
-    name: "ProgressionEngine (double) increases weight at the top of the rep range and resets reps",
+    name: "ProgressionEngine (double) repeats after 14+ days off even if rep goal was met",
     run: () => {
+      const performedAt = new Date("2026-05-01T10:00:00.000Z");
+      const lastPerformedAt = new Date("2026-04-17T10:00:00.000Z");
+
       const result = engine.calculateDoubleProgression({
+        performedAt,
         state: {
           currentWeightLbs: 135,
           lastCompletedWeightLbs: 130,
           consecutiveFailures: 0,
           lastEffortFeedback: "just_right",
+          lastPerformedAt,
+          repGoal: 8,
+          repRangeMin: 6,
+          repRangeMax: 10
+        },
+        exercise: {
+          exerciseName: "Bench Press",
+          exerciseCategory: "compound",
+          incrementLbs: 5,
+          isBodyweight: false,
+          isWeightOptional: false
+        },
+        outcome: {
+          effortFeedback: "just_right",
+          sets: [
+            { targetReps: 8, actualReps: 8, targetWeightLbs: 135, actualWeightLbs: 135 },
+            { targetReps: 8, actualReps: 8, targetWeightLbs: 135, actualWeightLbs: 135 },
+            { targetReps: 8, actualReps: 9, targetWeightLbs: 135, actualWeightLbs: 135 }
+          ]
+        }
+      });
+
+      assert.equal(result.result, "repeated");
+      assert.equal(result.nextWeightLbs, 135);
+      assert.equal(result.nextRepGoal, 8);
+      assert.match(result.reason, /not been trained recently/i);
+    }
+  },
+  {
+    name: "ProgressionEngine (double) reduces after 30+ days off even if rep goal was met",
+    run: () => {
+      const performedAt = new Date("2026-05-01T10:00:00.000Z");
+      const lastPerformedAt = new Date("2026-04-01T10:00:00.000Z");
+
+      const result = engine.calculateDoubleProgression({
+        performedAt,
+        state: {
+          currentWeightLbs: 135,
+          lastCompletedWeightLbs: 130,
+          consecutiveFailures: 0,
+          lastEffortFeedback: "just_right",
+          lastPerformedAt,
+          repGoal: 8,
+          repRangeMin: 6,
+          repRangeMax: 10
+        },
+        exercise: {
+          exerciseName: "Bench Press",
+          exerciseCategory: "compound",
+          incrementLbs: 5,
+          isBodyweight: false,
+          isWeightOptional: false
+        },
+        outcome: {
+          effortFeedback: "just_right",
+          sets: [
+            { targetReps: 8, actualReps: 8, targetWeightLbs: 135, actualWeightLbs: 135 },
+            { targetReps: 8, actualReps: 8, targetWeightLbs: 135, actualWeightLbs: 135 },
+            { targetReps: 8, actualReps: 9, targetWeightLbs: 135, actualWeightLbs: 135 }
+          ]
+        }
+      });
+
+      assert.equal(result.result, "reduced");
+      assert.equal(result.nextWeightLbs, 130);
+      assert.equal(result.nextRepGoal, 6);
+      assert.match(result.reason, /over 30 days/i);
+    }
+  },
+  {
+    name: "ProgressionEngine (double) preserves normal progression when lastPerformedAt is missing",
+    run: () => {
+      const performedAt = new Date("2026-05-01T10:00:00.000Z");
+
+      const result = engine.calculateDoubleProgression({
+        performedAt,
+        state: {
+          currentWeightLbs: 135,
+          lastCompletedWeightLbs: 130,
+          consecutiveFailures: 0,
+          lastEffortFeedback: "just_right",
+          lastPerformedAt: null,
+          repGoal: 8,
+          repRangeMin: 6,
+          repRangeMax: 10
+        },
+        exercise: {
+          exerciseName: "Bench Press",
+          exerciseCategory: "compound",
+          incrementLbs: 5,
+          isBodyweight: false,
+          isWeightOptional: false
+        },
+        outcome: {
+          effortFeedback: "just_right",
+          sets: [
+            { targetReps: 8, actualReps: 8, targetWeightLbs: 135, actualWeightLbs: 135 },
+            { targetReps: 8, actualReps: 8, targetWeightLbs: 135, actualWeightLbs: 135 },
+            { targetReps: 8, actualReps: 9, targetWeightLbs: 135, actualWeightLbs: 135 }
+          ]
+        }
+      });
+
+      assert.equal(result.result, "increased");
+      assert.equal(result.nextWeightLbs, 135);
+      assert.equal(result.nextRepGoal, 9);
+    }
+  },
+  {
+    name: "ProgressionEngine (double) keeps failure logic even after a long training gap",
+    run: () => {
+      const performedAt = new Date("2026-05-01T10:00:00.000Z");
+      const lastPerformedAt = new Date("2026-03-01T10:00:00.000Z");
+
+      const result = engine.calculateDoubleProgression({
+        performedAt,
+        state: {
+          currentWeightLbs: 135,
+          lastCompletedWeightLbs: 130,
+          consecutiveFailures: 0,
+          lastEffortFeedback: "just_right",
+          lastPerformedAt,
+          repGoal: 8,
+          repRangeMin: 6,
+          repRangeMax: 10
+        },
+        exercise: {
+          exerciseName: "Bench Press",
+          exerciseCategory: "compound",
+          incrementLbs: 5,
+          isBodyweight: false,
+          isWeightOptional: false
+        },
+        outcome: {
+          effortFeedback: "just_right",
+          sets: [
+            { targetReps: 8, actualReps: 5, targetWeightLbs: 135, actualWeightLbs: 135 },
+            { targetReps: 8, actualReps: 6, targetWeightLbs: 135, actualWeightLbs: 135 },
+            { targetReps: 8, actualReps: 6, targetWeightLbs: 135, actualWeightLbs: 135 }
+          ]
+        }
+      });
+
+      assert.equal(result.result, "repeated");
+      assert.equal(result.nextState.consecutiveFailures, 1);
+      assert.doesNotMatch(result.reason, /not been trained/i);
+    }
+  },
+  {
+    name: "ProgressionEngine (double) increases reps faster on too_easy within a rep range",
+    run: () => {
+      const result = engine.calculateDoubleProgression({
+        performedAt: new Date("2026-05-01T10:00:00.000Z"),
+        state: {
+          currentWeightLbs: 135,
+          lastCompletedWeightLbs: 130,
+          consecutiveFailures: 0,
+          lastEffortFeedback: "just_right",
+          lastPerformedAt: new Date("2026-04-28T10:00:00.000Z"),
+          repGoal: 8,
+          repRangeMin: 6,
+          repRangeMax: 10
+        },
+        exercise: {
+          exerciseName: "Bench Press",
+          exerciseCategory: "compound",
+          incrementLbs: 5,
+          isBodyweight: false,
+          isWeightOptional: false
+        },
+        outcome: {
+          effortFeedback: "too_easy",
+          sets: [
+            { targetReps: 8, actualReps: 8, targetWeightLbs: 135, actualWeightLbs: 135 },
+            { targetReps: 8, actualReps: 9, targetWeightLbs: 135, actualWeightLbs: 135 },
+            { targetReps: 8, actualReps: 10, targetWeightLbs: 135, actualWeightLbs: 135 }
+          ]
+        }
+      });
+
+      assert.equal(result.result, "increased");
+      assert.equal(result.nextWeightLbs, 135);
+      assert.equal(result.nextRepGoal, 10);
+      assert.equal(result.nextState.repGoal, 10);
+    }
+  },
+  {
+    name: "ProgressionEngine (double) increases weight at the top of the rep range and resets reps",
+    run: () => {
+      const result = engine.calculateDoubleProgression({
+        performedAt: new Date("2026-05-01T10:00:00.000Z"),
+        state: {
+          currentWeightLbs: 135,
+          lastCompletedWeightLbs: 130,
+          consecutiveFailures: 0,
+          lastEffortFeedback: "just_right",
+          lastPerformedAt: new Date("2026-04-28T10:00:00.000Z"),
           repGoal: 10,
           repRangeMin: 6,
           repRangeMax: 10
@@ -519,14 +853,91 @@ export const progressionEngineTestCases: DomainTestCase[] = [
     }
   },
   {
-    name: "ProgressionEngine (double) repeats and increments consecutive failures when below rep range minimum",
+    name: "ProgressionEngine (double) increases weight faster on too_easy at the top of a rep range",
     run: () => {
       const result = engine.calculateDoubleProgression({
+        performedAt: new Date("2026-05-01T10:00:00.000Z"),
         state: {
           currentWeightLbs: 135,
           lastCompletedWeightLbs: 130,
           consecutiveFailures: 0,
           lastEffortFeedback: "just_right",
+          lastPerformedAt: new Date("2026-04-28T10:00:00.000Z"),
+          repGoal: 10,
+          repRangeMin: 6,
+          repRangeMax: 10
+        },
+        exercise: {
+          exerciseName: "Bench Press",
+          exerciseCategory: "compound",
+          incrementLbs: 5,
+          isBodyweight: false,
+          isWeightOptional: false
+        },
+        outcome: {
+          effortFeedback: "too_easy",
+          sets: [
+            { targetReps: 10, actualReps: 10, targetWeightLbs: 135, actualWeightLbs: 135 },
+            { targetReps: 10, actualReps: 10, targetWeightLbs: 135, actualWeightLbs: 135 },
+            { targetReps: 10, actualReps: 11, targetWeightLbs: 135, actualWeightLbs: 135 }
+          ]
+        }
+      });
+
+      assert.equal(result.result, "increased");
+      assert.equal(result.nextWeightLbs, 145);
+      assert.equal(result.nextRepGoal, 6);
+      assert.equal(result.nextState.repGoal, 6);
+    }
+  },
+  {
+    name: "ProgressionEngine (double) does not accelerate too_easy for fixed-rep exercises",
+    run: () => {
+      const result = engine.calculateDoubleProgression({
+        performedAt: new Date("2026-05-01T10:00:00.000Z"),
+        state: {
+          currentWeightLbs: 135,
+          lastCompletedWeightLbs: 130,
+          consecutiveFailures: 0,
+          lastEffortFeedback: "just_right",
+          lastPerformedAt: new Date("2026-04-28T10:00:00.000Z"),
+          repGoal: 8,
+          repRangeMin: 8,
+          repRangeMax: 8
+        },
+        exercise: {
+          exerciseName: "Bench Press",
+          exerciseCategory: "compound",
+          incrementLbs: 5,
+          isBodyweight: false,
+          isWeightOptional: false
+        },
+        outcome: {
+          effortFeedback: "too_easy",
+          sets: [
+            { targetReps: 8, actualReps: 8, targetWeightLbs: 135, actualWeightLbs: 135 },
+            { targetReps: 8, actualReps: 8, targetWeightLbs: 135, actualWeightLbs: 135 },
+            { targetReps: 8, actualReps: 9, targetWeightLbs: 135, actualWeightLbs: 135 }
+          ]
+        }
+      });
+
+      assert.equal(result.result, "increased");
+      assert.equal(result.nextWeightLbs, 140);
+      assert.equal(result.nextRepGoal, 8);
+    }
+  },
+  {
+    name: "ProgressionEngine (double) repeats and increments consecutive failures when below rep range minimum",
+    run: () => {
+      const result = engine.calculateDoubleProgression({
+        performedAt: new Date("2026-05-01T10:00:00.000Z"),
+        state: {
+          currentWeightLbs: 135,
+          lastCompletedWeightLbs: 130,
+          consecutiveFailures: 0,
+          lastEffortFeedback: "just_right",
+          lastPerformedAt: new Date("2026-04-28T10:00:00.000Z"),
           repGoal: 8,
           repRangeMin: 6,
           repRangeMax: 10
@@ -559,11 +970,13 @@ export const progressionEngineTestCases: DomainTestCase[] = [
     name: "ProgressionEngine (double) reduces weight after two consecutive below-range failures and resets reps",
     run: () => {
       const result = engine.calculateDoubleProgression({
+        performedAt: new Date("2026-05-01T10:00:00.000Z"),
         state: {
           currentWeightLbs: 135,
           lastCompletedWeightLbs: 130,
           consecutiveFailures: 1,
           lastEffortFeedback: "just_right",
+          lastPerformedAt: new Date("2026-04-28T10:00:00.000Z"),
           repGoal: 8,
           repRangeMin: 6,
           repRangeMax: 10
@@ -597,11 +1010,13 @@ export const progressionEngineTestCases: DomainTestCase[] = [
     name: "ProgressionEngine (double) resets consecutive failures when completing sets within range but below rep goal",
     run: () => {
       const first = engine.calculateDoubleProgression({
+        performedAt: new Date("2026-05-01T10:00:00.000Z"),
         state: {
           currentWeightLbs: 135,
           lastCompletedWeightLbs: 130,
           consecutiveFailures: 1,
           lastEffortFeedback: "just_right",
+          lastPerformedAt: new Date("2026-04-28T10:00:00.000Z"),
           repGoal: 8,
           repRangeMin: 6,
           repRangeMax: 10
@@ -628,6 +1043,7 @@ export const progressionEngineTestCases: DomainTestCase[] = [
       assert.equal(first.nextState.consecutiveFailures, 0);
 
       const second = engine.calculateDoubleProgression({
+        performedAt: new Date("2026-05-01T10:00:00.000Z"),
         state: first.nextState,
         exercise: {
           exerciseName: "Bench Press",
@@ -655,11 +1071,13 @@ export const progressionEngineTestCases: DomainTestCase[] = [
     name: "ProgressionEngine (double) repeats without progression when effort is marked too_hard",
     run: () => {
       const result = engine.calculateDoubleProgression({
+        performedAt: new Date("2026-05-01T10:00:00.000Z"),
         state: {
           currentWeightLbs: 135,
           lastCompletedWeightLbs: 130,
           consecutiveFailures: 0,
           lastEffortFeedback: "just_right",
+          lastPerformedAt: new Date("2026-04-28T10:00:00.000Z"),
           repGoal: 8,
           repRangeMin: 6,
           repRangeMax: 10

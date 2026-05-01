@@ -169,6 +169,8 @@ export class DrizzleProgramRepository implements ProgramRepository {
             sequenceOrder: index + 1,
             targetSets: exercise.targetSets,
             targetReps: exercise.targetReps,
+            repRangeMin: exercise.repRangeMin ?? null,
+            repRangeMax: exercise.repRangeMax ?? null,
             restSeconds: exercise.restSeconds,
             createdAt: input.createdAt,
             updatedAt: input.createdAt
@@ -287,6 +289,8 @@ export class DrizzleProgramRepository implements ProgramRepository {
           sequenceOrder: index + 1,
           targetSets: exercise.targetSets,
           targetReps: exercise.targetReps,
+          repRangeMin: exercise.repRangeMin ?? null,
+          repRangeMax: exercise.repRangeMax ?? null,
           restSeconds: exercise.restSeconds,
           createdAt: input.updatedAt,
           updatedAt: input.updatedAt
@@ -406,6 +410,8 @@ export class DrizzleProgramRepository implements ProgramRepository {
         sequenceOrder: row.templateExercise.sequenceOrder,
         targetSets: row.templateExercise.targetSets,
         targetReps: row.templateExercise.targetReps,
+        repRangeMin: row.templateExercise.repRangeMin ?? null,
+        repRangeMax: row.templateExercise.repRangeMax ?? null,
         restSeconds: row.templateExercise.restSeconds
       });
       exercisesByTemplateId.set(row.templateExercise.workoutTemplateId, existing);

@@ -39,6 +39,8 @@ export type WorkoutTemplateExerciseRecord = {
   sequenceOrder: number;
   targetSets: number;
   targetReps: number;
+  repRangeMin?: number | null;
+  repRangeMax?: number | null;
   restSeconds: number | null;
   createdAt: Date;
   updatedAt: Date;

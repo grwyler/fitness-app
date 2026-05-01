@@ -5,6 +5,7 @@ import type {
   ProgramSource,
   ProgressMetricType,
   ProgressionResult,
+  ProgressionConfidence,
   EnrollmentStatus,
   SetStatus,
   UnitSystem,
@@ -113,6 +114,8 @@ export type ProgramWorkoutExerciseDto = {
   sequenceOrder: number;
   targetSets: number;
   targetReps: number;
+  repRangeMin?: number;
+  repRangeMax?: number;
   restSeconds: number | null;
 };
 
@@ -140,6 +143,8 @@ export type CreateCustomProgramExerciseRequest = {
   exerciseId: UUID;
   targetSets: number;
   targetReps: number;
+  repRangeMin?: number;
+  repRangeMax?: number;
   restSeconds?: number | null;
 };
 
@@ -217,6 +222,9 @@ export type ProgressionUpdateDto = {
   nextRepGoal?: number | null;
   result: ProgressionResult;
   reason: string;
+  confidence: ProgressionConfidence;
+  reasonCodes: string[];
+  evidence: string[];
 };
 
 export type ProgressionVolumePointDto = {
@@ -266,6 +274,8 @@ export type AddCustomWorkoutExerciseRequest = {
   exerciseId: UUID;
   targetSets: number;
   targetReps: number;
+  repRangeMin?: number;
+  repRangeMax?: number;
   targetWeight?: WeightValueDto;
   restSeconds?: number | null;
 };

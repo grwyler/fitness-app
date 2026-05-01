@@ -12,6 +12,8 @@ import type {
 
 const MIN_RECALIBRATION_SET_COUNT = 2;
 const MAX_RECALIBRATION_JUMP_MULTIPLIER = 1.75;
+const RECENT_TRAINING_REPEAT_THRESHOLD_DAYS = 14;
+const RECENT_TRAINING_REDUCTION_THRESHOLD_DAYS = 30;
 
 function roundToTwoDecimals(value: number) {
   return Math.round(value * 100) / 100;
@@ -36,6 +38,11 @@ function getSuccessIncreaseStepCount(category: ExerciseCategory, effortFeedback:
   }
 
   return 1;
+}
+
+function daysSince(input: { previous: Date; current: Date }) {
+  const ms = input.current.getTime() - input.previous.getTime();
+  return Math.floor(ms / 86_400_000);
 }
 
 function median(values: number[]) {
@@ -86,6 +93,8 @@ export class ProgressionEngine {
   public calculate(input: ProgressionComputationInput): ProgressionComputationResult {
     const { exercise, outcome, state } = input;
     const previousWeightLbs = roundToTwoDecimals(state.currentWeightLbs);
+    const lastPerformedAt = state.lastPerformedAt ?? null;
+    const performedAt = input.performedAt ?? new Date(0);
 
     if (previousWeightLbs < 0) {
       throw new Error("currentWeightLbs must be greater than or equal to 0.");
@@ -129,13 +138,58 @@ export class ProgressionEngine {
       };
     }
 
+    if (hasEffectiveFailure(outcome)) {
+      return this.calculateFailureResult(input, previousWeightLbs);
+    }
+
+    if (lastPerformedAt) {
+      const gapDays = daysSince({ previous: lastPerformedAt, current: performedAt });
+
+      if (gapDays >= RECENT_TRAINING_REDUCTION_THRESHOLD_DAYS) {
+        const nextWeightLbs = roundDownToIncrement(
+          Math.max(0, previousWeightLbs - exercise.incrementLbs),
+          exercise.incrementLbs
+        );
+
+        const nextState: ProgressionStateSnapshot = {
+          currentWeightLbs: nextWeightLbs,
+          lastCompletedWeightLbs: state.lastCompletedWeightLbs,
+          consecutiveFailures: 0,
+          lastEffortFeedback: outcome.effortFeedback,
+          lastPerformedAt
+        };
+
+        return {
+          previousWeightLbs,
+          nextWeightLbs,
+          result: "reduced",
+          reason: "Reduced because this exercise has not been trained in over 30 days.",
+          nextState
+        };
+      }
+
+      if (gapDays >= RECENT_TRAINING_REPEAT_THRESHOLD_DAYS) {
+        const nextState: ProgressionStateSnapshot = {
+          currentWeightLbs: previousWeightLbs,
+          lastCompletedWeightLbs: previousWeightLbs,
+          consecutiveFailures: 0,
+          lastEffortFeedback: outcome.effortFeedback,
+          lastPerformedAt
+        };
+
+        return {
+          previousWeightLbs,
+          nextWeightLbs: previousWeightLbs,
+          result: "repeated",
+          reason: "Repeated because this exercise has not been trained recently.",
+          nextState
+        };
+      }
+    }
+
     const recalibrationResult = this.calculateRecalibrationResult(input, previousWeightLbs);
     if (recalibrationResult) {
       return recalibrationResult;
-    }
-
-    if (hasEffectiveFailure(outcome)) {
-      return this.calculateFailureResult(input, previousWeightLbs);
     }
 
     return this.calculateSuccessResult(input, previousWeightLbs);
@@ -148,6 +202,8 @@ export class ProgressionEngine {
     const previousRepGoal = state.repGoal;
     const repRangeMin = state.repRangeMin;
     const repRangeMax = state.repRangeMax;
+    const lastPerformedAt = state.lastPerformedAt ?? null;
+    const performedAt = input.performedAt ?? new Date(0);
 
     if (!Number.isInteger(previousRepGoal) || !Number.isInteger(repRangeMin) || !Number.isInteger(repRangeMax)) {
       throw new Error("repGoal, repRangeMin, and repRangeMax must be integers.");
@@ -221,17 +277,16 @@ export class ProgressionEngine {
       };
     }
 
-    const recalibrationResult = this.calculateRecalibrationResultV2(input, previousWeightLbs);
-    if (recalibrationResult) {
-      return recalibrationResult;
-    }
-
-    const hasBelowRangeMin = outcome.sets.some((set) => (set.actualReps ?? 0) < repRangeMin);
+    const hasBelowRangeMin = outcome.sets.some(
+      (set) => (set.actualReps ?? 0) < repRangeMin && !isMaterialOverperformanceSet(set)
+    );
     if (hasBelowRangeMin) {
       return this.calculateFailureResultV2(input, previousWeightLbs);
     }
 
-    const metRepGoal = outcome.sets.every((set) => (set.actualReps ?? 0) >= previousRepGoal);
+    const metRepGoal = outcome.sets.every(
+      (set) => (set.actualReps ?? 0) >= previousRepGoal || isMaterialOverperformanceSet(set)
+    );
     if (!metRepGoal) {
       const nextState: ProgressionStateSnapshotV2 = {
         currentWeightLbs: previousWeightLbs,
@@ -254,12 +309,74 @@ export class ProgressionEngine {
       };
     }
 
+    if (lastPerformedAt) {
+      const gapDays = daysSince({ previous: lastPerformedAt, current: performedAt });
+
+      if (gapDays >= RECENT_TRAINING_REDUCTION_THRESHOLD_DAYS) {
+        const nextWeightLbs = roundDownToIncrement(
+          Math.max(0, previousWeightLbs - exercise.incrementLbs),
+          exercise.incrementLbs
+        );
+        const nextRepGoal = repRangeMin;
+
+        const nextState: ProgressionStateSnapshotV2 = {
+          currentWeightLbs: nextWeightLbs,
+          lastCompletedWeightLbs: state.lastCompletedWeightLbs,
+          consecutiveFailures: 0,
+          lastEffortFeedback: outcome.effortFeedback,
+          lastPerformedAt,
+          repGoal: nextRepGoal,
+          repRangeMin,
+          repRangeMax
+        };
+
+        return {
+          previousWeightLbs,
+          nextWeightLbs,
+          previousRepGoal,
+          nextRepGoal,
+          result: "reduced",
+          reason: "Reduced because this exercise has not been trained in over 30 days.",
+          nextState
+        };
+      }
+
+      if (gapDays >= RECENT_TRAINING_REPEAT_THRESHOLD_DAYS) {
+        const nextState: ProgressionStateSnapshotV2 = {
+          currentWeightLbs: previousWeightLbs,
+          lastCompletedWeightLbs: previousWeightLbs,
+          consecutiveFailures: 0,
+          lastEffortFeedback: outcome.effortFeedback,
+          lastPerformedAt,
+          repGoal: previousRepGoal,
+          repRangeMin,
+          repRangeMax
+        };
+
+        return {
+          previousWeightLbs,
+          nextWeightLbs: previousWeightLbs,
+          previousRepGoal,
+          nextRepGoal: previousRepGoal,
+          result: "repeated",
+          reason: "Repeated because this exercise has not been trained recently.",
+          nextState
+        };
+      }
+    }
+
+    const recalibrationResult = this.calculateRecalibrationResultV2(input, previousWeightLbs);
+    if (recalibrationResult) {
+      return recalibrationResult;
+    }
+
     if (outcome.effortFeedback === "too_hard") {
       const nextState: ProgressionStateSnapshotV2 = {
         currentWeightLbs: previousWeightLbs,
         lastCompletedWeightLbs: previousWeightLbs,
         consecutiveFailures: 0,
         lastEffortFeedback: outcome.effortFeedback,
+        lastPerformedAt,
         repGoal: previousRepGoal,
         repRangeMin,
         repRangeMax
@@ -277,12 +394,15 @@ export class ProgressionEngine {
     }
 
     if (previousRepGoal < repRangeMax) {
-      const nextRepGoal = previousRepGoal + 1;
+      const increaseSteps =
+        repRangeMax > repRangeMin ? getSuccessIncreaseStepCount(exercise.exerciseCategory, outcome.effortFeedback) : 1;
+      const nextRepGoal = clampInteger(previousRepGoal + increaseSteps, repRangeMin, repRangeMax);
       const nextState: ProgressionStateSnapshotV2 = {
         currentWeightLbs: previousWeightLbs,
         lastCompletedWeightLbs: previousWeightLbs,
         consecutiveFailures: 0,
         lastEffortFeedback: outcome.effortFeedback,
+        lastPerformedAt,
         repGoal: nextRepGoal,
         repRangeMin,
         repRangeMax
@@ -299,13 +419,17 @@ export class ProgressionEngine {
       };
     }
 
-    const nextWeightLbs = roundDownToIncrement(previousWeightLbs + exercise.incrementLbs, exercise.incrementLbs);
+    const increaseSteps =
+      repRangeMax > repRangeMin ? getSuccessIncreaseStepCount(exercise.exerciseCategory, outcome.effortFeedback) : 1;
+    const increaseLbs = roundToTwoDecimals(increaseSteps * exercise.incrementLbs);
+    const nextWeightLbs = roundDownToIncrement(previousWeightLbs + increaseLbs, exercise.incrementLbs);
     const nextRepGoal = repRangeMin;
     const nextState: ProgressionStateSnapshotV2 = {
       currentWeightLbs: nextWeightLbs,
       lastCompletedWeightLbs: previousWeightLbs,
       consecutiveFailures: 0,
       lastEffortFeedback: outcome.effortFeedback,
+      lastPerformedAt,
       repGoal: nextRepGoal,
       repRangeMin,
       repRangeMax

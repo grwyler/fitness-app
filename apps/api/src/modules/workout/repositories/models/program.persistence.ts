@@ -29,6 +29,8 @@ export type ProgramTemplateExerciseRecord = {
   sequenceOrder: number;
   targetSets: number;
   targetReps: number;
+  repRangeMin?: number | null;
+  repRangeMax?: number | null;
   restSeconds: number | null;
 };
 
@@ -58,6 +60,8 @@ export type CreateCustomProgramExerciseInput = {
   exerciseId: string;
   targetSets: number;
   targetReps: number;
+  repRangeMin?: number | null;
+  repRangeMax?: number | null;
   restSeconds: number | null;
 };
 

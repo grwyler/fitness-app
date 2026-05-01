@@ -192,6 +192,8 @@ export const workoutTemplateExerciseEntries = pgTable(
     sequenceOrder: integer("sequence_order").notNull(),
     targetSets: integer("target_sets").notNull(),
     targetReps: integer("target_reps").notNull(),
+    repRangeMin: integer("rep_range_min"),
+    repRangeMax: integer("rep_range_max"),
     restSeconds: integer("rest_seconds"),
     ...timestamps
   },
@@ -201,7 +203,20 @@ export const workoutTemplateExerciseEntries = pgTable(
       table.sequenceOrder
     ),
     positiveSets: check("chk_workout_template_target_sets", sql`${table.targetSets} > 0`),
-    positiveReps: check("chk_workout_template_target_reps", sql`${table.targetReps} > 0`)
+    positiveReps: check("chk_workout_template_target_reps", sql`${table.targetReps} > 0`),
+    validRepRange: check(
+      "chk_workout_template_rep_range_valid",
+      sql`(
+        (${table.repRangeMin} is null and ${table.repRangeMax} is null)
+        or (
+          ${table.repRangeMin} is not null
+          and ${table.repRangeMax} is not null
+          and ${table.repRangeMin} > 0
+          and ${table.repRangeMax} >= ${table.repRangeMin}
+          and ${table.targetReps} between ${table.repRangeMin} and ${table.repRangeMax}
+        )
+      )`
+    )
   })
 );
 
@@ -382,6 +397,39 @@ export const progressMetrics = pgTable(
   })
 );
 
+export const progressionRecommendationEvents = pgTable(
+  "progression_recommendation_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").notNull().references(() => users.id),
+    exerciseId: uuid("exercise_id").references(() => exercises.id),
+    workoutTemplateExerciseEntryId: uuid("workout_template_exercise_entry_id").references(
+      () => workoutTemplateExerciseEntries.id
+    ),
+    workoutSessionId: uuid("workout_session_id").notNull().references(() => workoutSessions.id),
+    exerciseEntryId: uuid("exercise_entry_id").notNull().references(() => exerciseEntries.id),
+    previousWeightLbs: numeric("previous_weight_lbs", { precision: 6, scale: 2 }).notNull(),
+    nextWeightLbs: numeric("next_weight_lbs", { precision: 6, scale: 2 }).notNull(),
+    previousRepGoal: integer("previous_rep_goal"),
+    nextRepGoal: integer("next_rep_goal"),
+    result: text("result").notNull(),
+    reason: text("reason").notNull(),
+    confidence: text("confidence").notNull(),
+    reasonCodes: jsonb("reason_codes").notNull(),
+    evidence: jsonb("evidence").notNull(),
+    inputSnapshot: jsonb("input_snapshot").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => ({
+    userIndex: index("idx_progression_recommendation_events_user_id").on(table.userId),
+    sessionIndex: index("idx_progression_recommendation_events_session_id").on(table.workoutSessionId),
+    exerciseIndex: index("idx_progression_recommendation_events_exercise_id").on(table.exerciseId),
+    templateEntryIndex: index("idx_progression_recommendation_events_template_entry_id").on(
+      table.workoutTemplateExerciseEntryId
+    )
+  })
+);
+
 export const idempotencyRecords = pgTable(
   "idempotency_records",
   {
@@ -441,6 +489,7 @@ export const schema = {
   progressionStates,
   progressionStatesV2,
   progressMetrics,
+  progressionRecommendationEvents,
   idempotencyRecords,
   feedbackEntries
 };

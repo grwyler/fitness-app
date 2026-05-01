@@ -141,14 +141,20 @@ export function getWorkoutIntentSummary(workout: ProgramWorkoutTemplateDto | nul
   const exerciseCount = workout.exercises.length;
   const plannedSetCount = workout.exercises.reduce((sum, exercise) => sum + exercise.targetSets, 0);
   const firstExercise = workout.exercises[0];
+  const formatRepTarget = (exercise: NonNullable<typeof firstExercise>) =>
+    exercise.repRangeMin != null && exercise.repRangeMax != null && exercise.repRangeMax > exercise.repRangeMin
+      ? `${exercise.targetSets} x ${exercise.repRangeMin}-${exercise.repRangeMax}`
+      : `${exercise.targetSets} x ${exercise.targetReps}`;
   const commonTarget =
     firstExercise &&
     workout.exercises.every(
       (exercise) =>
         exercise.targetSets === firstExercise.targetSets &&
-        exercise.targetReps === firstExercise.targetReps
+        exercise.targetReps === firstExercise.targetReps &&
+        (exercise.repRangeMin ?? null) === (firstExercise.repRangeMin ?? null) &&
+        (exercise.repRangeMax ?? null) === (firstExercise.repRangeMax ?? null)
     )
-      ? `${firstExercise.targetSets} x ${firstExercise.targetReps}`
+      ? formatRepTarget(firstExercise)
       : null;
 
   return commonTarget
@@ -167,7 +173,14 @@ export function getPlannedExerciseLines(
   return [...workout.exercises]
     .sort((left, right) => left.sequenceOrder - right.sequenceOrder)
     .slice(0, limit)
-    .map((exercise) => `${exercise.exerciseName}: ${exercise.targetSets} x ${exercise.targetReps}`);
+    .map((exercise) => {
+      const repText =
+        exercise.repRangeMin != null && exercise.repRangeMax != null && exercise.repRangeMax > exercise.repRangeMin
+          ? `${exercise.repRangeMin}-${exercise.repRangeMax}`
+          : String(exercise.targetReps);
+
+      return `${exercise.exerciseName}: ${exercise.targetSets} x ${repText}`;
+    });
 }
 
 export function getHiddenExerciseCount(

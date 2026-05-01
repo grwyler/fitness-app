@@ -196,6 +196,27 @@ export function getProgressionUpdateReasonText(update: CompleteWorkoutSessionRes
   return `Progression skipped because ${lowerCaseFirstLetter(reason)}`;
 }
 
+export function getProgressionUpdateConfidenceLabel(
+  confidence: CompleteWorkoutSessionResponse["progressionUpdates"][number]["confidence"]
+) {
+  switch (confidence) {
+    case "high":
+      return "High confidence";
+    case "medium":
+      return "Medium confidence";
+    case "low":
+      return "Low confidence";
+    default: {
+      const exhaustiveCheck: never = confidence;
+      return exhaustiveCheck;
+    }
+  }
+}
+
+export function getProgressionUpdateEvidence(update: CompleteWorkoutSessionResponse["progressionUpdates"][number]) {
+  return update.evidence ?? [];
+}
+
 export function getWorkoutSummaryOutcomes(summary: CompleteWorkoutSessionResponse): WorkoutSummaryOutcome[] {
   const stats = getWorkoutSummaryStats(summary.workoutSession);
   const recalibratedUpdates = summary.progressionUpdates.filter((update) => update.result === "recalibrated");

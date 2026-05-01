@@ -96,7 +96,10 @@ export const workoutSummaryTestCases: MobileTestCase[] = [
             previousRepGoal: 8,
             nextRepGoal: 8,
             result: "increased",
-            reason: "Completed successfully."
+            reason: "Completed successfully.",
+            confidence: "high",
+            reasonCodes: ["ALL_SETS_COMPLETED", "WEIGHT_INCREASED"],
+            evidence: ["Completed 2/2 sets"]
           }
         ],
         progressMetrics: [],
@@ -141,7 +144,10 @@ export const workoutSummaryTestCases: MobileTestCase[] = [
           previousRepGoal: 8,
           nextRepGoal: 8,
           result: "repeated",
-          reason: "Keep the same weight."
+          reason: "Keep the same weight.",
+          confidence: "medium",
+          reasonCodes: ["REPEATED"],
+          evidence: []
         }),
         "Repeat same weight and reps"
       );
@@ -159,7 +165,10 @@ export const workoutSummaryTestCases: MobileTestCase[] = [
           previousRepGoal: 8,
           nextRepGoal: 9,
           result: "increased",
-          reason: "Increased reps."
+          reason: "Increased reps.",
+          confidence: "high",
+          reasonCodes: ["REP_GOAL_INCREASED"],
+          evidence: []
         }),
         "Increase reps from 8 to 9"
       );
@@ -177,7 +186,10 @@ export const workoutSummaryTestCases: MobileTestCase[] = [
           previousRepGoal: 8,
           nextRepGoal: 8,
           result: "skipped",
-          reason: "No weight progression because Pull-Ups is weight-optional and you logged 0 lb of external load."
+          reason: "No weight progression because Pull-Ups is weight-optional and you logged 0 lb of external load.",
+          confidence: "low",
+          reasonCodes: ["SKIPPED"],
+          evidence: []
         }),
         "No progression update"
       );
@@ -205,7 +217,10 @@ export const workoutSummaryTestCases: MobileTestCase[] = [
           previousRepGoal: 8,
           nextRepGoal: 8,
           result: "skipped",
-          reason: "Effort feedback was not provided."
+          reason: "Effort feedback was not provided.",
+          confidence: "low",
+          reasonCodes: ["SKIPPED_MISSING_FEEDBACK"],
+          evidence: []
         }),
         "Progression skipped because effort feedback was not provided."
       );
@@ -219,7 +234,10 @@ export const workoutSummaryTestCases: MobileTestCase[] = [
           previousRepGoal: 8,
           nextRepGoal: 8,
           result: "skipped",
-          reason: "because effort feedback was not provided."
+          reason: "because effort feedback was not provided.",
+          confidence: "low",
+          reasonCodes: ["SKIPPED_MISSING_FEEDBACK"],
+          evidence: []
         }),
         "Progression skipped because effort feedback was not provided."
       );
@@ -239,7 +257,10 @@ export const workoutSummaryTestCases: MobileTestCase[] = [
             previousRepGoal: 8,
             nextRepGoal: 8,
             result: "recalibrated",
-            reason: "Adjusted Bench Press working weight based on your performance."
+            reason: "Adjusted Bench Press working weight based on your performance.",
+            confidence: "medium",
+            reasonCodes: ["RECALIBRATED"],
+            evidence: []
           }
         ],
         progressMetrics: [],

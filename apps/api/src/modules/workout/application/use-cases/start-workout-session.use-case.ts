@@ -113,11 +113,18 @@ export class StartWorkoutSessionUseCase {
           );
         }
 
-        const templateExercises = workoutTemplateDefinition.exercises.map(({ exercise, templateExercise }) => ({
-          exerciseId: exercise.id,
-          templateExerciseEntryId: templateExercise.id,
-          templateTargetReps: templateExercise.targetReps
-        }));
+        const templateExercises = workoutTemplateDefinition.exercises.map(({ exercise, templateExercise }) => {
+          const repRangeMin = templateExercise.repRangeMin ?? templateExercise.targetReps;
+          const repRangeMax = templateExercise.repRangeMax ?? templateExercise.targetReps;
+
+          return {
+            exerciseId: exercise.id,
+            templateExerciseEntryId: templateExercise.id,
+            templateTargetReps: templateExercise.targetReps,
+            templateRepRangeMin: repRangeMin,
+            templateRepRangeMax: repRangeMax
+          };
+        });
 
         const exerciseIds = templateExercises.map((row) => row.exerciseId);
         const progressionSeeds = await this.exerciseRepository.findProgressionSeedsByExerciseIds(
@@ -185,8 +192,8 @@ export class StartWorkoutSessionUseCase {
               return null;
             }
 
-            const nextRepRangeMin = row.templateTargetReps;
-            const nextRepRangeMax = row.templateTargetReps;
+            const nextRepRangeMin = row.templateRepRangeMin;
+            const nextRepRangeMax = row.templateRepRangeMax;
             const nextRepGoal = Math.min(nextRepRangeMax, Math.max(nextRepRangeMin, existing.repGoal));
 
             const needsUpdate =
@@ -232,8 +239,8 @@ export class StartWorkoutSessionUseCase {
               );
             }
 
-            const repRangeMin = row.templateTargetReps;
-            const repRangeMax = row.templateTargetReps;
+            const repRangeMin = row.templateRepRangeMin;
+            const repRangeMax = row.templateRepRangeMax;
             const repGoal = repRangeMin;
 
             return {

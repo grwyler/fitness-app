@@ -3,6 +3,7 @@ import {
   exercises,
   idempotencyRecords,
   progressMetrics,
+  progressionRecommendationEvents,
   progressionStates,
   progressionStatesV2,
   programs,
@@ -25,6 +26,7 @@ import { DrizzleIdempotencyRepository } from "../repositories/drizzle-idempotenc
 import { DrizzleProgressMetricRepository } from "../repositories/drizzle-progress-metric.repository.js";
 import { DrizzleProgressionStateRepository } from "../repositories/drizzle-progression-state.repository.js";
 import { DrizzleProgressionStateV2Repository } from "../repositories/drizzle-progression-state-v2.repository.js";
+import { DrizzleProgressionRecommendationEventRepository } from "../repositories/drizzle-progression-recommendation-event.repository.js";
 import { DrizzleWorkoutSessionRepository } from "../repositories/drizzle-workout-session.repository.js";
 
 const schemaSql = `
@@ -122,6 +124,8 @@ create table workout_template_exercise_entries (
   sequence_order integer not null,
   target_sets integer not null,
   target_reps integer not null,
+  rep_range_min integer,
+  rep_range_max integer,
   rest_seconds integer,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -230,6 +234,28 @@ create table progress_metrics (
   created_at timestamptz not null default now()
 );
 
+create table progression_recommendation_events (
+  id text primary key,
+  user_id text not null references users(id),
+  exercise_id text references exercises(id),
+  workout_template_exercise_entry_id text references workout_template_exercise_entries(id),
+  workout_session_id text not null references workout_sessions(id),
+  exercise_entry_id text not null references exercise_entries(id),
+  previous_weight_lbs numeric(6,2) not null,
+  next_weight_lbs numeric(6,2) not null,
+  previous_rep_goal integer,
+  next_rep_goal integer,
+  result text not null,
+  reason text not null,
+  confidence text not null,
+  reason_codes jsonb not null,
+  evidence jsonb not null,
+  input_snapshot jsonb not null,
+  created_at timestamptz not null default now()
+);
+create index idx_progression_recommendation_events_user_id on progression_recommendation_events(user_id);
+create index idx_progression_recommendation_events_session_id on progression_recommendation_events(workout_session_id);
+
 create table idempotency_records (
   id text primary key,
   user_id text not null,
@@ -272,6 +298,7 @@ export type WorkoutInfrastructureTestContext = {
     progressionStateV2Repository: DrizzleProgressionStateV2Repository;
     exerciseRepository: DrizzleExerciseRepository;
     progressMetricRepository: DrizzleProgressMetricRepository;
+    progressionRecommendationEventRepository: DrizzleProgressionRecommendationEventRepository;
     idempotencyRepository: DrizzleIdempotencyRepository;
   };
 };
@@ -293,6 +320,7 @@ export async function createWorkoutInfrastructureTestContext(): Promise<WorkoutI
       progressionStateV2Repository: new DrizzleProgressionStateV2Repository(db),
       exerciseRepository: new DrizzleExerciseRepository(db),
       progressMetricRepository: new DrizzleProgressMetricRepository(db),
+      progressionRecommendationEventRepository: new DrizzleProgressionRecommendationEventRepository(db),
       idempotencyRepository: new DrizzleIdempotencyRepository(db)
     }
   };
@@ -752,6 +780,7 @@ export async function countRecords(context: WorkoutInfrastructureTestContext) {
 export {
   idempotencyRecords,
   progressMetrics,
+  progressionRecommendationEvents,
   progressionStates,
   progressionStatesV2,
   userProgramEnrollments,

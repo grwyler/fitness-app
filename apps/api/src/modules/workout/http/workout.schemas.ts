@@ -30,7 +30,38 @@ const createCustomProgramExerciseSchema = z.object({
   exerciseId: z.string().min(1),
   targetSets: z.number().int().min(1).max(20),
   targetReps: z.number().int().min(1).max(100),
+  repRangeMin: z.number().int().min(1).max(100).nullable().optional(),
+  repRangeMax: z.number().int().min(1).max(100).nullable().optional(),
   restSeconds: z.number().int().min(0).max(1800).nullable().optional()
+}).superRefine((value, ctx) => {
+  const min = value.repRangeMin ?? null;
+  const max = value.repRangeMax ?? null;
+
+  if (min === null && max === null) {
+    return;
+  }
+
+  if (min === null || max === null) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "repRangeMin and repRangeMax must both be provided when using a rep range."
+    });
+    return;
+  }
+
+  if (max < min) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "repRangeMax must be greater than or equal to repRangeMin."
+    });
+  }
+
+  if (value.targetReps < min || value.targetReps > max) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "targetReps must be within the rep range."
+    });
+  }
 });
 
 const createCustomProgramWorkoutSchema = z.object({

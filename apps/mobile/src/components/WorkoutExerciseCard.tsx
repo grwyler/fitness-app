@@ -53,12 +53,20 @@ export function WorkoutExerciseCard(props: {
     0
   );
 
+  const repRangeText =
+    props.exercise.repRangeMin != null &&
+    props.exercise.repRangeMax != null &&
+    props.exercise.repRangeMax > props.exercise.repRangeMin
+      ? `${props.exercise.repRangeMin}-${props.exercise.repRangeMax}`
+      : null;
+
   return (
     <View style={[styles.card, props.highlightMissingFeedback && styles.cardNeedsFeedback]}>
       <View style={styles.header}>
         <Text style={styles.title}>{props.exercise.exerciseName}</Text>
         <Text style={styles.subtitle}>
-          {props.exercise.targetSets} x {props.exercise.targetReps} at {props.exercise.targetWeight.value} lb
+          {props.exercise.targetSets} x {props.exercise.targetReps}
+          {repRangeText ? ` (range ${repRangeText})` : ""} at {props.exercise.targetWeight.value} lb
         </Text>
         <Text style={styles.helper}>Rest {props.exercise.restSeconds ?? 0}s between sets</Text>
       </View>

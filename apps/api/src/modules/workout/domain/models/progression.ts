@@ -5,6 +5,7 @@ export type ProgressionStateSnapshot = {
   lastCompletedWeightLbs: number | null;
   consecutiveFailures: number;
   lastEffortFeedback: EffortFeedback | null;
+  lastPerformedAt?: Date | null;
 };
 
 export type ProgressionStateSnapshotV2 = ProgressionStateSnapshot & {
@@ -38,12 +39,14 @@ export type ProgressionComputationInput = {
   state: ProgressionStateSnapshot;
   exercise: ExerciseProgressionContext;
   outcome: ExerciseWorkoutOutcome;
+  performedAt?: Date;
 };
 
 export type ProgressionComputationInputV2 = {
   state: ProgressionStateSnapshotV2;
   exercise: ExerciseProgressionContext;
   outcome: ExerciseWorkoutOutcome;
+  performedAt?: Date;
 };
 
 export type ProgressionComputationResult = {

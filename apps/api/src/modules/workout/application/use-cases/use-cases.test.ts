@@ -7,6 +7,7 @@ import type { ProgramRepository } from "../../repositories/interfaces/program.re
 import type { ProgressMetricRepository } from "../../repositories/interfaces/progress-metric.repository.js";
 import type { ProgressionStateRepository } from "../../repositories/interfaces/progression-state.repository.js";
 import type { ProgressionStateV2Repository } from "../../repositories/interfaces/progression-state-v2.repository.js";
+import type { ProgressionRecommendationEventRepository } from "../../repositories/interfaces/progression-recommendation-event.repository.js";
 import type { WorkoutSessionRepository } from "../../repositories/interfaces/workout-session.repository.js";
 import type { IdempotencyRecord } from "../../repositories/models/idempotency.persistence.js";
 import type { ProgressionStateV2Record } from "../../repositories/models/progression-state-v2.persistence.js";
@@ -1375,6 +1376,19 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         }
       };
 
+      const progressionRecommendationEventRepository: ProgressionRecommendationEventRepository = {
+        async createMany(inputs) {
+          return inputs.map((input, index) => ({
+            id: `event-${index + 1}`,
+            ...input,
+            createdAt: new Date()
+          }));
+        },
+        async listRecentByUserId() {
+          return [];
+        }
+      };
+
       const useCase = new CompleteWorkoutSessionUseCase(
         workoutSessionRepository,
         enrollmentRepository,
@@ -1382,6 +1396,7 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         progressionStateV2RepositoryCustom,
         exerciseRepository,
         progressMetricRepository,
+        progressionRecommendationEventRepository,
         new MockTransactionManager(),
         idempotency.repository
       );
@@ -1584,6 +1599,19 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         }
       };
 
+      const progressionRecommendationEventRepository: ProgressionRecommendationEventRepository = {
+        async createMany(inputs) {
+          return inputs.map((input, index) => ({
+            id: `event-${index + 1}`,
+            ...input,
+            createdAt: new Date()
+          }));
+        },
+        async listRecentByUserId() {
+          return [];
+        }
+      };
+
       const useCase = new CompleteWorkoutSessionUseCase(
         workoutSessionRepository,
         enrollmentRepository,
@@ -1591,6 +1619,7 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         defaultProgressionStateV2Repository,
         exerciseRepository,
         progressMetricRepository,
+        progressionRecommendationEventRepository,
         new MockTransactionManager(),
         idempotency.repository
       );
@@ -1775,6 +1804,19 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         }
       };
 
+      const progressionRecommendationEventRepository: ProgressionRecommendationEventRepository = {
+        async createMany(inputs) {
+          return inputs.map((input, index) => ({
+            id: `event-${index + 1}`,
+            ...input,
+            createdAt: new Date()
+          }));
+        },
+        async listRecentByUserId() {
+          return [];
+        }
+      };
+
       const useCase = new CompleteWorkoutSessionUseCase(
         workoutSessionRepository,
         enrollmentRepository,
@@ -1782,6 +1824,7 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         defaultProgressionStateV2Repository,
         exerciseRepository,
         progressMetricRepository,
+        progressionRecommendationEventRepository,
         new MockTransactionManager(),
         idempotency.repository
       );
@@ -1999,6 +2042,19 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         }
       };
 
+      const progressionRecommendationEventRepository: ProgressionRecommendationEventRepository = {
+        async createMany(inputs) {
+          return inputs.map((input, index) => ({
+            id: `event-${index + 1}`,
+            ...input,
+            createdAt: new Date()
+          }));
+        },
+        async listRecentByUserId() {
+          return [];
+        }
+      };
+
       const useCase = new CompleteWorkoutSessionUseCase(
         workoutSessionRepository,
         enrollmentRepository,
@@ -2006,6 +2062,7 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         defaultProgressionStateV2Repository,
         exerciseRepository,
         progressMetricRepository,
+        progressionRecommendationEventRepository,
         new MockTransactionManager(),
         idempotency.repository
       );

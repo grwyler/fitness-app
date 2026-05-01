@@ -156,6 +156,9 @@ export function buildAssignedProgramRequest(input: {
               exerciseId: exercise.exerciseId,
               targetSets: exercise.targetSets,
               targetReps: exercise.targetReps,
+              ...(exercise.repRangeMin != null && exercise.repRangeMax != null && exercise.repRangeMax > exercise.repRangeMin
+                ? { repRangeMin: exercise.repRangeMin, repRangeMax: exercise.repRangeMax }
+                : {}),
               ...(exercise.restSeconds !== null ? { restSeconds: exercise.restSeconds } : {})
             }))
         };
@@ -187,6 +190,9 @@ export function buildProgramDayWorkoutFromCustomSession(input: {
         sequenceOrder: exercise.sequenceOrder,
         targetSets: exercise.targetSets,
         targetReps: exercise.targetReps,
+        ...(exercise.repRangeMin != null && exercise.repRangeMax != null && exercise.repRangeMax > exercise.repRangeMin
+          ? { repRangeMin: exercise.repRangeMin, repRangeMax: exercise.repRangeMax }
+          : {}),
         restSeconds: exercise.restSeconds
       }))
   };
@@ -233,6 +239,9 @@ export function buildCustomWorkoutExerciseRequestsFromProgramWorkout(
       exerciseId: exercise.exerciseId,
       targetSets: exercise.targetSets,
       targetReps: exercise.targetReps,
+      ...(exercise.repRangeMin != null && exercise.repRangeMax != null && exercise.repRangeMax > exercise.repRangeMin
+        ? { repRangeMin: exercise.repRangeMin, repRangeMax: exercise.repRangeMax }
+        : {}),
       ...(exercise.restSeconds !== null ? { restSeconds: exercise.restSeconds } : {})
     }));
 }

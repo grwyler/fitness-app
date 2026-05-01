@@ -7,6 +7,7 @@ import { DrizzleProgramRepository } from "../infrastructure/repositories/drizzle
 import { DrizzleProgressMetricRepository } from "../infrastructure/repositories/drizzle-progress-metric.repository.js";
 import { DrizzleProgressionStateRepository } from "../infrastructure/repositories/drizzle-progression-state.repository.js";
 import { DrizzleProgressionStateV2Repository } from "../infrastructure/repositories/drizzle-progression-state-v2.repository.js";
+import { DrizzleProgressionRecommendationEventRepository } from "../infrastructure/repositories/drizzle-progression-recommendation-event.repository.js";
 import { DrizzleWorkoutSessionRepository } from "../infrastructure/repositories/drizzle-workout-session.repository.js";
 import { CompleteWorkoutSessionUseCase } from "../application/use-cases/complete-workout-session.use-case.js";
 import { CancelWorkoutSessionUseCase } from "../application/use-cases/cancel-workout-session.use-case.js";
@@ -39,6 +40,7 @@ export function createWorkoutHttpRouter(database: WorkoutDatabase) {
   const progressionStateV2Repository = new DrizzleProgressionStateV2Repository(database);
   const exerciseRepository = new DrizzleExerciseRepository(database);
   const progressMetricRepository = new DrizzleProgressMetricRepository(database);
+  const progressionRecommendationEventRepository = new DrizzleProgressionRecommendationEventRepository(database);
   const idempotencyRepository = new DrizzleIdempotencyRepository(database);
   const transactionManager = new DrizzleTransactionManager(database);
 
@@ -91,6 +93,7 @@ export function createWorkoutHttpRouter(database: WorkoutDatabase) {
     progressionStateV2Repository,
     exerciseRepository,
     progressMetricRepository,
+    progressionRecommendationEventRepository,
     transactionManager,
     idempotencyRepository
   );

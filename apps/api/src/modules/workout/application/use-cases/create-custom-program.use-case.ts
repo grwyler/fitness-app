@@ -27,6 +27,8 @@ function buildCreateCustomProgramFingerprint(request: CreateCustomProgramRequest
         exerciseId: exercise.exerciseId,
         targetSets: exercise.targetSets,
         targetReps: exercise.targetReps,
+        repRangeMin: exercise.repRangeMin ?? null,
+        repRangeMax: exercise.repRangeMax ?? null,
         restSeconds: exercise.restSeconds ?? null
       }))
     }))
@@ -68,10 +70,41 @@ function validateCreateCustomProgramRequest(request: CreateCustomProgramRequest)
           throw new WorkoutApplicationError("VALIDATION_ERROR", "Reps must be a positive number.");
         }
 
+        const repRangeMin = exercise.repRangeMin ?? null;
+        const repRangeMax = exercise.repRangeMax ?? null;
+        if ((repRangeMin === null) !== (repRangeMax === null)) {
+          throw new WorkoutApplicationError(
+            "VALIDATION_ERROR",
+            "Both repRangeMin and repRangeMax are required when using a rep range."
+          );
+        }
+        if (repRangeMin !== null && repRangeMax !== null) {
+          if (!Number.isInteger(repRangeMin) || repRangeMin <= 0) {
+            throw new WorkoutApplicationError("VALIDATION_ERROR", "repRangeMin must be a positive number.");
+          }
+          if (!Number.isInteger(repRangeMax) || repRangeMax <= 0) {
+            throw new WorkoutApplicationError("VALIDATION_ERROR", "repRangeMax must be a positive number.");
+          }
+          if (repRangeMax < repRangeMin) {
+            throw new WorkoutApplicationError(
+              "VALIDATION_ERROR",
+              "repRangeMax must be greater than or equal to repRangeMin."
+            );
+          }
+          if (exercise.targetReps < repRangeMin || exercise.targetReps > repRangeMax) {
+            throw new WorkoutApplicationError(
+              "VALIDATION_ERROR",
+              "targetReps must be within the rep range."
+            );
+          }
+        }
+
         return {
           exerciseId: exercise.exerciseId,
           targetSets: exercise.targetSets,
           targetReps: exercise.targetReps,
+          repRangeMin,
+          repRangeMax,
           restSeconds: exercise.restSeconds ?? null
         };
       })

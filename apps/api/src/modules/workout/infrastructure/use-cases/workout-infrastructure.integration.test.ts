@@ -13,6 +13,7 @@ import {
   disposeWorkoutInfrastructureTestContext,
   idempotencyRecords,
   progressMetrics,
+  progressionRecommendationEvents,
   progressionStates,
   progressionStatesV2,
   seedBaseWorkoutProgram,
@@ -388,6 +389,7 @@ export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[]
           context.repositories.progressionStateV2Repository,
           context.repositories.exerciseRepository,
           context.repositories.progressMetricRepository,
+          context.repositories.progressionRecommendationEventRepository,
           context.transactionManager,
           context.repositories.idempotencyRepository
         );
@@ -507,6 +509,7 @@ export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[]
           context.repositories.progressionStateV2Repository,
           context.repositories.exerciseRepository,
           context.repositories.progressMetricRepository,
+          context.repositories.progressionRecommendationEventRepository,
           context.transactionManager,
           context.repositories.idempotencyRepository
         );
@@ -539,6 +542,246 @@ export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[]
         assert.equal(String(row1?.currentWeightLbs), "135.00");
         assert.equal(row2?.repGoal, 8);
         assert.equal(String(row2?.currentWeightLbs), "155.00");
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "Progression recommendation events persist (increased)",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        await seedInProgressWorkout(context);
+
+        const useCase = new CompleteWorkoutSessionUseCase(
+          context.repositories.workoutSessionRepository,
+          context.repositories.enrollmentRepository,
+          context.repositories.progressionStateRepository,
+          context.repositories.progressionStateV2Repository,
+          context.repositories.exerciseRepository,
+          context.repositories.progressMetricRepository,
+          context.repositories.progressionRecommendationEventRepository,
+          context.transactionManager,
+          context.repositories.idempotencyRepository
+        );
+
+        const result = await useCase.execute({
+          context: { userId: "user-1", unitSystem: "imperial" },
+          sessionId: "session-1",
+          request: {
+            completedAt: "2026-04-24T10:45:00.000Z",
+            exerciseFeedback: [{ exerciseEntryId: "entry-1", effortFeedback: "just_right" }]
+          },
+          idempotencyKey: "complete-event-increased-key-1"
+        });
+
+        assert.equal(result.data.progressionUpdates[0]?.result, "increased");
+
+        const events = await context.db
+          .select()
+          .from(progressionRecommendationEvents)
+          .where(eq(progressionRecommendationEvents.workoutSessionId, "session-1"));
+
+        assert.equal(events.length, 1);
+        assert.equal(events[0]?.result, "increased");
+        assert.equal(events[0]?.userId, "user-1");
+        assert.equal(events[0]?.exerciseEntryId, "entry-1");
+        assert.equal(events[0]?.workoutSessionId, "session-1");
+        assert.ok(events[0]?.reason.length > 0);
+        assert.ok(Array.isArray(events[0]?.reasonCodes));
+        assert.ok(Array.isArray(events[0]?.evidence));
+        assert.equal(typeof events[0]?.inputSnapshot, "object");
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "Progression recommendation events persist (repeated)",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        await seedInProgressWorkout(context);
+
+        const useCase = new CompleteWorkoutSessionUseCase(
+          context.repositories.workoutSessionRepository,
+          context.repositories.enrollmentRepository,
+          context.repositories.progressionStateRepository,
+          context.repositories.progressionStateV2Repository,
+          context.repositories.exerciseRepository,
+          context.repositories.progressMetricRepository,
+          context.repositories.progressionRecommendationEventRepository,
+          context.transactionManager,
+          context.repositories.idempotencyRepository
+        );
+
+        const result = await useCase.execute({
+          context: { userId: "user-1", unitSystem: "imperial" },
+          sessionId: "session-1",
+          request: {
+            completedAt: "2026-04-24T10:45:00.000Z",
+            exerciseFeedback: [{ exerciseEntryId: "entry-1", effortFeedback: "too_hard" }]
+          },
+          idempotencyKey: "complete-event-repeated-key-1"
+        });
+
+        assert.equal(result.data.progressionUpdates[0]?.result, "repeated");
+
+        const events = await context.db
+          .select()
+          .from(progressionRecommendationEvents)
+          .where(eq(progressionRecommendationEvents.workoutSessionId, "session-1"));
+
+        assert.equal(events.length, 1);
+        assert.equal(events[0]?.result, "repeated");
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "Progression recommendation events persist (reduced)",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        await seedInProgressWorkout(context);
+
+        await context.db
+          .update(progressionStates)
+          .set({ lastPerformedAt: new Date("2026-03-01T10:00:00.000Z") })
+          .where(eq(progressionStates.id, "progression-1"));
+
+        const useCase = new CompleteWorkoutSessionUseCase(
+          context.repositories.workoutSessionRepository,
+          context.repositories.enrollmentRepository,
+          context.repositories.progressionStateRepository,
+          context.repositories.progressionStateV2Repository,
+          context.repositories.exerciseRepository,
+          context.repositories.progressMetricRepository,
+          context.repositories.progressionRecommendationEventRepository,
+          context.transactionManager,
+          context.repositories.idempotencyRepository
+        );
+
+        const result = await useCase.execute({
+          context: { userId: "user-1", unitSystem: "imperial" },
+          sessionId: "session-1",
+          request: {
+            completedAt: "2026-04-24T10:45:00.000Z",
+            exerciseFeedback: [{ exerciseEntryId: "entry-1", effortFeedback: "just_right" }]
+          },
+          idempotencyKey: "complete-event-reduced-key-1"
+        });
+
+        assert.equal(result.data.progressionUpdates[0]?.result, "reduced");
+
+        const events = await context.db
+          .select()
+          .from(progressionRecommendationEvents)
+          .where(eq(progressionRecommendationEvents.workoutSessionId, "session-1"));
+
+        assert.equal(events.length, 1);
+        assert.equal(events[0]?.result, "reduced");
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "Progression recommendation events persist (recalibrated)",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        await seedInProgressWorkout(context, { setStatuses: ["completed", "completed", "completed"], actualReps: [4, 4, 8] });
+
+        await context.db.update(sets).set({ actualWeightLbs: "215.00" }).where(eq(sets.id, "set-1"));
+        await context.db.update(sets).set({ actualWeightLbs: "215.00" }).where(eq(sets.id, "set-2"));
+
+        const useCase = new CompleteWorkoutSessionUseCase(
+          context.repositories.workoutSessionRepository,
+          context.repositories.enrollmentRepository,
+          context.repositories.progressionStateRepository,
+          context.repositories.progressionStateV2Repository,
+          context.repositories.exerciseRepository,
+          context.repositories.progressMetricRepository,
+          context.repositories.progressionRecommendationEventRepository,
+          context.transactionManager,
+          context.repositories.idempotencyRepository
+        );
+
+        const result = await useCase.execute({
+          context: { userId: "user-1", unitSystem: "imperial" },
+          sessionId: "session-1",
+          request: {
+            completedAt: "2026-04-24T10:45:00.000Z",
+            exerciseFeedback: [{ exerciseEntryId: "entry-1", effortFeedback: "just_right" }]
+          },
+          idempotencyKey: "complete-event-recalibrated-key-1"
+        });
+
+        assert.equal(result.data.progressionUpdates[0]?.result, "recalibrated");
+
+        const events = await context.db
+          .select()
+          .from(progressionRecommendationEvents)
+          .where(eq(progressionRecommendationEvents.workoutSessionId, "session-1"));
+
+        assert.equal(events.length, 1);
+        assert.equal(events[0]?.result, "recalibrated");
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "Progression recommendation events persist (skipped)",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        await seedInProgressWorkout(context);
+
+        const useCase = new CompleteWorkoutSessionUseCase(
+          context.repositories.workoutSessionRepository,
+          context.repositories.enrollmentRepository,
+          context.repositories.progressionStateRepository,
+          context.repositories.progressionStateV2Repository,
+          context.repositories.exerciseRepository,
+          context.repositories.progressMetricRepository,
+          context.repositories.progressionRecommendationEventRepository,
+          context.transactionManager,
+          context.repositories.idempotencyRepository
+        );
+
+        const result = await useCase.execute({
+          context: { userId: "user-1", unitSystem: "imperial" },
+          sessionId: "session-1",
+          request: {
+            completedAt: "2026-04-24T10:45:00.000Z",
+            exerciseFeedback: []
+          },
+          idempotencyKey: "complete-event-skipped-key-1"
+        });
+
+        assert.equal(result.data.progressionUpdates[0]?.result, "skipped");
+
+        const events = await context.db
+          .select()
+          .from(progressionRecommendationEvents)
+          .where(eq(progressionRecommendationEvents.workoutSessionId, "session-1"));
+
+        assert.equal(events.length, 1);
+        assert.equal(events[0]?.result, "skipped");
       } finally {
         await disposeWorkoutInfrastructureTestContext(context);
       }
