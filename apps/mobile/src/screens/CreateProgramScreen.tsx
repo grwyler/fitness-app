@@ -486,6 +486,55 @@ function WorkoutPickerModal(props: {
   onCreateCustomWorkout: () => void;
   onSelectWorkout: (choice: AssignableWorkoutChoice) => void;
 }) {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+  const [lengthFilter, setLengthFilter] = useState<"any" | "quick" | "standard" | "long">("any");
+
+  const allChoices = useMemo(() => props.groups.flatMap((group) => group.workouts), [props.groups]);
+
+  const isFiltering = Boolean(
+    searchQuery.trim() || categoryFilter || lengthFilter !== "any"
+  );
+
+  const filteredChoices = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+
+    return allChoices.filter((choice) => {
+      if (categoryFilter && choice.category !== categoryFilter) {
+        return false;
+      }
+
+      const count = choice.workout.exercises.length;
+      if (lengthFilter === "quick" && count > 3) {
+        return false;
+      }
+      if (lengthFilter === "standard" && (count < 4 || count > 6)) {
+        return false;
+      }
+      if (lengthFilter === "long" && count < 7) {
+        return false;
+      }
+
+      if (!query) {
+        return true;
+      }
+
+      const haystack = `${choice.workout.name} ${choice.programName} ${choice.category}`.toLowerCase();
+      return haystack.includes(query);
+    });
+  }, [allChoices, categoryFilter, lengthFilter, searchQuery]);
+
+  const availableCategories = useMemo(() => {
+    const titles = props.groups.map((group) => group.title).filter(Boolean);
+    return Array.from(new Set(titles));
+  }, [props.groups]);
+
+  function clearFilters() {
+    setCategoryFilter(null);
+    setLengthFilter("any");
+  }
+
   return (
     <Modal animationType="slide" transparent visible={props.visible} onRequestClose={props.onClose}>
       <View style={styles.modalBackdrop}>
@@ -501,6 +550,80 @@ function WorkoutPickerModal(props: {
           </View>
 
           <ScrollView contentContainerStyle={styles.workoutChoiceList}>
+            <View style={styles.searchPanel}>
+              <View style={styles.searchHeaderRow}>
+                <Text style={styles.label}>Search workouts</Text>
+                <Pressable accessibilityRole="button" onPress={() => setFiltersExpanded((current) => !current)}>
+                  <Text style={styles.addText}>
+                    {filtersExpanded ? "Hide filters" : categoryFilter || lengthFilter !== "any" ? "Filters (on)" : "Filters"}
+                  </Text>
+                </Pressable>
+              </View>
+              <TextInput
+                autoCapitalize="words"
+                onChangeText={setSearchQuery}
+                placeholder="Push, legs, beginner, upper..."
+                placeholderTextColor={colors.textSecondary}
+                style={styles.input}
+                value={searchQuery}
+              />
+
+              {filtersExpanded ? (
+                <View style={styles.filterPanel}>
+                  <View style={styles.chipRow}>
+                    <Text style={styles.chipRowLabel}>Type</Text>
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={() => setCategoryFilter(null)}
+                      style={[styles.chip, !categoryFilter && styles.chipSelected]}
+                    >
+                      <Text style={[styles.chipText, !categoryFilter && styles.chipTextSelected]}>All</Text>
+                    </Pressable>
+                    {availableCategories.map((title) => (
+                      <Pressable
+                        accessibilityRole="button"
+                        key={`cat:${title}`}
+                        onPress={() => setCategoryFilter((current) => (current === title ? null : title))}
+                        style={[styles.chip, categoryFilter === title && styles.chipSelected]}
+                      >
+                        <Text style={[styles.chipText, categoryFilter === title && styles.chipTextSelected]}>
+                          {title}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+
+                  <View style={styles.chipRow}>
+                    <Text style={styles.chipRowLabel}>Length</Text>
+                    {(["any", "quick", "standard", "long"] as const).map((value) => (
+                      <Pressable
+                        accessibilityRole="button"
+                        key={`len:${value}`}
+                        onPress={() => setLengthFilter(value)}
+                        style={[styles.chip, lengthFilter === value && styles.chipSelected]}
+                      >
+                        <Text style={[styles.chipText, lengthFilter === value && styles.chipTextSelected]}>
+                          {value === "any"
+                            ? "Any"
+                            : value === "quick"
+                              ? "Quick (≤3)"
+                              : value === "standard"
+                                ? "Standard (4–6)"
+                                : "Long (7+)"}
+                        </Text>
+                      </Pressable>
+                    ))}
+
+                    {categoryFilter || lengthFilter !== "any" ? (
+                      <Pressable accessibilityRole="button" onPress={clearFilters} style={styles.clearChip}>
+                        <Text style={styles.clearChipText}>Clear</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                </View>
+              ) : null}
+            </View>
+
             <Pressable
               accessibilityRole="button"
               onPress={props.onCreateCustomWorkout}
@@ -518,6 +641,27 @@ function WorkoutPickerModal(props: {
               <Text style={styles.body}>Loading workouts...</Text>
             ) : props.groups.length === 0 ? (
               <Text style={styles.body}>No predefined or reusable workouts are available yet.</Text>
+            ) : isFiltering ? (
+              filteredChoices.length === 0 ? (
+                <Text style={styles.body}>No workouts match your search.</Text>
+              ) : (
+                filteredChoices.map((choice) => (
+                  <Pressable
+                    accessibilityRole="button"
+                    key={choice.id}
+                    onPress={() => props.onSelectWorkout(choice)}
+                    style={styles.workoutChoice}
+                  >
+                    <View style={styles.workoutTitleGroup}>
+                      <Text style={styles.workoutName}>{choice.workout.name}</Text>
+                      <Text style={styles.exerciseMeta}>
+                        {getAssignableWorkoutDescription(choice)} · {choice.category}
+                      </Text>
+                    </View>
+                    <Text style={styles.addText}>Use</Text>
+                  </Pressable>
+                ))
+              )
             ) : (
               props.groups.map((group) => (
                 <View key={group.title} style={styles.workoutGroup}>
@@ -660,6 +804,63 @@ const styles = StyleSheet.create({
   workoutTitleGroup: {
     flex: 1,
     gap: 4
+  },
+  searchPanel: {
+    gap: spacing.xs
+  },
+  searchHeaderRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between"
+  },
+  filterPanel: {
+    gap: spacing.xs
+  },
+  chipRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.xs
+  },
+  chipRowLabel: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    fontWeight: "700",
+    marginRight: spacing.xs,
+    textTransform: "uppercase"
+  },
+  chip: {
+    backgroundColor: colors.background,
+    borderColor: colors.border,
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6
+  },
+  chipSelected: {
+    backgroundColor: colors.accentMuted,
+    borderColor: colors.accentStrong
+  },
+  chipText: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    fontWeight: "700"
+  },
+  chipTextSelected: {
+    color: colors.accentStrong
+  },
+  clearChip: {
+    backgroundColor: "transparent",
+    borderColor: colors.border,
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6
+  },
+  clearChipText: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    fontWeight: "700"
   },
   exerciseList: {
     gap: spacing.xs

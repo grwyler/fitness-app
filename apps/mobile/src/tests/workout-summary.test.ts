@@ -141,7 +141,25 @@ export const workoutSummaryTestCases: MobileTestCase[] = [
           result: "repeated",
           reason: "Keep the same weight."
         }),
-        "Stays at 135 lb next time"
+        "Repeat same weight and reps"
+      );
+    }
+  },
+  {
+    name: "Workout summary shows rep-only increases when weight stays the same",
+    run: () => {
+      assert.equal(
+        getProgressionUpdateSummaryText({
+          exerciseId: "exercise-1",
+          exerciseName: "Bench Press",
+          previousWeight: { value: 135, unit: "lb" },
+          nextWeight: { value: 135, unit: "lb" },
+          previousRepGoal: 8,
+          nextRepGoal: 9,
+          result: "increased",
+          reason: "Increased reps."
+        }),
+        "Increase reps from 8 to 9"
       );
     }
   },

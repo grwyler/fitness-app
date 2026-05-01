@@ -594,6 +594,64 @@ export const progressionEngineTestCases: DomainTestCase[] = [
     }
   },
   {
+    name: "ProgressionEngine (double) resets consecutive failures when completing sets within range but below rep goal",
+    run: () => {
+      const first = engine.calculateDoubleProgression({
+        state: {
+          currentWeightLbs: 135,
+          lastCompletedWeightLbs: 130,
+          consecutiveFailures: 1,
+          lastEffortFeedback: "just_right",
+          repGoal: 8,
+          repRangeMin: 6,
+          repRangeMax: 10
+        },
+        exercise: {
+          exerciseName: "Bench Press",
+          exerciseCategory: "compound",
+          incrementLbs: 5,
+          isBodyweight: false,
+          isWeightOptional: false
+        },
+        outcome: {
+          effortFeedback: "just_right",
+          sets: [
+            { targetReps: 8, actualReps: 7, targetWeightLbs: 135, actualWeightLbs: 135 },
+            { targetReps: 8, actualReps: 8, targetWeightLbs: 135, actualWeightLbs: 135 },
+            { targetReps: 8, actualReps: 8, targetWeightLbs: 135, actualWeightLbs: 135 }
+          ]
+        }
+      });
+
+      assert.equal(first.result, "repeated");
+      assert.equal(first.nextWeightLbs, 135);
+      assert.equal(first.nextState.consecutiveFailures, 0);
+
+      const second = engine.calculateDoubleProgression({
+        state: first.nextState,
+        exercise: {
+          exerciseName: "Bench Press",
+          exerciseCategory: "compound",
+          incrementLbs: 5,
+          isBodyweight: false,
+          isWeightOptional: false
+        },
+        outcome: {
+          effortFeedback: "just_right",
+          sets: [
+            { targetReps: 8, actualReps: 5, targetWeightLbs: 135, actualWeightLbs: 135 },
+            { targetReps: 8, actualReps: 6, targetWeightLbs: 135, actualWeightLbs: 135 },
+            { targetReps: 8, actualReps: 6, targetWeightLbs: 135, actualWeightLbs: 135 }
+          ]
+        }
+      });
+
+      assert.equal(second.result, "repeated");
+      assert.equal(second.nextWeightLbs, 135);
+      assert.equal(second.nextState.consecutiveFailures, 1);
+    }
+  },
+  {
     name: "ProgressionEngine (double) repeats without progression when effort is marked too_hard",
     run: () => {
       const result = engine.calculateDoubleProgression({

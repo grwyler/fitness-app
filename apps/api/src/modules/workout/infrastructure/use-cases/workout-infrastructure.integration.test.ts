@@ -254,7 +254,7 @@ export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[]
           programId: "program-1",
           name: "Workout B",
           category: "Full Body",
-          sequenceOrder: 2,
+          sequenceOrder: 99,
           estimatedDurationMinutes: 55,
           isActive: true,
           createdAt: new Date("2026-04-24T10:00:00.000Z"),
@@ -293,6 +293,16 @@ export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[]
           request: {},
           idempotencyKey: "start-template-1"
         });
+
+        await context.db
+          .update(workoutSessions)
+          .set({
+            status: "completed",
+            completedAt: new Date("2026-04-24T10:30:00.000Z"),
+            durationSeconds: 1800,
+            updatedAt: new Date("2026-04-24T10:30:00.000Z")
+          })
+          .where(eq(workoutSessions.userId, "user-1"));
 
         await context.db
           .update(progressionStatesV2)
@@ -433,7 +443,7 @@ export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[]
           programId: "program-1",
           name: "Workout B",
           category: "Full Body",
-          sequenceOrder: 2,
+          sequenceOrder: 99,
           estimatedDurationMinutes: 55,
           isActive: true,
           createdAt: new Date("2026-04-24T10:00:00.000Z"),

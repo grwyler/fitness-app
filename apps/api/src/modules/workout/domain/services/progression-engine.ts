@@ -236,7 +236,7 @@ export class ProgressionEngine {
       const nextState: ProgressionStateSnapshotV2 = {
         currentWeightLbs: previousWeightLbs,
         lastCompletedWeightLbs: state.lastCompletedWeightLbs,
-        consecutiveFailures: state.consecutiveFailures,
+        consecutiveFailures: 0,
         lastEffortFeedback: outcome.effortFeedback,
         repGoal: previousRepGoal,
         repRangeMin,

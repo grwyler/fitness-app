@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { ProgramDto } from "@fitness/shared";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Screen } from "../components/Screen";
 import { LoadingState } from "../components/LoadingState";
 import { ErrorState } from "../components/ErrorState";
@@ -535,6 +535,89 @@ function ProgramPickerModal(props: {
   onEditProgram: (programId: string) => void;
   onSelectProgram: (programId: string) => void;
 }) {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
+  const [sourceFilter, setSourceFilter] = useState<"any" | "predefined" | "custom">("any");
+  const [difficultyFilter, setDifficultyFilter] = useState<"any" | "beginner" | "intermediate" | "advanced">("any");
+  const [daysFilter, setDaysFilter] = useState<number | "any">("any");
+  const [focusFilter, setFocusFilter] = useState<"any" | "full_body" | "split" | "quick">("any");
+
+  const isFiltering = Boolean(
+    searchQuery.trim() ||
+      sourceFilter !== "any" ||
+      difficultyFilter !== "any" ||
+      daysFilter !== "any" ||
+      focusFilter !== "any"
+  );
+
+  function getProgramFocus(program: ProgramDto): "full_body" | "split" | "quick" | "mixed" {
+    const categories = program.workouts.map((workout) => workout.category);
+    if (categories.length === 0) {
+      return "mixed";
+    }
+
+    const total = categories.length;
+    const fullBodyCount = categories.filter((category) => category === "Full Body").length;
+    const quickCount = categories.filter((category) => category === "Quick").length;
+    const splitCount =
+      categories.filter((category) => category === "Push").length +
+      categories.filter((category) => category === "Pull").length +
+      categories.filter((category) => category === "Legs").length;
+
+    if (quickCount / total >= 0.6) {
+      return "quick";
+    }
+
+    if (fullBodyCount / total >= 0.6) {
+      return "full_body";
+    }
+
+    if (splitCount / total >= 0.6) {
+      return "split";
+    }
+
+    return "mixed";
+  }
+
+  const filteredPrograms = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+
+    return props.programs.filter((program) => {
+      if (sourceFilter !== "any" && program.source !== sourceFilter) {
+        return false;
+      }
+
+      if (difficultyFilter !== "any" && program.difficultyLevel !== difficultyFilter) {
+        return false;
+      }
+
+      if (daysFilter !== "any" && program.daysPerWeek !== daysFilter) {
+        return false;
+      }
+
+      const focus = getProgramFocus(program);
+      if (focusFilter !== "any" && focus !== focusFilter) {
+        return false;
+      }
+
+      if (!query) {
+        return true;
+      }
+
+      const workoutNames = program.workouts.map((workout) => workout.name).join(" ");
+      const haystack =
+        `${program.name} ${program.description ?? ""} ${workoutNames} ${program.difficultyLevel} ${program.daysPerWeek}`.toLowerCase();
+      return haystack.includes(query);
+    });
+  }, [daysFilter, difficultyFilter, focusFilter, props.programs, searchQuery, sourceFilter]);
+
+  function clearFilters() {
+    setSourceFilter("any");
+    setDifficultyFilter("any");
+    setDaysFilter("any");
+    setFocusFilter("any");
+  }
+
   return (
     <Modal animationType="slide" transparent visible={props.visible} onRequestClose={props.onClose}>
       <View style={styles.modalBackdrop}>
@@ -550,12 +633,130 @@ function ProgramPickerModal(props: {
           </View>
 
           <ScrollView contentContainerStyle={styles.programChoiceList}>
+            <View style={styles.searchPanel}>
+              <View style={styles.searchHeaderRow}>
+                <Text style={styles.searchLabel}>Search</Text>
+                <Pressable accessibilityRole="button" onPress={() => setFiltersExpanded((current) => !current)}>
+                  <Text style={styles.linkText}>
+                    {filtersExpanded
+                      ? "Hide filters"
+                      : sourceFilter !== "any" || difficultyFilter !== "any" || daysFilter !== "any" || focusFilter !== "any"
+                        ? "Filters (on)"
+                        : "Filters"}
+                  </Text>
+                </Pressable>
+              </View>
+              <TextInput
+                autoCapitalize="words"
+                onChangeText={setSearchQuery}
+                placeholder="Full body, beginner, 3-day..."
+                placeholderTextColor={colors.textSecondary}
+                style={styles.searchInput}
+                value={searchQuery}
+              />
+
+              {filtersExpanded ? (
+                <View style={styles.filterPanel}>
+                  <View style={styles.chipRow}>
+                    <Text style={styles.chipRowLabel}>Source</Text>
+                    {[
+                      { key: "any" as const, label: "Any" },
+                      { key: "predefined" as const, label: "Predefined" },
+                      { key: "custom" as const, label: "Custom" }
+                    ].map((option) => (
+                      <Pressable
+                        accessibilityRole="button"
+                        key={`src:${option.key}`}
+                        onPress={() => setSourceFilter(option.key)}
+                        style={[styles.chip, sourceFilter === option.key && styles.chipSelected]}
+                      >
+                        <Text style={[styles.chipText, sourceFilter === option.key && styles.chipTextSelected]}>
+                          {option.label}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+
+                  <View style={styles.chipRow}>
+                    <Text style={styles.chipRowLabel}>Difficulty</Text>
+                    {(["any", "beginner", "intermediate", "advanced"] as const).map((value) => (
+                      <Pressable
+                        accessibilityRole="button"
+                        key={`diff:${value}`}
+                        onPress={() => setDifficultyFilter(value)}
+                        style={[styles.chip, difficultyFilter === value && styles.chipSelected]}
+                      >
+                        <Text style={[styles.chipText, difficultyFilter === value && styles.chipTextSelected]}>
+                          {value === "any" ? "Any" : value}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+
+                  <View style={styles.chipRow}>
+                    <Text style={styles.chipRowLabel}>Days</Text>
+                    {[
+                      { key: "any" as const, label: "Any" },
+                      { key: 2, label: "2" },
+                      { key: 3, label: "3" },
+                      { key: 4, label: "4" },
+                      { key: 5, label: "5" },
+                      { key: 6, label: "6" }
+                    ].map((option) => (
+                      <Pressable
+                        accessibilityRole="button"
+                        key={`days:${String(option.key)}`}
+                        onPress={() => setDaysFilter(option.key)}
+                        style={[styles.chip, daysFilter === option.key && styles.chipSelected]}
+                      >
+                        <Text style={[styles.chipText, daysFilter === option.key && styles.chipTextSelected]}>
+                          {option.label}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+
+                  <View style={styles.chipRow}>
+                    <Text style={styles.chipRowLabel}>Focus</Text>
+                    {[
+                      { key: "any" as const, label: "Any" },
+                      { key: "full_body" as const, label: "Full body" },
+                      { key: "split" as const, label: "Split" },
+                      { key: "quick" as const, label: "Quick" }
+                    ].map((option) => (
+                      <Pressable
+                        accessibilityRole="button"
+                        key={`focus:${option.key}`}
+                        onPress={() => setFocusFilter(option.key)}
+                        style={[styles.chip, focusFilter === option.key && styles.chipSelected]}
+                      >
+                        <Text style={[styles.chipText, focusFilter === option.key && styles.chipTextSelected]}>
+                          {option.label}
+                        </Text>
+                      </Pressable>
+                    ))}
+
+                    {sourceFilter !== "any" ||
+                    difficultyFilter !== "any" ||
+                    daysFilter !== "any" ||
+                    focusFilter !== "any" ? (
+                      <Pressable accessibilityRole="button" onPress={clearFilters} style={styles.clearChip}>
+                        <Text style={styles.clearChipText}>Clear</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                </View>
+              ) : null}
+            </View>
+
             {props.loadingPrograms ? (
               <Text style={styles.cardBody}>Loading programs...</Text>
             ) : props.programs.length === 0 ? (
               <Text style={styles.cardBody}>No active programs are available yet.</Text>
+            ) : filteredPrograms.length === 0 ? (
+              <Text style={styles.cardBody}>No programs match your search.</Text>
             ) : (
-              props.programs.map((program) => {
+              filteredPrograms.map((program) => {
                 const isCurrentProgram = program.id === props.activeProgramId;
                 const workoutNames = program.workouts.map((workout) => workout.name).join(" / ");
 
@@ -648,6 +849,86 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     lineHeight: 20
+  },
+  searchPanel: {
+    gap: spacing.xs
+  },
+  searchHeaderRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between"
+  },
+  searchLabel: {
+    color: colors.accentStrong,
+    fontSize: 13,
+    fontWeight: "600",
+    textTransform: "uppercase"
+  },
+  linkText: {
+    color: colors.accentStrong,
+    fontSize: 14,
+    fontWeight: "600"
+  },
+  searchInput: {
+    backgroundColor: colors.background,
+    borderColor: colors.border,
+    borderRadius: 12,
+    borderWidth: 1,
+    color: colors.textPrimary,
+    fontSize: 17,
+    fontWeight: "600",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm
+  },
+  filterPanel: {
+    gap: spacing.xs
+  },
+  chipRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.xs
+  },
+  chipRowLabel: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    fontWeight: "700",
+    marginRight: spacing.xs,
+    textTransform: "uppercase"
+  },
+  chip: {
+    backgroundColor: colors.background,
+    borderColor: colors.border,
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6
+  },
+  chipSelected: {
+    backgroundColor: colors.accentMuted,
+    borderColor: colors.accentStrong
+  },
+  chipText: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    fontWeight: "700",
+    textTransform: "capitalize"
+  },
+  chipTextSelected: {
+    color: colors.accentStrong
+  },
+  clearChip: {
+    backgroundColor: "transparent",
+    borderColor: colors.border,
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6
+  },
+  clearChipText: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    fontWeight: "700"
   },
   sourcePill: {
     alignSelf: "flex-start",

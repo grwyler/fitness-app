@@ -109,6 +109,10 @@ export function getProgressionUpdateSummaryText(update: CompleteWorkoutSessionRe
   const nextWeight = update.nextWeight.value;
   const delta = nextWeight - previousWeight;
 
+  if (update.result === "reduced") {
+    return "Reduce weight";
+  }
+
   if (update.result === "increased" && delta > 0) {
     return `+${formatDelta(delta)} lb next time`;
   }
@@ -117,8 +121,12 @@ export function getProgressionUpdateSummaryText(update: CompleteWorkoutSessionRe
     return `Adjusted to ${formatDelta(nextWeight)} lb next time`;
   }
 
-  if (update.result === "reduced" && delta < 0) {
-    return `${formatDelta(Math.abs(delta))} lb lighter next time`;
+  if (delta === 0 && update.nextRepGoal > update.previousRepGoal) {
+    return `Increase reps from ${update.previousRepGoal} to ${update.nextRepGoal}`;
+  }
+
+  if (update.result === "repeated") {
+    return "Repeat same weight and reps";
   }
 
   return `Stays at ${formatDelta(nextWeight)} lb next time`;

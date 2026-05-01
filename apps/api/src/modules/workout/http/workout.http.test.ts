@@ -1880,6 +1880,106 @@ export const workoutHttpTestCases: HttpTestCase[] = [
     }
   },
   {
+    name: "POST /api/v1/workout-sessions/:id/complete applies v1 progression for custom workouts",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        const server = await startHttpServer(context.db);
+
+        try {
+          const startResponse = await fetch(`${server.baseUrl}/api/v1/workout-sessions/start`, {
+            method: "POST",
+            headers: {
+              Authorization: "Bearer valid-new-user-token",
+              "content-type": "application/json",
+              "Idempotency-Key": "start-custom-progress-http-key"
+            },
+            body: JSON.stringify({
+              sessionType: "custom"
+            })
+          });
+          const startPayload = await readJson(startResponse);
+
+          const addExerciseResponse = await fetch(
+            `${server.baseUrl}/api/v1/workout-sessions/${startPayload.data.id}/exercises`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: "Bearer valid-new-user-token",
+                "content-type": "application/json",
+                "Idempotency-Key": "add-custom-exercise-progress-http-key"
+              },
+              body: JSON.stringify({
+                exerciseId: "exercise-1",
+                targetSets: 3,
+                targetReps: 8,
+                targetWeight: { value: 155, unit: "lb" }
+              })
+            }
+          );
+          const addExercisePayload = await readJson(addExerciseResponse);
+
+          let logIndex = 0;
+          for (const exercise of addExercisePayload.data.exercises) {
+            for (const set of exercise.sets) {
+              logIndex += 1;
+              const logResponse = await fetch(`${server.baseUrl}/api/v1/sets/${set.id}/log`, {
+                method: "POST",
+                headers: {
+                  Authorization: "Bearer valid-new-user-token",
+                  "content-type": "application/json",
+                  "Idempotency-Key": `log-custom-progress-http-key-${logIndex}`
+                },
+                body: JSON.stringify({
+                  actualReps: set.targetReps
+                })
+              });
+
+              assert.equal(logResponse.status, 200);
+            }
+          }
+
+          const completeResponse = await fetch(
+            `${server.baseUrl}/api/v1/workout-sessions/${startPayload.data.id}/complete`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: "Bearer valid-new-user-token",
+                "content-type": "application/json",
+                "Idempotency-Key": "complete-custom-progress-http-key"
+              },
+              body: JSON.stringify({
+                completedAt: "2026-04-24T11:00:00.000Z",
+                exerciseFeedback: addExercisePayload.data.exercises.map((exercise: any) => ({
+                  exerciseEntryId: exercise.id,
+                  effortFeedback: "just_right"
+                })),
+                userEffortFeedback: "just_right"
+              })
+            }
+          );
+          const completePayload = await readJson(completeResponse);
+
+          const progressionRows = await context.db.select().from(progressionStates);
+          const benchState = progressionRows.find((row) => row.exerciseId === "exercise-1");
+
+          assert.equal(startResponse.status, 201);
+          assert.equal(addExerciseResponse.status, 201);
+          assert.equal(completeResponse.status, 200);
+          assert.equal(completePayload.data.workoutSession.sessionType, "custom");
+          assert.equal(completePayload.data.progressionUpdates[0].nextWeight.value, 160);
+          assert.equal(String(benchState?.currentWeightLbs), "160.00");
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
     name: "POST /api/v1/workout-sessions/:id/exercises validates sets/reps/weight for custom workouts",
     run: async () => {
       const context = await createWorkoutInfrastructureTestContext();

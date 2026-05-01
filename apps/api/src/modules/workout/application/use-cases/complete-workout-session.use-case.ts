@@ -169,18 +169,22 @@ export class CompleteWorkoutSessionUseCase {
           fallbackTemplateEntryIds.map((row) => [row.sequenceOrder, row.workoutTemplateExerciseEntryId])
         );
 
-        const progressionEligibleEntriesWithTemplateEntry = progressionEligibleExerciseEntries
-          .map((entry) => ({
-            entry,
-            workoutTemplateExerciseEntryId:
-              entry.workoutTemplateExerciseEntryId ??
-              fallbackTemplateEntryIdBySequenceOrder.get(entry.sequenceOrder) ??
-              null
-          }))
-          .filter(
-            (row): row is { entry: typeof progressionEligibleExerciseEntries[number]; workoutTemplateExerciseEntryId: string } =>
-              row.workoutTemplateExerciseEntryId !== null
-          );
+        const progressionEligibleEntriesWithMaybeTemplateEntry = progressionEligibleExerciseEntries.map((entry) => ({
+          entry,
+          workoutTemplateExerciseEntryId:
+            entry.workoutTemplateExerciseEntryId ??
+            fallbackTemplateEntryIdBySequenceOrder.get(entry.sequenceOrder) ??
+            null
+        }));
+
+        const progressionEligibleEntriesWithTemplateEntry = progressionEligibleEntriesWithMaybeTemplateEntry.filter(
+          (row): row is { entry: typeof progressionEligibleExerciseEntries[number]; workoutTemplateExerciseEntryId: string } =>
+            row.workoutTemplateExerciseEntryId !== null
+        );
+
+        const progressionEligibleEntriesWithoutTemplateEntry = progressionEligibleEntriesWithMaybeTemplateEntry
+          .filter((row) => row.workoutTemplateExerciseEntryId === null)
+          .map((row) => row.entry);
 
         const progressionStatesV1 = await this.progressionStateRepository.findByUserIdAndExerciseIds(
           input.context.userId,
@@ -190,6 +194,38 @@ export class CompleteWorkoutSessionUseCase {
         const progressionStateV1ByExerciseId = new Map(
           progressionStatesV1.map((progressionState) => [progressionState.exerciseId, progressionState])
         );
+
+        const missingV1ExerciseIds = [...new Set(progressionEligibleEntriesWithoutTemplateEntry.map((entry) => entry.exerciseId))].filter(
+          (exerciseId) => !progressionStateV1ByExerciseId.has(exerciseId)
+        );
+        const createdV1States =
+          missingV1ExerciseIds.length > 0
+            ? await this.progressionStateRepository.createMany(
+                missingV1ExerciseIds.map((exerciseId) => {
+                  const progressionSeed = progressionSeedByExerciseId.get(exerciseId);
+                  if (!progressionSeed) {
+                    throw new WorkoutApplicationError(
+                      "PROGRESSION_SEED_NOT_FOUND",
+                      `Progression seed not found for exercise ${exerciseId}.`
+                    );
+                  }
+
+                  return {
+                    userId: input.context.userId,
+                    exerciseId,
+                    currentWeightLbs: progressionSeed.defaultStartingWeightLbs,
+                    lastCompletedWeightLbs: null,
+                    consecutiveFailures: 0,
+                    lastEffortFeedback: null,
+                    lastPerformedAt: null
+                  };
+                }),
+                { tx }
+              )
+            : [];
+        for (const created of createdV1States) {
+          progressionStateV1ByExerciseId.set(created.exerciseId, created);
+        }
 
         const v2TemplateEntryIds = progressionEligibleEntriesWithTemplateEntry.map((row) => row.workoutTemplateExerciseEntryId);
         const existingV2States = await this.progressionStateV2Repository.findByUserIdAndTemplateEntryIds(
@@ -307,6 +343,62 @@ export class CompleteWorkoutSessionUseCase {
           }
         );
 
+        const progressionUpdatesV1Direct = progressionEligibleEntriesWithoutTemplateEntry.map((exerciseEntry) => {
+          const progressionSeed = progressionSeedByExerciseId.get(exerciseEntry.exerciseId);
+          if (!progressionSeed) {
+            throw new WorkoutApplicationError(
+              "PROGRESSION_SEED_NOT_FOUND",
+              `Progression seed not found for exercise ${exerciseEntry.exerciseId}.`
+            );
+          }
+
+          const progressionState = progressionStateV1ByExerciseId.get(exerciseEntry.exerciseId);
+          if (!progressionState) {
+            throw new WorkoutApplicationError(
+              "PROGRESSION_STATE_NOT_FOUND",
+              `Progression state not found for exercise ${exerciseEntry.exerciseId}.`
+            );
+          }
+
+          const relatedSets = workoutSessionGraph.sets.filter((set) => set.exerciseEntryId === exerciseEntry.id);
+          const hasFailure = relatedSets.some((set) => set.status === "failed");
+          const effortFeedback = exerciseFeedbackByEntryId[exerciseEntry.id];
+          if (!effortFeedback) {
+            throw new WorkoutApplicationError(
+              "PROGRESSION_SEED_NOT_FOUND",
+              `Effort feedback missing for exercise entry ${exerciseEntry.id}.`
+            );
+          }
+
+          const progressionResult = this.progressionEngine.calculate({
+            state: {
+              currentWeightLbs: progressionState.currentWeightLbs,
+              lastCompletedWeightLbs: progressionState.lastCompletedWeightLbs,
+              consecutiveFailures: progressionState.consecutiveFailures,
+              lastEffortFeedback: progressionState.lastEffortFeedback
+            },
+            exercise: {
+              exerciseName: exerciseEntry.exerciseNameSnapshot,
+              exerciseCategory: progressionSeed.exerciseCategory,
+              incrementLbs: progressionSeed.incrementLbs,
+              isBodyweight: progressionSeed.isBodyweight,
+              isWeightOptional: progressionSeed.isWeightOptional
+            },
+            outcome: {
+              effortFeedback,
+              hasFailure,
+              sets: relatedSets.map((set) => ({
+                targetReps: set.targetReps,
+                actualReps: set.actualReps,
+                targetWeightLbs: set.targetWeightLbs,
+                actualWeightLbs: set.actualWeightLbs
+              }))
+            }
+          });
+
+          return { exerciseEntry, progressionResult };
+        });
+
         const feedbackInputs = workoutSessionGraph.exerciseEntries
           .filter((exerciseEntry) => exerciseFeedbackByEntryId[exerciseEntry.id] !== undefined)
           .map((exerciseEntry) => ({
@@ -344,7 +436,7 @@ export class CompleteWorkoutSessionUseCase {
           { tx }
         );
 
-        const progressionUpdatesV1 = progressionUpdatesV2
+        const progressionUpdatesV1FromV2 = progressionUpdatesV2
           .filter(({ progressionResult }) => progressionResult.nextWeightLbs !== progressionResult.previousWeightLbs)
           .map(({ exerciseEntry, progressionResult }) => {
           const progressionState = progressionStateV1ByExerciseId.get(exerciseEntry.exerciseId);
@@ -366,12 +458,42 @@ export class CompleteWorkoutSessionUseCase {
           };
         });
 
+        const progressionUpdatesV1DirectPersist = progressionUpdatesV1Direct.map(({ exerciseEntry, progressionResult }) => ({
+          userId: input.context.userId,
+          exerciseId: exerciseEntry.exerciseId,
+          currentWeightLbs: progressionResult.nextState.currentWeightLbs,
+          lastCompletedWeightLbs: progressionResult.nextState.lastCompletedWeightLbs,
+          consecutiveFailures: progressionResult.nextState.consecutiveFailures,
+          lastEffortFeedback: progressionResult.nextState.lastEffortFeedback,
+          lastPerformedAt: completedAt
+        }));
+
+        const progressionUpdatesV1 = [...progressionUpdatesV1FromV2, ...progressionUpdatesV1DirectPersist];
+
         if (progressionUpdatesV1.length > 0) {
           await this.progressionStateRepository.updateMany(progressionUpdatesV1, { tx });
         }
 
         const progressMetricInputs = [
           ...progressionUpdatesV2
+            .filter(
+              ({ progressionResult }) =>
+                (progressionResult.result === "increased" || progressionResult.result === "recalibrated") &&
+                progressionResult.nextWeightLbs !== progressionResult.previousWeightLbs
+            )
+            .map(({ exerciseEntry, progressionResult }) => ({
+              userId: input.context.userId,
+              exerciseId: exerciseEntry.exerciseId,
+              workoutSessionId: workoutSessionGraph.session.id,
+              metricType: "weight_increase" as const,
+              metricValue: progressionResult.nextWeightLbs - progressionResult.previousWeightLbs,
+              displayText:
+                progressionResult.result === "recalibrated"
+                  ? `Adjusted ${exerciseEntry.exerciseNameSnapshot} working weight based on your performance`
+                  : `+${progressionResult.nextWeightLbs - progressionResult.previousWeightLbs} lbs on ${exerciseEntry.exerciseNameSnapshot}`,
+              recordedAt: completedAt
+            })),
+          ...progressionUpdatesV1Direct
             .filter(
               ({ progressionResult }) =>
                 (progressionResult.result === "increased" || progressionResult.result === "recalibrated") &&
@@ -477,6 +599,18 @@ export class CompleteWorkoutSessionUseCase {
                 nextWeightLbs: progressionResult.nextWeightLbs,
                 previousRepGoal: progressionResult.previousRepGoal,
                 nextRepGoal: progressionResult.nextRepGoal,
+                result: progressionResult.result,
+                reason: progressionResult.reason
+              })
+            ),
+            ...progressionUpdatesV1Direct.map(({ exerciseEntry, progressionResult }) =>
+              mapProgressionUpdateDto({
+                exerciseId: exerciseEntry.exerciseId,
+                exerciseName: exerciseEntry.exerciseNameSnapshot,
+                previousWeightLbs: progressionResult.previousWeightLbs,
+                nextWeightLbs: progressionResult.nextWeightLbs,
+                previousRepGoal: exerciseEntry.targetReps,
+                nextRepGoal: exerciseEntry.targetReps,
                 result: progressionResult.result,
                 reason: progressionResult.reason
               })
