@@ -142,6 +142,22 @@ export const workoutSummaryTestCases: MobileTestCase[] = [
     }
   },
   {
+    name: "Workout summary renders skipped progression updates clearly",
+    run: () => {
+      assert.equal(
+        getProgressionUpdateSummaryText({
+          exerciseId: "exercise-1",
+          exerciseName: "Pull-Ups",
+          previousWeight: { value: 0, unit: "lb" },
+          nextWeight: { value: 0, unit: "lb" },
+          result: "skipped",
+          reason: "No weight progression because Pull-Ups is weight-optional and you logged 0 lb of external load."
+        }),
+        "No progression update"
+      );
+    }
+  },
+  {
     name: "Workout summary displays recalibration feedback returned by backend",
     run: () => {
       const summary: CompleteWorkoutSessionResponse = {

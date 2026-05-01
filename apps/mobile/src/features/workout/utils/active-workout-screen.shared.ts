@@ -37,7 +37,7 @@ export function getWorkoutCompletionUiState(
         : !hasPendingSets && hasCompleteFeedback
         ? "All sets are logged and feedback is ready."
         : hasPendingSets
-          ? "You can finish early. Only logged sets will count toward progression."
+          ? "You can finish early. Unlogged sets will be marked skipped, and exercises with skipped sets won't update progression."
           : "Choose feedback for every exercise to complete the workout."
   };
 }

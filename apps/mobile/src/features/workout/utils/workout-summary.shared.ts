@@ -101,6 +101,10 @@ export function getWorkoutSummaryEncouragement(summary: CompleteWorkoutSessionRe
 }
 
 export function getProgressionUpdateSummaryText(update: CompleteWorkoutSessionResponse["progressionUpdates"][number]) {
+  if (update.result === "skipped") {
+    return "No progression update";
+  }
+
   const previousWeight = update.previousWeight.value;
   const nextWeight = update.nextWeight.value;
   const delta = nextWeight - previousWeight;

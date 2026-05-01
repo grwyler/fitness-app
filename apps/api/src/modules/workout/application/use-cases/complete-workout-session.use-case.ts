@@ -111,25 +111,42 @@ export class CompleteWorkoutSessionUseCase {
         }
 
         const completedAt = input.request.completedAt ? new Date(input.request.completedAt) : new Date();
-        const isPartial = workoutSessionGraph.sets.some(
-          (set) => set.status === "pending" || set.status === "skipped"
-        );
-        const completedExerciseEntries = workoutSessionGraph.exerciseEntries.filter((exerciseEntry) => {
-          const relatedSets = workoutSessionGraph.sets.filter((set) => set.exerciseEntryId === exerciseEntry.id);
-          return (
-            relatedSets.length > 0 &&
-            relatedSets.every((set) => set.status === "completed" || set.status === "failed")
+        const hasPendingSets = workoutSessionGraph.sets.some((set) => set.status === "pending");
+        if (hasPendingSets) {
+          await this.workoutSessionRepository.skipPendingWorkoutSets(
+            { sessionId: workoutSessionGraph.session.id, skippedAt: completedAt },
+            { tx }
           );
-        });
-        const exerciseIds = completedExerciseEntries.map((exerciseEntry) => exerciseEntry.exerciseId);
-        const progressionSeeds = await this.exerciseRepository.findProgressionSeedsByExerciseIds(exerciseIds, {
-          tx
-        });
+          workoutSessionGraph.sets = workoutSessionGraph.sets.map((set) =>
+            set.status === "pending"
+              ? {
+                  ...set,
+                  status: "skipped",
+                  completedAt
+                }
+              : set
+          );
+        }
+
+        const isPartial = workoutSessionGraph.sets.some((set) => set.status === "skipped");
+
+        const exerciseIds = [...new Set(workoutSessionGraph.exerciseEntries.map((exerciseEntry) => exerciseEntry.exerciseId))];
+        const progressionSeeds = await this.exerciseRepository.findProgressionSeedsByExerciseIds(exerciseIds, { tx });
         const progressionSeedByExerciseId = new Map(
           progressionSeeds.map((progressionSeed) => [progressionSeed.exerciseId, progressionSeed])
         );
 
-        const progressionEligibleExerciseEntries = completedExerciseEntries.filter((exerciseEntry) => {
+        const fullyLoggedExerciseEntries = workoutSessionGraph.exerciseEntries.filter((exerciseEntry) => {
+          const relatedSets = workoutSessionGraph.sets.filter((set) => set.exerciseEntryId === exerciseEntry.id);
+          return relatedSets.length > 0 && relatedSets.every((set) => set.status === "completed" || set.status === "failed");
+        });
+
+        const partialExerciseEntries = workoutSessionGraph.exerciseEntries.filter((exerciseEntry) => {
+          const relatedSets = workoutSessionGraph.sets.filter((set) => set.exerciseEntryId === exerciseEntry.id);
+          return relatedSets.length > 0 && relatedSets.some((set) => set.status === "skipped" || set.status === "pending");
+        });
+
+        const progressionEligibleExerciseEntries = fullyLoggedExerciseEntries.filter((exerciseEntry) => {
           const progressionSeed = progressionSeedByExerciseId.get(exerciseEntry.exerciseId);
           return progressionSeed?.isProgressionEligible ?? true;
         });
@@ -182,7 +199,9 @@ export class CompleteWorkoutSessionUseCase {
             exercise: {
               exerciseName: exerciseEntry.exerciseNameSnapshot,
               exerciseCategory: progressionSeed.exerciseCategory,
-              incrementLbs: progressionSeed.incrementLbs
+              incrementLbs: progressionSeed.incrementLbs,
+              isBodyweight: progressionSeed.isBodyweight,
+              isWeightOptional: progressionSeed.isWeightOptional
             },
             outcome: {
               effortFeedback,
@@ -202,14 +221,16 @@ export class CompleteWorkoutSessionUseCase {
           };
         });
 
-        await this.workoutSessionRepository.persistExerciseEntryFeedback(
-          progressionUpdates.map(({ exerciseEntry }) => ({
+        const feedbackInputs = workoutSessionGraph.exerciseEntries
+          .filter((exerciseEntry) => exerciseFeedbackByEntryId[exerciseEntry.id] !== undefined)
+          .map((exerciseEntry) => ({
             exerciseEntryId: exerciseEntry.id,
             effortFeedback: exerciseFeedbackByEntryId[exerciseEntry.id]!,
             completedAt
-          })),
-          { tx }
-        );
+          }));
+        if (feedbackInputs.length > 0) {
+          await this.workoutSessionRepository.persistExerciseEntryFeedback(feedbackInputs, { tx });
+        }
 
         await this.progressionStateRepository.updateMany(
           progressionUpdates.map(({ exerciseEntry, progressionResult }) => ({
@@ -320,16 +341,31 @@ export class CompleteWorkoutSessionUseCase {
 
         return {
           workoutSession: mapWorkoutSessionDto(completedWorkoutSessionGraph),
-          progressionUpdates: progressionUpdates.map(({ exerciseEntry, progressionResult }) =>
-            mapProgressionUpdateDto({
-              exerciseId: exerciseEntry.exerciseId,
-              exerciseName: exerciseEntry.exerciseNameSnapshot,
-              previousWeightLbs: progressionResult.previousWeightLbs,
-              nextWeightLbs: progressionResult.nextWeightLbs,
-              result: progressionResult.result,
-              reason: progressionResult.reason
+          progressionUpdates: [
+            ...progressionUpdates.map(({ exerciseEntry, progressionResult }) =>
+              mapProgressionUpdateDto({
+                exerciseId: exerciseEntry.exerciseId,
+                exerciseName: exerciseEntry.exerciseNameSnapshot,
+                previousWeightLbs: progressionResult.previousWeightLbs,
+                nextWeightLbs: progressionResult.nextWeightLbs,
+                result: progressionResult.result,
+                reason: progressionResult.reason
+              })
+            ),
+            ...partialExerciseEntries.map((exerciseEntry) => {
+              const relatedSets = workoutSessionGraph.sets.filter((set) => set.exerciseEntryId === exerciseEntry.id);
+              const loggedSetCount = relatedSets.filter((set) => set.status === "completed" || set.status === "failed").length;
+              const totalSetCount = relatedSets.length;
+              return mapProgressionUpdateDto({
+                exerciseId: exerciseEntry.exerciseId,
+                exerciseName: exerciseEntry.exerciseNameSnapshot,
+                previousWeightLbs: exerciseEntry.targetWeightLbs,
+                nextWeightLbs: exerciseEntry.targetWeightLbs,
+                result: "skipped",
+                reason: `No progression update because this exercise was only partially completed (${loggedSetCount} of ${totalSetCount} sets logged; unlogged sets were skipped).`
+              });
             })
-          ),
+          ],
           progressMetrics: createdProgressMetrics.map(mapProgressMetricDto),
           nextWorkoutTemplate: mapNextWorkoutTemplateDto(nextWorkoutTemplate)
         };

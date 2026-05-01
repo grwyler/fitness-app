@@ -1,4 +1,4 @@
-import type { ExerciseCategory } from "@fitness/shared";
+import { MATERIAL_OVERPERFORMANCE_MULTIPLIER, type ExerciseCategory } from "@fitness/shared";
 import type {
   ProgressionComputationInput,
   ProgressionComputationResult,
@@ -7,7 +7,6 @@ import type {
   ExerciseWorkoutSetOutcome
 } from "../models/progression.js";
 
-export const MATERIAL_OVERPERFORMANCE_MULTIPLIER = 1.25;
 const MIN_RECALIBRATION_SET_COUNT = 2;
 const MAX_RECALIBRATION_JUMP_MULTIPLIER = 1.75;
 
@@ -24,12 +23,12 @@ function roundDownToIncrement(weightLbs: number, incrementLbs: number) {
   return roundToTwoDecimals(Math.max(0, rounded));
 }
 
-function getStandardIncreaseLbs(category: ExerciseCategory) {
-  return category === "compound" ? 5 : 2.5;
-}
+function getSuccessIncreaseStepCount(category: ExerciseCategory, effortFeedback: ExerciseWorkoutOutcome["effortFeedback"]) {
+  if (effortFeedback === "too_easy") {
+    return category === "compound" ? 2 : 2;
+  }
 
-function getTooEasyIncreaseLbs(category: ExerciseCategory) {
-  return category === "compound" ? 10 : 5;
+  return 1;
 }
 
 function median(values: number[]) {
@@ -89,6 +88,40 @@ export class ProgressionEngine {
       throw new Error("incrementLbs must be greater than 0.");
     }
 
+    if (exercise.isBodyweight && !exercise.isWeightOptional) {
+      const nextState: ProgressionStateSnapshot = {
+        currentWeightLbs: previousWeightLbs,
+        lastCompletedWeightLbs: state.lastCompletedWeightLbs,
+        consecutiveFailures: state.consecutiveFailures,
+        lastEffortFeedback: outcome.effortFeedback
+      };
+
+      return {
+        previousWeightLbs,
+        nextWeightLbs: previousWeightLbs,
+        result: "skipped",
+        reason: `No weight progression because ${exercise.exerciseName} is a bodyweight movement and weighted progression is not enabled.`,
+        nextState
+      };
+    }
+
+    if (exercise.isWeightOptional && previousWeightLbs === 0) {
+      const nextState: ProgressionStateSnapshot = {
+        currentWeightLbs: previousWeightLbs,
+        lastCompletedWeightLbs: state.lastCompletedWeightLbs,
+        consecutiveFailures: state.consecutiveFailures,
+        lastEffortFeedback: outcome.effortFeedback
+      };
+
+      return {
+        previousWeightLbs,
+        nextWeightLbs: previousWeightLbs,
+        result: "skipped",
+        reason: `No weight progression because ${exercise.exerciseName} is weight-optional and you logged 0 lb of external load.`,
+        nextState
+      };
+    }
+
     const recalibrationResult = this.calculateRecalibrationResult(input, previousWeightLbs);
     if (recalibrationResult) {
       return recalibrationResult;
@@ -126,7 +159,7 @@ export class ProgressionEngine {
         previousWeightLbs,
         nextWeightLbs,
         result: "reduced",
-        reason: `${exercise.exerciseName} failed twice consecutively. Applying a 10% deload.`,
+        reason: `Reduced from ${previousWeightLbs} lb to ${nextWeightLbs} lb after two consecutive failed workouts (10% deload).`,
         nextState
       };
     }
@@ -142,7 +175,7 @@ export class ProgressionEngine {
       previousWeightLbs,
       nextWeightLbs: previousWeightLbs,
       result: "repeated",
-      reason: `${exercise.exerciseName} had at least one failed set. Repeating the same weight.`,
+      reason: `Repeated ${previousWeightLbs} lb because at least one set missed the prescribed reps.`,
       nextState
     };
   }
@@ -165,17 +198,15 @@ export class ProgressionEngine {
         previousWeightLbs,
         nextWeightLbs: previousWeightLbs,
         result: "repeated",
-        reason: `${exercise.exerciseName} was completed but felt too hard. Repeating the same weight.`,
+        reason: `Repeated ${previousWeightLbs} lb because the work was completed but effort was marked too hard.`,
         nextState
       };
     }
 
-    const increaseLbs =
-      outcome.effortFeedback === "too_easy"
-        ? getTooEasyIncreaseLbs(exercise.exerciseCategory)
-        : getStandardIncreaseLbs(exercise.exerciseCategory);
+    const increaseSteps = getSuccessIncreaseStepCount(exercise.exerciseCategory, outcome.effortFeedback);
+    const increaseLbs = roundToTwoDecimals(increaseSteps * exercise.incrementLbs);
 
-    const nextWeightLbs = roundToTwoDecimals(previousWeightLbs + increaseLbs);
+    const nextWeightLbs = roundDownToIncrement(previousWeightLbs + increaseLbs, exercise.incrementLbs);
     const nextState: ProgressionStateSnapshot = {
       currentWeightLbs: nextWeightLbs,
       lastCompletedWeightLbs: previousWeightLbs,
@@ -189,8 +220,8 @@ export class ProgressionEngine {
       result: "increased",
       reason:
         outcome.effortFeedback === "too_easy"
-          ? `${exercise.exerciseName} was completed and felt too easy. Increasing weight aggressively.`
-          : `${exercise.exerciseName} was completed successfully. Increasing to the next planned weight.`,
+          ? `Increased from ${previousWeightLbs} lb to ${nextWeightLbs} lb because all sets were completed and effort was marked too easy.`
+          : `Increased from ${previousWeightLbs} lb to ${nextWeightLbs} lb because all sets were completed and effort was marked manageable.`,
       nextState
     };
   }
@@ -222,7 +253,8 @@ export class ProgressionEngine {
     );
     const nextWeightLbs = roundDownToIncrement(cappedWorkingWeight, exercise.incrementLbs);
 
-    if (nextWeightLbs <= previousWeightLbs + getTooEasyIncreaseLbs(exercise.exerciseCategory)) {
+    const tooEasyIncreaseCap = roundToTwoDecimals(2 * exercise.incrementLbs);
+    if (nextWeightLbs <= previousWeightLbs + tooEasyIncreaseCap) {
       return null;
     }
 
@@ -237,7 +269,7 @@ export class ProgressionEngine {
       previousWeightLbs,
       nextWeightLbs,
       result: "recalibrated",
-      reason: `Adjusted ${exercise.exerciseName} working weight based on your performance.`,
+      reason: `Recalibrated from ${previousWeightLbs} lb to ${nextWeightLbs} lb based on materially heavier sets logged.`,
       nextState
     };
   }

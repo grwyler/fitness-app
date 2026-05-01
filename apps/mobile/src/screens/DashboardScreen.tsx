@@ -16,19 +16,13 @@ import { useStartWorkout } from "../features/workout/hooks/useStartWorkout";
 import {
   getCurrentProgramWorkoutChoices,
   findProgramWorkoutById,
-  getDashboardPrimarySectionOrder,
-  getPredefinedWorkoutChoices,
   getHiddenExerciseCount,
   getNextProgramPositionLabel,
   getPlannedExerciseLines,
   getProgramSectionActionLabels,
   getProgramWorkoutPositionLabel,
-  getWorkoutStartActionLabels,
   getWorkoutIntentSummary,
-  groupPredefinedWorkoutChoicesByCategory,
-  type CurrentProgramWorkoutChoice,
-  type PredefinedWorkoutCategoryGroup,
-  type PredefinedWorkoutChoice
+  type CurrentProgramWorkoutChoice
 } from "../features/workout/utils/dashboard-program.shared";
 import { requestResetTestDataConfirmation } from "../features/workout/utils/reset-test-data.shared";
 import {
@@ -66,7 +60,6 @@ function logResetDiagnostic(event: string) {
 export function DashboardScreen({ navigation }: Props) {
   const [isProgramPickerOpen, setIsProgramPickerOpen] = useState(false);
   const [isCurrentProgramWorkoutPickerOpen, setIsCurrentProgramWorkoutPickerOpen] = useState(false);
-  const [isWorkoutPickerOpen, setIsWorkoutPickerOpen] = useState(false);
   const [selectedStartingWorkoutId, setSelectedStartingWorkoutId] = useState<string | null>(null);
   const [resetFeedback, setResetFeedback] = useState<string | null>(null);
   const auth = useAppAuth();
@@ -152,98 +145,11 @@ export function DashboardScreen({ navigation }: Props) {
   const currentProgramWorkoutChoices = getCurrentProgramWorkoutChoices(activeProgram);
   const programPositionLabel = getNextProgramPositionLabel(activeProgram);
   const availablePrograms = programsQuery.data ?? [];
-  const primarySectionOrder = getDashboardPrimarySectionOrder({
-    hasActiveProgram: Boolean(activeProgram)
-  });
   const programSectionActionLabels = getProgramSectionActionLabels({
     hasActiveProgram: Boolean(activeProgram)
   });
-  const predefinedWorkoutChoices = getPredefinedWorkoutChoices({
-    activeProgram,
-    programs: availablePrograms
-  });
-  const predefinedWorkoutGroups = groupPredefinedWorkoutChoicesByCategory(predefinedWorkoutChoices);
-  const hasPredefinedChoices = predefinedWorkoutChoices.length > 0;
-  const workoutStartActionLabels = getWorkoutStartActionLabels({
-    activeWorkout: Boolean(activeWorkout),
-    hasActiveProgram: Boolean(activeProgram),
-    hasPredefinedChoices,
-    hasRecommendedWorkout: Boolean(nextWorkout),
-    recommendedWorkoutName: nextWorkout?.name
-  });
-  const createWorkoutLabel = activeProgram
-    ? (workoutStartActionLabels[1] ?? "Create a workout")
-    : (workoutStartActionLabels[0] ?? "Create a workout");
-  const workoutLibraryLabel = activeProgram
-    ? (workoutStartActionLabels[2] ?? "Workout library")
-    : (workoutStartActionLabels[1] ?? "Workout library");
-  const isStartingPredefinedWorkout =
-    (startWorkoutMutation.isPending || followProgramMutation.isPending) &&
-    selectedStartingWorkoutId !== null &&
-    selectedStartingWorkoutId !== "custom-workout";
-  const isStartingCustomWorkout =
-    startWorkoutMutation.isPending && selectedStartingWorkoutId === "custom-workout";
   const isStartingRecommendedWorkout =
     startWorkoutMutation.isPending && selectedStartingWorkoutId === nextWorkout?.id;
-
-  function startPredefinedWorkout(choice: PredefinedWorkoutChoice) {
-    const finishStart = () => {
-      startWorkoutMutation.mutate(
-        {
-          workoutTemplateId: choice.workout.id
-        },
-        {
-          onSuccess: () => {
-            setSelectedStartingWorkoutId(null);
-            setIsWorkoutPickerOpen(false);
-            navigation.navigate("ActiveWorkout");
-          },
-          onError: () => {
-            setSelectedStartingWorkoutId(null);
-          }
-        }
-      );
-    };
-
-    setLastAction(
-      choice.workout.id === nextWorkout?.id
-        ? "start_recommended_from_picker"
-        : "start_selected_predefined_workout"
-    );
-    setSelectedStartingWorkoutId(choice.workout.id);
-
-    if (activeProgram?.program.id === choice.programId) {
-      finishStart();
-      return;
-    }
-
-    followProgramMutation.mutate(choice.programId, {
-      onSuccess: finishStart,
-      onError: () => {
-        setSelectedStartingWorkoutId(null);
-      }
-    });
-  }
-
-  function startCustomWorkout() {
-    setLastAction("start_custom_workout");
-    setSelectedStartingWorkoutId("custom-workout");
-    startWorkoutMutation.mutate(
-      {
-        sessionType: "custom"
-      },
-      {
-        onSuccess: () => {
-          setSelectedStartingWorkoutId(null);
-          setIsWorkoutPickerOpen(false);
-          navigation.navigate("ActiveWorkout");
-        },
-        onError: () => {
-          setSelectedStartingWorkoutId(null);
-        }
-      }
-    );
-  }
 
   function startCurrentProgramWorkout(choice: CurrentProgramWorkoutChoice) {
     setLastAction(`start_current_program_workout:${choice.workout.id}`);
@@ -265,17 +171,9 @@ export function DashboardScreen({ navigation }: Props) {
     );
   }
 
-  if (isDevEnvironment) {
-    console.info("[dashboard] workout-start-structure", {
-      firstAction: workoutStartActionLabels[0] ?? null,
-      inlinePredefinedListVisible: false,
-      secondaryActions: workoutStartActionLabels.slice(1)
-    });
-  }
-
   return (
     <Screen>
-      {primarySectionOrder[0] === "currentProgram" && activeProgram ? (
+      {activeProgram ? (
         <View style={styles.card}>
           <Text style={styles.cardLabel}>Current program</Text>
           <Text style={styles.cardTitle}>{activeProgram.program.name}</Text>
@@ -301,14 +199,22 @@ export function DashboardScreen({ navigation }: Props) {
             }}
           />
           <PrimaryButton
-            label={programSectionActionLabels[1] ?? "Create Program"}
+            label="Edit Program"
             tone="secondary"
-            onPress={() => navigation.navigate("CreateProgram")}
+            disabled={Boolean(activeWorkout)}
+            onPress={() => {
+              if (activeProgram.program.source === "custom") {
+                navigation.navigate("CreateProgram", { editProgramId: activeProgram.program.id });
+                return;
+              }
+
+              navigation.navigate("CreateProgram", { cloneProgramId: activeProgram.program.id });
+            }}
           />
         </View>
       ) : null}
 
-      {primarySectionOrder[0] === "programSetup" && !activeProgram ? (
+      {!activeProgram ? (
         <View style={styles.card}>
           <Text style={styles.cardLabel}>Program setup</Text>
           <Text style={styles.cardTitle}>Choose your training plan</Text>
@@ -332,90 +238,75 @@ export function DashboardScreen({ navigation }: Props) {
         </View>
       ) : null}
 
-      <View style={styles.card}>
-        <Text style={styles.cardLabel}>Start workout</Text>
-        <Text style={styles.cardTitle}>{nextWorkout ? "Next Workout" : "Start Workout"}</Text>
-        {nextWorkout ? (
-          <View style={styles.nextWorkoutSummary}>
-            {programPositionLabel ? <Text style={styles.positionText}>{programPositionLabel}</Text> : null}
-            <Text style={styles.nextWorkoutName}>{nextWorkout.name}</Text>
-            <Text style={styles.metaLine}>
-              {activeProgram?.program.name ?? "Current program"} - estimated{" "}
-              {nextWorkout.estimatedDurationMinutes ?? activeProgram?.program.sessionDurationMinutes ?? 0} minutes
-            </Text>
-          </View>
-        ) : null}
-        {nextWorkout ? (
-          <PrimaryButton
-            label={workoutStartActionLabels[0] ?? `Start ${nextWorkout.name}`}
-            onPress={() => {
-              setLastAction("start_recommended_workout");
-              setSelectedStartingWorkoutId(nextWorkout.id);
-              startWorkoutMutation.mutate(
-                {},
-                {
-                  onSuccess: () => {
-                    setSelectedStartingWorkoutId(null);
-                    navigation.navigate("ActiveWorkout");
-                  },
-                  onError: () => {
-                    setSelectedStartingWorkoutId(null);
-                  }
-                }
-              );
-            }}
-            disabled={Boolean(activeWorkout || !activeProgram || startWorkoutMutation.isPending)}
-            loading={isStartingRecommendedWorkout}
-          />
-        ) : null}
-        {activeProgram && currentProgramWorkoutChoices.length > 1 ? (
-          <PrimaryButton
-            label="Choose Another Day"
-            tone="secondary"
-            disabled={Boolean(activeWorkout || startWorkoutMutation.isPending)}
-            onPress={() => {
-              setLastAction("choose_current_program_workout");
-              setIsCurrentProgramWorkoutPickerOpen(true);
-            }}
-          />
-        ) : null}
-        <View style={styles.secondaryWorkoutActions}>
-          <PrimaryButton
-            label={createWorkoutLabel}
-            tone={activeProgram ? "secondary" : "primary"}
-            onPress={startCustomWorkout}
-            disabled={Boolean(activeWorkout || startWorkoutMutation.isPending)}
-            loading={isStartingCustomWorkout}
-          />
-          {hasPredefinedChoices ? (
+      {activeProgram ? (
+        <View style={styles.card}>
+          <Text style={styles.cardLabel}>Start workout</Text>
+          <Text style={styles.cardTitle}>{nextWorkout ? "Next Workout" : "Start Workout"}</Text>
+          {nextWorkout ? (
+            <View style={styles.nextWorkoutSummary}>
+              {programPositionLabel ? <Text style={styles.positionText}>{programPositionLabel}</Text> : null}
+              <Text style={styles.nextWorkoutName}>{nextWorkout.name}</Text>
+              <Text style={styles.metaLine}>
+                {activeProgram.program.name} - estimated{" "}
+                {nextWorkout.estimatedDurationMinutes ?? activeProgram.program.sessionDurationMinutes ?? 0} minutes
+              </Text>
+            </View>
+          ) : null}
+
+          {nextWorkout ? (
             <PrimaryButton
-              label={workoutLibraryLabel}
-              tone="secondary"
-              disabled={Boolean(
-                activeWorkout ||
-                  startWorkoutMutation.isPending ||
-                  followProgramMutation.isPending ||
-                  programsQuery.isLoading
-              )}
+              label={`Start ${nextWorkout.name}`}
               onPress={() => {
-                setLastAction("choose_workout");
-                setIsWorkoutPickerOpen(true);
+                setLastAction("start_recommended_workout");
+                setSelectedStartingWorkoutId(nextWorkout.id);
+                startWorkoutMutation.mutate(
+                  {},
+                  {
+                    onSuccess: () => {
+                      setSelectedStartingWorkoutId(null);
+                      navigation.navigate("ActiveWorkout");
+                    },
+                    onError: () => {
+                      setSelectedStartingWorkoutId(null);
+                    }
+                  }
+                );
+              }}
+              disabled={Boolean(activeWorkout || startWorkoutMutation.isPending)}
+              loading={isStartingRecommendedWorkout}
+            />
+          ) : currentProgramWorkoutChoices.length > 0 ? (
+            <PrimaryButton
+              label="Choose workout day"
+              disabled={Boolean(activeWorkout || startWorkoutMutation.isPending)}
+              onPress={() => {
+                setLastAction("choose_current_program_workout");
+                setIsCurrentProgramWorkoutPickerOpen(true);
               }}
             />
           ) : null}
-        </View>
-        {nextWorkout ? (
-          <Text style={styles.cardBody}>{getWorkoutIntentSummary(nextWorkoutPlan)}</Text>
-        ) : activeProgram ? (
-          <Text style={styles.cardBody}>Your program does not have a workout queued.</Text>
-        ) : null}
-        {startWorkoutMutation.error instanceof Error ? (
-          <Text style={styles.errorText}>{startWorkoutMutation.error.message}</Text>
-        ) : null}
-      </View>
 
-      {!activeProgram && programsQuery.isError ? (
-        <Text style={styles.errorText}>We couldn't load predefined workouts. Pull to refresh or try again.</Text>
+          {nextWorkout && currentProgramWorkoutChoices.length > 1 ? (
+            <PrimaryButton
+              label="Choose Another Day"
+              tone="secondary"
+              disabled={Boolean(activeWorkout || startWorkoutMutation.isPending)}
+              onPress={() => {
+                setLastAction("choose_current_program_workout");
+                setIsCurrentProgramWorkoutPickerOpen(true);
+              }}
+            />
+          ) : null}
+
+          {nextWorkout ? (
+            <Text style={styles.cardBody}>{getWorkoutIntentSummary(nextWorkoutPlan)}</Text>
+          ) : (
+            <Text style={styles.cardBody}>Pick a day from your program to start logging.</Text>
+          )}
+          {startWorkoutMutation.error instanceof Error ? (
+            <Text style={styles.errorText}>{startWorkoutMutation.error.message}</Text>
+          ) : null}
+        </View>
       ) : null}
 
       {activeWorkout ? (
@@ -518,7 +409,13 @@ export function DashboardScreen({ navigation }: Props) {
         }}
         onEditProgram={(programId) => {
           setIsProgramPickerOpen(false);
-          navigation.navigate("CreateProgram", { editProgramId: programId });
+          const program = availablePrograms.find((item) => item.id === programId) ?? null;
+          if (program?.source === "custom") {
+            navigation.navigate("CreateProgram", { editProgramId: programId });
+            return;
+          }
+
+          navigation.navigate("CreateProgram", { cloneProgramId: programId });
         }}
         onSelectProgram={(programId) => {
           setLastAction("switch_program");
@@ -526,23 +423,6 @@ export function DashboardScreen({ navigation }: Props) {
             onSuccess: () => setIsProgramPickerOpen(false)
           });
         }}
-      />
-      <WorkoutPickerModal
-        errorMessage={
-          startWorkoutMutation.error instanceof Error
-            ? startWorkoutMutation.error.message
-            : followProgramMutation.error instanceof Error
-              ? followProgramMutation.error.message
-              : null
-        }
-        groups={predefinedWorkoutGroups}
-        loadingWorkouts={programsQuery.isLoading && predefinedWorkoutGroups.length === 0}
-        recommendedWorkoutId={nextWorkout?.id ?? null}
-        selectedStartingWorkoutId={selectedStartingWorkoutId}
-        startingWorkout={isStartingPredefinedWorkout}
-        visible={isWorkoutPickerOpen}
-        onClose={() => setIsWorkoutPickerOpen(false)}
-        onSelectWorkout={startPredefinedWorkout}
       />
       <CurrentProgramWorkoutPickerModal
         errorMessage={startWorkoutMutation.error instanceof Error ? startWorkoutMutation.error.message : null}
@@ -690,14 +570,12 @@ function ProgramPickerModal(props: {
                       {program.daysPerWeek} days/week - {program.sessionDurationMinutes} minutes - {program.difficultyLevel}
                     </Text>
                     <Text style={styles.cardBody}>{workoutNames}</Text>
-                    {program.source === "custom" ? (
-                      <PrimaryButton
-                        label="Edit Program"
-                        disabled={props.selectingProgram}
-                        onPress={() => props.onEditProgram(program.id)}
-                        tone="secondary"
-                      />
-                    ) : null}
+                    <PrimaryButton
+                      label={program.source === "custom" ? "Edit Program" : "Customize Program"}
+                      disabled={props.selectingProgram}
+                      onPress={() => props.onEditProgram(program.id)}
+                      tone="secondary"
+                    />
                     <PrimaryButton
                       label={isCurrentProgram ? "Current program" : "Switch to this program"}
                       disabled={isCurrentProgram || props.selectingProgram}
@@ -716,114 +594,6 @@ function ProgramPickerModal(props: {
         </View>
       </View>
     </Modal>
-  );
-}
-
-function WorkoutPickerModal(props: {
-  errorMessage: string | null;
-  groups: PredefinedWorkoutCategoryGroup[];
-  loadingWorkouts: boolean;
-  recommendedWorkoutId: string | null;
-  selectedStartingWorkoutId: string | null;
-  startingWorkout: boolean;
-  visible: boolean;
-  onClose: () => void;
-  onSelectWorkout: (choice: PredefinedWorkoutChoice) => void;
-}) {
-  return (
-    <Modal animationType="slide" transparent visible={props.visible} onRequestClose={props.onClose}>
-      <View style={styles.modalBackdrop}>
-        <View style={styles.modalSheet}>
-          <View style={styles.modalHeader}>
-            <View style={styles.modalTitleGroup}>
-              <Text style={styles.cardLabel}>Workout library</Text>
-              <Text style={styles.modalTitle}>Choose workout</Text>
-            </View>
-            <Pressable accessibilityRole="button" onPress={props.onClose} style={styles.closeButton}>
-              <Text style={styles.closeLabel}>Close</Text>
-            </Pressable>
-          </View>
-
-          <ScrollView contentContainerStyle={styles.programChoiceList}>
-            {props.loadingWorkouts ? (
-              <Text style={styles.cardBody}>Loading workouts...</Text>
-            ) : props.groups.length === 0 ? (
-              <Text style={styles.cardBody}>No workouts are available right now.</Text>
-            ) : (
-              props.groups.map((group) => (
-                <View key={group.category} style={styles.workoutCategoryGroup}>
-                  <Text style={styles.categoryHeader}>{group.category}</Text>
-                  {group.workouts.map((choice) => {
-                    const isRecommended = choice.workout.id === props.recommendedWorkoutId;
-                    const isStartingThisWorkout =
-                      props.startingWorkout && props.selectedStartingWorkoutId === choice.workout.id;
-
-                    return (
-                      <WorkoutChoice
-                        key={choice.id}
-                        choice={choice}
-                        isRecommended={isRecommended}
-                        isStarting={isStartingThisWorkout}
-                        startingWorkout={props.startingWorkout}
-                        onSelectWorkout={props.onSelectWorkout}
-                      />
-                    );
-                  })}
-                </View>
-              ))
-            )}
-          </ScrollView>
-
-          {props.errorMessage ? <Text style={styles.errorText}>{props.errorMessage}</Text> : null}
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
-function WorkoutChoice(props: {
-  choice: PredefinedWorkoutChoice;
-  isRecommended: boolean;
-  isStarting: boolean;
-  startingWorkout: boolean;
-  onSelectWorkout: (choice: PredefinedWorkoutChoice) => void;
-}) {
-  const plannedExerciseLines = getPlannedExerciseLines(props.choice.workout, 3);
-  const hiddenExerciseCount = getHiddenExerciseCount(
-    props.choice.workout,
-    plannedExerciseLines.length
-  );
-
-  return (
-    <View style={[styles.workoutChoice, props.isRecommended && styles.recommendedWorkoutChoice]}>
-      <View style={styles.workoutChoiceHeader}>
-        <View style={styles.workoutChoiceTitleGroup}>
-          <Text style={styles.cardTitle}>{props.choice.workout.name}</Text>
-          <Text style={styles.metaLine}>
-            {props.choice.positionLabel} in {props.choice.programName}
-          </Text>
-        </View>
-        {props.isRecommended ? <Text style={styles.recommendedPill}>Recommended</Text> : null}
-      </View>
-      <Text style={styles.cardBody}>{getWorkoutIntentSummary(props.choice.workout)}</Text>
-      <View style={styles.exerciseList}>
-        {plannedExerciseLines.map((line) => (
-          <Text key={line} style={styles.exerciseLine}>
-            {line}
-          </Text>
-        ))}
-        {hiddenExerciseCount > 0 ? (
-          <Text style={styles.exerciseLine}>+{hiddenExerciseCount} more planned</Text>
-        ) : null}
-      </View>
-      <PrimaryButton
-        label={props.isRecommended ? "Start recommended" : "Start this workout"}
-        disabled={props.startingWorkout && !props.isStarting}
-        loading={props.isStarting}
-        onPress={() => props.onSelectWorkout(props.choice)}
-        tone={props.isRecommended ? "primary" : "secondary"}
-      />
-    </View>
   );
 }
 

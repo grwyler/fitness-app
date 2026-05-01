@@ -2222,7 +2222,9 @@ export const workoutHttpTestCases: HttpTestCase[] = [
 
           assert.equal(completeResponse.status, 200);
           assert.equal(completePayload.data.workoutSession.isPartial, true);
-          assert.equal(completePayload.data.progressionUpdates.length, 0);
+          assert.equal(completePayload.data.progressionUpdates.length, 1);
+          assert.equal(completePayload.data.progressionUpdates[0]?.result, "skipped");
+          assert.match(completePayload.data.progressionUpdates[0]?.reason ?? "", /partially completed/);
           assert.equal(historyResponse.status, 200);
           assert.equal(historyPayload.data.items[0].isPartial, true);
           assert.equal(historyPayload.data.items[0].plannedSetCount, 3);
@@ -2231,11 +2233,11 @@ export const workoutHttpTestCases: HttpTestCase[] = [
           assert.equal(historyDetailPayload.data.workoutSession.isPartial, true);
           assert.deepEqual(
             historyDetailPayload.data.workoutSession.exercises[0].sets.map((set: { status: string }) => set.status),
-            ["completed", "pending", "pending"]
+            ["completed", "skipped", "skipped"]
           );
           assert.equal(setRows.length, 3);
-          assert.equal(setRows.filter((set) => set.status === "pending").length, 2);
-          assert.equal(setRows.filter((set) => set.status === "skipped").length, 0);
+          assert.equal(setRows.filter((set) => set.status === "pending").length, 0);
+          assert.equal(setRows.filter((set) => set.status === "skipped").length, 2);
           assert.equal(progressionRows[0]?.currentWeightLbs, "135.00");
         } finally {
           await server.close();

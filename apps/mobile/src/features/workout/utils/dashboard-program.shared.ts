@@ -1,7 +1,6 @@
 import type {
   ActiveProgramDto,
   PredefinedWorkoutCategory,
-  ProgramDto,
   ProgramWorkoutTemplateDto
 } from "@fitness/shared";
 
@@ -12,20 +11,6 @@ export const predefinedWorkoutCategories: PredefinedWorkoutCategory[] = [
   "Full Body",
   "Quick"
 ];
-
-export type PredefinedWorkoutChoice = {
-  id: string;
-  category: PredefinedWorkoutCategory;
-  programId: string;
-  programName: string;
-  positionLabel: string;
-  workout: ProgramWorkoutTemplateDto;
-};
-
-export type PredefinedWorkoutCategoryGroup = {
-  category: PredefinedWorkoutCategory;
-  workouts: PredefinedWorkoutChoice[];
-};
 
 export type CurrentProgramWorkoutChoice = {
   id: string;
@@ -55,7 +40,7 @@ export type DashboardPrimarySection = "currentProgram" | "programSetup" | "start
 export function getDashboardPrimarySectionOrder(input: {
   hasActiveProgram: boolean;
 }): DashboardPrimarySection[] {
-  return [input.hasActiveProgram ? "currentProgram" : "programSetup", "startWorkout"];
+  return input.hasActiveProgram ? ["currentProgram", "startWorkout"] : ["programSetup"];
 }
 
 export function getProgramSectionActionLabels(input: { hasActiveProgram: boolean }) {
@@ -122,81 +107,6 @@ export function getCurrentProgramWorkoutChoices(
     }),
     workout
   }));
-}
-
-export function getPredefinedWorkoutChoices(input: {
-  activeProgram: ActiveProgramDto | null | undefined;
-  programs: ProgramDto[];
-}): PredefinedWorkoutChoice[] {
-  const choicesById = new Map<string, PredefinedWorkoutChoice>();
-
-  if (input.activeProgram?.program.source === "predefined") {
-    for (const workout of getProgramWorkouts(input.activeProgram)) {
-      choicesById.set(workout.id, {
-        id: workout.id,
-        category: workout.category,
-        programId: input.activeProgram.program.id,
-        programName: input.activeProgram.program.name,
-        positionLabel: getProgramWorkoutDayLabel({
-          activeProgram: input.activeProgram,
-          workout
-        }),
-        workout
-      });
-    }
-  }
-
-  for (const program of input.programs) {
-    if (program.source !== "predefined") {
-      continue;
-    }
-
-    for (const workout of [...program.workouts].sort(
-      (left, right) => left.sequenceOrder - right.sequenceOrder
-    )) {
-      if (choicesById.has(workout.id)) {
-        continue;
-      }
-
-      choicesById.set(workout.id, {
-        id: workout.id,
-        category: workout.category,
-        programId: program.id,
-        programName: program.name,
-        positionLabel: `Day ${workout.sequenceOrder}`,
-        workout
-      });
-    }
-  }
-
-  return [...choicesById.values()].sort((left, right) => {
-    const categoryDelta =
-      predefinedWorkoutCategories.indexOf(left.category) -
-      predefinedWorkoutCategories.indexOf(right.category);
-
-    if (categoryDelta !== 0) {
-      return categoryDelta;
-    }
-
-    const programDelta = left.programName.localeCompare(right.programName);
-
-    if (programDelta !== 0) {
-      return programDelta;
-    }
-
-    return left.workout.sequenceOrder - right.workout.sequenceOrder;
-  });
-}
-
-export function groupPredefinedWorkoutChoicesByCategory(
-  choices: PredefinedWorkoutChoice[]
-): PredefinedWorkoutCategoryGroup[] {
-  return predefinedWorkoutCategories
-    .map((category) => ({
-      category,
-      workouts: choices.filter((choice) => choice.category === category)
-    }))
-    .filter((group) => group.workouts.length > 0);
 }
 
 export function getProgramWorkoutPositionLabel(input: {
@@ -269,20 +179,4 @@ export function getHiddenExerciseCount(
   }
 
   return Math.max(0, workout.exercises.length - visibleCount);
-}
-
-export function getWorkoutStartActionLabels(input: {
-  activeWorkout: boolean;
-  hasActiveProgram: boolean;
-  hasPredefinedChoices: boolean;
-  hasRecommendedWorkout: boolean;
-  recommendedWorkoutName?: string | null;
-}) {
-  return [
-    ...(input.hasActiveProgram && input.hasRecommendedWorkout
-      ? [`Start ${input.recommendedWorkoutName ?? "Next Workout"}`]
-      : []),
-    "Create a workout",
-    ...(input.hasPredefinedChoices ? ["Workout library"] : [])
-  ];
 }

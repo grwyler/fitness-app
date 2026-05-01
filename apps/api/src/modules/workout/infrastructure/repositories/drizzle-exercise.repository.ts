@@ -139,6 +139,8 @@ export class DrizzleExerciseRepository implements ExerciseRepository {
       exerciseCategory: row.category,
       defaultStartingWeightLbs: normalizeNumeric(row.defaultStartingWeightLbs),
       incrementLbs: normalizeNumeric(row.defaultIncrementLbs),
+      isBodyweight: row.isBodyweight,
+      isWeightOptional: row.isWeightOptional,
       isProgressionEligible: row.isProgressionEligible
     }));
   }

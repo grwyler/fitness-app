@@ -8,6 +8,7 @@ export type RootStackParamList = {
   CreateProgram:
     | {
         editProgramId?: string;
+        cloneProgramId?: string;
         assignedDayNumber?: number;
         assignedWorkout?: ProgramWorkoutTemplateDto;
         assignmentId?: string;

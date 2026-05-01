@@ -8,6 +8,7 @@ import type {
   CreateWorkoutSessionGraphInput,
   DeleteWorkoutSetInput,
   PersistExerciseEntryFeedbackInput,
+  SkipPendingWorkoutSetsInput,
   UpdateLoggedSetInput,
   WorkoutHistorySummaryRecord,
   WorkoutSessionGraph,
@@ -71,6 +72,11 @@ export interface WorkoutSessionRepository {
     inputs: PersistExerciseEntryFeedbackInput[],
     options?: RepositoryOptions
   ): Promise<void>;
+
+  skipPendingWorkoutSets(
+    input: SkipPendingWorkoutSetsInput,
+    options?: RepositoryOptions
+  ): Promise<number>;
 
   completeSession(
     input: CompleteWorkoutSessionPersistenceInput,

@@ -18,7 +18,9 @@ export const progressionEngineTestCases: DomainTestCase[] = [
       exercise: {
         exerciseName: "Bench Press",
         exerciseCategory: "compound",
-        incrementLbs: 5
+        incrementLbs: 5,
+        isBodyweight: false,
+        isWeightOptional: false
       },
       outcome: {
         effortFeedback: "just_right",
@@ -30,6 +32,33 @@ export const progressionEngineTestCases: DomainTestCase[] = [
     assert.equal(result.result, "increased");
     assert.equal(result.nextState.lastCompletedWeightLbs, 135);
     assert.equal(result.nextState.consecutiveFailures, 0);
+    }
+  },
+  {
+    name: "ProgressionEngine respects 10 lb per-exercise increments on success",
+    run: () => {
+      const result = engine.calculate({
+        state: {
+          currentWeightLbs: 120,
+          lastCompletedWeightLbs: 110,
+          consecutiveFailures: 0,
+          lastEffortFeedback: "just_right"
+        },
+        exercise: {
+          exerciseName: "Leg Press",
+          exerciseCategory: "compound",
+          incrementLbs: 10,
+          isBodyweight: false,
+          isWeightOptional: false
+        },
+        outcome: {
+          effortFeedback: "just_right",
+          hasFailure: false
+        }
+      });
+
+      assert.equal(result.nextWeightLbs, 130);
+      assert.equal(result.result, "increased");
     }
   },
   {
@@ -45,7 +74,9 @@ export const progressionEngineTestCases: DomainTestCase[] = [
         exercise: {
           exerciseName: "Squat",
           exerciseCategory: "compound",
-          incrementLbs: 5
+          incrementLbs: 5,
+          isBodyweight: false,
+          isWeightOptional: false
         },
         outcome: {
           effortFeedback: "too_easy",
@@ -70,7 +101,9 @@ export const progressionEngineTestCases: DomainTestCase[] = [
         exercise: {
           exerciseName: "Overhead Press",
           exerciseCategory: "compound",
-          incrementLbs: 5
+          incrementLbs: 5,
+          isBodyweight: false,
+          isWeightOptional: false
         },
         outcome: {
           effortFeedback: "too_hard",
@@ -97,7 +130,9 @@ export const progressionEngineTestCases: DomainTestCase[] = [
         exercise: {
           exerciseName: "Bicep Curl",
           exerciseCategory: "accessory",
-          incrementLbs: 2.5
+          incrementLbs: 2.5,
+          isBodyweight: false,
+          isWeightOptional: false
         },
         outcome: {
           effortFeedback: "just_right",
@@ -122,7 +157,9 @@ export const progressionEngineTestCases: DomainTestCase[] = [
         exercise: {
           exerciseName: "Lat Pulldown",
           exerciseCategory: "accessory",
-          incrementLbs: 2.5
+          incrementLbs: 2.5,
+          isBodyweight: false,
+          isWeightOptional: false
         },
         outcome: {
           effortFeedback: "too_easy",
@@ -147,7 +184,9 @@ export const progressionEngineTestCases: DomainTestCase[] = [
         exercise: {
           exerciseName: "Bench Press",
           exerciseCategory: "compound",
-          incrementLbs: 5
+          incrementLbs: 5,
+          isBodyweight: false,
+          isWeightOptional: false
         },
         outcome: {
           effortFeedback: "too_hard",
@@ -174,7 +213,9 @@ export const progressionEngineTestCases: DomainTestCase[] = [
         exercise: {
           exerciseName: "Bench Press",
           exerciseCategory: "compound",
-          incrementLbs: 5
+          incrementLbs: 5,
+          isBodyweight: false,
+          isWeightOptional: false
         },
         outcome: {
           effortFeedback: "too_hard",
@@ -200,7 +241,9 @@ export const progressionEngineTestCases: DomainTestCase[] = [
         exercise: {
           exerciseName: "Cable Raise",
           exerciseCategory: "accessory",
-          incrementLbs: 2.5
+          incrementLbs: 2.5,
+          isBodyweight: false,
+          isWeightOptional: false
         },
         outcome: {
           effortFeedback: "too_hard",
@@ -225,7 +268,9 @@ export const progressionEngineTestCases: DomainTestCase[] = [
         exercise: {
           exerciseName: "Bench Press",
           exerciseCategory: "compound",
-          incrementLbs: 5
+          incrementLbs: 5,
+          isBodyweight: false,
+          isWeightOptional: false
         },
         outcome: {
           effortFeedback: "just_right",
@@ -242,7 +287,7 @@ export const progressionEngineTestCases: DomainTestCase[] = [
       assert.equal(result.nextWeightLbs, 215);
       assert.equal(result.nextState.consecutiveFailures, 0);
       assert.equal(result.nextState.lastCompletedWeightLbs, 215);
-      assert.match(result.reason, /Adjusted Bench Press working weight based on your performance/);
+      assert.match(result.reason, /Recalibrated from 135 lb to 215 lb/);
     }
   },
   {
@@ -258,7 +303,9 @@ export const progressionEngineTestCases: DomainTestCase[] = [
         exercise: {
           exerciseName: "Bench Press",
           exerciseCategory: "compound",
-          incrementLbs: 5
+          incrementLbs: 5,
+          isBodyweight: false,
+          isWeightOptional: false
         },
         outcome: {
           effortFeedback: "just_right",
@@ -289,7 +336,9 @@ export const progressionEngineTestCases: DomainTestCase[] = [
         exercise: {
           exerciseName: "Bench Press",
           exerciseCategory: "compound",
-          incrementLbs: 5
+          incrementLbs: 5,
+          isBodyweight: false,
+          isWeightOptional: false
         },
         outcome: {
           effortFeedback: "too_hard",
@@ -305,6 +354,90 @@ export const progressionEngineTestCases: DomainTestCase[] = [
       assert.equal(result.result, "repeated");
       assert.equal(result.nextWeightLbs, 135);
       assert.equal(result.nextState.consecutiveFailures, 1);
+    }
+  }
+  ,
+  {
+    name: "ProgressionEngine skips weight progression for pure bodyweight exercises",
+    run: () => {
+      const result = engine.calculate({
+        state: {
+          currentWeightLbs: 0,
+          lastCompletedWeightLbs: null,
+          consecutiveFailures: 0,
+          lastEffortFeedback: null
+        },
+        exercise: {
+          exerciseName: "Push-Ups",
+          exerciseCategory: "compound",
+          incrementLbs: 2.5,
+          isBodyweight: true,
+          isWeightOptional: false
+        },
+        outcome: {
+          effortFeedback: "just_right",
+          hasFailure: false
+        }
+      });
+
+      assert.equal(result.result, "skipped");
+      assert.equal(result.nextWeightLbs, 0);
+      assert.match(result.reason, /bodyweight movement/);
+    }
+  },
+  {
+    name: "ProgressionEngine skips weight progression for weight-optional exercises at 0 lb",
+    run: () => {
+      const result = engine.calculate({
+        state: {
+          currentWeightLbs: 0,
+          lastCompletedWeightLbs: null,
+          consecutiveFailures: 0,
+          lastEffortFeedback: null
+        },
+        exercise: {
+          exerciseName: "Pull-Ups",
+          exerciseCategory: "compound",
+          incrementLbs: 2.5,
+          isBodyweight: true,
+          isWeightOptional: true
+        },
+        outcome: {
+          effortFeedback: "just_right",
+          hasFailure: false
+        }
+      });
+
+      assert.equal(result.result, "skipped");
+      assert.equal(result.nextWeightLbs, 0);
+      assert.match(result.reason, /weight-optional/);
+    }
+  },
+  {
+    name: "ProgressionEngine allows explicitly weighted bodyweight variations to progress",
+    run: () => {
+      const result = engine.calculate({
+        state: {
+          currentWeightLbs: 10,
+          lastCompletedWeightLbs: 7.5,
+          consecutiveFailures: 0,
+          lastEffortFeedback: "just_right"
+        },
+        exercise: {
+          exerciseName: "Weighted Pull-Ups",
+          exerciseCategory: "compound",
+          incrementLbs: 2.5,
+          isBodyweight: true,
+          isWeightOptional: true
+        },
+        outcome: {
+          effortFeedback: "just_right",
+          hasFailure: false
+        }
+      });
+
+      assert.equal(result.result, "increased");
+      assert.equal(result.nextWeightLbs, 12.5);
     }
   }
 ];

@@ -1,6 +1,4 @@
-import type { LogSetRequest, SetDto, WeightValueDto } from "@fitness/shared";
-
-const MATERIAL_OVERPERFORMANCE_MULTIPLIER = 1.25;
+import { MATERIAL_OVERPERFORMANCE_MULTIPLIER, type LogSetRequest, type SetDto, type WeightValueDto } from "@fitness/shared";
 
 export type SetLogDraft = {
   repsText: string;

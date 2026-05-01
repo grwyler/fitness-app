@@ -11,6 +11,8 @@ export type ExerciseProgressionContext = {
   exerciseName: string;
   exerciseCategory: ExerciseCategory;
   incrementLbs: number;
+  isBodyweight: boolean;
+  isWeightOptional: boolean;
 };
 
 export type ExerciseWorkoutOutcome = {

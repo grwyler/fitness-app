@@ -18,7 +18,6 @@ import {
   getAssignableWorkoutDescription,
   getAssignableWorkoutChoices,
   groupAssignableWorkoutChoices,
-  isProgramDayWorkoutBuilderWorkout,
   resizeProgramDayAssignments,
   type AssignableWorkoutChoice,
   type AssignableWorkoutGroup,
@@ -42,6 +41,7 @@ function buildProgramDayAssignmentsFromProgram(program: ProgramDto): ProgramDayA
 
 export function CreateProgramScreen({ navigation, route }: Props) {
   const editProgramId = route.params?.editProgramId;
+  const cloneProgramId = route.params?.cloneProgramId;
   const [programName, setProgramName] = useState("");
   const [daysPerWeek, setDaysPerWeek] = useState(3);
   const [days, setDays] = useState<ProgramDayAssignment[]>(createProgramDayAssignments(3));
@@ -55,17 +55,22 @@ export function CreateProgramScreen({ navigation, route }: Props) {
   const [customWorkoutInitKey, setCustomWorkoutInitKey] = useState(0);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [savedProgramId, setSavedProgramId] = useState<string | null>(null);
-  const [loadedEditProgramId, setLoadedEditProgramId] = useState<string | null>(null);
+  const [loadedSourceProgramId, setLoadedSourceProgramId] = useState<string | null>(null);
   const programsQuery = usePrograms();
   const exercisesQuery = useExercises(customWorkoutDayNumber !== null);
   const createProgramMutation = useCreateCustomProgram();
   const updateProgramMutation = useUpdateCustomProgram();
   const followProgramMutation = useFollowProgram();
+  const sourceProgramId = editProgramId ?? cloneProgramId ?? null;
   const editProgram = useMemo(
-    () => (editProgramId ? (programsQuery.data ?? []).find((program) => program.id === editProgramId) ?? null : null),
-    [editProgramId, programsQuery.data]
+    () =>
+      sourceProgramId
+        ? (programsQuery.data ?? []).find((program) => program.id === sourceProgramId) ?? null
+        : null,
+    [sourceProgramId, programsQuery.data]
   );
   const isEditing = Boolean(editProgramId);
+  const isCloning = Boolean(cloneProgramId) && !isEditing;
 
   const workoutChoices = useMemo(
     () => getAssignableWorkoutChoices(programsQuery.data ?? []),
@@ -78,16 +83,16 @@ export function CreateProgramScreen({ navigation, route }: Props) {
   const hasCustomWorkoutChoices = workoutChoices.some((choice) => choice.source === "custom");
 
   useEffect(() => {
-    if (!editProgram || loadedEditProgramId === editProgram.id) {
+    if (!editProgram || loadedSourceProgramId === editProgram.id) {
       return;
     }
 
-    setProgramName(editProgram.name);
+    setProgramName(isCloning ? `${editProgram.name} (Custom)` : editProgram.name);
     setDaysPerWeek(editProgram.daysPerWeek);
     setDays(buildProgramDayAssignmentsFromProgram(editProgram));
     setSavedProgramId(null);
-    setLoadedEditProgramId(editProgram.id);
-  }, [editProgram, loadedEditProgramId]);
+    setLoadedSourceProgramId(editProgram.id);
+  }, [editProgram, isCloning, loadedSourceProgramId]);
 
   useEffect(() => {
     const assignedDayNumber = route.params?.assignedDayNumber;
@@ -217,7 +222,7 @@ export function CreateProgramScreen({ navigation, route }: Props) {
     }
 
     setValidationError(null);
-    if (editProgramId) {
+    if (editProgramId && editProgram?.source === "custom") {
       updateProgramMutation.mutate(
         {
           programId: editProgramId,
@@ -242,20 +247,26 @@ export function CreateProgramScreen({ navigation, route }: Props) {
   return (
     <Screen>
       <View style={styles.header}>
-        <Text style={styles.eyebrow}>{isEditing ? "Edit Program" : "Create Program"}</Text>
+        <Text style={styles.eyebrow}>
+          {isEditing ? "Edit Program" : isCloning ? "Customize Program" : "Create Program"}
+        </Text>
         <Text style={styles.title}>
-          {isEditing ? "Update your weekly training plan." : "Build a weekly plan from workouts."}
+          {isEditing
+            ? "Update your weekly training plan."
+            : isCloning
+              ? "Make this program yours with a custom copy."
+              : "Build a weekly plan from workouts."}
         </Text>
         <Text style={styles.subtitle}>
           Name the program, choose training days, then assign a workout to each day.
         </Text>
       </View>
 
-      {isEditing && programsQuery.isLoading ? (
+      {(isEditing || isCloning) && programsQuery.isLoading ? (
         <Text style={styles.body}>Loading program...</Text>
       ) : null}
-      {isEditing && !programsQuery.isLoading && !editProgram ? (
-        <Text style={styles.errorText}>We couldn't find that custom program.</Text>
+      {(isEditing || isCloning) && !programsQuery.isLoading && !editProgram ? (
+        <Text style={styles.errorText}>We couldn't find that program.</Text>
       ) : null}
 
       <View style={styles.card}>
@@ -308,7 +319,7 @@ export function CreateProgramScreen({ navigation, route }: Props) {
                   <Text style={styles.workoutName}>{day.workout?.name ?? "No workout selected"}</Text>
                 </View>
                 <View style={styles.dayActions}>
-                  {day.workout && isProgramDayWorkoutBuilderWorkout(day.workout) ? (
+                  {day.workout ? (
                     <Pressable
                       accessibilityRole="button"
                       onPress={() => openCustomWorkoutEditorForDay(day.dayNumber, day.workout!)}
@@ -372,7 +383,7 @@ export function CreateProgramScreen({ navigation, route }: Props) {
       ) : (
         <PrimaryButton
           label={isEditing ? "Save Changes" : "Save Program"}
-          disabled={programsQuery.isLoading || (isEditing && !editProgram)}
+          disabled={programsQuery.isLoading || ((isEditing || isCloning) && !editProgram)}
           loading={createProgramMutation.isPending || updateProgramMutation.isPending}
           onPress={handleSaveProgram}
         />

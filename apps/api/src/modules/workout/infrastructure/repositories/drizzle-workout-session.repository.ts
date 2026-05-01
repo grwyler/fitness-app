@@ -12,6 +12,7 @@ import type {
   DeleteWorkoutSetInput,
   ExerciseEntryRecord,
   PersistExerciseEntryFeedbackInput,
+  SkipPendingWorkoutSetsInput,
   SetRecord,
   UpdateLoggedSetInput,
   WorkoutHistorySummaryRecord,
@@ -446,6 +447,41 @@ export class DrizzleWorkoutSessionRepository implements WorkoutSessionRepository
         })
         .where(eq(exerciseEntries.id, input.exerciseEntryId));
     }
+  }
+
+  public async skipPendingWorkoutSets(
+    input: SkipPendingWorkoutSetsInput,
+    options?: RepositoryOptions
+  ): Promise<number> {
+    const executor = resolveExecutor(this.db, options);
+    const exerciseEntryRows = await executor
+      .select({ id: exerciseEntries.id })
+      .from(exerciseEntries)
+      .where(eq(exerciseEntries.workoutSessionId, input.sessionId));
+
+    if (exerciseEntryRows.length === 0) {
+      return 0;
+    }
+
+    const updatedSets = await executor
+      .update(sets)
+      .set({
+        status: "skipped",
+        completedAt: input.skippedAt,
+        updatedAt: new Date()
+      })
+      .where(
+        and(
+          inArray(
+            sets.exerciseEntryId,
+            exerciseEntryRows.map((row: any) => row.id)
+          ),
+          eq(sets.status, "pending")
+        )
+      )
+      .returning({ id: sets.id });
+
+    return updatedSets.length;
   }
 
   public async completeSession(

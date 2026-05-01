@@ -39,5 +39,7 @@ export type ExerciseProgressionSeedRecord = {
   exerciseCategory: ExerciseCategory;
   defaultStartingWeightLbs: number;
   incrementLbs: number;
+  isBodyweight: boolean;
+  isWeightOptional: boolean;
   isProgressionEligible: boolean;
 };

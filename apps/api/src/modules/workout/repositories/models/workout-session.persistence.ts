@@ -111,6 +111,11 @@ export type PersistExerciseEntryFeedbackInput = {
   completedAt: Date;
 };
 
+export type SkipPendingWorkoutSetsInput = {
+  sessionId: string;
+  skippedAt: Date;
+};
+
 export type WorkoutHistorySummaryRecord = {
   id: string;
   workoutName: string;
