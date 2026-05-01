@@ -248,6 +248,62 @@ export const progressionEngineTestCases: DomainTestCase[] = [
     }
   },
   {
+    name: "ProgressionEngine prefers repeat over increase when recovery is fatigued",
+    run: () => {
+      const result = engine.calculate({
+        recoveryState: "fatigued",
+        state: {
+          currentWeightLbs: 185,
+          lastCompletedWeightLbs: 180,
+          consecutiveFailures: 0,
+          lastEffortFeedback: "just_right"
+        },
+        exercise: {
+          exerciseName: "Squat",
+          exerciseCategory: "compound",
+          incrementLbs: 5,
+          isBodyweight: false,
+          isWeightOptional: false
+        },
+        outcome: {
+          effortFeedback: "too_easy",
+          hasFailure: false
+        }
+      });
+
+      assert.equal(result.result, "repeated");
+      assert.equal(result.nextWeightLbs, 185);
+    }
+  },
+  {
+    name: "ProgressionEngine strongly prefers repeat when recovery is exhausted unless exceptional",
+    run: () => {
+      const result = engine.calculate({
+        recoveryState: "exhausted",
+        state: {
+          currentWeightLbs: 185,
+          lastCompletedWeightLbs: 180,
+          consecutiveFailures: 0,
+          lastEffortFeedback: "just_right"
+        },
+        exercise: {
+          exerciseName: "Squat",
+          exerciseCategory: "compound",
+          incrementLbs: 5,
+          isBodyweight: false,
+          isWeightOptional: false
+        },
+        outcome: {
+          effortFeedback: "too_easy",
+          hasFailure: false
+        }
+      });
+
+      assert.equal(result.result, "repeated");
+      assert.equal(result.nextWeightLbs, 185);
+    }
+  },
+  {
     name: "ProgressionEngine repeats weight on successful too_hard feedback",
     run: () => {
       const result = engine.calculate({
@@ -1019,6 +1075,44 @@ export const progressionEngineTestCases: DomainTestCase[] = [
         },
         outcome: {
           effortFeedback: "just_right",
+          sets: [
+            { targetReps: 10, actualReps: 10, targetWeightLbs: 135, actualWeightLbs: 135 },
+            { targetReps: 10, actualReps: 10, targetWeightLbs: 135, actualWeightLbs: 135 },
+            { targetReps: 10, actualReps: 11, targetWeightLbs: 135, actualWeightLbs: 135 }
+          ]
+        }
+      });
+
+      assert.equal(result.result, "repeated");
+      assert.equal(result.nextWeightLbs, 135);
+      assert.equal(result.nextRepGoal, 10);
+    }
+  },
+  {
+    name: "ProgressionEngine (double) prefers repeating load when recovery is fatigued",
+    run: () => {
+      const result = engine.calculateDoubleProgression({
+        recoveryState: "fatigued",
+        performedAt: new Date("2026-05-01T10:00:00.000Z"),
+        state: {
+          currentWeightLbs: 135,
+          lastCompletedWeightLbs: 130,
+          consecutiveFailures: 0,
+          lastEffortFeedback: "just_right",
+          lastPerformedAt: new Date("2026-04-28T10:00:00.000Z"),
+          repGoal: 10,
+          repRangeMin: 6,
+          repRangeMax: 10
+        },
+        exercise: {
+          exerciseName: "Bench Press",
+          exerciseCategory: "compound",
+          incrementLbs: 5,
+          isBodyweight: false,
+          isWeightOptional: false
+        },
+        outcome: {
+          effortFeedback: "too_easy",
           sets: [
             { targetReps: 10, actualReps: 10, targetWeightLbs: 135, actualWeightLbs: 135 },
             { targetReps: 10, actualReps: 10, targetWeightLbs: 135, actualWeightLbs: 135 },

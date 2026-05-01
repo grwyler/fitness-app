@@ -2,6 +2,7 @@ import type {
   EffortFeedback,
   ExerciseCategory,
   DifficultyLevel,
+  RecoveryState,
   ProgramSource,
   ProgressMetricType,
   ProgressionResult,
@@ -67,6 +68,7 @@ export type WorkoutSessionDto = {
   status: WorkoutSessionStatus;
   sessionType: WorkoutSessionType;
   isPartial: boolean;
+  recoveryState?: RecoveryState | null;
   programId: UUID;
   workoutTemplateId: UUID;
   programName: string;
@@ -319,6 +321,7 @@ export type CompleteWorkoutSessionRequest = {
   exerciseFeedback: ExerciseFeedbackInput[];
   userEffortFeedback?: EffortFeedback;
   finishEarly?: boolean;
+  recoveryState?: RecoveryState;
 };
 
 export type CompleteWorkoutSessionResponse = {

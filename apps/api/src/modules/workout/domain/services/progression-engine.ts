@@ -3,6 +3,7 @@ import {
   type ExerciseCategory,
   type ExperienceLevel,
   type ProgressionStrategy,
+  type RecoveryState,
   type TrainingGoal
 } from "@fitness/shared";
 import type {
@@ -51,9 +52,18 @@ function getAggressiveSuccessStepCount(input: {
   category: ExerciseCategory;
   effortFeedback: ExerciseWorkoutOutcome["effortFeedback"];
   experienceLevel: ExperienceLevel | null;
+  recoveryState: RecoveryState | null;
 }) {
   const base = getSuccessIncreaseStepCount(input.category, input.effortFeedback);
   if (input.effortFeedback !== "too_easy") {
+    return base;
+  }
+
+  if (input.recoveryState === "fatigued" || input.recoveryState === "exhausted") {
+    return 1;
+  }
+
+  if (input.recoveryState === "fresh" && input.experienceLevel === "intermediate") {
     return base;
   }
 
@@ -68,13 +78,16 @@ function resolveTrainingGoal(trainingGoal: TrainingGoal | null | undefined): Tra
   return trainingGoal ?? null;
 }
 
-function withPolicySuffix(reason: string, policy: { trainingGoal: TrainingGoal | null; experienceLevel: ExperienceLevel | null }) {
+function withPolicySuffix(reason: string, policy: { trainingGoal: TrainingGoal | null; experienceLevel: ExperienceLevel | null; recoveryState?: RecoveryState | null }) {
   const tags: string[] = [];
   if (policy.trainingGoal) {
     tags.push(`goal=${policy.trainingGoal}`);
   }
   if (policy.experienceLevel === "intermediate" || policy.experienceLevel === "advanced") {
     tags.push(`experience=${policy.experienceLevel}`);
+  }
+  if (policy.recoveryState && policy.recoveryState !== "normal") {
+    tags.push(`recovery=${policy.recoveryState}`);
   }
 
   if (tags.length === 0) {
@@ -133,6 +146,11 @@ function hasEffectiveFailure(outcome: ExerciseWorkoutOutcome) {
   );
 }
 
+function hasExceptionalOverperformance(outcome: ExerciseWorkoutOutcome) {
+  const qualifyingSets = outcome.sets?.filter(isMaterialOverperformanceSet) ?? [];
+  return qualifyingSets.length >= MIN_RECALIBRATION_SET_COUNT;
+}
+
 export class ProgressionEngine {
   public calculateWithStrategyV2(
     input: ProgressionComputationInputV2 & { strategy: ProgressionStrategy }
@@ -188,6 +206,7 @@ export class ProgressionEngine {
   public calculate(input: ProgressionComputationInput): ProgressionComputationResult {
     const { exercise, outcome, state } = input;
     const trainingGoal = resolveTrainingGoal(input.trainingGoal);
+    const recoveryState = input.recoveryState ?? null;
     const previousWeightLbs = roundToTwoDecimals(state.currentWeightLbs);
     const lastPerformedAt = state.lastPerformedAt ?? null;
     const performedAt = input.performedAt ?? new Date(0);
@@ -288,12 +307,13 @@ export class ProgressionEngine {
       return recalibrationResult;
     }
 
-    return this.calculateSuccessResult({ ...input, trainingGoal }, previousWeightLbs);
+    return this.calculateSuccessResult({ ...input, trainingGoal, recoveryState }, previousWeightLbs);
   }
 
   public calculateDoubleProgression(input: ProgressionComputationInputV2): ProgressionComputationResultV2 {
     const { exercise, outcome, state } = input;
     const trainingGoal = resolveTrainingGoal(input.trainingGoal);
+    const recoveryState = input.recoveryState ?? null;
 
     const previousWeightLbs = roundToTwoDecimals(state.currentWeightLbs);
     const previousRepGoal = state.repGoal;
@@ -510,7 +530,8 @@ export class ProgressionEngine {
         result: "repeated",
         reason: withPolicySuffix("Repeated because the training goal is maintenance.", {
           trainingGoal,
-          experienceLevel: input.experienceLevel ?? null
+          experienceLevel: input.experienceLevel ?? null,
+          recoveryState
         }),
         nextState
       };
@@ -520,13 +541,71 @@ export class ProgressionEngine {
     const shouldFavorWeight =
       trainingGoal === "strength" && repRangeMax > repRangeMin && previousRepGoal >= strengthRepCeiling;
 
+    if (
+      (recoveryState === "fatigued" || recoveryState === "exhausted") &&
+      outcome.effortFeedback !== "too_easy"
+    ) {
+      const nextState: ProgressionStateSnapshotV2 = {
+        currentWeightLbs: previousWeightLbs,
+        lastCompletedWeightLbs: previousWeightLbs,
+        consecutiveFailures: 0,
+        lastEffortFeedback: outcome.effortFeedback,
+        lastPerformedAt,
+        repGoal: previousRepGoal,
+        repRangeMin,
+        repRangeMax
+      };
+
+      return {
+        previousWeightLbs,
+        nextWeightLbs: previousWeightLbs,
+        previousRepGoal,
+        nextRepGoal: previousRepGoal,
+        result: "repeated",
+        reason: withPolicySuffix("Repeated because the user reported fatigue.", {
+          trainingGoal,
+          experienceLevel: input.experienceLevel ?? null,
+          recoveryState
+        }),
+        nextState
+      };
+    }
+
+    if (recoveryState === "exhausted" && !hasExceptionalOverperformance(outcome)) {
+      const nextState: ProgressionStateSnapshotV2 = {
+        currentWeightLbs: previousWeightLbs,
+        lastCompletedWeightLbs: previousWeightLbs,
+        consecutiveFailures: 0,
+        lastEffortFeedback: outcome.effortFeedback,
+        lastPerformedAt,
+        repGoal: previousRepGoal,
+        repRangeMin,
+        repRangeMax
+      };
+
+      return {
+        previousWeightLbs,
+        nextWeightLbs: previousWeightLbs,
+        previousRepGoal,
+        nextRepGoal: previousRepGoal,
+        result: "repeated",
+        reason: withPolicySuffix("Repeated because the user reported being exhausted.", {
+          trainingGoal,
+          experienceLevel: input.experienceLevel ?? null,
+          recoveryState
+        }),
+        nextState
+      };
+    }
+
     if (!shouldFavorWeight && previousRepGoal < repRangeMax) {
       const increaseSteps =
         repRangeMax > repRangeMin
           ? getAggressiveSuccessStepCount({
               category: exercise.exerciseCategory,
               effortFeedback: outcome.effortFeedback,
-              experienceLevel: input.experienceLevel ?? null
+              experienceLevel: input.experienceLevel ?? null,
+              recoveryState
             })
           : 1;
       const nextRepGoal = clampInteger(previousRepGoal + increaseSteps, repRangeMin, repRangeMax);
@@ -572,8 +651,35 @@ export class ProgressionEngine {
         result: "repeated",
         reason: withPolicySuffix(
           `Repeated at the top of the rep range because the goal (${trainingGoal}) prioritizes reps/volume before load.`,
-          { trainingGoal, experienceLevel: input.experienceLevel ?? null }
+          { trainingGoal, experienceLevel: input.experienceLevel ?? null, recoveryState }
         ),
+        nextState
+      };
+    }
+
+    if (recoveryState === "fatigued") {
+      const nextState: ProgressionStateSnapshotV2 = {
+        currentWeightLbs: previousWeightLbs,
+        lastCompletedWeightLbs: previousWeightLbs,
+        consecutiveFailures: 0,
+        lastEffortFeedback: outcome.effortFeedback,
+        lastPerformedAt,
+        repGoal: previousRepGoal,
+        repRangeMin,
+        repRangeMax
+      };
+
+      return {
+        previousWeightLbs,
+        nextWeightLbs: previousWeightLbs,
+        previousRepGoal,
+        nextRepGoal: previousRepGoal,
+        result: "repeated",
+        reason: withPolicySuffix("Repeated instead of increasing load because the user reported fatigue.", {
+          trainingGoal,
+          experienceLevel: input.experienceLevel ?? null,
+          recoveryState
+        }),
         nextState
       };
     }
@@ -583,7 +689,8 @@ export class ProgressionEngine {
         ? getAggressiveSuccessStepCount({
             category: exercise.exerciseCategory,
             effortFeedback: outcome.effortFeedback,
-            experienceLevel: input.experienceLevel ?? null
+            experienceLevel: input.experienceLevel ?? null,
+            recoveryState
           })
         : 1;
     const increaseSteps =
@@ -612,7 +719,7 @@ export class ProgressionEngine {
       result: "increased",
       reason: withPolicySuffix(
         `Increased weight from ${previousWeightLbs} to ${nextWeightLbs} and reset reps to ${repRangeMin}.`,
-        { trainingGoal, experienceLevel: input.experienceLevel ?? null }
+        { trainingGoal, experienceLevel: input.experienceLevel ?? null, recoveryState }
       ),
       nextState
     };
@@ -621,6 +728,7 @@ export class ProgressionEngine {
   private calculateFixedWeight(input: ProgressionComputationInputV2): ProgressionComputationResultV2 {
     const { state, outcome, exercise } = input;
     const trainingGoal = resolveTrainingGoal(input.trainingGoal);
+    const recoveryState = input.recoveryState ?? null;
 
     const fixedRepGoal = state.repGoal;
     const repRangeMin = state.repRangeMin;
@@ -642,7 +750,8 @@ export class ProgressionEngine {
         ...(typeof outcome.hasFailure === "boolean" ? { hasFailure: outcome.hasFailure } : {})
       },
       experienceLevel: input.experienceLevel ?? null,
-      trainingGoal
+      trainingGoal,
+      recoveryState
     });
 
     const nextState: ProgressionStateSnapshotV2 = {
@@ -669,6 +778,7 @@ export class ProgressionEngine {
 
   private calculateBodyweightWeighted(input: ProgressionComputationInputV2): ProgressionComputationResultV2 {
     const { state, exercise } = input;
+    const recoveryState = input.recoveryState ?? null;
 
     if (exercise.isBodyweight && !exercise.isWeightOptional) {
       const previousWeightLbs = roundToTwoDecimals(state.currentWeightLbs);
@@ -707,13 +817,15 @@ export class ProgressionEngine {
 
     return this.calculateDoubleProgression({
       ...input,
-      exercise: nextExercise
+      exercise: nextExercise,
+      recoveryState
     });
   }
 
   private calculateBodyweightReps(input: ProgressionComputationInputV2): ProgressionComputationResultV2 {
     const { exercise, outcome, state } = input;
     const trainingGoal = resolveTrainingGoal(input.trainingGoal);
+    const recoveryState = input.recoveryState ?? null;
 
     const previousWeightLbs = roundToTwoDecimals(state.currentWeightLbs);
     const previousRepGoal = state.repGoal;
@@ -885,7 +997,89 @@ export class ProgressionEngine {
         result: "repeated",
         reason: withPolicySuffix("Repeated because the training goal is maintenance.", {
           trainingGoal,
-          experienceLevel: input.experienceLevel ?? null
+          experienceLevel: input.experienceLevel ?? null,
+          recoveryState
+        }),
+        nextState
+      };
+    }
+
+    if ((recoveryState === "fatigued" || recoveryState === "exhausted") && outcome.effortFeedback !== "too_easy") {
+      const nextState: ProgressionStateSnapshotV2 = {
+        currentWeightLbs: previousWeightLbs,
+        lastCompletedWeightLbs: previousWeightLbs,
+        consecutiveFailures: 0,
+        lastEffortFeedback: outcome.effortFeedback,
+        lastPerformedAt,
+        repGoal: previousRepGoal,
+        repRangeMin,
+        repRangeMax
+      };
+
+      return {
+        previousWeightLbs,
+        nextWeightLbs: previousWeightLbs,
+        previousRepGoal,
+        nextRepGoal: previousRepGoal,
+        result: "repeated",
+        reason: withPolicySuffix("Repeated because the user reported fatigue.", {
+          trainingGoal,
+          experienceLevel: input.experienceLevel ?? null,
+          recoveryState
+        }),
+        nextState
+      };
+    }
+
+    if (recoveryState === "exhausted" && !hasExceptionalOverperformance(outcome)) {
+      const nextState: ProgressionStateSnapshotV2 = {
+        currentWeightLbs: previousWeightLbs,
+        lastCompletedWeightLbs: previousWeightLbs,
+        consecutiveFailures: 0,
+        lastEffortFeedback: outcome.effortFeedback,
+        lastPerformedAt,
+        repGoal: previousRepGoal,
+        repRangeMin,
+        repRangeMax
+      };
+
+      return {
+        previousWeightLbs,
+        nextWeightLbs: previousWeightLbs,
+        previousRepGoal,
+        nextRepGoal: previousRepGoal,
+        result: "repeated",
+        reason: withPolicySuffix("Repeated because the user reported being exhausted.", {
+          trainingGoal,
+          experienceLevel: input.experienceLevel ?? null,
+          recoveryState
+        }),
+        nextState
+      };
+    }
+
+    if (recoveryState === "fatigued" && !hasExceptionalOverperformance(outcome)) {
+      const nextState: ProgressionStateSnapshotV2 = {
+        currentWeightLbs: previousWeightLbs,
+        lastCompletedWeightLbs: previousWeightLbs,
+        consecutiveFailures: 0,
+        lastEffortFeedback: outcome.effortFeedback,
+        lastPerformedAt,
+        repGoal: previousRepGoal,
+        repRangeMin,
+        repRangeMax
+      };
+
+      return {
+        previousWeightLbs,
+        nextWeightLbs: previousWeightLbs,
+        previousRepGoal,
+        nextRepGoal: previousRepGoal,
+        result: "repeated",
+        reason: withPolicySuffix("Repeated instead of progressing because the user reported fatigue.", {
+          trainingGoal,
+          experienceLevel: input.experienceLevel ?? null,
+          recoveryState
         }),
         nextState
       };
@@ -897,7 +1091,8 @@ export class ProgressionEngine {
           ? getAggressiveSuccessStepCount({
               category: exercise.exerciseCategory,
               effortFeedback: outcome.effortFeedback,
-              experienceLevel: input.experienceLevel ?? null
+              experienceLevel: input.experienceLevel ?? null,
+              recoveryState
             })
           : 1;
       const nextRepGoal = clampInteger(previousRepGoal + increaseSteps, repRangeMin, repRangeMax);
@@ -1058,6 +1253,7 @@ export class ProgressionEngine {
   ): ProgressionComputationResult {
     const { exercise, outcome } = input;
     const trainingGoal = resolveTrainingGoal(input.trainingGoal);
+    const recoveryState = input.recoveryState ?? null;
 
     if (outcome.effortFeedback === "too_hard") {
       const nextState: ProgressionStateSnapshot = {
@@ -1090,7 +1286,71 @@ export class ProgressionEngine {
         result: "repeated",
         reason: withPolicySuffix("Repeated because the training goal is maintenance.", {
           trainingGoal,
-          experienceLevel: input.experienceLevel ?? null
+          experienceLevel: input.experienceLevel ?? null,
+          recoveryState
+        }),
+        nextState
+      };
+    }
+
+    if ((recoveryState === "fatigued" || recoveryState === "exhausted") && outcome.effortFeedback !== "too_easy") {
+      const nextState: ProgressionStateSnapshot = {
+        currentWeightLbs: previousWeightLbs,
+        lastCompletedWeightLbs: previousWeightLbs,
+        consecutiveFailures: 0,
+        lastEffortFeedback: outcome.effortFeedback
+      };
+
+      return {
+        previousWeightLbs,
+        nextWeightLbs: previousWeightLbs,
+        result: "repeated",
+        reason: withPolicySuffix("Repeated because the user reported fatigue.", {
+          trainingGoal,
+          experienceLevel: input.experienceLevel ?? null,
+          recoveryState
+        }),
+        nextState
+      };
+    }
+
+    if (recoveryState === "exhausted" && !hasExceptionalOverperformance(outcome)) {
+      const nextState: ProgressionStateSnapshot = {
+        currentWeightLbs: previousWeightLbs,
+        lastCompletedWeightLbs: previousWeightLbs,
+        consecutiveFailures: 0,
+        lastEffortFeedback: outcome.effortFeedback
+      };
+
+      return {
+        previousWeightLbs,
+        nextWeightLbs: previousWeightLbs,
+        result: "repeated",
+        reason: withPolicySuffix("Repeated because the user reported being exhausted.", {
+          trainingGoal,
+          experienceLevel: input.experienceLevel ?? null,
+          recoveryState
+        }),
+        nextState
+      };
+    }
+
+    if (recoveryState === "fatigued" && !hasExceptionalOverperformance(outcome)) {
+      const nextState: ProgressionStateSnapshot = {
+        currentWeightLbs: previousWeightLbs,
+        lastCompletedWeightLbs: previousWeightLbs,
+        consecutiveFailures: 0,
+        lastEffortFeedback: outcome.effortFeedback
+      };
+
+      return {
+        previousWeightLbs,
+        nextWeightLbs: previousWeightLbs,
+        result: "repeated",
+        reason: withPolicySuffix("Repeated instead of increasing load because the user reported fatigue.", {
+          trainingGoal,
+          experienceLevel: input.experienceLevel ?? null,
+          recoveryState
         }),
         nextState
       };
@@ -1099,7 +1359,8 @@ export class ProgressionEngine {
     const rawIncreaseSteps = getAggressiveSuccessStepCount({
       category: exercise.exerciseCategory,
       effortFeedback: outcome.effortFeedback,
-      experienceLevel: input.experienceLevel ?? null
+      experienceLevel: input.experienceLevel ?? null,
+      recoveryState
     });
     const increaseSteps =
       trainingGoal === "hypertrophy" || trainingGoal === "endurance" || trainingGoal === "general_fitness"
@@ -1123,7 +1384,7 @@ export class ProgressionEngine {
         outcome.effortFeedback === "too_easy"
           ? `Increased from ${previousWeightLbs} lb to ${nextWeightLbs} lb because all sets were completed and effort was marked too easy.`
           : `Increased from ${previousWeightLbs} lb to ${nextWeightLbs} lb because all sets were completed and effort was marked manageable.`,
-        { trainingGoal, experienceLevel: input.experienceLevel ?? null }
+        { trainingGoal, experienceLevel: input.experienceLevel ?? null, recoveryState }
       ),
       nextState
     };

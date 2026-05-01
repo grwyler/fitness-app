@@ -148,6 +148,7 @@ create table workout_sessions (
   duration_seconds integer,
   is_partial boolean not null default false,
   user_effort_feedback text,
+  recovery_state text,
   program_name_snapshot text not null,
   workout_name_snapshot text not null,
   created_at timestamptz not null default now(),

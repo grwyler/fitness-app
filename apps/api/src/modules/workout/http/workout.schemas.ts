@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { effortFeedbackValues, progressionStrategies, unitSystems } from "@fitness/shared";
+import { effortFeedbackValues, progressionStrategies, recoveryStates, unitSystems } from "@fitness/shared";
 
 const weightValueSchema = z.object({
   value: z.number().finite().min(0),
@@ -116,7 +116,8 @@ export const completeWorkoutSessionBodySchema = z.object({
     )
     .default([]),
   userEffortFeedback: z.enum(effortFeedbackValues).optional(),
-  finishEarly: z.boolean().optional()
+  finishEarly: z.boolean().optional(),
+  recoveryState: z.enum(recoveryStates).optional()
 });
 
 export type WorkoutHeaders = z.infer<typeof workoutHeadersSchema>;

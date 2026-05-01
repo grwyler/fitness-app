@@ -31,6 +31,7 @@ export class WorkoutSessionFactory {
       durationSeconds: null,
       isPartial: false,
       userEffortFeedback: null as EffortFeedback | null,
+      recoveryState: null,
       programNameSnapshot: input.programName,
       workoutNameSnapshot: input.workoutTemplateDefinition.template.name
     };

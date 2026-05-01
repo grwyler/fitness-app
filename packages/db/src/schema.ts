@@ -22,6 +22,7 @@ import {
   programSources,
   progressMetricTypes,
   progressionStrategies,
+  recoveryStates,
   setStatuses,
   trainingGoals,
   unitSystems,
@@ -39,6 +40,7 @@ const progressMetricTypeEnum = pgEnum("progress_metric_type", progressMetricType
 const progressionStrategyEnum = pgEnum("progression_strategy", progressionStrategies);
 const programSourceEnum = pgEnum("program_source", programSources);
 const trainingGoalEnum = pgEnum("training_goal", trainingGoals);
+const recoveryStateEnum = pgEnum("recovery_state", recoveryStates);
 const idempotencyStatusEnum = pgEnum("idempotency_status", ["pending", "completed"]);
 
 const timestamps = {
@@ -240,6 +242,7 @@ export const workoutSessions = pgTable(
     durationSeconds: integer("duration_seconds"),
     isPartial: boolean("is_partial").notNull().default(false),
     userEffortFeedback: effortFeedbackEnum("user_effort_feedback"),
+    recoveryState: recoveryStateEnum("recovery_state"),
     programNameSnapshot: text("program_name_snapshot").notNull(),
     workoutNameSnapshot: text("workout_name_snapshot").notNull(),
     ...timestamps

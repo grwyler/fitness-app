@@ -46,6 +46,7 @@ function mapWorkoutSessionRecord(row: typeof workoutSessions.$inferSelect): Work
     durationSeconds: row.durationSeconds,
     isPartial: row.isPartial,
     userEffortFeedback: row.userEffortFeedback,
+    recoveryState: row.recoveryState ?? null,
     programNameSnapshot: row.programNameSnapshot,
     workoutNameSnapshot: row.workoutNameSnapshot,
     createdAt: row.createdAt,
@@ -588,6 +589,7 @@ export class DrizzleWorkoutSessionRepository implements WorkoutSessionRepository
         durationSeconds: input.durationSeconds,
         isPartial: input.isPartial,
         userEffortFeedback: input.userEffortFeedback,
+        recoveryState: input.recoveryState,
         updatedAt: new Date()
       })
       .where(eq(workoutSessions.id, input.sessionId))
@@ -612,6 +614,7 @@ export class DrizzleWorkoutSessionRepository implements WorkoutSessionRepository
         completedAt: null,
         durationSeconds: null,
         userEffortFeedback: null,
+        recoveryState: null,
         updatedAt: new Date()
       })
       .where(eq(workoutSessions.id, input.sessionId))

@@ -3,6 +3,7 @@ import type {
   ExerciseCategory,
   ExperienceLevel,
   ProgressionResult,
+  RecoveryState,
   TrainingGoal
 } from "@fitness/shared";
 
@@ -48,6 +49,7 @@ export type ProgressionComputationInput = {
   performedAt?: Date;
   experienceLevel?: ExperienceLevel | null;
   trainingGoal?: TrainingGoal | null;
+  recoveryState?: RecoveryState | null;
 };
 
 export type ProgressionComputationInputV2 = {
@@ -57,6 +59,7 @@ export type ProgressionComputationInputV2 = {
   performedAt?: Date;
   experienceLevel?: ExperienceLevel | null;
   trainingGoal?: TrainingGoal | null;
+  recoveryState?: RecoveryState | null;
 };
 
 export type ProgressionComputationResult = {

@@ -72,3 +72,6 @@ export const trainingGoals = [
   "maintenance"
 ] as const;
 export type TrainingGoal = (typeof trainingGoals)[number];
+
+export const recoveryStates = ["fresh", "normal", "fatigued", "exhausted"] as const;
+export type RecoveryState = (typeof recoveryStates)[number];

@@ -3,6 +3,7 @@ import type {
   CompleteWorkoutSessionResponse,
   EffortFeedback,
   ProgressionUpdateDto,
+  RecoveryState,
   ProgressionStrategy,
   TrainingGoal,
   ExperienceLevel
@@ -58,6 +59,8 @@ function buildProgressionExplanation(input: {
   trainingGoal: TrainingGoal;
   goalSource: "user" | "program" | "default";
   experienceLevel: ExperienceLevel | null;
+  recoveryState: RecoveryState | null;
+  recoveryInfluenced: boolean;
 }) {
   const reasonCodes: string[] = [];
   const evidence: string[] = [];
@@ -128,6 +131,11 @@ function buildProgressionExplanation(input: {
   if (input.experienceLevel === "intermediate" || input.experienceLevel === "advanced") {
     reasonCodes.push(`EXPERIENCE_${input.experienceLevel.toUpperCase()}`);
     evidence.push(`Experience level: ${input.experienceLevel}`);
+  }
+
+  if (input.recoveryInfluenced && input.recoveryState && input.recoveryState !== "normal") {
+    reasonCodes.push(`RECOVERY_${input.recoveryState.toUpperCase()}`);
+    evidence.push("User reported fatigue/recovery state");
   }
 
   switch (input.result) {
@@ -351,6 +359,7 @@ export class CompleteWorkoutSessionUseCase {
         const progressionGoal: TrainingGoal | null = goalSource === "default" ? null : trainingGoal;
 
         const completedAt = input.request.completedAt ? new Date(input.request.completedAt) : new Date();
+        const recoveryState: RecoveryState | null = input.request.recoveryState ?? null;
         const hasPendingSets = workoutSessionGraph.sets.some((set) => set.status === "pending");
         if (hasPendingSets) {
           await this.workoutSessionRepository.skipPendingWorkoutSets(
@@ -659,6 +668,7 @@ export class CompleteWorkoutSessionUseCase {
             strategy: progressionStrategy,
             experienceLevel,
             trainingGoal: progressionGoal,
+            recoveryState,
             state: {
               currentWeightLbs: progressionStateV2.currentWeightLbs,
               lastCompletedWeightLbs: progressionStateV2.lastCompletedWeightLbs,
@@ -809,6 +819,7 @@ export class CompleteWorkoutSessionUseCase {
           const progressionResult = this.progressionEngine.calculate({
             experienceLevel,
             trainingGoal: progressionGoal,
+            recoveryState,
             state: {
               currentWeightLbs: progressionState.currentWeightLbs,
               lastCompletedWeightLbs: progressionState.lastCompletedWeightLbs,
@@ -1018,7 +1029,8 @@ export class CompleteWorkoutSessionUseCase {
             completedAt,
             durationSeconds,
             isPartial,
-            userEffortFeedback: input.request.userEffortFeedback ?? null
+            userEffortFeedback: input.request.userEffortFeedback ?? null,
+            recoveryState
           },
           { tx }
         );
@@ -1090,7 +1102,9 @@ export class CompleteWorkoutSessionUseCase {
             performedAt: completedAt,
             trainingGoal,
             goalSource,
-            experienceLevel
+            experienceLevel,
+            recoveryState,
+            recoveryInfluenced: recoveryState !== "normal" && progressionResult.reason.includes("recovery=")
           });
 
           progressionUpdates.push(
@@ -1153,7 +1167,9 @@ export class CompleteWorkoutSessionUseCase {
             performedAt: completedAt,
             trainingGoal,
             goalSource,
-            experienceLevel
+            experienceLevel,
+            recoveryState,
+            recoveryInfluenced: recoveryState !== "normal" && progressionResult.reason.includes("recovery=")
           });
 
           progressionUpdates.push(
@@ -1222,7 +1238,9 @@ export class CompleteWorkoutSessionUseCase {
             performedAt: completedAt,
             trainingGoal,
             goalSource,
-            experienceLevel
+            experienceLevel,
+            recoveryState,
+            recoveryInfluenced: recoveryState !== "normal" && reason.includes("recovery=")
           });
 
           progressionUpdates.push(
@@ -1291,7 +1309,9 @@ export class CompleteWorkoutSessionUseCase {
             performedAt: completedAt,
             trainingGoal,
             goalSource,
-            experienceLevel
+            experienceLevel,
+            recoveryState,
+            recoveryInfluenced: recoveryState !== "normal" && reason.includes("recovery=")
           });
 
           progressionUpdates.push(
@@ -1355,7 +1375,9 @@ export class CompleteWorkoutSessionUseCase {
             performedAt: completedAt,
             trainingGoal,
             goalSource,
-            experienceLevel
+            experienceLevel,
+            recoveryState,
+            recoveryInfluenced: recoveryState !== "normal" && reason.includes("recovery=")
           });
 
           const workoutTemplateExerciseEntryId =

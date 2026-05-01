@@ -1,4 +1,10 @@
-import type { EffortFeedback, ExerciseCategory, SetStatus, WorkoutSessionStatus } from "@fitness/shared";
+import type {
+  EffortFeedback,
+  ExerciseCategory,
+  RecoveryState,
+  SetStatus,
+  WorkoutSessionStatus
+} from "@fitness/shared";
 
 export type WorkoutSessionRecord = {
   id: string;
@@ -11,6 +17,7 @@ export type WorkoutSessionRecord = {
   durationSeconds: number | null;
   isPartial: boolean;
   userEffortFeedback: EffortFeedback | null;
+  recoveryState: RecoveryState | null;
   programNameSnapshot: string;
   workoutNameSnapshot: string;
   createdAt: Date;
@@ -102,6 +109,7 @@ export type CompleteWorkoutSessionPersistenceInput = {
   durationSeconds: number;
   isPartial: boolean;
   userEffortFeedback: EffortFeedback | null;
+  recoveryState: RecoveryState | null;
 };
 
 export type CancelWorkoutSessionPersistenceInput = {

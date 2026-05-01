@@ -43,6 +43,7 @@ function createBaseWorkoutSessionGraph(): WorkoutSessionGraph {
       durationSeconds: null,
       isPartial: false,
       userEffortFeedback: null,
+      recoveryState: null,
       programNameSnapshot: "3-Day Full Body Beginner",
       workoutNameSnapshot: "Workout A",
       createdAt: new Date("2026-04-24T10:00:00.000Z"),

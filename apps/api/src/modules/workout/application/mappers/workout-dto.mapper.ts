@@ -90,6 +90,7 @@ export function mapWorkoutSessionDto(graph: WorkoutSessionGraph): WorkoutSession
     status: graph.session.status,
     sessionType: isCustomWorkoutProgramId(graph.session.programId) ? "custom" : "program",
     isPartial: graph.session.isPartial,
+    recoveryState: graph.session.recoveryState,
     programId: graph.session.programId,
     workoutTemplateId: graph.session.workoutTemplateId,
     programName: graph.session.programNameSnapshot,

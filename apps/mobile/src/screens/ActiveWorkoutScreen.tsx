@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import type { ExerciseEntryDto, SetDto } from "@fitness/shared";
-import { Platform, StyleSheet, Text, View } from "react-native";
+import type { ExerciseEntryDto, RecoveryState, SetDto } from "@fitness/shared";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import { Screen } from "../components/Screen";
 import { LoadingState } from "../components/LoadingState";
@@ -87,6 +87,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
   const [submittingSetIds, setSubmittingSetIds] = useState<Record<string, boolean>>({});
   const [deletingSetIds, setDeletingSetIds] = useState<Record<string, boolean>>({});
   const [editingSetId, setEditingSetId] = useState<string | null>(null);
+  const [recoveryState, setRecoveryState] = useState<RecoveryState>("normal");
   const [showFinishEarlyConfirmation, setShowFinishEarlyConfirmation] = useState(false);
   const [showDiscardConfirmation, setShowDiscardConfirmation] = useState(false);
   const [isExercisePickerOpen, setIsExercisePickerOpen] = useState(false);
@@ -462,7 +463,8 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
     setLastAction("complete_workout");
     setShowFinishEarlyConfirmation(false);
     const request = buildCompleteWorkoutRequest(workout, feedbackByEntryId, {
-      finishEarly: completionUiState.hasPendingSets
+      finishEarly: completionUiState.hasPendingSets,
+      recoveryState
     });
 
     completeWorkoutMutation.mutate(
@@ -706,6 +708,27 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
             ? "Choose exercises for this program day, then return to your program."
             : completionUiState.footerMessage}
         </Text>
+        {!isProgramDayCustomWorkoutBuilder && !showDiscardConfirmation ? (
+          <View style={styles.recoveryCard}>
+            <Text style={styles.recoveryLabel}>Recovery</Text>
+            <View style={styles.recoveryPillRow}>
+              {(["fresh", "normal", "fatigued", "exhausted"] as const).map((value) => {
+                const active = recoveryState === value;
+                const label = value === "fatigued" ? "Fatigued" : value === "exhausted" ? "Exhausted" : value === "fresh" ? "Fresh" : "Normal";
+                return (
+                  <Pressable
+                    key={value}
+                    style={[styles.recoveryPill, active && styles.recoveryPillActive]}
+                    onPress={() => setRecoveryState(value)}
+                    disabled={completeWorkoutMutation.isPending || cancelWorkoutMutation.isPending}
+                  >
+                    <Text style={[styles.recoveryPillText, active && styles.recoveryPillTextActive]}>{label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        ) : null}
         {!completionUiState.hasPendingSets && showMissingFeedbackHighlights && !completionUiState.hasCompleteFeedback ? (
           <View style={styles.missingFeedbackCallout}>
             <Text style={styles.missingFeedbackCalloutTitle}>Effort feedback needed</Text>
@@ -931,5 +954,36 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: 14,
     lineHeight: 20
+  },
+  recoveryCard: {
+    gap: spacing.xs
+  },
+  recoveryLabel: {
+    color: colors.textPrimary,
+    fontSize: 13,
+    fontWeight: "600",
+    textTransform: "uppercase"
+  },
+  recoveryPillRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.xs
+  },
+  recoveryPill: {
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: 999,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 8
+  },
+  recoveryPillActive: {
+    backgroundColor: colors.textPrimary
+  },
+  recoveryPillText: {
+    color: colors.textPrimary,
+    fontSize: 13,
+    fontWeight: "600"
+  },
+  recoveryPillTextActive: {
+    color: colors.surface
   }
 });

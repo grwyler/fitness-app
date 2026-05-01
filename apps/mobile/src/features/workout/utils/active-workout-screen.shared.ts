@@ -1,4 +1,5 @@
 import type { CompleteWorkoutSessionRequest, EffortFeedback, WorkoutSessionDto } from "@fitness/shared";
+import type { RecoveryState } from "@fitness/shared";
 
 export type WorkoutCompletionUiState = {
   hasPendingSets: boolean;
@@ -72,6 +73,7 @@ export function buildCompleteWorkoutRequest(
   feedbackByEntryId: Record<string, EffortFeedback | undefined>,
   input: {
     finishEarly: boolean;
+    recoveryState?: RecoveryState;
   }
 ): CompleteWorkoutSessionRequest {
   return {
@@ -81,7 +83,8 @@ export function buildCompleteWorkoutRequest(
         exerciseEntryId: exercise.id,
         effortFeedback: feedbackByEntryId[exercise.id]!
       })),
-    finishEarly: input.finishEarly
+    finishEarly: input.finishEarly,
+    ...(input.recoveryState ? { recoveryState: input.recoveryState } : {})
   };
 }
 
