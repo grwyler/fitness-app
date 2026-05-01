@@ -421,6 +421,120 @@ export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[]
     }
   },
   {
+    name: "Complete workout (double progression) increases rep goal within range and does not affect other template entries",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+
+        await context.db.insert(workoutTemplates).values({
+          id: "template-2b",
+          programId: "program-1",
+          name: "Workout B",
+          category: "Full Body",
+          sequenceOrder: 2,
+          estimatedDurationMinutes: 55,
+          isActive: true,
+          createdAt: new Date("2026-04-24T10:00:00.000Z"),
+          updatedAt: new Date("2026-04-24T10:00:00.000Z")
+        });
+
+        await context.db.insert(workoutTemplateExerciseEntries).values({
+          id: "template-entry-2b",
+          workoutTemplateId: "template-2b",
+          exerciseId: "exercise-1",
+          sequenceOrder: 1,
+          targetSets: 3,
+          targetReps: 8,
+          restSeconds: 120,
+          createdAt: new Date("2026-04-24T10:00:00.000Z"),
+          updatedAt: new Date("2026-04-24T10:00:00.000Z")
+        });
+
+        await context.db.insert(progressionStatesV2).values([
+          {
+            id: "v2-template-1",
+            userId: "user-1",
+            workoutTemplateExerciseEntryId: "template-entry-1",
+            currentWeightLbs: "135.00",
+            lastCompletedWeightLbs: "130.00",
+            repGoal: 8,
+            repRangeMin: 6,
+            repRangeMax: 10,
+            consecutiveFailures: 0,
+            lastEffortFeedback: "just_right",
+            lastPerformedAt: new Date("2026-04-20T10:00:00.000Z"),
+            createdAt: new Date("2026-04-20T10:00:00.000Z"),
+            updatedAt: new Date("2026-04-20T10:00:00.000Z")
+          },
+          {
+            id: "v2-template-2b",
+            userId: "user-1",
+            workoutTemplateExerciseEntryId: "template-entry-2b",
+            currentWeightLbs: "155.00",
+            lastCompletedWeightLbs: "150.00",
+            repGoal: 8,
+            repRangeMin: 6,
+            repRangeMax: 10,
+            consecutiveFailures: 0,
+            lastEffortFeedback: "just_right",
+            lastPerformedAt: new Date("2026-04-20T10:00:00.000Z"),
+            createdAt: new Date("2026-04-20T10:00:00.000Z"),
+            updatedAt: new Date("2026-04-20T10:00:00.000Z")
+          }
+        ]);
+
+        await seedInProgressWorkout(context, {
+          setStatuses: ["completed", "completed", "completed"],
+          actualReps: [8, 8, 8]
+        });
+
+        const useCase = new CompleteWorkoutSessionUseCase(
+          context.repositories.workoutSessionRepository,
+          context.repositories.enrollmentRepository,
+          context.repositories.progressionStateRepository,
+          context.repositories.progressionStateV2Repository,
+          context.repositories.exerciseRepository,
+          context.repositories.progressMetricRepository,
+          context.transactionManager,
+          context.repositories.idempotencyRepository
+        );
+
+        const result = await useCase.execute({
+          context: { userId: "user-1", unitSystem: "imperial" },
+          sessionId: "session-1",
+          request: {
+            completedAt: "2026-04-24T10:45:00.000Z",
+            exerciseFeedback: [
+              {
+                exerciseEntryId: "entry-1",
+                effortFeedback: "just_right"
+              }
+            ],
+            userEffortFeedback: "just_right"
+          },
+          idempotencyKey: "complete-key-double-1"
+        });
+
+        assert.equal(result.data.progressionUpdates[0]?.previousRepGoal, 8);
+        assert.equal(result.data.progressionUpdates[0]?.nextRepGoal, 9);
+        assert.equal(result.data.progressionUpdates[0]?.nextWeight.value, 135);
+
+        const v2Rows = await context.db.select().from(progressionStatesV2);
+        const row1 = v2Rows.find((row) => row.workoutTemplateExerciseEntryId === "template-entry-1");
+        const row2 = v2Rows.find((row) => row.workoutTemplateExerciseEntryId === "template-entry-2b");
+
+        assert.equal(row1?.repGoal, 9);
+        assert.equal(String(row1?.currentWeightLbs), "135.00");
+        assert.equal(row2?.repGoal, 8);
+        assert.equal(String(row2?.currentWeightLbs), "155.00");
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
     name: "Workout history orders completed workouts by completion time",
     run: async () => {
       const context = await createWorkoutInfrastructureTestContext();

@@ -91,6 +91,8 @@ export const workoutSummaryTestCases: MobileTestCase[] = [
             exerciseName: "Bench Press",
             previousWeight: { value: 135, unit: "lb" },
             nextWeight: { value: 140, unit: "lb" },
+            previousRepGoal: 8,
+            nextRepGoal: 8,
             result: "increased",
             reason: "Completed successfully."
           }
@@ -134,6 +136,8 @@ export const workoutSummaryTestCases: MobileTestCase[] = [
           exerciseName: "Bench Press",
           previousWeight: { value: 135, unit: "lb" },
           nextWeight: { value: 135, unit: "lb" },
+          previousRepGoal: 8,
+          nextRepGoal: 8,
           result: "repeated",
           reason: "Keep the same weight."
         }),
@@ -150,6 +154,8 @@ export const workoutSummaryTestCases: MobileTestCase[] = [
           exerciseName: "Pull-Ups",
           previousWeight: { value: 0, unit: "lb" },
           nextWeight: { value: 0, unit: "lb" },
+          previousRepGoal: 8,
+          nextRepGoal: 8,
           result: "skipped",
           reason: "No weight progression because Pull-Ups is weight-optional and you logged 0 lb of external load."
         }),
@@ -168,6 +174,8 @@ export const workoutSummaryTestCases: MobileTestCase[] = [
             exerciseName: "Bench Press",
             previousWeight: { value: 135, unit: "lb" },
             nextWeight: { value: 215, unit: "lb" },
+            previousRepGoal: 8,
+            nextRepGoal: 8,
             result: "recalibrated",
             reason: "Adjusted Bench Press working weight based on your performance."
           }

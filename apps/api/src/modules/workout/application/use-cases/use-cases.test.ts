@@ -989,7 +989,7 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         workoutSessionRepository,
         enrollmentRepository,
         progressionStateRepository,
-        progressionStateV2Repository,
+        defaultProgressionStateV2Repository,
         exerciseRepository,
         new MockTransactionManager(),
         idempotency.repository

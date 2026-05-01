@@ -281,6 +281,8 @@ export function mapProgressionUpdateDto(input: {
   exerciseName: string;
   previousWeightLbs: number;
   nextWeightLbs: number;
+  previousRepGoal: number;
+  nextRepGoal: number;
   result: ProgressionUpdateDto["result"];
   reason: string;
 }): ProgressionUpdateDto {
@@ -289,6 +291,8 @@ export function mapProgressionUpdateDto(input: {
     exerciseName: input.exerciseName,
     previousWeight: toWeightValueDto(input.previousWeightLbs),
     nextWeight: toWeightValueDto(input.nextWeightLbs),
+    previousRepGoal: input.previousRepGoal,
+    nextRepGoal: input.nextRepGoal,
     result: input.result,
     reason: input.reason
   };

@@ -213,6 +213,8 @@ export type ProgressionUpdateDto = {
   exerciseName: string;
   previousWeight: WeightValueDto;
   nextWeight: WeightValueDto;
+  previousRepGoal: number;
+  nextRepGoal: number;
   result: ProgressionResult;
   reason: string;
 };
