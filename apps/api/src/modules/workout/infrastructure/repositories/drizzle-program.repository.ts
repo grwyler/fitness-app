@@ -172,6 +172,7 @@ export class DrizzleProgramRepository implements ProgramRepository {
             repRangeMin: exercise.repRangeMin ?? null,
             repRangeMax: exercise.repRangeMax ?? null,
             restSeconds: exercise.restSeconds,
+            progressionStrategy: exercise.progressionStrategy ?? null,
             createdAt: input.createdAt,
             updatedAt: input.createdAt
           }))
@@ -292,6 +293,7 @@ export class DrizzleProgramRepository implements ProgramRepository {
           repRangeMin: exercise.repRangeMin ?? null,
           repRangeMax: exercise.repRangeMax ?? null,
           restSeconds: exercise.restSeconds,
+          progressionStrategy: exercise.progressionStrategy ?? null,
           createdAt: input.updatedAt,
           updatedAt: input.updatedAt
         }))
@@ -412,7 +414,8 @@ export class DrizzleProgramRepository implements ProgramRepository {
         targetReps: row.templateExercise.targetReps,
         repRangeMin: row.templateExercise.repRangeMin ?? null,
         repRangeMax: row.templateExercise.repRangeMax ?? null,
-        restSeconds: row.templateExercise.restSeconds
+        restSeconds: row.templateExercise.restSeconds,
+        progressionStrategy: row.templateExercise.progressionStrategy ?? null
       });
       exercisesByTemplateId.set(row.templateExercise.workoutTemplateId, existing);
     }

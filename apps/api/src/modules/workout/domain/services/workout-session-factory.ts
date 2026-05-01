@@ -56,7 +56,8 @@ export class WorkoutSessionFactory {
           exerciseNameSnapshot: exercise.name,
           exerciseCategorySnapshot: exercise.category,
           progressionRuleSnapshot: {
-            incrementLbs: exercise.defaultIncrementLbs
+            incrementLbs: exercise.defaultIncrementLbs,
+            progressionStrategy: templateExercise.progressionStrategy ?? null
           }
         };
       });

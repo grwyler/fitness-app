@@ -54,3 +54,12 @@ export type ProgressionResult = (typeof progressionResults)[number];
 
 export const progressionConfidenceLevels = ["low", "medium", "high"] as const;
 export type ProgressionConfidence = (typeof progressionConfidenceLevels)[number];
+
+export const progressionStrategies = [
+  "fixed_weight",
+  "double_progression",
+  "bodyweight_reps",
+  "bodyweight_weighted",
+  "no_progression"
+] as const;
+export type ProgressionStrategy = (typeof progressionStrategies)[number];

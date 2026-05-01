@@ -1106,4 +1106,158 @@ export const progressionEngineTestCases: DomainTestCase[] = [
       assert.match(result.reason, /too hard/i);
     }
   }
+  ,
+  {
+    name: "ProgressionEngine (strategy) no_progression always returns skipped with a clear reason",
+    run: () => {
+      const result = engine.calculateWithStrategyV2({
+        strategy: "no_progression",
+        performedAt: new Date("2026-05-01T10:00:00.000Z"),
+        state: {
+          currentWeightLbs: 135,
+          lastCompletedWeightLbs: 130,
+          consecutiveFailures: 0,
+          lastEffortFeedback: "just_right",
+          lastPerformedAt: new Date("2026-04-28T10:00:00.000Z"),
+          repGoal: 8,
+          repRangeMin: 6,
+          repRangeMax: 10
+        },
+        exercise: {
+          exerciseName: "Bench Press",
+          exerciseCategory: "compound",
+          incrementLbs: 5,
+          isBodyweight: false,
+          isWeightOptional: false
+        },
+        outcome: {
+          effortFeedback: "just_right",
+          sets: [
+            { targetReps: 8, actualReps: 8, targetWeightLbs: 135, actualWeightLbs: 135 },
+            { targetReps: 8, actualReps: 8, targetWeightLbs: 135, actualWeightLbs: 135 },
+            { targetReps: 8, actualReps: 8, targetWeightLbs: 135, actualWeightLbs: 135 }
+          ]
+        }
+      });
+
+      assert.equal(result.result, "skipped");
+      assert.match(result.reason, /no_progression/i);
+      assert.equal(result.nextWeightLbs, 135);
+      assert.equal(result.nextRepGoal, 8);
+    }
+  },
+  {
+    name: "ProgressionEngine (strategy) fixed_weight increases weight but keeps rep goal fixed",
+    run: () => {
+      const result = engine.calculateWithStrategyV2({
+        strategy: "fixed_weight",
+        performedAt: new Date("2026-05-01T10:00:00.000Z"),
+        state: {
+          currentWeightLbs: 135,
+          lastCompletedWeightLbs: 130,
+          consecutiveFailures: 0,
+          lastEffortFeedback: "just_right",
+          lastPerformedAt: new Date("2026-04-28T10:00:00.000Z"),
+          repGoal: 5,
+          repRangeMin: 5,
+          repRangeMax: 5
+        },
+        exercise: {
+          exerciseName: "Bench Press",
+          exerciseCategory: "compound",
+          incrementLbs: 5,
+          isBodyweight: false,
+          isWeightOptional: false
+        },
+        outcome: {
+          effortFeedback: "just_right",
+          sets: [
+            { targetReps: 5, actualReps: 5, targetWeightLbs: 135, actualWeightLbs: 135 },
+            { targetReps: 5, actualReps: 5, targetWeightLbs: 135, actualWeightLbs: 135 },
+            { targetReps: 5, actualReps: 5, targetWeightLbs: 135, actualWeightLbs: 135 }
+          ]
+        }
+      });
+
+      assert.equal(result.result, "increased");
+      assert.equal(result.nextWeightLbs, 140);
+      assert.equal(result.nextRepGoal, 5);
+    }
+  },
+  {
+    name: "ProgressionEngine (strategy) bodyweight_reps increases rep goal and never increases weight",
+    run: () => {
+      const result = engine.calculateWithStrategyV2({
+        strategy: "bodyweight_reps",
+        performedAt: new Date("2026-05-01T10:00:00.000Z"),
+        state: {
+          currentWeightLbs: 0,
+          lastCompletedWeightLbs: null,
+          consecutiveFailures: 0,
+          lastEffortFeedback: "just_right",
+          lastPerformedAt: new Date("2026-04-28T10:00:00.000Z"),
+          repGoal: 8,
+          repRangeMin: 6,
+          repRangeMax: 10
+        },
+        exercise: {
+          exerciseName: "Push Up",
+          exerciseCategory: "accessory",
+          incrementLbs: 5,
+          isBodyweight: true,
+          isWeightOptional: false
+        },
+        outcome: {
+          effortFeedback: "just_right",
+          sets: [
+            { targetReps: 8, actualReps: 8, targetWeightLbs: 0, actualWeightLbs: 0 },
+            { targetReps: 8, actualReps: 9, targetWeightLbs: 0, actualWeightLbs: 0 },
+            { targetReps: 8, actualReps: 10, targetWeightLbs: 0, actualWeightLbs: 0 }
+          ]
+        }
+      });
+
+      assert.equal(result.result, "increased");
+      assert.equal(result.nextWeightLbs, 0);
+      assert.equal(result.nextRepGoal, 9);
+    }
+  },
+  {
+    name: "ProgressionEngine (strategy) bodyweight_weighted can progress from 0 external load without skipping",
+    run: () => {
+      const result = engine.calculateWithStrategyV2({
+        strategy: "bodyweight_weighted",
+        performedAt: new Date("2026-05-01T10:00:00.000Z"),
+        state: {
+          currentWeightLbs: 0,
+          lastCompletedWeightLbs: null,
+          consecutiveFailures: 0,
+          lastEffortFeedback: "just_right",
+          lastPerformedAt: new Date("2026-04-28T10:00:00.000Z"),
+          repGoal: 10,
+          repRangeMin: 6,
+          repRangeMax: 10
+        },
+        exercise: {
+          exerciseName: "Pull Up",
+          exerciseCategory: "compound",
+          incrementLbs: 5,
+          isBodyweight: true,
+          isWeightOptional: true
+        },
+        outcome: {
+          effortFeedback: "just_right",
+          sets: [
+            { targetReps: 10, actualReps: 10, targetWeightLbs: 0, actualWeightLbs: 0 },
+            { targetReps: 10, actualReps: 10, targetWeightLbs: 0, actualWeightLbs: 0 },
+            { targetReps: 10, actualReps: 10, targetWeightLbs: 0, actualWeightLbs: 0 }
+          ]
+        }
+      });
+
+      assert.equal(result.result, "increased");
+      assert.equal(result.nextWeightLbs, 5);
+      assert.equal(result.nextRepGoal, 6);
+    }
+  }
 ];

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { effortFeedbackValues, unitSystems } from "@fitness/shared";
+import { effortFeedbackValues, progressionStrategies, unitSystems } from "@fitness/shared";
 
 const weightValueSchema = z.object({
   value: z.number().finite().min(0),
@@ -32,7 +32,8 @@ const createCustomProgramExerciseSchema = z.object({
   targetReps: z.number().int().min(1).max(100),
   repRangeMin: z.number().int().min(1).max(100).nullable().optional(),
   repRangeMax: z.number().int().min(1).max(100).nullable().optional(),
-  restSeconds: z.number().int().min(0).max(1800).nullable().optional()
+  restSeconds: z.number().int().min(0).max(1800).nullable().optional(),
+  progressionStrategy: z.enum(progressionStrategies).nullable().optional()
 }).superRefine((value, ctx) => {
   const min = value.repRangeMin ?? null;
   const max = value.repRangeMax ?? null;

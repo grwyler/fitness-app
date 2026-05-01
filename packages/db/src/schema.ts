@@ -21,6 +21,7 @@ import {
   exerciseCategories,
   programSources,
   progressMetricTypes,
+  progressionStrategies,
   setStatuses,
   unitSystems,
   workoutSessionStatuses
@@ -34,6 +35,7 @@ const workoutSessionStatusEnum = pgEnum("workout_session_status", workoutSession
 const effortFeedbackEnum = pgEnum("effort_feedback", effortFeedbackValues);
 const setStatusEnum = pgEnum("set_status", setStatuses);
 const progressMetricTypeEnum = pgEnum("progress_metric_type", progressMetricTypes);
+const progressionStrategyEnum = pgEnum("progression_strategy", progressionStrategies);
 const programSourceEnum = pgEnum("program_source", programSources);
 const idempotencyStatusEnum = pgEnum("idempotency_status", ["pending", "completed"]);
 
@@ -195,6 +197,7 @@ export const workoutTemplateExerciseEntries = pgTable(
     repRangeMin: integer("rep_range_min"),
     repRangeMax: integer("rep_range_max"),
     restSeconds: integer("rest_seconds"),
+    progressionStrategy: progressionStrategyEnum("progression_strategy"),
     ...timestamps
   },
   (table) => ({

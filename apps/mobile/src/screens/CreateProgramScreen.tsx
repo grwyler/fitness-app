@@ -161,12 +161,7 @@ export function CreateProgramScreen({ navigation, route }: Props) {
   }
 
   function assignCustomWorkoutToDay(input: {
-    requests: Array<{
-      exerciseId: string;
-      targetSets: number;
-      targetReps: number;
-      targetWeight?: { value: number; unit: "lb" };
-    }>;
+    requests: AddCustomWorkoutExerciseRequest[];
   }) {
     if (!customWorkoutDayNumber) {
       return;
@@ -217,6 +212,7 @@ export function CreateProgramScreen({ navigation, route }: Props) {
           sequenceOrder: index + 1,
           targetSets: request.targetSets,
           targetReps: request.targetReps,
+          ...(request.progressionStrategy ? { progressionStrategy: request.progressionStrategy } : {}),
           restSeconds: null
         };
       })

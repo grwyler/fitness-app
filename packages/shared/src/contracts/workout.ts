@@ -6,6 +6,7 @@ import type {
   ProgressMetricType,
   ProgressionResult,
   ProgressionConfidence,
+  ProgressionStrategy,
   EnrollmentStatus,
   SetStatus,
   UnitSystem,
@@ -117,6 +118,7 @@ export type ProgramWorkoutExerciseDto = {
   repRangeMin?: number;
   repRangeMax?: number;
   restSeconds: number | null;
+  progressionStrategy?: ProgressionStrategy;
 };
 
 export type ProgramWorkoutTemplateDto = {
@@ -146,6 +148,7 @@ export type CreateCustomProgramExerciseRequest = {
   repRangeMin?: number;
   repRangeMax?: number;
   restSeconds?: number | null;
+  progressionStrategy?: ProgressionStrategy;
 };
 
 export type CreateCustomProgramWorkoutRequest = {
@@ -278,6 +281,7 @@ export type AddCustomWorkoutExerciseRequest = {
   repRangeMax?: number;
   targetWeight?: WeightValueDto;
   restSeconds?: number | null;
+  progressionStrategy?: ProgressionStrategy;
 };
 
 export type AddWorkoutSetRequest = Record<string, never>;

@@ -127,6 +127,7 @@ create table workout_template_exercise_entries (
   rep_range_min integer,
   rep_range_max integer,
   rest_seconds integer,
+  progression_strategy text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -783,6 +784,7 @@ export {
   progressionRecommendationEvents,
   progressionStates,
   progressionStatesV2,
+  sets,
   userProgramEnrollments,
   workoutTemplateExerciseEntries,
   workoutTemplates,

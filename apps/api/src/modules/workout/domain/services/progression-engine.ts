@@ -1,4 +1,4 @@
-import { MATERIAL_OVERPERFORMANCE_MULTIPLIER, type ExerciseCategory } from "@fitness/shared";
+import { MATERIAL_OVERPERFORMANCE_MULTIPLIER, type ExerciseCategory, type ProgressionStrategy } from "@fitness/shared";
 import type {
   ProgressionComputationInput,
   ProgressionComputationResult,
@@ -90,6 +90,53 @@ function hasEffectiveFailure(outcome: ExerciseWorkoutOutcome) {
 }
 
 export class ProgressionEngine {
+  public calculateWithStrategyV2(
+    input: ProgressionComputationInputV2 & { strategy: ProgressionStrategy }
+  ): ProgressionComputationResultV2 {
+    switch (input.strategy) {
+      case "double_progression": {
+        return this.calculateDoubleProgression(input);
+      }
+      case "fixed_weight": {
+        return this.calculateFixedWeight(input);
+      }
+      case "bodyweight_reps": {
+        return this.calculateBodyweightReps(input);
+      }
+      case "bodyweight_weighted": {
+        return this.calculateBodyweightWeighted(input);
+      }
+      case "no_progression": {
+        const { state, outcome } = input;
+        const previousWeightLbs = roundToTwoDecimals(state.currentWeightLbs);
+        const previousRepGoal = state.repGoal;
+        const repRangeMin = state.repRangeMin;
+        const repRangeMax = state.repRangeMax;
+
+        const nextState: ProgressionStateSnapshotV2 = {
+          currentWeightLbs: previousWeightLbs,
+          lastCompletedWeightLbs: state.lastCompletedWeightLbs,
+          consecutiveFailures: state.consecutiveFailures,
+          lastEffortFeedback: outcome.effortFeedback,
+          lastPerformedAt: state.lastPerformedAt ?? null,
+          repGoal: previousRepGoal,
+          repRangeMin,
+          repRangeMax
+        };
+
+        return {
+          previousWeightLbs,
+          nextWeightLbs: previousWeightLbs,
+          previousRepGoal,
+          nextRepGoal: previousRepGoal,
+          result: "skipped",
+          reason: "Progression skipped because this exercise is marked no_progression.",
+          nextState
+        };
+      }
+    }
+  }
+
   public calculate(input: ProgressionComputationInput): ProgressionComputationResult {
     const { exercise, outcome, state } = input;
     const previousWeightLbs = roundToTwoDecimals(state.currentWeightLbs);
@@ -442,6 +489,296 @@ export class ProgressionEngine {
       nextRepGoal,
       result: "increased",
       reason: `Increased weight from ${previousWeightLbs} to ${nextWeightLbs} and reset reps to ${repRangeMin}.`,
+      nextState
+    };
+  }
+
+  private calculateFixedWeight(input: ProgressionComputationInputV2): ProgressionComputationResultV2 {
+    const { state, outcome, exercise } = input;
+
+    const fixedRepGoal = state.repGoal;
+    const repRangeMin = state.repRangeMin;
+    const repRangeMax = state.repRangeMax;
+
+    const base = this.calculate({
+      ...(input.performedAt ? { performedAt: input.performedAt } : {}),
+      state: {
+        currentWeightLbs: state.currentWeightLbs,
+        lastCompletedWeightLbs: state.lastCompletedWeightLbs,
+        consecutiveFailures: state.consecutiveFailures,
+        lastEffortFeedback: state.lastEffortFeedback,
+        lastPerformedAt: state.lastPerformedAt ?? null
+      },
+      exercise,
+      outcome: {
+        effortFeedback: outcome.effortFeedback,
+        ...(outcome.sets ? { sets: outcome.sets } : {}),
+        ...(typeof outcome.hasFailure === "boolean" ? { hasFailure: outcome.hasFailure } : {})
+      }
+    });
+
+    const nextState: ProgressionStateSnapshotV2 = {
+      currentWeightLbs: base.nextState.currentWeightLbs,
+      lastCompletedWeightLbs: base.nextState.lastCompletedWeightLbs,
+      consecutiveFailures: base.nextState.consecutiveFailures,
+      lastEffortFeedback: base.nextState.lastEffortFeedback,
+      lastPerformedAt: base.nextState.lastPerformedAt ?? null,
+      repGoal: fixedRepGoal,
+      repRangeMin,
+      repRangeMax
+    };
+
+    return {
+      previousWeightLbs: base.previousWeightLbs,
+      nextWeightLbs: base.nextWeightLbs,
+      previousRepGoal: fixedRepGoal,
+      nextRepGoal: fixedRepGoal,
+      result: base.result,
+      reason: base.reason,
+      nextState
+    };
+  }
+
+  private calculateBodyweightWeighted(input: ProgressionComputationInputV2): ProgressionComputationResultV2 {
+    const { state, exercise } = input;
+
+    if (exercise.isBodyweight && !exercise.isWeightOptional) {
+      const previousWeightLbs = roundToTwoDecimals(state.currentWeightLbs);
+      const previousRepGoal = state.repGoal;
+      const repRangeMin = state.repRangeMin;
+      const repRangeMax = state.repRangeMax;
+
+      const nextState: ProgressionStateSnapshotV2 = {
+        currentWeightLbs: previousWeightLbs,
+        lastCompletedWeightLbs: state.lastCompletedWeightLbs,
+        consecutiveFailures: state.consecutiveFailures,
+        lastEffortFeedback: input.outcome.effortFeedback,
+        lastPerformedAt: state.lastPerformedAt ?? null,
+        repGoal: previousRepGoal,
+        repRangeMin,
+        repRangeMax
+      };
+
+      return {
+        previousWeightLbs,
+        nextWeightLbs: previousWeightLbs,
+        previousRepGoal,
+        nextRepGoal: previousRepGoal,
+        result: "skipped",
+        reason: `No progression because ${exercise.exerciseName} is a bodyweight movement and weighted progression is not enabled.`,
+        nextState
+      };
+    }
+
+    // Unlike double progression, allow progression to proceed when current external load is 0.
+    const nextExercise = {
+      ...exercise,
+      isWeightOptional: false
+    };
+
+    return this.calculateDoubleProgression({
+      ...input,
+      exercise: nextExercise
+    });
+  }
+
+  private calculateBodyweightReps(input: ProgressionComputationInputV2): ProgressionComputationResultV2 {
+    const { exercise, outcome, state } = input;
+
+    const previousWeightLbs = roundToTwoDecimals(state.currentWeightLbs);
+    const previousRepGoal = state.repGoal;
+    const repRangeMin = state.repRangeMin;
+    const repRangeMax = state.repRangeMax;
+    const lastPerformedAt = state.lastPerformedAt ?? null;
+
+    if (!Number.isInteger(previousRepGoal) || !Number.isInteger(repRangeMin) || !Number.isInteger(repRangeMax)) {
+      throw new Error("repGoal, repRangeMin, and repRangeMax must be integers.");
+    }
+
+    if (repRangeMin <= 0) {
+      throw new Error("repRangeMin must be greater than 0.");
+    }
+
+    if (repRangeMax < repRangeMin) {
+      throw new Error("repRangeMax must be greater than or equal to repRangeMin.");
+    }
+
+    if (previousRepGoal < repRangeMin || previousRepGoal > repRangeMax) {
+      throw new Error("repGoal must be within the rep range.");
+    }
+
+    if (!outcome.sets || outcome.sets.length === 0) {
+      throw new Error("bodyweight_reps requires per-set outcomes.");
+    }
+
+    if (exercise.isBodyweight && exercise.isWeightOptional && previousWeightLbs > 0) {
+      // If the user is logging external load, steer them toward bodyweight_weighted.
+      const nextState: ProgressionStateSnapshotV2 = {
+        currentWeightLbs: previousWeightLbs,
+        lastCompletedWeightLbs: state.lastCompletedWeightLbs,
+        consecutiveFailures: state.consecutiveFailures,
+        lastEffortFeedback: outcome.effortFeedback,
+        lastPerformedAt,
+        repGoal: previousRepGoal,
+        repRangeMin,
+        repRangeMax
+      };
+
+      return {
+        previousWeightLbs,
+        nextWeightLbs: previousWeightLbs,
+        previousRepGoal,
+        nextRepGoal: previousRepGoal,
+        result: "skipped",
+        reason: `No reps-only progression because ${exercise.exerciseName} is tracking external load; use bodyweight_weighted instead.`,
+        nextState
+      };
+    }
+
+    const hasBelowRangeMin = outcome.sets.some(
+      (set) => (set.actualReps ?? 0) < repRangeMin && !isMaterialOverperformanceSet(set)
+    );
+    if (hasBelowRangeMin) {
+      const nextFailureCount = state.consecutiveFailures + 1;
+      if (nextFailureCount >= 2) {
+        const nextRepGoal = repRangeMin;
+        const nextState: ProgressionStateSnapshotV2 = {
+          currentWeightLbs: previousWeightLbs,
+          lastCompletedWeightLbs: state.lastCompletedWeightLbs,
+          consecutiveFailures: 0,
+          lastEffortFeedback: outcome.effortFeedback,
+          lastPerformedAt,
+          repGoal: nextRepGoal,
+          repRangeMin,
+          repRangeMax
+        };
+
+        return {
+          previousWeightLbs,
+          nextWeightLbs: previousWeightLbs,
+          previousRepGoal,
+          nextRepGoal,
+          result: "reduced",
+          reason: "Reduced reps after consecutive failures and reset to the bottom of the range.",
+          nextState
+        };
+      }
+
+      const nextState: ProgressionStateSnapshotV2 = {
+        currentWeightLbs: previousWeightLbs,
+        lastCompletedWeightLbs: state.lastCompletedWeightLbs,
+        consecutiveFailures: nextFailureCount,
+        lastEffortFeedback: outcome.effortFeedback,
+        lastPerformedAt,
+        repGoal: previousRepGoal,
+        repRangeMin,
+        repRangeMax
+      };
+
+      return {
+        previousWeightLbs,
+        nextWeightLbs: previousWeightLbs,
+        previousRepGoal,
+        nextRepGoal: previousRepGoal,
+        result: "repeated",
+        reason: "Repeated because reps were below the target range minimum.",
+        nextState
+      };
+    }
+
+    const metRepGoal = outcome.sets.every(
+      (set) => (set.actualReps ?? 0) >= previousRepGoal || isMaterialOverperformanceSet(set)
+    );
+    if (!metRepGoal) {
+      const nextState: ProgressionStateSnapshotV2 = {
+        currentWeightLbs: previousWeightLbs,
+        lastCompletedWeightLbs: state.lastCompletedWeightLbs,
+        consecutiveFailures: 0,
+        lastEffortFeedback: outcome.effortFeedback,
+        lastPerformedAt,
+        repGoal: previousRepGoal,
+        repRangeMin,
+        repRangeMax
+      };
+
+      return {
+        previousWeightLbs,
+        nextWeightLbs: previousWeightLbs,
+        previousRepGoal,
+        nextRepGoal: previousRepGoal,
+        result: "repeated",
+        reason: `Repeated because reps were below the current rep goal of ${previousRepGoal} within range ${repRangeMin}–${repRangeMax}.`,
+        nextState
+      };
+    }
+
+    if (outcome.effortFeedback === "too_hard") {
+      const nextState: ProgressionStateSnapshotV2 = {
+        currentWeightLbs: previousWeightLbs,
+        lastCompletedWeightLbs: previousWeightLbs,
+        consecutiveFailures: 0,
+        lastEffortFeedback: outcome.effortFeedback,
+        lastPerformedAt,
+        repGoal: previousRepGoal,
+        repRangeMin,
+        repRangeMax
+      };
+
+      return {
+        previousWeightLbs,
+        nextWeightLbs: previousWeightLbs,
+        previousRepGoal,
+        nextRepGoal: previousRepGoal,
+        result: "repeated",
+        reason: "Repeated because effort was marked too hard.",
+        nextState
+      };
+    }
+
+    if (previousRepGoal < repRangeMax) {
+      const increaseSteps =
+        repRangeMax > repRangeMin ? getSuccessIncreaseStepCount(exercise.exerciseCategory, outcome.effortFeedback) : 1;
+      const nextRepGoal = clampInteger(previousRepGoal + increaseSteps, repRangeMin, repRangeMax);
+      const nextState: ProgressionStateSnapshotV2 = {
+        currentWeightLbs: previousWeightLbs,
+        lastCompletedWeightLbs: previousWeightLbs,
+        consecutiveFailures: 0,
+        lastEffortFeedback: outcome.effortFeedback,
+        lastPerformedAt,
+        repGoal: nextRepGoal,
+        repRangeMin,
+        repRangeMax
+      };
+
+      return {
+        previousWeightLbs,
+        nextWeightLbs: previousWeightLbs,
+        previousRepGoal,
+        nextRepGoal,
+        result: "increased",
+        reason: `Increased reps from ${previousRepGoal} to ${nextRepGoal} within range ${repRangeMin}–${repRangeMax}.`,
+        nextState
+      };
+    }
+
+    const nextState: ProgressionStateSnapshotV2 = {
+      currentWeightLbs: previousWeightLbs,
+      lastCompletedWeightLbs: previousWeightLbs,
+      consecutiveFailures: 0,
+      lastEffortFeedback: outcome.effortFeedback,
+      lastPerformedAt,
+      repGoal: previousRepGoal,
+      repRangeMin,
+      repRangeMax
+    };
+
+    return {
+      previousWeightLbs,
+      nextWeightLbs: previousWeightLbs,
+      previousRepGoal,
+      nextRepGoal: previousRepGoal,
+      result: "repeated",
+      reason: `Repeated because reps are already at the top of the range ${repRangeMin}–${repRangeMax}.`,
       nextState
     };
   }

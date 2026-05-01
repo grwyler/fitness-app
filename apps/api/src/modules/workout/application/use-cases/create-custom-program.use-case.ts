@@ -29,7 +29,8 @@ function buildCreateCustomProgramFingerprint(request: CreateCustomProgramRequest
         targetReps: exercise.targetReps,
         repRangeMin: exercise.repRangeMin ?? null,
         repRangeMax: exercise.repRangeMax ?? null,
-        restSeconds: exercise.restSeconds ?? null
+        restSeconds: exercise.restSeconds ?? null,
+        progressionStrategy: exercise.progressionStrategy ?? null
       }))
     }))
   });
@@ -105,7 +106,8 @@ function validateCreateCustomProgramRequest(request: CreateCustomProgramRequest)
           targetReps: exercise.targetReps,
           repRangeMin,
           repRangeMax,
-          restSeconds: exercise.restSeconds ?? null
+          restSeconds: exercise.restSeconds ?? null,
+          progressionStrategy: exercise.progressionStrategy ?? null
         };
       })
     };

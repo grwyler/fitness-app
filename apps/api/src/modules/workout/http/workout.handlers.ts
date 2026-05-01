@@ -122,6 +122,9 @@ export function createWorkoutHandlers(dependencies: {
             exerciseId: exercise.exerciseId,
             targetSets: exercise.targetSets,
             targetReps: exercise.targetReps,
+            ...(exercise.repRangeMin != null ? { repRangeMin: exercise.repRangeMin } : {}),
+            ...(exercise.repRangeMax != null ? { repRangeMax: exercise.repRangeMax } : {}),
+            ...(exercise.progressionStrategy != null ? { progressionStrategy: exercise.progressionStrategy } : {}),
             ...(exercise.restSeconds !== undefined ? { restSeconds: exercise.restSeconds } : {})
           }))
         }))
@@ -147,6 +150,9 @@ export function createWorkoutHandlers(dependencies: {
             exerciseId: exercise.exerciseId,
             targetSets: exercise.targetSets,
             targetReps: exercise.targetReps,
+            ...(exercise.repRangeMin != null ? { repRangeMin: exercise.repRangeMin } : {}),
+            ...(exercise.repRangeMax != null ? { repRangeMax: exercise.repRangeMax } : {}),
+            ...(exercise.progressionStrategy != null ? { progressionStrategy: exercise.progressionStrategy } : {}),
             ...(exercise.restSeconds !== undefined ? { restSeconds: exercise.restSeconds } : {})
           }))
         }))

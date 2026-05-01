@@ -1,4 +1,4 @@
-import type { ExerciseCategory, PredefinedWorkoutCategory } from "@fitness/shared";
+import type { ExerciseCategory, PredefinedWorkoutCategory, ProgressionStrategy } from "@fitness/shared";
 
 export type ExerciseRecord = {
   id: string;
@@ -42,6 +42,7 @@ export type WorkoutTemplateExerciseRecord = {
   repRangeMin?: number | null;
   repRangeMax?: number | null;
   restSeconds: number | null;
+  progressionStrategy?: ProgressionStrategy | null;
   createdAt: Date;
   updatedAt: Date;
 };

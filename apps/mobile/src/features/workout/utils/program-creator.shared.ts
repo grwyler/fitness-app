@@ -159,7 +159,8 @@ export function buildAssignedProgramRequest(input: {
               ...(exercise.repRangeMin != null && exercise.repRangeMax != null && exercise.repRangeMax > exercise.repRangeMin
                 ? { repRangeMin: exercise.repRangeMin, repRangeMax: exercise.repRangeMax }
                 : {}),
-              ...(exercise.restSeconds !== null ? { restSeconds: exercise.restSeconds } : {})
+              ...(exercise.restSeconds !== null ? { restSeconds: exercise.restSeconds } : {}),
+              ...(exercise.progressionStrategy ? { progressionStrategy: exercise.progressionStrategy } : {})
             }))
         };
       })
@@ -242,7 +243,8 @@ export function buildCustomWorkoutExerciseRequestsFromProgramWorkout(
       ...(exercise.repRangeMin != null && exercise.repRangeMax != null && exercise.repRangeMax > exercise.repRangeMin
         ? { repRangeMin: exercise.repRangeMin, repRangeMax: exercise.repRangeMax }
         : {}),
-      ...(exercise.restSeconds !== null ? { restSeconds: exercise.restSeconds } : {})
+      ...(exercise.restSeconds !== null ? { restSeconds: exercise.restSeconds } : {}),
+      ...(exercise.progressionStrategy ? { progressionStrategy: exercise.progressionStrategy } : {})
     }));
 }
 

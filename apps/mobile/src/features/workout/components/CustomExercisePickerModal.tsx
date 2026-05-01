@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { AddCustomWorkoutExerciseRequest, ExerciseCatalogItemDto } from "@fitness/shared";
+import type { AddCustomWorkoutExerciseRequest, ExerciseCatalogItemDto, ProgressionStrategy } from "@fitness/shared";
+import { progressionStrategies } from "@fitness/shared";
 import {
   FlatList,
   Keyboard,
@@ -30,6 +31,7 @@ type ExerciseConfigDraft = {
   targetSetsText: string;
   targetRepsText: string;
   targetWeightText: string;
+  progressionStrategy: ProgressionStrategy;
 };
 
 type FilterOption = {
@@ -91,11 +93,23 @@ function buildDefaultConfig(exercise: ExerciseCatalogItemDto): ExerciseConfigDra
   const sets = exercise.defaultTargetSets ?? CUSTOM_WORKOUT_DEFAULT_TARGET_SETS;
   const reps = exercise.defaultTargetReps ?? CUSTOM_WORKOUT_DEFAULT_TARGET_REPS;
   const weight = exercise.defaultStartingWeight.value;
+  const progressionStrategy: ProgressionStrategy = (() => {
+    if (!exercise.isProgressionEligible) {
+      return "no_progression";
+    }
+
+    if (exercise.isBodyweight) {
+      return exercise.isWeightOptional ? "bodyweight_weighted" : "bodyweight_reps";
+    }
+
+    return "double_progression";
+  })();
 
   return {
     targetSetsText: String(sets),
     targetRepsText: String(reps),
-    targetWeightText: exercise.isWeightOptional && weight === 0 ? "" : String(weight)
+    targetWeightText: exercise.isWeightOptional && weight === 0 ? "" : String(weight),
+    progressionStrategy
   };
 }
 
@@ -215,6 +229,10 @@ export function CustomExercisePickerModal(props: {
             request.repRangeMin != null && request.repRangeMax != null && request.repRangeMax > request.repRangeMin
               ? `${request.repRangeMin}-${request.repRangeMax}`
               : String(request.targetReps),
+          ...(request.progressionStrategy &&
+          (progressionStrategies as readonly string[]).includes(request.progressionStrategy)
+            ? { progressionStrategy: request.progressionStrategy }
+            : {}),
           ...(request.targetWeight ? { targetWeightText: String(request.targetWeight.value) } : {})
         };
         didChange = true;
@@ -380,7 +398,12 @@ export function CustomExercisePickerModal(props: {
       return { ok: false, message: "Weight is required for this exercise." };
     }
 
-    return { ok: true as const, sets, reps, repRangeMin, repRangeMax, weight };
+    const strategy = activeExerciseConfig.progressionStrategy;
+    if (!(progressionStrategies as readonly string[]).includes(strategy)) {
+      return { ok: false, message: "Choose a valid progression strategy." };
+    }
+
+    return { ok: true as const, sets, reps, repRangeMin, repRangeMax, weight, strategy };
   }
 
   function updateActiveConfig(patch: Partial<ExerciseConfigDraft>) {
@@ -428,7 +451,8 @@ export function CustomExercisePickerModal(props: {
         ...(repRangeMin !== null && repRangeMax !== null && repRangeMax > repRangeMin
           ? { repRangeMin, repRangeMax }
           : {}),
-        ...(weight !== null ? { targetWeight: { value: weight, unit: "lb" } } : {})
+        ...(weight !== null ? { targetWeight: { value: weight, unit: "lb" } } : {}),
+        progressionStrategy: config.progressionStrategy
       };
     });
 
@@ -676,7 +700,12 @@ export function CustomExercisePickerModal(props: {
               />
             </>
           ) : activeExercise && activeExerciseConfig ? (
-            <>
+            <ScrollView
+              style={styles.configureScroll}
+              contentContainerStyle={styles.configureScrollContent}
+              keyboardDismissMode="on-drag"
+              keyboardShouldPersistTaps="handled"
+            >
               <View style={styles.configureCard}>
                 <Text style={styles.configureTitle}>{activeExercise.name}</Text>
                 <Text style={styles.cardBody}>{buildExerciseMeta(activeExercise)}</Text>
@@ -714,6 +743,37 @@ export function CustomExercisePickerModal(props: {
                       value={activeExerciseConfig.targetWeightText}
                     />
                   </View>
+                  <View style={styles.inlineInputGroup}>
+                    <Text style={styles.inputLabel}>Progression</Text>
+                    <View style={styles.strategyChipRow}>
+                      {(progressionStrategies as readonly ProgressionStrategy[]).map((strategy) => {
+                        const selected = activeExerciseConfig.progressionStrategy === strategy;
+                        const label =
+                          strategy === "double_progression"
+                            ? "Double"
+                            : strategy === "fixed_weight"
+                              ? "Fixed"
+                              : strategy === "bodyweight_reps"
+                                ? "BW reps"
+                                : strategy === "bodyweight_weighted"
+                                  ? "BW weighted"
+                                  : "None";
+
+                        return (
+                          <Pressable
+                            key={strategy}
+                            accessibilityRole="button"
+                            onPress={() => updateActiveConfig({ progressionStrategy: strategy })}
+                            style={[styles.strategyChip, selected && styles.strategyChipSelected]}
+                          >
+                            <Text style={[styles.strategyChipText, selected && styles.strategyChipTextSelected]}>
+                              {label}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  </View>
                 </View>
               </View>
 
@@ -741,7 +801,7 @@ export function CustomExercisePickerModal(props: {
                   loading={props.submitting}
                 />
               </View>
-            </>
+            </ScrollView>
           ) : (
             <Text style={styles.cardBody}>Choose an exercise to continue.</Text>
           )}
@@ -822,6 +882,30 @@ const styles = StyleSheet.create({
   },
   inlineInputGroup: {
     gap: spacing.xs
+  },
+  strategyChipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.xs
+  },
+  strategyChip: {
+    borderColor: colors.border,
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 8
+  },
+  strategyChipSelected: {
+    backgroundColor: colors.accentStrong,
+    borderColor: colors.accentStrong
+  },
+  strategyChipText: {
+    color: colors.textPrimary,
+    fontSize: 14,
+    fontWeight: "600"
+  },
+  strategyChipTextSelected: {
+    color: colors.surface
   },
   inputLabel: {
     color: colors.accentStrong,
@@ -972,6 +1056,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     gap: spacing.sm,
     padding: spacing.md
+  },
+  configureScroll: {
+    flex: 1
+  },
+  configureScrollContent: {
+    gap: spacing.md,
+    paddingBottom: spacing.lg
   },
   configureTitle: {
     color: colors.textPrimary,

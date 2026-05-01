@@ -168,7 +168,8 @@ export function mapProgramDto(definition: ProgramDefinition): ProgramDto {
             targetReps: exercise.targetReps,
             ...(exercise.repRangeMin != null ? { repRangeMin: exercise.repRangeMin } : {}),
             ...(exercise.repRangeMax != null ? { repRangeMax: exercise.repRangeMax } : {}),
-            restSeconds: exercise.restSeconds
+            restSeconds: exercise.restSeconds,
+            ...(exercise.progressionStrategy != null ? { progressionStrategy: exercise.progressionStrategy } : {})
           }))
       }))
   };

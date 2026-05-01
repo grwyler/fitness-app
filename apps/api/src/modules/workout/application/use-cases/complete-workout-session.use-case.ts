@@ -2,8 +2,10 @@ import type {
   CompleteWorkoutSessionRequest,
   CompleteWorkoutSessionResponse,
   EffortFeedback,
-  ProgressionUpdateDto
+  ProgressionUpdateDto,
+  ProgressionStrategy
 } from "@fitness/shared";
+import { progressionStrategies } from "@fitness/shared";
 import { isCustomWorkoutProgramId } from "../../domain/models/custom-workout.js";
 import { ProgramAdvancementPolicy } from "../../domain/services/program-advancement-policy.js";
 import { ProgressionEngine } from "../../domain/services/progression-engine.js";
@@ -504,6 +506,65 @@ export class CompleteWorkoutSessionUseCase {
 
           const relatedSets = workoutSessionGraph.sets.filter((set) => set.exerciseEntryId === exerciseEntry.id);
           const hasFailure = relatedSets.some((set) => set.status === "failed");
+
+          const progressionStrategy: ProgressionStrategy = (() => {
+            const raw = (exerciseEntry.progressionRuleSnapshot as Record<string, unknown> | null)?.[
+              "progressionStrategy"
+            ];
+            if (typeof raw === "string" && (progressionStrategies as readonly string[]).includes(raw)) {
+              return raw as ProgressionStrategy;
+            }
+
+            return "double_progression";
+          })();
+
+          if (progressionStrategy === "no_progression") {
+            skippedProgressionUpdatesV2.push({
+              exerciseEntry,
+              workoutTemplateExerciseEntryId,
+              reason: "Progression skipped because this exercise is marked no_progression.",
+              inputSnapshot: {
+                version: "v2",
+                performedAt: completedAt.toISOString(),
+                workoutSessionId: workoutSessionGraph.session.id,
+                exerciseEntryId: exerciseEntry.id,
+                workoutTemplateExerciseEntryId,
+                state: {
+                  currentWeightLbs: progressionStateV2.currentWeightLbs,
+                  lastCompletedWeightLbs: progressionStateV2.lastCompletedWeightLbs,
+                  consecutiveFailures: progressionStateV2.consecutiveFailures,
+                  lastEffortFeedback: progressionStateV2.lastEffortFeedback,
+                  lastPerformedAt: progressionStateV2.lastPerformedAt?.toISOString() ?? null,
+                  repGoal: progressionStateV2.repGoal,
+                  repRangeMin: progressionStateV2.repRangeMin,
+                  repRangeMax: progressionStateV2.repRangeMax
+                },
+                exercise: {
+                  exerciseId: exerciseEntry.exerciseId,
+                  exerciseName: exerciseEntry.exerciseNameSnapshot,
+                  exerciseCategory: progressionSeed.exerciseCategory,
+                  incrementLbs: progressionSeed.incrementLbs,
+                  isBodyweight: progressionSeed.isBodyweight,
+                  isWeightOptional: progressionSeed.isWeightOptional,
+                  progressionStrategy
+                },
+                outcome: {
+                  effortFeedback: null,
+                  hasFailure,
+                  sets: relatedSets.map((set) => ({
+                    setId: set.id,
+                    status: set.status,
+                    targetReps: set.targetReps,
+                    actualReps: set.actualReps,
+                    targetWeightLbs: set.targetWeightLbs,
+                    actualWeightLbs: set.actualWeightLbs
+                  }))
+                }
+              }
+            });
+            continue;
+          }
+
           const effortFeedback = exerciseFeedbackByEntryId[exerciseEntry.id];
           if (!effortFeedback) {
             skippedProgressionUpdatesV2.push({
@@ -532,7 +593,8 @@ export class CompleteWorkoutSessionUseCase {
                   exerciseCategory: progressionSeed.exerciseCategory,
                   incrementLbs: progressionSeed.incrementLbs,
                   isBodyweight: progressionSeed.isBodyweight,
-                  isWeightOptional: progressionSeed.isWeightOptional
+                  isWeightOptional: progressionSeed.isWeightOptional,
+                  progressionStrategy
                 },
                 outcome: {
                   effortFeedback: null,
@@ -551,7 +613,8 @@ export class CompleteWorkoutSessionUseCase {
             continue;
           }
 
-          const progressionResult = this.progressionEngine.calculateDoubleProgression({
+          const progressionResult = this.progressionEngine.calculateWithStrategyV2({
+            strategy: progressionStrategy,
             state: {
               currentWeightLbs: progressionStateV2.currentWeightLbs,
               lastCompletedWeightLbs: progressionStateV2.lastCompletedWeightLbs,
@@ -608,7 +671,8 @@ export class CompleteWorkoutSessionUseCase {
                 exerciseCategory: progressionSeed.exerciseCategory,
                 incrementLbs: progressionSeed.incrementLbs,
                 isBodyweight: progressionSeed.isBodyweight,
-                isWeightOptional: progressionSeed.isWeightOptional
+                isWeightOptional: progressionSeed.isWeightOptional,
+                progressionStrategy
               },
               outcome: {
                 effortFeedback,

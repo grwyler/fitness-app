@@ -18,6 +18,7 @@ import {
   progressionStatesV2,
   seedBaseWorkoutProgram,
   seedInProgressWorkout,
+  sets,
   userProgramEnrollments,
   workoutTemplateExerciseEntries,
   workoutTemplates,

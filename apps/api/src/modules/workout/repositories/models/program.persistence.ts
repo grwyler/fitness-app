@@ -2,7 +2,8 @@ import type {
   DifficultyLevel,
   ExerciseCategory,
   PredefinedWorkoutCategory,
-  ProgramSource
+  ProgramSource,
+  ProgressionStrategy
 } from "@fitness/shared";
 
 export type ProgramRecord = {
@@ -32,6 +33,7 @@ export type ProgramTemplateExerciseRecord = {
   repRangeMin?: number | null;
   repRangeMax?: number | null;
   restSeconds: number | null;
+  progressionStrategy?: ProgressionStrategy | null;
 };
 
 export type ProgramTemplateRecord = {
@@ -63,6 +65,7 @@ export type CreateCustomProgramExerciseInput = {
   repRangeMin?: number | null;
   repRangeMax?: number | null;
   restSeconds: number | null;
+  progressionStrategy?: ProgressionStrategy | null;
 };
 
 export type CreateCustomProgramWorkoutInput = {

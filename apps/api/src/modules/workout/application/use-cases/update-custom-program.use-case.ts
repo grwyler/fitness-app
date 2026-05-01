@@ -85,7 +85,8 @@ function validateUpdateCustomProgramRequest(request: UpdateCustomProgramRequest)
           targetReps: exercise.targetReps,
           repRangeMin,
           repRangeMax,
-          restSeconds: exercise.restSeconds ?? null
+          restSeconds: exercise.restSeconds ?? null,
+          progressionStrategy: exercise.progressionStrategy ?? null
         };
       })
     };
