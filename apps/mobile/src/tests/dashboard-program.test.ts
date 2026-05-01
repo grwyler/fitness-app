@@ -158,7 +158,7 @@ export const dashboardProgramTestCases: MobileTestCase[] = [
           hasRecommendedWorkout: true,
           recommendedWorkoutName: "Workout A"
         }),
-        ["Start Workout A", "Build Custom Workout", "Suggested Workouts"]
+        ["Start Workout A", "Create a workout", "Workout library"]
       );
     }
   },
@@ -218,7 +218,7 @@ export const dashboardProgramTestCases: MobileTestCase[] = [
           hasRecommendedWorkout: true,
           recommendedWorkoutName: "Workout A"
         }),
-        ["Start Workout A", "Build Custom Workout", "Suggested Workouts"]
+        ["Start Workout A", "Create a workout", "Workout library"]
       );
     }
   },
@@ -232,7 +232,7 @@ export const dashboardProgramTestCases: MobileTestCase[] = [
           hasPredefinedChoices: true,
           hasRecommendedWorkout: false
         }),
-        ["Build Custom Workout", "Suggested Workouts"]
+        ["Create a workout", "Workout library"]
       );
     }
   },
@@ -272,7 +272,7 @@ export const dashboardProgramTestCases: MobileTestCase[] = [
           hasRecommendedWorkout: true,
           recommendedWorkoutName: "Workout A"
         })[2],
-        "Suggested Workouts"
+        "Workout library"
       );
       assert.deepEqual(
         getProgramWorkouts(expandedProgram).map((workout) => workout.id),
@@ -291,7 +291,7 @@ export const dashboardProgramTestCases: MobileTestCase[] = [
           hasRecommendedWorkout: true,
           recommendedWorkoutName: "Workout A"
         }),
-        ["Start Workout A", "Build Custom Workout", "Suggested Workouts"]
+        ["Start Workout A", "Create a workout", "Workout library"]
       );
     }
   },

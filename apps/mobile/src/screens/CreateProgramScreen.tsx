@@ -448,8 +448,8 @@ function WorkoutPickerModal(props: {
         <View style={styles.modalSheet}>
           <View style={styles.rowHeader}>
             <View style={styles.modalTitleGroup}>
-              <Text style={styles.label}>Choose workout</Text>
-              <Text style={styles.modalTitle}>Workout library</Text>
+              <Text style={styles.label}>Build workout</Text>
+              <Text style={styles.modalTitle}>Create a workout</Text>
             </View>
             <Pressable accessibilityRole="button" onPress={props.onClose}>
               <Text style={styles.removeText}>Close</Text>
@@ -460,14 +460,16 @@ function WorkoutPickerModal(props: {
             <Pressable
               accessibilityRole="button"
               onPress={props.onCreateCustomWorkout}
-              style={styles.workoutChoice}
+              style={[styles.workoutChoice, styles.createWorkoutChoice]}
             >
               <View style={styles.workoutTitleGroup}>
-                <Text style={styles.workoutName}>Create Custom Workout</Text>
-                <Text style={styles.exerciseMeta}>Build this program day from manually added exercises.</Text>
+                <Text style={styles.workoutName}>Create a workout</Text>
+                <Text style={styles.exerciseMeta}>Choose the exact exercises you want for this day.</Text>
               </View>
               <Text style={styles.addText}>Create</Text>
             </Pressable>
+
+            <Text style={styles.suggestionsLabel}>Suggested workouts</Text>
             {props.loading ? (
               <Text style={styles.body}>Loading workouts...</Text>
             ) : props.groups.length === 0 ? (
@@ -679,6 +681,12 @@ const styles = StyleSheet.create({
   workoutChoiceList: {
     gap: spacing.md
   },
+  suggestionsLabel: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    fontWeight: "600",
+    textTransform: "uppercase"
+  },
   workoutGroup: {
     gap: spacing.sm
   },
@@ -697,5 +705,9 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     justifyContent: "space-between",
     padding: spacing.md
+  },
+  createWorkoutChoice: {
+    backgroundColor: colors.accentMuted,
+    borderColor: colors.accentStrong
   }
 });
