@@ -1,13 +1,17 @@
 import type {
   EffortFeedback,
   ExerciseCategory,
+  ExperienceLevel,
   DifficultyLevel,
   RecoveryState,
   ProgramSource,
   ProgressMetricType,
   ProgressionResult,
   ProgressionConfidence,
+  ProgressionAggressiveness,
   ProgressionStrategy,
+  BodyweightProgressionMode,
+  TrainingGoal,
   EnrollmentStatus,
   SetStatus,
   UnitSystem,
@@ -370,3 +374,40 @@ export type ListExercisesResponse = {
 export type FollowProgramResponse = {
   activeProgram: ActiveProgramDto;
 };
+
+export type TrainingSettingsDto = {
+  trainingGoal: TrainingGoal | null;
+  experienceLevel: ExperienceLevel | null;
+  unitSystem: UnitSystem;
+  progressionAggressiveness: ProgressionAggressiveness;
+  defaultBarbellIncrement: number;
+  defaultDumbbellIncrement: number;
+  defaultMachineIncrement: number;
+  defaultCableIncrement: number;
+  useRecoveryAdjustments: boolean;
+  defaultRecoveryState: RecoveryState;
+  allowAutoDeload: boolean;
+  allowRecalibration: boolean;
+  preferRepProgressionBeforeWeight: boolean;
+  minimumConfidenceForIncrease: ProgressionConfidence;
+};
+
+export type GetTrainingSettingsResponse = TrainingSettingsDto;
+
+export type UpdateTrainingSettingsRequest = Partial<TrainingSettingsDto>;
+export type UpdateTrainingSettingsResponse = TrainingSettingsDto;
+
+export type ExerciseProgressionSettingsDto = {
+  exerciseId: UUID;
+  progressionStrategy: ProgressionStrategy | null;
+  repRangeMin: number | null;
+  repRangeMax: number | null;
+  incrementOverride: number | null;
+  maxJumpPerSession: number | null;
+  bodyweightProgressionMode: BodyweightProgressionMode | null;
+};
+
+export type GetExerciseProgressionSettingsResponse = ExerciseProgressionSettingsDto;
+
+export type UpdateExerciseProgressionSettingsRequest = ExerciseProgressionSettingsDto;
+export type UpdateExerciseProgressionSettingsResponse = ExerciseProgressionSettingsDto;

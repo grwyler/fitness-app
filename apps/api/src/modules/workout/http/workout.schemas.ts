@@ -1,5 +1,15 @@
 import { z } from "zod";
-import { effortFeedbackValues, progressionStrategies, recoveryStates, unitSystems } from "@fitness/shared";
+import {
+  bodyweightProgressionModes,
+  effortFeedbackValues,
+  progressionAggressivenessLevels,
+  progressionConfidenceLevels,
+  progressionStrategies,
+  recoveryStates,
+  trainingGoals,
+  unitSystems,
+  experienceLevels
+} from "@fitness/shared";
 
 const weightValueSchema = z.object({
   value: z.number().finite().min(0),
@@ -120,6 +130,37 @@ export const completeWorkoutSessionBodySchema = z.object({
   recoveryState: z.enum(recoveryStates).optional()
 });
 
+export const getExerciseProgressionSettingsQuerySchema = z.object({
+  exerciseId: z.string().min(1)
+});
+
+export const updateTrainingSettingsBodySchema = z.object({
+  trainingGoal: z.enum(trainingGoals).nullable().optional(),
+  experienceLevel: z.enum(experienceLevels).nullable().optional(),
+  unitSystem: z.enum(unitSystems).optional(),
+  progressionAggressiveness: z.enum(progressionAggressivenessLevels).optional(),
+  defaultBarbellIncrement: z.number().finite().positive().optional(),
+  defaultDumbbellIncrement: z.number().finite().positive().optional(),
+  defaultMachineIncrement: z.number().finite().positive().optional(),
+  defaultCableIncrement: z.number().finite().positive().optional(),
+  useRecoveryAdjustments: z.boolean().optional(),
+  defaultRecoveryState: z.enum(recoveryStates).optional(),
+  allowAutoDeload: z.boolean().optional(),
+  allowRecalibration: z.boolean().optional(),
+  preferRepProgressionBeforeWeight: z.boolean().optional(),
+  minimumConfidenceForIncrease: z.enum(progressionConfidenceLevels).optional()
+});
+
+export const updateExerciseProgressionSettingsBodySchema = z.object({
+  exerciseId: z.string().min(1),
+  progressionStrategy: z.enum(progressionStrategies).nullable(),
+  repRangeMin: z.number().int().min(1).max(100).nullable(),
+  repRangeMax: z.number().int().min(1).max(200).nullable(),
+  incrementOverride: z.number().finite().positive().nullable(),
+  maxJumpPerSession: z.number().finite().positive().nullable(),
+  bodyweightProgressionMode: z.enum(bodyweightProgressionModes).nullable()
+});
+
 export type WorkoutHeaders = z.infer<typeof workoutHeadersSchema>;
 export type WorkoutSessionParams = z.infer<typeof workoutSessionParamsSchema>;
 export type WorkoutSessionExerciseParams = z.infer<typeof workoutSessionExerciseParamsSchema>;
@@ -131,3 +172,6 @@ export type StartWorkoutSessionBody = z.infer<typeof startWorkoutSessionBodySche
 export type AddCustomWorkoutExerciseBody = z.infer<typeof addCustomWorkoutExerciseBodySchema>;
 export type LogSetBody = z.infer<typeof logSetBodySchema>;
 export type CompleteWorkoutSessionBody = z.infer<typeof completeWorkoutSessionBodySchema>;
+export type GetExerciseProgressionSettingsQuery = z.infer<typeof getExerciseProgressionSettingsQuerySchema>;
+export type UpdateTrainingSettingsBody = z.infer<typeof updateTrainingSettingsBodySchema>;
+export type UpdateExerciseProgressionSettingsBody = z.infer<typeof updateExerciseProgressionSettingsBodySchema>;

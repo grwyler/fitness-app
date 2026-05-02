@@ -8,9 +8,11 @@ import type {
   CreateCustomProgramResponse,
   DeleteWorkoutSetRequest,
   FollowProgramResponse,
+  GetExerciseProgressionSettingsResponse,
   GetCurrentWorkoutSessionResponse,
   GetDashboardResponse,
   GetProgressionResponse,
+  GetTrainingSettingsResponse,
   ListExercisesResponse,
   GetWorkoutHistoryDetailResponse,
   GetWorkoutHistoryResponse,
@@ -20,6 +22,10 @@ import type {
   StartWorkoutSessionRequest,
   UpdateCustomProgramRequest,
   UpdateCustomProgramResponse,
+  UpdateExerciseProgressionSettingsRequest,
+  UpdateExerciseProgressionSettingsResponse,
+  UpdateTrainingSettingsRequest,
+  UpdateTrainingSettingsResponse,
   WorkoutSessionDto
 } from "@fitness/shared";
 import { apiRequest } from "./client";
@@ -67,6 +73,28 @@ export async function updateCustomProgram(input: {
 
 export async function fetchExercises() {
   return apiRequest<ListExercisesResponse>("/exercises");
+}
+
+export async function fetchTrainingSettings() {
+  return apiRequest<GetTrainingSettingsResponse>("/training-settings");
+}
+
+export async function updateTrainingSettings(request: UpdateTrainingSettingsRequest) {
+  return apiRequest<UpdateTrainingSettingsResponse>("/training-settings", {
+    method: "PUT",
+    body: request
+  });
+}
+
+export async function fetchExerciseProgressionSettings(exerciseId: string) {
+  return apiRequest<GetExerciseProgressionSettingsResponse>(`/exercise-progression-settings?exerciseId=${exerciseId}`);
+}
+
+export async function updateExerciseProgressionSettings(request: UpdateExerciseProgressionSettingsRequest) {
+  return apiRequest<UpdateExerciseProgressionSettingsResponse>("/exercise-progression-settings", {
+    method: "PUT",
+    body: request
+  });
 }
 
 export async function followProgram(programId: string) {

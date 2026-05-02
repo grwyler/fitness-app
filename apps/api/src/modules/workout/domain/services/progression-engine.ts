@@ -2,6 +2,7 @@ import {
   MATERIAL_OVERPERFORMANCE_MULTIPLIER,
   type ExerciseCategory,
   type ExperienceLevel,
+  type ProgressionAggressiveness,
   type ProgressionStrategy,
   type RecoveryState,
   type TrainingGoal
@@ -72,6 +73,31 @@ function getAggressiveSuccessStepCount(input: {
   }
 
   return base;
+}
+
+function getRepIncreaseStepCount(input: {
+  aggressiveness: ProgressionAggressiveness;
+  category: ExerciseCategory;
+  effortFeedback: ExerciseWorkoutOutcome["effortFeedback"];
+  experienceLevel: ExperienceLevel | null;
+  recoveryState: RecoveryState | null;
+}) {
+  if (input.aggressiveness === "conservative") {
+    return 1;
+  }
+
+  const policyAdjusted = getAggressiveSuccessStepCount({
+    category: input.category,
+    effortFeedback: input.effortFeedback,
+    experienceLevel: input.experienceLevel,
+    recoveryState: input.recoveryState
+  });
+
+  if (input.aggressiveness === "balanced") {
+    return policyAdjusted;
+  }
+
+  return Math.max(1, policyAdjusted + 1);
 }
 
 function resolveTrainingGoal(trainingGoal: TrainingGoal | null | undefined): TrainingGoal | null {
@@ -175,13 +201,14 @@ export class ProgressionEngine {
         const previousRepGoal = state.repGoal;
         const repRangeMin = state.repRangeMin;
         const repRangeMax = state.repRangeMax;
+        const nextLastPerformedAt = input.performedAt ? input.performedAt : (state.lastPerformedAt ?? null);
 
         const nextState: ProgressionStateSnapshotV2 = {
           currentWeightLbs: previousWeightLbs,
           lastCompletedWeightLbs: state.lastCompletedWeightLbs,
           consecutiveFailures: state.consecutiveFailures,
           lastEffortFeedback: outcome.effortFeedback,
-          lastPerformedAt: state.lastPerformedAt ?? null,
+          lastPerformedAt: nextLastPerformedAt,
           repGoal: previousRepGoal,
           repRangeMin,
           repRangeMax
@@ -210,6 +237,7 @@ export class ProgressionEngine {
     const previousWeightLbs = roundToTwoDecimals(state.currentWeightLbs);
     const lastPerformedAt = state.lastPerformedAt ?? null;
     const performedAt = input.performedAt ?? new Date(0);
+    const nextLastPerformedAt = input.performedAt ? performedAt : lastPerformedAt;
 
     if (previousWeightLbs < 0) {
       throw new Error("currentWeightLbs must be greater than or equal to 0.");
@@ -271,7 +299,7 @@ export class ProgressionEngine {
           lastCompletedWeightLbs: state.lastCompletedWeightLbs,
           consecutiveFailures: 0,
           lastEffortFeedback: outcome.effortFeedback,
-          lastPerformedAt
+          lastPerformedAt: nextLastPerformedAt
         };
 
         return {
@@ -289,7 +317,7 @@ export class ProgressionEngine {
           lastCompletedWeightLbs: previousWeightLbs,
           consecutiveFailures: 0,
           lastEffortFeedback: outcome.effortFeedback,
-          lastPerformedAt
+          lastPerformedAt: nextLastPerformedAt
         };
 
         return {
@@ -302,9 +330,11 @@ export class ProgressionEngine {
       }
     }
 
-    const recalibrationResult = this.calculateRecalibrationResult(input, previousWeightLbs);
-    if (recalibrationResult) {
-      return recalibrationResult;
+    if (input.allowRecalibration !== false) {
+      const recalibrationResult = this.calculateRecalibrationResult(input, previousWeightLbs);
+      if (recalibrationResult) {
+        return recalibrationResult;
+      }
     }
 
     return this.calculateSuccessResult({ ...input, trainingGoal, recoveryState }, previousWeightLbs);
@@ -482,9 +512,11 @@ export class ProgressionEngine {
       }
     }
 
-    const recalibrationResult = this.calculateRecalibrationResultV2(input, previousWeightLbs);
-    if (recalibrationResult) {
-      return recalibrationResult;
+    if (input.allowRecalibration !== false) {
+      const recalibrationResult = this.calculateRecalibrationResultV2(input, previousWeightLbs);
+      if (recalibrationResult) {
+        return recalibrationResult;
+      }
     }
 
     if (outcome.effortFeedback === "too_hard") {
@@ -538,8 +570,10 @@ export class ProgressionEngine {
     }
 
     const strengthRepCeiling = Math.min(repRangeMax, repRangeMin + 1);
+    const preferReps = input.preferRepProgressionBeforeWeight ?? true;
     const shouldFavorWeight =
-      trainingGoal === "strength" && repRangeMax > repRangeMin && previousRepGoal >= strengthRepCeiling;
+      (!preferReps && repRangeMax > repRangeMin && previousRepGoal >= repRangeMin) ||
+      (trainingGoal === "strength" && repRangeMax > repRangeMin && previousRepGoal >= strengthRepCeiling);
 
     if (
       (recoveryState === "fatigued" || recoveryState === "exhausted") &&
@@ -601,7 +635,8 @@ export class ProgressionEngine {
     if (!shouldFavorWeight && previousRepGoal < repRangeMax) {
       const increaseSteps =
         repRangeMax > repRangeMin
-          ? getAggressiveSuccessStepCount({
+          ? getRepIncreaseStepCount({
+              aggressiveness: input.progressionAggressiveness ?? "balanced",
               category: exercise.exerciseCategory,
               effortFeedback: outcome.effortFeedback,
               experienceLevel: input.experienceLevel ?? null,
@@ -1088,7 +1123,8 @@ export class ProgressionEngine {
     if (previousRepGoal < repRangeMax) {
       const increaseSteps =
         repRangeMax > repRangeMin
-          ? getAggressiveSuccessStepCount({
+          ? getRepIncreaseStepCount({
+              aggressiveness: input.progressionAggressiveness ?? "balanced",
               category: exercise.exerciseCategory,
               effortFeedback: outcome.effortFeedback,
               experienceLevel: input.experienceLevel ?? null,
@@ -1146,7 +1182,7 @@ export class ProgressionEngine {
   ): ProgressionComputationResult {
     const { exercise, outcome, state } = input;
 
-    if (state.consecutiveFailures >= 1) {
+    if (input.allowAutoDeload !== false && state.consecutiveFailures >= 1) {
       const attemptedDeloadWeight = roundToTwoDecimals(previousWeightLbs * 0.9);
       let nextWeightLbs = roundDownToIncrement(attemptedDeloadWeight, exercise.incrementLbs);
 
@@ -1198,7 +1234,7 @@ export class ProgressionEngine {
 
     const nextFailureCount = state.consecutiveFailures + 1;
 
-    if (nextFailureCount >= 2) {
+    if (input.allowAutoDeload !== false && nextFailureCount >= 2) {
       const nextWeightLbs = roundDownToIncrement(
         Math.max(0, previousWeightLbs - exercise.incrementLbs),
         exercise.incrementLbs
@@ -1356,7 +1392,8 @@ export class ProgressionEngine {
       };
     }
 
-    const rawIncreaseSteps = getAggressiveSuccessStepCount({
+    const rawIncreaseSteps = getRepIncreaseStepCount({
+      aggressiveness: input.progressionAggressiveness ?? "balanced",
       category: exercise.exerciseCategory,
       effortFeedback: outcome.effortFeedback,
       experienceLevel: input.experienceLevel ?? null,

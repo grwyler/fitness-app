@@ -8,6 +8,8 @@ import { DrizzleProgressMetricRepository } from "../infrastructure/repositories/
 import { DrizzleProgressionStateRepository } from "../infrastructure/repositories/drizzle-progression-state.repository.js";
 import { DrizzleProgressionStateV2Repository } from "../infrastructure/repositories/drizzle-progression-state-v2.repository.js";
 import { DrizzleProgressionRecommendationEventRepository } from "../infrastructure/repositories/drizzle-progression-recommendation-event.repository.js";
+import { DrizzleTrainingSettingsRepository } from "../infrastructure/repositories/drizzle-training-settings.repository.js";
+import { DrizzleExerciseProgressionSettingsRepository } from "../infrastructure/repositories/drizzle-exercise-progression-settings.repository.js";
 import { DrizzleUserRepository } from "../infrastructure/repositories/drizzle-user.repository.js";
 import { DrizzleWorkoutSessionRepository } from "../infrastructure/repositories/drizzle-workout-session.repository.js";
 import { CompleteWorkoutSessionUseCase } from "../application/use-cases/complete-workout-session.use-case.js";
@@ -29,6 +31,10 @@ import { LogSetUseCase } from "../application/use-cases/log-set.use-case.js";
 import { StartWorkoutSessionUseCase } from "../application/use-cases/start-workout-session.use-case.js";
 import { UpdateLoggedSetUseCase } from "../application/use-cases/update-logged-set.use-case.js";
 import { UpdateCustomProgramUseCase } from "../application/use-cases/update-custom-program.use-case.js";
+import { GetTrainingSettingsUseCase } from "../application/use-cases/get-training-settings.use-case.js";
+import { UpdateTrainingSettingsUseCase } from "../application/use-cases/update-training-settings.use-case.js";
+import { GetExerciseProgressionSettingsUseCase } from "../application/use-cases/get-exercise-progression-settings.use-case.js";
+import { UpdateExerciseProgressionSettingsUseCase } from "../application/use-cases/update-exercise-progression-settings.use-case.js";
 import { createWorkoutRouter } from "./workout.routes.js";
 
 export type WorkoutDatabase = PostgresDatabase | PgliteDatabase | any;
@@ -43,6 +49,8 @@ export function createWorkoutHttpRouter(database: WorkoutDatabase) {
   const progressMetricRepository = new DrizzleProgressMetricRepository(database);
   const progressionRecommendationEventRepository = new DrizzleProgressionRecommendationEventRepository(database);
   const userRepository = new DrizzleUserRepository(database);
+  const trainingSettingsRepository = new DrizzleTrainingSettingsRepository(database);
+  const exerciseProgressionSettingsRepository = new DrizzleExerciseProgressionSettingsRepository(database);
   const idempotencyRepository = new DrizzleIdempotencyRepository(database);
   const transactionManager = new DrizzleTransactionManager(database);
 
@@ -98,6 +106,8 @@ export function createWorkoutHttpRouter(database: WorkoutDatabase) {
     programRepository,
     progressMetricRepository,
     progressionRecommendationEventRepository,
+    trainingSettingsRepository,
+    exerciseProgressionSettingsRepository,
     transactionManager,
     idempotencyRepository
   );
@@ -116,6 +126,14 @@ export function createWorkoutHttpRouter(database: WorkoutDatabase) {
   const getProgressionUseCase = new GetProgressionUseCase(workoutSessionRepository);
   const listProgramsUseCase = new ListProgramsUseCase(programRepository);
   const getProgramUseCase = new GetProgramUseCase(programRepository);
+  const getTrainingSettingsUseCase = new GetTrainingSettingsUseCase(trainingSettingsRepository);
+  const updateTrainingSettingsUseCase = new UpdateTrainingSettingsUseCase(trainingSettingsRepository);
+  const getExerciseProgressionSettingsUseCase = new GetExerciseProgressionSettingsUseCase(
+    exerciseProgressionSettingsRepository
+  );
+  const updateExerciseProgressionSettingsUseCase = new UpdateExerciseProgressionSettingsUseCase(
+    exerciseProgressionSettingsRepository
+  );
   const createCustomProgramUseCase = new CreateCustomProgramUseCase(
     programRepository,
     transactionManager,
@@ -160,6 +178,10 @@ export function createWorkoutHttpRouter(database: WorkoutDatabase) {
     logSetUseCase,
     updateLoggedSetUseCase,
     cancelWorkoutSessionUseCase,
-    completeWorkoutSessionUseCase
+    completeWorkoutSessionUseCase,
+    getTrainingSettingsUseCase,
+    updateTrainingSettingsUseCase,
+    getExerciseProgressionSettingsUseCase,
+    updateExerciseProgressionSettingsUseCase
   });
 }

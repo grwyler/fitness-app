@@ -19,6 +19,10 @@ import type { LogSetUseCase } from "../application/use-cases/log-set.use-case.js
 import type { StartWorkoutSessionUseCase } from "../application/use-cases/start-workout-session.use-case.js";
 import type { UpdateLoggedSetUseCase } from "../application/use-cases/update-logged-set.use-case.js";
 import type { UpdateCustomProgramUseCase } from "../application/use-cases/update-custom-program.use-case.js";
+import type { GetTrainingSettingsUseCase } from "../application/use-cases/get-training-settings.use-case.js";
+import type { UpdateTrainingSettingsUseCase } from "../application/use-cases/update-training-settings.use-case.js";
+import type { GetExerciseProgressionSettingsUseCase } from "../application/use-cases/get-exercise-progression-settings.use-case.js";
+import type { UpdateExerciseProgressionSettingsUseCase } from "../application/use-cases/update-exercise-progression-settings.use-case.js";
 
 export function createWorkoutRouter(dependencies: {
   listProgramsUseCase: ListProgramsUseCase;
@@ -40,6 +44,10 @@ export function createWorkoutRouter(dependencies: {
   updateLoggedSetUseCase: UpdateLoggedSetUseCase;
   cancelWorkoutSessionUseCase: CancelWorkoutSessionUseCase;
   completeWorkoutSessionUseCase: CompleteWorkoutSessionUseCase;
+  getTrainingSettingsUseCase: GetTrainingSettingsUseCase;
+  updateTrainingSettingsUseCase: UpdateTrainingSettingsUseCase;
+  getExerciseProgressionSettingsUseCase: GetExerciseProgressionSettingsUseCase;
+  updateExerciseProgressionSettingsUseCase: UpdateExerciseProgressionSettingsUseCase;
 }) {
   const router = Router();
   const handlers = createWorkoutHandlers(dependencies);
@@ -63,6 +71,10 @@ export function createWorkoutRouter(dependencies: {
   router.put("/sets/:setId", handlers.updateLoggedSet);
   router.post("/workout-sessions/:sessionId/cancel", handlers.cancelWorkoutSession);
   router.post("/workout-sessions/:sessionId/complete", handlers.completeWorkoutSession);
+  router.get("/training-settings", handlers.getTrainingSettings);
+  router.put("/training-settings", handlers.updateTrainingSettings);
+  router.get("/exercise-progression-settings", handlers.getExerciseProgressionSettings);
+  router.put("/exercise-progression-settings", handlers.updateExerciseProgressionSettings);
 
   return router;
 }

@@ -2,6 +2,7 @@ import type {
   EffortFeedback,
   ExerciseCategory,
   ExperienceLevel,
+  ProgressionAggressiveness,
   ProgressionResult,
   RecoveryState,
   TrainingGoal
@@ -50,6 +51,10 @@ export type ProgressionComputationInput = {
   experienceLevel?: ExperienceLevel | null;
   trainingGoal?: TrainingGoal | null;
   recoveryState?: RecoveryState | null;
+  progressionAggressiveness?: ProgressionAggressiveness | null;
+  allowAutoDeload?: boolean;
+  allowRecalibration?: boolean;
+  preferRepProgressionBeforeWeight?: boolean;
 };
 
 export type ProgressionComputationInputV2 = {
@@ -60,6 +65,10 @@ export type ProgressionComputationInputV2 = {
   experienceLevel?: ExperienceLevel | null;
   trainingGoal?: TrainingGoal | null;
   recoveryState?: RecoveryState | null;
+  progressionAggressiveness?: ProgressionAggressiveness | null;
+  allowAutoDeload?: boolean;
+  allowRecalibration?: boolean;
+  preferRepProgressionBeforeWeight?: boolean;
 };
 
 export type ProgressionComputationResult = {

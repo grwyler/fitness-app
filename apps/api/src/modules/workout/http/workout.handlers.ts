@@ -5,8 +5,10 @@ import type {
   CompleteWorkoutSessionRequest,
   CreateCustomProgramRequest,
   DeleteWorkoutSetRequest,
+  UpdateExerciseProgressionSettingsRequest,
   LogSetRequest,
   StartWorkoutSessionRequest,
+  UpdateTrainingSettingsRequest,
   UpdateCustomProgramRequest
 } from "@fitness/shared";
 import { success } from "../../../lib/http/envelope.js";
@@ -22,10 +24,13 @@ import {
   addCustomWorkoutExerciseBodySchema,
   completeWorkoutSessionBodySchema,
   createCustomProgramBodySchema,
+  getExerciseProgressionSettingsQuerySchema,
   logSetBodySchema,
   programParamsSchema,
   setParamsSchema,
   startWorkoutSessionBodySchema,
+  updateExerciseProgressionSettingsBodySchema,
+  updateTrainingSettingsBodySchema,
   workoutSessionExerciseParamsSchema,
   workoutHistoryQuerySchema,
   workoutSessionParamsSchema
@@ -49,6 +54,10 @@ import type { LogSetUseCase } from "../application/use-cases/log-set.use-case.js
 import type { StartWorkoutSessionUseCase } from "../application/use-cases/start-workout-session.use-case.js";
 import type { UpdateLoggedSetUseCase } from "../application/use-cases/update-logged-set.use-case.js";
 import type { UpdateCustomProgramUseCase } from "../application/use-cases/update-custom-program.use-case.js";
+import type { GetTrainingSettingsUseCase } from "../application/use-cases/get-training-settings.use-case.js";
+import type { UpdateTrainingSettingsUseCase } from "../application/use-cases/update-training-settings.use-case.js";
+import type { GetExerciseProgressionSettingsUseCase } from "../application/use-cases/get-exercise-progression-settings.use-case.js";
+import type { UpdateExerciseProgressionSettingsUseCase } from "../application/use-cases/update-exercise-progression-settings.use-case.js";
 
 export type WorkoutHttpHandlers = {
   listPrograms: RequestHandler;
@@ -70,6 +79,10 @@ export type WorkoutHttpHandlers = {
   updateLoggedSet: RequestHandler;
   cancelWorkoutSession: RequestHandler;
   completeWorkoutSession: RequestHandler;
+  getTrainingSettings: RequestHandler;
+  updateTrainingSettings: RequestHandler;
+  getExerciseProgressionSettings: RequestHandler;
+  updateExerciseProgressionSettings: RequestHandler;
 };
 
 export function createWorkoutHandlers(dependencies: {
@@ -92,6 +105,10 @@ export function createWorkoutHandlers(dependencies: {
   updateLoggedSetUseCase: UpdateLoggedSetUseCase;
   cancelWorkoutSessionUseCase: CancelWorkoutSessionUseCase;
   completeWorkoutSessionUseCase: CompleteWorkoutSessionUseCase;
+  getTrainingSettingsUseCase: GetTrainingSettingsUseCase;
+  updateTrainingSettingsUseCase: UpdateTrainingSettingsUseCase;
+  getExerciseProgressionSettingsUseCase: GetExerciseProgressionSettingsUseCase;
+  updateExerciseProgressionSettingsUseCase: UpdateExerciseProgressionSettingsUseCase;
 }): WorkoutHttpHandlers {
   return {
     listPrograms: asyncHandler(async (_request, response) => {
@@ -370,6 +387,65 @@ export function createWorkoutHandlers(dependencies: {
         idempotencyKey
       });
 
+      response.json(success(result.data, result.meta));
+    }),
+
+    getTrainingSettings: asyncHandler(async (request, response) => {
+      const context = getRequestContext(request);
+      const result = await dependencies.getTrainingSettingsUseCase.execute({ context });
+      response.json(success(result.data, result.meta));
+    }),
+
+    updateTrainingSettings: asyncHandler(async (request, response) => {
+      const context = getRequestContext(request);
+      const body = validateBody(updateTrainingSettingsBodySchema, request);
+      const useCaseRequest: UpdateTrainingSettingsRequest = {};
+      if (body.trainingGoal !== undefined) useCaseRequest.trainingGoal = body.trainingGoal;
+      if (body.experienceLevel !== undefined) useCaseRequest.experienceLevel = body.experienceLevel;
+      if (body.unitSystem !== undefined) useCaseRequest.unitSystem = body.unitSystem;
+      if (body.progressionAggressiveness !== undefined) useCaseRequest.progressionAggressiveness = body.progressionAggressiveness;
+      if (body.defaultBarbellIncrement !== undefined) useCaseRequest.defaultBarbellIncrement = body.defaultBarbellIncrement;
+      if (body.defaultDumbbellIncrement !== undefined) useCaseRequest.defaultDumbbellIncrement = body.defaultDumbbellIncrement;
+      if (body.defaultMachineIncrement !== undefined) useCaseRequest.defaultMachineIncrement = body.defaultMachineIncrement;
+      if (body.defaultCableIncrement !== undefined) useCaseRequest.defaultCableIncrement = body.defaultCableIncrement;
+      if (body.useRecoveryAdjustments !== undefined) useCaseRequest.useRecoveryAdjustments = body.useRecoveryAdjustments;
+      if (body.defaultRecoveryState !== undefined) useCaseRequest.defaultRecoveryState = body.defaultRecoveryState;
+      if (body.allowAutoDeload !== undefined) useCaseRequest.allowAutoDeload = body.allowAutoDeload;
+      if (body.allowRecalibration !== undefined) useCaseRequest.allowRecalibration = body.allowRecalibration;
+      if (body.preferRepProgressionBeforeWeight !== undefined)
+        useCaseRequest.preferRepProgressionBeforeWeight = body.preferRepProgressionBeforeWeight;
+      if (body.minimumConfidenceForIncrease !== undefined)
+        useCaseRequest.minimumConfidenceForIncrease = body.minimumConfidenceForIncrease;
+      const result = await dependencies.updateTrainingSettingsUseCase.execute({ context, request: useCaseRequest });
+      response.json(success(result.data, result.meta));
+    }),
+
+    getExerciseProgressionSettings: asyncHandler(async (request, response) => {
+      const context = getRequestContext(request);
+      const query = validateQuery(getExerciseProgressionSettingsQuerySchema, request);
+      const result = await dependencies.getExerciseProgressionSettingsUseCase.execute({
+        context,
+        exerciseId: query.exerciseId
+      });
+      response.json(success(result.data, result.meta));
+    }),
+
+    updateExerciseProgressionSettings: asyncHandler(async (request, response) => {
+      const context = getRequestContext(request);
+      const body = validateBody(updateExerciseProgressionSettingsBodySchema, request);
+      const useCaseRequest: UpdateExerciseProgressionSettingsRequest = {
+        exerciseId: body.exerciseId,
+        progressionStrategy: body.progressionStrategy,
+        repRangeMin: body.repRangeMin,
+        repRangeMax: body.repRangeMax,
+        incrementOverride: body.incrementOverride,
+        maxJumpPerSession: body.maxJumpPerSession,
+        bodyweightProgressionMode: body.bodyweightProgressionMode
+      };
+      const result = await dependencies.updateExerciseProgressionSettingsUseCase.execute({
+        context,
+        request: useCaseRequest
+      });
       response.json(success(result.data, result.meta));
     })
   };

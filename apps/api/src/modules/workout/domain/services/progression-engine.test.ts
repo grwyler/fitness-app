@@ -471,6 +471,35 @@ export const progressionEngineTestCases: DomainTestCase[] = [
     }
   },
   {
+    name: "ProgressionEngine does not auto-deload when allowAutoDeload is false",
+    run: () => {
+      const result = engine.calculate({
+        state: {
+          currentWeightLbs: 135,
+          lastCompletedWeightLbs: 135,
+          consecutiveFailures: 1,
+          lastEffortFeedback: "too_hard"
+        },
+        exercise: {
+          exerciseName: "Bench Press",
+          exerciseCategory: "compound",
+          incrementLbs: 5,
+          isBodyweight: false,
+          isWeightOptional: false
+        },
+        outcome: {
+          effortFeedback: "too_hard",
+          hasFailure: true
+        },
+        allowAutoDeload: false
+      });
+
+      assert.equal(result.result, "repeated");
+      assert.equal(result.nextWeightLbs, 135);
+      assert.equal(result.nextState.consecutiveFailures, 2);
+    }
+  },
+  {
     name: "ProgressionEngine recalibrates when multiple sets materially outperform the prescribed weight",
     run: () => {
       const result = engine.calculate({
@@ -503,6 +532,38 @@ export const progressionEngineTestCases: DomainTestCase[] = [
       assert.equal(result.nextState.consecutiveFailures, 0);
       assert.equal(result.nextState.lastCompletedWeightLbs, 215);
       assert.match(result.reason, /Recalibrated from 135 lb to 215 lb/);
+    }
+  },
+  {
+    name: "ProgressionEngine does not recalibrate when allowRecalibration is false",
+    run: () => {
+      const result = engine.calculate({
+        state: {
+          currentWeightLbs: 135,
+          lastCompletedWeightLbs: 130,
+          consecutiveFailures: 0,
+          lastEffortFeedback: "just_right"
+        },
+        exercise: {
+          exerciseName: "Bench Press",
+          exerciseCategory: "compound",
+          incrementLbs: 5,
+          isBodyweight: false,
+          isWeightOptional: false
+        },
+        outcome: {
+          effortFeedback: "just_right",
+          hasFailure: true,
+          sets: [
+            { targetReps: 5, actualReps: 4, targetWeightLbs: 135, actualWeightLbs: 225 },
+            { targetReps: 5, actualReps: 4, targetWeightLbs: 135, actualWeightLbs: 225 },
+            { targetReps: 5, actualReps: 4, targetWeightLbs: 135, actualWeightLbs: 225 }
+          ]
+        },
+        allowRecalibration: false
+      });
+
+      assert.notEqual(result.result, "recalibrated");
     }
   },
   {

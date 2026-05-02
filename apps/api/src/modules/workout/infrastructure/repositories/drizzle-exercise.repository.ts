@@ -137,6 +137,7 @@ export class DrizzleExerciseRepository implements ExerciseRepository {
       exerciseId: row.id,
       exerciseName: row.name,
       exerciseCategory: row.category,
+      equipmentType: row.equipmentType ?? null,
       defaultStartingWeightLbs: normalizeNumeric(row.defaultStartingWeightLbs),
       incrementLbs: normalizeNumeric(row.defaultIncrementLbs),
       isBodyweight: row.isBodyweight,

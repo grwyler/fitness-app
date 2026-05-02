@@ -8,7 +8,9 @@ import {
   progressionStates,
   programs,
   sets,
+  userExerciseProgressionSettings,
   userProgramEnrollments,
+  userTrainingSettings,
   users,
   workoutSessions,
   workoutTemplateExerciseEntries,
@@ -2758,6 +2760,221 @@ workoutHttpTestCases.push(
           assert.equal(usersAfterSecondRequest.length, 1);
           assert.ok(usersAfterSecondRequest[0]);
           assert.equal(usersAfterSecondRequest[0].id, createdUser.id);
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  }
+);
+
+workoutHttpTestCases.push(
+  {
+    name: "GET /api/v1/training-settings creates default settings for an existing user",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        const server = await startHttpServer(context.db);
+
+        try {
+          const response = await fetch(`${server.baseUrl}/api/v1/training-settings`, {
+            headers: createAuthHeaders()
+          });
+          const payload = await readJson(response);
+          const settingsRows = await context.db.select().from(userTrainingSettings);
+
+          assert.equal(response.status, 200);
+          assert.equal(payload.data.progressionAggressiveness, "balanced");
+          assert.equal(payload.data.minimumConfidenceForIncrease, "medium");
+          assert.equal(settingsRows.length, 1);
+          assert.equal(settingsRows[0]?.progressionAggressiveness, "balanced");
+          assert.equal(settingsRows[0]?.minimumConfidenceForIncrease, "medium");
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "PUT /api/v1/training-settings persists updates",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        const server = await startHttpServer(context.db);
+
+        try {
+          const updateResponse = await fetch(`${server.baseUrl}/api/v1/training-settings`, {
+            method: "PUT",
+            headers: createAuthHeaders({
+              "content-type": "application/json"
+            }),
+            body: JSON.stringify({
+              progressionAggressiveness: "aggressive",
+              allowAutoDeload: false,
+              minimumConfidenceForIncrease: "high",
+              defaultDumbbellIncrement: 10
+            })
+          });
+          const updatePayload = await readJson(updateResponse);
+
+          const getResponse = await fetch(`${server.baseUrl}/api/v1/training-settings`, {
+            headers: createAuthHeaders()
+          });
+          const getPayload = await readJson(getResponse);
+
+          const settingsRows = await context.db.select().from(userTrainingSettings);
+
+          assert.equal(updateResponse.status, 200);
+          assert.equal(updatePayload.data.progressionAggressiveness, "aggressive");
+          assert.equal(updatePayload.data.allowAutoDeload, false);
+          assert.equal(updatePayload.data.minimumConfidenceForIncrease, "high");
+          assert.equal(updatePayload.data.defaultDumbbellIncrement, 10);
+
+          assert.equal(getResponse.status, 200);
+          assert.equal(getPayload.data.progressionAggressiveness, "aggressive");
+          assert.equal(getPayload.data.allowAutoDeload, false);
+          assert.equal(getPayload.data.minimumConfidenceForIncrease, "high");
+          assert.equal(getPayload.data.defaultDumbbellIncrement, 10);
+
+          assert.equal(settingsRows.length, 1);
+          assert.equal(settingsRows[0]?.progressionAggressiveness, "aggressive");
+          assert.equal(settingsRows[0]?.allowAutoDeload, false);
+          assert.equal(settingsRows[0]?.minimumConfidenceForIncrease, "high");
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "Confidence gating holds an increase on low-confidence recommendations",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        await seedInProgressWorkout(context, {
+          setStatuses: ["completed", "completed", "completed"],
+          includeSecondExercise: {
+            setStatuses: ["completed", "pending"]
+          }
+        });
+        const server = await startHttpServer(context.db);
+
+        try {
+          await fetch(`${server.baseUrl}/api/v1/training-settings`, {
+            method: "PUT",
+            headers: createAuthHeaders({
+              "content-type": "application/json"
+            }),
+            body: JSON.stringify({
+              minimumConfidenceForIncrease: "high"
+            })
+          });
+
+          const completeResponse = await fetch(`${server.baseUrl}/api/v1/workout-sessions/session-1/complete`, {
+            method: "POST",
+            headers: createAuthHeaders({
+              "content-type": "application/json",
+              "Idempotency-Key": "complete-confidence-gate-1"
+            }),
+            body: JSON.stringify({
+              completedAt: "2026-04-24T10:25:00.000Z",
+              exerciseFeedback: [
+                {
+                  exerciseEntryId: "entry-1",
+                  effortFeedback: "too_easy"
+                }
+              ],
+              finishEarly: true
+            })
+          });
+          const completePayload = await readJson(completeResponse);
+          const progressionRows = await context.db.select().from(progressionStates);
+          const benchState = progressionRows.find((row: { exerciseId: string }) => row.exerciseId === "exercise-1");
+
+          assert.equal(completeResponse.status, 200);
+          assert.equal(completePayload.data.workoutSession.isPartial, true);
+          assert.ok(completePayload.data.progressionUpdates.length >= 1);
+          const benchUpdate = completePayload.data.progressionUpdates.find(
+            (update: { exerciseId: string }) => update.exerciseId === "exercise-1"
+          );
+          assert.ok(benchUpdate);
+          assert.equal(benchUpdate.result, "repeated");
+          assert.match(
+            benchUpdate.reason ?? "",
+            /Increase was held because recommendation confidence was below your setting\./
+          );
+          assert.equal(benchState?.currentWeightLbs, "135.00");
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "Equipment increment selection affects progression recommendations",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        await seedInProgressWorkout(context, {
+          setStatuses: ["completed", "completed", "completed"],
+          includeSecondExercise: {
+            setStatuses: ["completed", "completed"]
+          }
+        });
+        const server = await startHttpServer(context.db);
+
+        try {
+          await fetch(`${server.baseUrl}/api/v1/training-settings`, {
+            method: "PUT",
+            headers: createAuthHeaders({
+              "content-type": "application/json"
+            }),
+            body: JSON.stringify({
+              defaultDumbbellIncrement: 10
+            })
+          });
+
+          const completeResponse = await fetch(`${server.baseUrl}/api/v1/workout-sessions/session-1/complete`, {
+            method: "POST",
+            headers: createAuthHeaders({
+              "content-type": "application/json",
+              "Idempotency-Key": "complete-equipment-increment-1"
+            }),
+            body: JSON.stringify({
+              completedAt: "2026-04-24T10:25:00.000Z",
+              exerciseFeedback: [
+                { exerciseEntryId: "entry-1", effortFeedback: "just_right" },
+                { exerciseEntryId: "entry-2", effortFeedback: "too_easy" }
+              ]
+            })
+          });
+          const completePayload = await readJson(completeResponse);
+
+          assert.equal(completeResponse.status, 200);
+          assert.ok(completePayload.data.progressionUpdates.length >= 2);
+          const dbRowUpdate = completePayload.data.progressionUpdates.find(
+            (update: { exerciseId: string }) => update.exerciseId === "exercise-4"
+          );
+          assert.ok(dbRowUpdate);
+          assert.equal(dbRowUpdate.result, "increased");
+          assert.equal(dbRowUpdate.previousWeight.value, 50);
+          assert.equal(dbRowUpdate.nextWeight.value, 70);
         } finally {
           await server.close();
         }

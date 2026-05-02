@@ -393,6 +393,8 @@ export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[]
           context.repositories.programRepository,
           context.repositories.progressMetricRepository,
           context.repositories.progressionRecommendationEventRepository,
+          context.repositories.trainingSettingsRepository,
+          context.repositories.exerciseProgressionSettingsRepository,
           context.transactionManager,
           context.repositories.idempotencyRepository
         );
@@ -515,6 +517,8 @@ export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[]
           context.repositories.programRepository,
           context.repositories.progressMetricRepository,
           context.repositories.progressionRecommendationEventRepository,
+          context.repositories.trainingSettingsRepository,
+          context.repositories.exerciseProgressionSettingsRepository,
           context.transactionManager,
           context.repositories.idempotencyRepository
         );
@@ -571,6 +575,8 @@ export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[]
           context.repositories.programRepository,
           context.repositories.progressMetricRepository,
           context.repositories.progressionRecommendationEventRepository,
+          context.repositories.trainingSettingsRepository,
+          context.repositories.exerciseProgressionSettingsRepository,
           context.transactionManager,
           context.repositories.idempotencyRepository
         );
@@ -625,6 +631,8 @@ export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[]
           context.repositories.programRepository,
           context.repositories.progressMetricRepository,
           context.repositories.progressionRecommendationEventRepository,
+          context.repositories.trainingSettingsRepository,
+          context.repositories.exerciseProgressionSettingsRepository,
           context.transactionManager,
           context.repositories.idempotencyRepository
         );
@@ -677,6 +685,8 @@ export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[]
           context.repositories.programRepository,
           context.repositories.progressMetricRepository,
           context.repositories.progressionRecommendationEventRepository,
+          context.repositories.trainingSettingsRepository,
+          context.repositories.exerciseProgressionSettingsRepository,
           context.transactionManager,
           context.repositories.idempotencyRepository
         );
@@ -727,6 +737,8 @@ export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[]
           context.repositories.programRepository,
           context.repositories.progressMetricRepository,
           context.repositories.progressionRecommendationEventRepository,
+          context.repositories.trainingSettingsRepository,
+          context.repositories.exerciseProgressionSettingsRepository,
           context.transactionManager,
           context.repositories.idempotencyRepository
         );
@@ -774,6 +786,8 @@ export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[]
           context.repositories.programRepository,
           context.repositories.progressMetricRepository,
           context.repositories.progressionRecommendationEventRepository,
+          context.repositories.trainingSettingsRepository,
+          context.repositories.exerciseProgressionSettingsRepository,
           context.transactionManager,
           context.repositories.idempotencyRepository
         );
@@ -834,6 +848,8 @@ export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[]
           context.repositories.programRepository,
           context.repositories.progressMetricRepository,
           context.repositories.progressionRecommendationEventRepository,
+          context.repositories.trainingSettingsRepository,
+          context.repositories.exerciseProgressionSettingsRepository,
           context.transactionManager,
           context.repositories.idempotencyRepository
         );
@@ -905,6 +921,8 @@ export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[]
           context.repositories.programRepository,
           context.repositories.progressMetricRepository,
           context.repositories.progressionRecommendationEventRepository,
+          context.repositories.trainingSettingsRepository,
+          context.repositories.exerciseProgressionSettingsRepository,
           context.transactionManager,
           context.repositories.idempotencyRepository
         );
@@ -962,6 +980,8 @@ export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[]
           context.repositories.programRepository,
           context.repositories.progressMetricRepository,
           context.repositories.progressionRecommendationEventRepository,
+          context.repositories.trainingSettingsRepository,
+          context.repositories.exerciseProgressionSettingsRepository,
           context.transactionManager,
           context.repositories.idempotencyRepository
         );

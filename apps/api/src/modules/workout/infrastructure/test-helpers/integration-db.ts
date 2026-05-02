@@ -9,6 +9,8 @@ import {
   programs,
   sets,
   userProgramEnrollments,
+  userExerciseProgressionSettings,
+  userTrainingSettings,
   users,
   workoutSessions,
   workoutTemplateExerciseEntries,
@@ -28,6 +30,8 @@ import { DrizzleProgressionStateRepository } from "../repositories/drizzle-progr
 import { DrizzleProgressionStateV2Repository } from "../repositories/drizzle-progression-state-v2.repository.js";
 import { DrizzleProgressionRecommendationEventRepository } from "../repositories/drizzle-progression-recommendation-event.repository.js";
 import { DrizzleProgramRepository } from "../repositories/drizzle-program.repository.js";
+import { DrizzleTrainingSettingsRepository } from "../repositories/drizzle-training-settings.repository.js";
+import { DrizzleExerciseProgressionSettingsRepository } from "../repositories/drizzle-exercise-progression-settings.repository.js";
 import { DrizzleUserRepository } from "../repositories/drizzle-user.repository.js";
 import { DrizzleWorkoutSessionRepository } from "../repositories/drizzle-workout-session.repository.js";
 
@@ -43,6 +47,23 @@ create table users (
   experience_level text,
   training_goal text,
   deleted_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table user_training_settings (
+  user_id text primary key references users(id),
+  progression_aggressiveness text not null default 'balanced',
+  default_barbell_increment_lbs numeric(5,2) not null default 5,
+  default_dumbbell_increment_lbs numeric(5,2) not null default 5,
+  default_machine_increment_lbs numeric(5,2) not null default 10,
+  default_cable_increment_lbs numeric(5,2) not null default 5,
+  use_recovery_adjustments boolean not null default true,
+  default_recovery_state text not null default 'normal',
+  allow_auto_deload boolean not null default true,
+  allow_recalibration boolean not null default true,
+  prefer_rep_progression_before_weight boolean not null default true,
+  minimum_confidence_for_increase text not null default 'medium',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -76,6 +97,21 @@ create table exercises (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+create table user_exercise_progression_settings (
+  id text primary key,
+  user_id text not null references users(id),
+  exercise_id text not null references exercises(id),
+  progression_strategy text,
+  rep_range_min integer,
+  rep_range_max integer,
+  increment_override_lbs numeric(5,2),
+  max_jump_per_session_lbs numeric(6,2),
+  bodyweight_progression_mode text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create unique index idx_user_exercise_progression_unique on user_exercise_progression_settings(user_id, exercise_id);
 
 create table programs (
   id text primary key,
@@ -307,6 +343,8 @@ export type WorkoutInfrastructureTestContext = {
     exerciseRepository: DrizzleExerciseRepository;
     progressMetricRepository: DrizzleProgressMetricRepository;
     progressionRecommendationEventRepository: DrizzleProgressionRecommendationEventRepository;
+    trainingSettingsRepository: DrizzleTrainingSettingsRepository;
+    exerciseProgressionSettingsRepository: DrizzleExerciseProgressionSettingsRepository;
     idempotencyRepository: DrizzleIdempotencyRepository;
   };
 };
@@ -331,6 +369,8 @@ export async function createWorkoutInfrastructureTestContext(): Promise<WorkoutI
       exerciseRepository: new DrizzleExerciseRepository(db),
       progressMetricRepository: new DrizzleProgressMetricRepository(db),
       progressionRecommendationEventRepository: new DrizzleProgressionRecommendationEventRepository(db),
+      trainingSettingsRepository: new DrizzleTrainingSettingsRepository(db),
+      exerciseProgressionSettingsRepository: new DrizzleExerciseProgressionSettingsRepository(db),
       idempotencyRepository: new DrizzleIdempotencyRepository(db)
     }
   };
@@ -694,6 +734,10 @@ export async function seedInProgressWorkout(context: WorkoutInfrastructureTestCo
   progressionFailures?: number;
   setStatuses?: Array<"pending" | "completed" | "failed">;
   actualReps?: number[];
+  includeSecondExercise?: {
+    setStatuses: Array<"pending" | "completed" | "failed">;
+    actualReps?: number[];
+  };
 }) {
   const startedAt = new Date("2026-04-24T10:00:00.000Z");
   const completedAt = new Date("2026-04-24T10:10:00.000Z");
@@ -764,6 +808,76 @@ export async function seedInProgressWorkout(context: WorkoutInfrastructureTestCo
       updatedAt: completedAt
     }))
   );
+
+  if (options?.includeSecondExercise) {
+    const secondStatuses = options.includeSecondExercise.setStatuses;
+    const secondActualReps = options.includeSecondExercise.actualReps ?? secondStatuses.map(() => 8);
+
+    await context.db
+      .insert(exercises)
+      .values({
+        id: "exercise-4",
+        name: "DB Row",
+        category: "compound",
+        movementPattern: "pull",
+        primaryMuscleGroup: "back",
+        equipmentType: "dumbbell",
+        defaultStartingWeightLbs: "35.00",
+        defaultIncrementLbs: "5.00",
+        isActive: true,
+        createdAt: startedAt,
+        updatedAt: startedAt
+      })
+      .onConflictDoNothing({ target: exercises.id });
+
+    await context.db.insert(progressionStates).values({
+      id: "progression-2",
+      userId: "user-1",
+      exerciseId: "exercise-4",
+      currentWeightLbs: "50.00",
+      lastCompletedWeightLbs: "45.00",
+      consecutiveFailures: 0,
+      lastEffortFeedback: "just_right",
+      lastPerformedAt: new Date("2026-04-20T10:00:00.000Z"),
+      createdAt: startedAt,
+      updatedAt: startedAt
+    });
+
+    await context.db.insert(exerciseEntries).values({
+      id: "entry-2",
+      workoutSessionId: "session-1",
+      exerciseId: "exercise-4",
+      workoutTemplateExerciseEntryId: null,
+      sequenceOrder: 2,
+      targetSets: secondStatuses.length,
+      targetReps: 8,
+      targetWeightLbs: "50.00",
+      restSeconds: 90,
+      effortFeedback: null,
+      completedAt: null,
+      exerciseNameSnapshot: "DB Row",
+      exerciseCategorySnapshot: "compound",
+      progressionRuleSnapshot: { incrementLbs: 5 },
+      createdAt: startedAt,
+      updatedAt: startedAt
+    });
+
+    await context.db.insert(sets).values(
+      secondStatuses.map((status, index) => ({
+        id: `set-2-${index + 1}`,
+        exerciseEntryId: "entry-2",
+        setNumber: index + 1,
+        targetReps: 8,
+        actualReps: secondActualReps[index] ?? 8,
+        targetWeightLbs: "50.00",
+        actualWeightLbs: status === "pending" ? null : "50.00",
+        status,
+        completedAt: status === "pending" ? null : completedAt,
+        createdAt: startedAt,
+        updatedAt: completedAt
+      }))
+    );
+  }
 }
 
 export async function countRecords(context: WorkoutInfrastructureTestContext) {

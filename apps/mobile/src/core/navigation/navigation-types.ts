@@ -29,4 +29,8 @@ export type RootStackParamList = {
     summary: CompleteWorkoutSessionResponse;
   };
   FeedbackDebug: undefined;
+  TrainingProfile: undefined;
+  ProgressionPreferences: undefined;
+  EquipmentSettings: undefined;
+  ExerciseProgressionSettings: undefined;
 };

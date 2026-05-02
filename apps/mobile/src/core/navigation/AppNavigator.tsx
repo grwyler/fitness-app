@@ -12,6 +12,10 @@ import { FeedbackDebugScreen } from "../../screens/FeedbackDebugScreen";
 import { AuthLoadingScreen } from "../../screens/AuthLoadingScreen";
 import { SignInScreen } from "../../screens/SignInScreen";
 import { SignUpScreen } from "../../screens/SignUpScreen";
+import { TrainingProfileScreen } from "../../screens/TrainingProfileScreen";
+import { ProgressionPreferencesScreen } from "../../screens/ProgressionPreferencesScreen";
+import { EquipmentSettingsScreen } from "../../screens/EquipmentSettingsScreen";
+import { ExerciseProgressionSettingsScreen } from "../../screens/ExerciseProgressionSettingsScreen";
 import { logSafeAuthDiagnostic } from "../auth/auth-debug";
 import { colors } from "../../theme/tokens";
 import { useAppAuth } from "../auth/AuthProvider";
@@ -97,6 +101,26 @@ export function AppNavigator() {
             name="FeedbackDebug"
             component={FeedbackDebugScreen}
             options={{ title: "Feedback Debug" }}
+          />
+          <Stack.Screen
+            name="TrainingProfile"
+            component={TrainingProfileScreen}
+            options={{ title: "Training Profile" }}
+          />
+          <Stack.Screen
+            name="ProgressionPreferences"
+            component={ProgressionPreferencesScreen}
+            options={{ title: "Progression Preferences" }}
+          />
+          <Stack.Screen
+            name="EquipmentSettings"
+            component={EquipmentSettingsScreen}
+            options={{ title: "Equipment Settings" }}
+          />
+          <Stack.Screen
+            name="ExerciseProgressionSettings"
+            component={ExerciseProgressionSettingsScreen}
+            options={{ title: "Exercise Progression Settings" }}
           />
         </>
       )}

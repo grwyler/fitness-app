@@ -1402,6 +1402,46 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         { findActiveById: async () => ({ program: { trainingGoal: null } }) } as any,
         progressMetricRepository,
         progressionRecommendationEventRepository,
+        {
+          findOrCreateByUserId: async (userId: string) => ({
+            userId,
+            trainingGoal: null,
+            experienceLevel: null,
+            unitSystem: "imperial",
+            progressionAggressiveness: "balanced",
+            defaultBarbellIncrementLbs: 5,
+            defaultDumbbellIncrementLbs: 5,
+            defaultMachineIncrementLbs: 10,
+            defaultCableIncrementLbs: 5,
+            useRecoveryAdjustments: true,
+            defaultRecoveryState: "normal",
+            allowAutoDeload: true,
+            allowRecalibration: true,
+            preferRepProgressionBeforeWeight: true,
+            minimumConfidenceForIncrease: "medium"
+          }),
+          updateByUserId: async (userId: string) => ({
+            userId,
+            trainingGoal: null,
+            experienceLevel: null,
+            unitSystem: "imperial",
+            progressionAggressiveness: "balanced",
+            defaultBarbellIncrementLbs: 5,
+            defaultDumbbellIncrementLbs: 5,
+            defaultMachineIncrementLbs: 10,
+            defaultCableIncrementLbs: 5,
+            useRecoveryAdjustments: true,
+            defaultRecoveryState: "normal",
+            allowAutoDeload: true,
+            allowRecalibration: true,
+            preferRepProgressionBeforeWeight: true,
+            minimumConfidenceForIncrease: "medium"
+          })
+        } as any,
+        {
+          findByUserIdAndExerciseId: async () => null,
+          upsert: async (record: any) => record
+        } as any,
         new MockTransactionManager(),
         idempotency.repository
       );
@@ -1627,6 +1667,46 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         { findActiveById: async () => ({ program: { trainingGoal: null } }) } as any,
         progressMetricRepository,
         progressionRecommendationEventRepository,
+        {
+          findOrCreateByUserId: async (userId: string) => ({
+            userId,
+            trainingGoal: null,
+            experienceLevel: null,
+            unitSystem: "imperial",
+            progressionAggressiveness: "balanced",
+            defaultBarbellIncrementLbs: 5,
+            defaultDumbbellIncrementLbs: 5,
+            defaultMachineIncrementLbs: 10,
+            defaultCableIncrementLbs: 5,
+            useRecoveryAdjustments: true,
+            defaultRecoveryState: "normal",
+            allowAutoDeload: true,
+            allowRecalibration: true,
+            preferRepProgressionBeforeWeight: true,
+            minimumConfidenceForIncrease: "medium"
+          }),
+          updateByUserId: async (userId: string) => ({
+            userId,
+            trainingGoal: null,
+            experienceLevel: null,
+            unitSystem: "imperial",
+            progressionAggressiveness: "balanced",
+            defaultBarbellIncrementLbs: 5,
+            defaultDumbbellIncrementLbs: 5,
+            defaultMachineIncrementLbs: 10,
+            defaultCableIncrementLbs: 5,
+            useRecoveryAdjustments: true,
+            defaultRecoveryState: "normal",
+            allowAutoDeload: true,
+            allowRecalibration: true,
+            preferRepProgressionBeforeWeight: true,
+            minimumConfidenceForIncrease: "medium"
+          })
+        } as any,
+        {
+          findByUserIdAndExerciseId: async () => null,
+          upsert: async (record: any) => record
+        } as any,
         new MockTransactionManager(),
         idempotency.repository
       );
@@ -1834,6 +1914,46 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         { findActiveById: async () => ({ program: { trainingGoal: null } }) } as any,
         progressMetricRepository,
         progressionRecommendationEventRepository,
+        {
+          findOrCreateByUserId: async (userId: string) => ({
+            userId,
+            trainingGoal: null,
+            experienceLevel: null,
+            unitSystem: "imperial",
+            progressionAggressiveness: "balanced",
+            defaultBarbellIncrementLbs: 5,
+            defaultDumbbellIncrementLbs: 5,
+            defaultMachineIncrementLbs: 10,
+            defaultCableIncrementLbs: 5,
+            useRecoveryAdjustments: true,
+            defaultRecoveryState: "normal",
+            allowAutoDeload: true,
+            allowRecalibration: true,
+            preferRepProgressionBeforeWeight: true,
+            minimumConfidenceForIncrease: "medium"
+          }),
+          updateByUserId: async (userId: string) => ({
+            userId,
+            trainingGoal: null,
+            experienceLevel: null,
+            unitSystem: "imperial",
+            progressionAggressiveness: "balanced",
+            defaultBarbellIncrementLbs: 5,
+            defaultDumbbellIncrementLbs: 5,
+            defaultMachineIncrementLbs: 10,
+            defaultCableIncrementLbs: 5,
+            useRecoveryAdjustments: true,
+            defaultRecoveryState: "normal",
+            allowAutoDeload: true,
+            allowRecalibration: true,
+            preferRepProgressionBeforeWeight: true,
+            minimumConfidenceForIncrease: "medium"
+          })
+        } as any,
+        {
+          findByUserIdAndExerciseId: async () => null,
+          upsert: async (record: any) => record
+        } as any,
         new MockTransactionManager(),
         idempotency.repository
       );
@@ -2074,6 +2194,46 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         { findActiveById: async () => ({ program: { trainingGoal: null } }) } as any,
         progressMetricRepository,
         progressionRecommendationEventRepository,
+        {
+          findOrCreateByUserId: async (userId: string) => ({
+            userId,
+            trainingGoal: null,
+            experienceLevel: null,
+            unitSystem: "imperial",
+            progressionAggressiveness: "balanced",
+            defaultBarbellIncrementLbs: 5,
+            defaultDumbbellIncrementLbs: 5,
+            defaultMachineIncrementLbs: 10,
+            defaultCableIncrementLbs: 5,
+            useRecoveryAdjustments: true,
+            defaultRecoveryState: "normal",
+            allowAutoDeload: true,
+            allowRecalibration: true,
+            preferRepProgressionBeforeWeight: true,
+            minimumConfidenceForIncrease: "medium"
+          }),
+          updateByUserId: async (userId: string) => ({
+            userId,
+            trainingGoal: null,
+            experienceLevel: null,
+            unitSystem: "imperial",
+            progressionAggressiveness: "balanced",
+            defaultBarbellIncrementLbs: 5,
+            defaultDumbbellIncrementLbs: 5,
+            defaultMachineIncrementLbs: 10,
+            defaultCableIncrementLbs: 5,
+            useRecoveryAdjustments: true,
+            defaultRecoveryState: "normal",
+            allowAutoDeload: true,
+            allowRecalibration: true,
+            preferRepProgressionBeforeWeight: true,
+            minimumConfidenceForIncrease: "medium"
+          })
+        } as any,
+        {
+          findByUserIdAndExerciseId: async () => null,
+          upsert: async (record: any) => record
+        } as any,
         new MockTransactionManager(),
         idempotency.repository
       );

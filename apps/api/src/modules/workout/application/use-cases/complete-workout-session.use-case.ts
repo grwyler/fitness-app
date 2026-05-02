@@ -6,7 +6,8 @@ import type {
   RecoveryState,
   ProgressionStrategy,
   TrainingGoal,
-  ExperienceLevel
+  ExperienceLevel,
+  ProgressionConfidence
 } from "@fitness/shared";
 import { progressionStrategies } from "@fitness/shared";
 import { isCustomWorkoutProgramId } from "../../domain/models/custom-workout.js";
@@ -22,6 +23,8 @@ import type { ProgressionStateRepository } from "../../repositories/interfaces/p
 import type { ProgressionStateV2Repository } from "../../repositories/interfaces/progression-state-v2.repository.js";
 import type { WorkoutSessionRepository } from "../../repositories/interfaces/workout-session.repository.js";
 import type { UserRepository } from "../../repositories/interfaces/user.repository.js";
+import type { TrainingSettingsRepository } from "../../repositories/interfaces/training-settings.repository.js";
+import type { ExerciseProgressionSettingsRepository } from "../../repositories/interfaces/exercise-progression-settings.repository.js";
 import {
   mapNextWorkoutTemplateDto,
   mapProgressMetricDto,
@@ -211,6 +214,20 @@ function buildProgressionExplanation(input: {
   };
 }
 
+function compareConfidence(left: ProgressionConfidence, right: ProgressionConfidence) {
+  const rank: Record<ProgressionConfidence, number> = { low: 0, medium: 1, high: 2 };
+  return rank[left] - rank[right];
+}
+
+function roundDownToIncrement(weightLbs: number, incrementLbs: number) {
+  if (incrementLbs <= 0) {
+    return weightLbs;
+  }
+
+  const rounded = Math.floor(weightLbs / incrementLbs) * incrementLbs;
+  return Math.round(rounded * 100) / 100;
+}
+
 function holdLoadWhenWeightNotConfirmedV2(input: {
   missingActualWeight: boolean;
   performedAt: Date;
@@ -344,6 +361,8 @@ export class CompleteWorkoutSessionUseCase {
     private readonly programRepository: ProgramRepository,
     private readonly progressMetricRepository: ProgressMetricRepository,
     private readonly progressionRecommendationEventRepository: ProgressionRecommendationEventRepository,
+    private readonly trainingSettingsRepository: TrainingSettingsRepository,
+    private readonly exerciseProgressionSettingsRepository: ExerciseProgressionSettingsRepository,
     private readonly transactionManager: TransactionManager,
     idempotencyRepository: IdempotencyRepository
   ) {
@@ -410,6 +429,10 @@ export class CompleteWorkoutSessionUseCase {
         const experienceLevel = userTrainingProfile?.experienceLevel ?? null;
         const userTrainingGoal = userTrainingProfile?.trainingGoal ?? null;
 
+        const userTrainingSettings = await this.trainingSettingsRepository.findOrCreateByUserId(input.context.userId, {
+          tx
+        });
+
         const programDefinition = isCustomWorkout
           ? null
           : await this.programRepository.findActiveById(
@@ -428,7 +451,10 @@ export class CompleteWorkoutSessionUseCase {
         const progressionGoal: TrainingGoal | null = goalSource === "default" ? null : trainingGoal;
 
         const completedAt = input.request.completedAt ? new Date(input.request.completedAt) : new Date();
-        const recoveryState: RecoveryState | null = input.request.recoveryState ?? null;
+        const recoveryState: RecoveryState | null =
+          userTrainingSettings.useRecoveryAdjustments
+            ? (input.request.recoveryState ?? userTrainingSettings.defaultRecoveryState)
+            : null;
         const hasPendingSets = workoutSessionGraph.sets.some((set) => set.status === "pending");
         if (hasPendingSets) {
           await this.workoutSessionRepository.skipPendingWorkoutSets(
@@ -453,6 +479,40 @@ export class CompleteWorkoutSessionUseCase {
         const progressionSeedByExerciseId = new Map(
           progressionSeeds.map((progressionSeed) => [progressionSeed.exerciseId, progressionSeed])
         );
+
+        const exerciseSettingsRows = await Promise.all(
+          exerciseIds.map(async (exerciseId) => {
+            const settings = await this.exerciseProgressionSettingsRepository.findByUserIdAndExerciseId(
+              input.context.userId,
+              exerciseId,
+              { tx }
+            );
+            return [exerciseId, settings] as const;
+          })
+        );
+        const exerciseSettingsByExerciseId = new Map(exerciseSettingsRows);
+
+        function resolveIncrementLbs(exerciseId: string, seedIncrementLbs: number) {
+          const override = exerciseSettingsByExerciseId.get(exerciseId)?.incrementOverrideLbs ?? null;
+          if (override !== null) {
+            return override;
+          }
+
+          const seed = progressionSeedByExerciseId.get(exerciseId);
+          const equipmentType = seed?.equipmentType ?? null;
+          switch (equipmentType) {
+            case "barbell":
+              return userTrainingSettings.defaultBarbellIncrementLbs;
+            case "dumbbell":
+              return userTrainingSettings.defaultDumbbellIncrementLbs;
+            case "machine":
+              return userTrainingSettings.defaultMachineIncrementLbs;
+            case "cable":
+              return userTrainingSettings.defaultCableIncrementLbs;
+            default:
+              return seedIncrementLbs;
+          }
+        }
 
         const fullyLoggedExerciseEntries = workoutSessionGraph.exerciseEntries.filter((exerciseEntry) => {
           const relatedSets = workoutSessionGraph.sets.filter((set) => set.exerciseEntryId === exerciseEntry.id);
@@ -608,6 +668,7 @@ export class CompleteWorkoutSessionUseCase {
         for (const { entry, workoutTemplateExerciseEntryId } of progressionEligibleEntriesWithTemplateEntry) {
           const exerciseEntry = entry;
           const progressionSeed = progressionSeedByExerciseId.get(exerciseEntry.exerciseId);
+          const exerciseSettings = exerciseSettingsByExerciseId.get(exerciseEntry.exerciseId) ?? null;
 
           if (!progressionSeed) {
             throw new WorkoutApplicationError(
@@ -637,8 +698,33 @@ export class CompleteWorkoutSessionUseCase {
 
             return "double_progression";
           })();
+          const effectiveProgressionStrategy: ProgressionStrategy = (() => {
+            const overrideStrategy = exerciseSettings?.progressionStrategy ?? null;
+            if (overrideStrategy) {
+              return overrideStrategy;
+            }
 
-          if (progressionStrategy === "no_progression") {
+            const bodyweightMode = exerciseSettings?.bodyweightProgressionMode ?? null;
+            if (progressionSeed.isBodyweight && bodyweightMode) {
+              if (bodyweightMode === "reps") {
+                return "bodyweight_reps";
+              }
+              if (bodyweightMode === "weighted") {
+                return "bodyweight_weighted";
+              }
+            }
+
+            return progressionStrategy;
+          })();
+
+          const incrementLbs = resolveIncrementLbs(exerciseEntry.exerciseId, progressionSeed.incrementLbs);
+          const repRangeMinOverride = exerciseSettings?.repRangeMin ?? null;
+          const repRangeMaxOverride = exerciseSettings?.repRangeMax ?? null;
+          const repRangeMin = repRangeMinOverride ?? progressionStateV2.repRangeMin;
+          const repRangeMax = repRangeMaxOverride ?? progressionStateV2.repRangeMax;
+          const clampedRepGoal = Math.min(repRangeMax, Math.max(repRangeMin, progressionStateV2.repGoal));
+
+          if (effectiveProgressionStrategy === "no_progression") {
             skippedProgressionUpdatesV2.push({
               exerciseEntry,
               workoutTemplateExerciseEntryId,
@@ -655,18 +741,18 @@ export class CompleteWorkoutSessionUseCase {
                   consecutiveFailures: progressionStateV2.consecutiveFailures,
                   lastEffortFeedback: progressionStateV2.lastEffortFeedback,
                   lastPerformedAt: progressionStateV2.lastPerformedAt?.toISOString() ?? null,
-                  repGoal: progressionStateV2.repGoal,
-                  repRangeMin: progressionStateV2.repRangeMin,
-                  repRangeMax: progressionStateV2.repRangeMax
+                  repGoal: clampedRepGoal,
+                  repRangeMin,
+                  repRangeMax
                 },
                 exercise: {
                   exerciseId: exerciseEntry.exerciseId,
                   exerciseName: exerciseEntry.exerciseNameSnapshot,
                   exerciseCategory: progressionSeed.exerciseCategory,
-                  incrementLbs: progressionSeed.incrementLbs,
+                  incrementLbs,
                   isBodyweight: progressionSeed.isBodyweight,
                   isWeightOptional: progressionSeed.isWeightOptional,
-                  progressionStrategy
+                  progressionStrategy: effectiveProgressionStrategy
                 },
                 outcome: {
                   effortFeedback: null,
@@ -703,18 +789,18 @@ export class CompleteWorkoutSessionUseCase {
                   consecutiveFailures: progressionStateV2.consecutiveFailures,
                   lastEffortFeedback: progressionStateV2.lastEffortFeedback,
                   lastPerformedAt: progressionStateV2.lastPerformedAt?.toISOString() ?? null,
-                  repGoal: progressionStateV2.repGoal,
-                  repRangeMin: progressionStateV2.repRangeMin,
-                  repRangeMax: progressionStateV2.repRangeMax
+                  repGoal: clampedRepGoal,
+                  repRangeMin,
+                  repRangeMax
                 },
                 exercise: {
                   exerciseId: exerciseEntry.exerciseId,
                   exerciseName: exerciseEntry.exerciseNameSnapshot,
                   exerciseCategory: progressionSeed.exerciseCategory,
-                  incrementLbs: progressionSeed.incrementLbs,
+                  incrementLbs,
                   isBodyweight: progressionSeed.isBodyweight,
                   isWeightOptional: progressionSeed.isWeightOptional,
-                  progressionStrategy
+                  progressionStrategy: effectiveProgressionStrategy
                 },
                 outcome: {
                   effortFeedback: null,
@@ -737,24 +823,28 @@ export class CompleteWorkoutSessionUseCase {
           const missingActualWeight = loggedSets.some((set) => set.actualWeightLbs === null);
 
           const baseProgressionResult = this.progressionEngine.calculateWithStrategyV2({
-            strategy: progressionStrategy,
+            strategy: effectiveProgressionStrategy,
             experienceLevel,
             trainingGoal: progressionGoal,
             recoveryState,
+            progressionAggressiveness: userTrainingSettings.progressionAggressiveness,
+            allowAutoDeload: userTrainingSettings.allowAutoDeload,
+            allowRecalibration: userTrainingSettings.allowRecalibration,
+            preferRepProgressionBeforeWeight: userTrainingSettings.preferRepProgressionBeforeWeight,
             state: {
               currentWeightLbs: progressionStateV2.currentWeightLbs,
               lastCompletedWeightLbs: progressionStateV2.lastCompletedWeightLbs,
               consecutiveFailures: progressionStateV2.consecutiveFailures,
               lastEffortFeedback: progressionStateV2.lastEffortFeedback,
               lastPerformedAt: progressionStateV2.lastPerformedAt,
-              repGoal: progressionStateV2.repGoal,
-              repRangeMin: progressionStateV2.repRangeMin,
-              repRangeMax: progressionStateV2.repRangeMax
+              repGoal: clampedRepGoal,
+              repRangeMin,
+              repRangeMax
             },
             exercise: {
               exerciseName: exerciseEntry.exerciseNameSnapshot,
               exerciseCategory: progressionSeed.exerciseCategory,
-              incrementLbs: progressionSeed.incrementLbs,
+              incrementLbs,
               isBodyweight: progressionSeed.isBodyweight,
               isWeightOptional: progressionSeed.isWeightOptional
             },
@@ -776,17 +866,88 @@ export class CompleteWorkoutSessionUseCase {
             effortFeedback,
             previous: {
               weightLbs: progressionStateV2.currentWeightLbs,
-              repGoal: progressionStateV2.repGoal,
-              repRangeMin: progressionStateV2.repRangeMin,
-              repRangeMax: progressionStateV2.repRangeMax
+              repGoal: clampedRepGoal,
+              repRangeMin,
+              repRangeMax
             },
             base: baseProgressionResult
           });
 
+          const maxJumpPerSessionLbs = exerciseSettings?.maxJumpPerSessionLbs ?? null;
+          const cappedProgressionResult =
+            maxJumpPerSessionLbs && progressionResult.nextWeightLbs > progressionResult.previousWeightLbs
+              ? (() => {
+                  const maxAllowed = progressionResult.previousWeightLbs + maxJumpPerSessionLbs;
+                  const cappedWeight = roundDownToIncrement(Math.min(progressionResult.nextWeightLbs, maxAllowed), incrementLbs);
+                  if (cappedWeight <= progressionResult.previousWeightLbs) {
+                    return {
+                      ...progressionResult,
+                      nextWeightLbs: progressionResult.previousWeightLbs,
+                      nextRepGoal: progressionResult.previousRepGoal,
+                      result: "repeated" as const,
+                      reason: "Increase was held because it exceeded your max jump per session setting.",
+                      nextState: {
+                        ...progressionResult.nextState,
+                        currentWeightLbs: progressionResult.previousWeightLbs,
+                        repGoal: progressionResult.previousRepGoal
+                      }
+                    };
+                  }
+
+                  return {
+                    ...progressionResult,
+                    nextWeightLbs: cappedWeight,
+                    nextState: {
+                      ...progressionResult.nextState,
+                      currentWeightLbs: cappedWeight
+                    }
+                  };
+                })()
+              : progressionResult;
+
+          const gatingExplanation = buildProgressionExplanation({
+            result: cappedProgressionResult.result,
+            reason: cappedProgressionResult.reason,
+            previousWeightLbs: cappedProgressionResult.previousWeightLbs,
+            nextWeightLbs: cappedProgressionResult.nextWeightLbs,
+            previousRepGoal: cappedProgressionResult.previousRepGoal,
+            nextRepGoal: cappedProgressionResult.nextRepGoal,
+            effortFeedback,
+            workoutIsPartial: isPartial,
+            totalSetCount: relatedSets.length,
+            loggedSetCount: loggedSets.length,
+            hasFailedSets: loggedSets.some((set) => set.status === "failed"),
+            missingActualWeight,
+            lastPerformedAt: progressionStateV2.lastPerformedAt ?? null,
+            performedAt: completedAt,
+            trainingGoal,
+            goalSource,
+            experienceLevel,
+            recoveryState,
+            recoveryInfluenced: recoveryState !== "normal" && cappedProgressionResult.reason.includes("recovery=")
+          });
+
+          const gatedProgressionResult =
+            cappedProgressionResult.result === "increased" &&
+            compareConfidence(gatingExplanation.confidence, userTrainingSettings.minimumConfidenceForIncrease) < 0
+              ? {
+                  ...cappedProgressionResult,
+                  result: "repeated" as const,
+                  nextWeightLbs: cappedProgressionResult.previousWeightLbs,
+                  nextRepGoal: cappedProgressionResult.previousRepGoal,
+                  reason: `Increase was held because recommendation confidence was below your setting. ${cappedProgressionResult.reason}`,
+                  nextState: {
+                    ...cappedProgressionResult.nextState,
+                    currentWeightLbs: cappedProgressionResult.previousWeightLbs,
+                    repGoal: cappedProgressionResult.previousRepGoal
+                  }
+                }
+              : cappedProgressionResult;
+
           computedProgressionUpdatesV2.push({
             exerciseEntry,
             workoutTemplateExerciseEntryId,
-            progressionResult,
+            progressionResult: gatedProgressionResult,
             inputSnapshot: {
               version: "v2",
               performedAt: completedAt.toISOString(),
@@ -807,10 +968,10 @@ export class CompleteWorkoutSessionUseCase {
                 exerciseId: exerciseEntry.exerciseId,
                 exerciseName: exerciseEntry.exerciseNameSnapshot,
                 exerciseCategory: progressionSeed.exerciseCategory,
-                incrementLbs: progressionSeed.incrementLbs,
+                incrementLbs,
                 isBodyweight: progressionSeed.isBodyweight,
                 isWeightOptional: progressionSeed.isWeightOptional,
-                progressionStrategy
+                progressionStrategy: effectiveProgressionStrategy
               },
               outcome: {
                 effortFeedback,
@@ -848,6 +1009,8 @@ export class CompleteWorkoutSessionUseCase {
             );
           }
 
+          const incrementLbs = resolveIncrementLbs(exerciseEntry.exerciseId, progressionSeed.incrementLbs);
+
           const progressionState = progressionStateV1ByExerciseId.get(exerciseEntry.exerciseId);
           if (!progressionState) {
             throw new WorkoutApplicationError(
@@ -879,7 +1042,7 @@ export class CompleteWorkoutSessionUseCase {
                   exerciseId: exerciseEntry.exerciseId,
                   exerciseName: exerciseEntry.exerciseNameSnapshot,
                   exerciseCategory: progressionSeed.exerciseCategory,
-                  incrementLbs: progressionSeed.incrementLbs,
+                  incrementLbs,
                   isBodyweight: progressionSeed.isBodyweight,
                   isWeightOptional: progressionSeed.isWeightOptional
                 },
@@ -907,6 +1070,10 @@ export class CompleteWorkoutSessionUseCase {
             experienceLevel,
             trainingGoal: progressionGoal,
             recoveryState,
+            progressionAggressiveness: userTrainingSettings.progressionAggressiveness,
+            allowAutoDeload: userTrainingSettings.allowAutoDeload,
+            allowRecalibration: userTrainingSettings.allowRecalibration,
+            preferRepProgressionBeforeWeight: userTrainingSettings.preferRepProgressionBeforeWeight,
             state: {
               currentWeightLbs: progressionState.currentWeightLbs,
               lastCompletedWeightLbs: progressionState.lastCompletedWeightLbs,
@@ -917,7 +1084,7 @@ export class CompleteWorkoutSessionUseCase {
             exercise: {
               exerciseName: exerciseEntry.exerciseNameSnapshot,
               exerciseCategory: progressionSeed.exerciseCategory,
-              incrementLbs: progressionSeed.incrementLbs,
+              incrementLbs,
               isBodyweight: progressionSeed.isBodyweight,
               isWeightOptional: progressionSeed.isWeightOptional
             },
@@ -940,9 +1107,45 @@ export class CompleteWorkoutSessionUseCase {
             base: baseProgressionResult
           });
 
+          const gatingExplanation = buildProgressionExplanation({
+            result: progressionResult.result,
+            reason: progressionResult.reason,
+            previousWeightLbs: progressionResult.previousWeightLbs,
+            nextWeightLbs: progressionResult.nextWeightLbs,
+            previousRepGoal: exerciseEntry.targetReps,
+            nextRepGoal: exerciseEntry.targetReps,
+            effortFeedback,
+            workoutIsPartial: isPartial,
+            totalSetCount: relatedSets.length,
+            loggedSetCount: loggedSets.length,
+            hasFailedSets: loggedSets.some((set) => set.status === "failed"),
+            missingActualWeight,
+            lastPerformedAt: progressionState.lastPerformedAt ?? null,
+            performedAt: completedAt,
+            trainingGoal,
+            goalSource,
+            experienceLevel,
+            recoveryState,
+            recoveryInfluenced: recoveryState !== "normal" && progressionResult.reason.includes("recovery=")
+          });
+          const gatedProgressionResult =
+            progressionResult.result === "increased" &&
+            compareConfidence(gatingExplanation.confidence, userTrainingSettings.minimumConfidenceForIncrease) < 0
+              ? {
+                  ...progressionResult,
+                  result: "repeated" as const,
+                  nextWeightLbs: progressionResult.previousWeightLbs,
+                  reason: `Increase was held because recommendation confidence was below your setting. ${progressionResult.reason}`,
+                  nextState: {
+                    ...progressionResult.nextState,
+                    currentWeightLbs: progressionResult.previousWeightLbs
+                  }
+                }
+              : progressionResult;
+
           computedProgressionUpdatesV1Direct.push({
             exerciseEntry,
-            progressionResult,
+            progressionResult: gatedProgressionResult,
             inputSnapshot: {
               version: "v1",
               performedAt: completedAt.toISOString(),
@@ -959,7 +1162,7 @@ export class CompleteWorkoutSessionUseCase {
                 exerciseId: exerciseEntry.exerciseId,
                 exerciseName: exerciseEntry.exerciseNameSnapshot,
                 exerciseCategory: progressionSeed.exerciseCategory,
-                incrementLbs: progressionSeed.incrementLbs,
+                incrementLbs,
                 isBodyweight: progressionSeed.isBodyweight,
                 isWeightOptional: progressionSeed.isWeightOptional
               },
@@ -1007,8 +1210,8 @@ export class CompleteWorkoutSessionUseCase {
                 currentWeightLbs: progressionResult.nextState.currentWeightLbs,
                 lastCompletedWeightLbs: progressionResult.nextState.lastCompletedWeightLbs,
                 repGoal: progressionResult.nextState.repGoal,
-                repRangeMin: existing.repRangeMin,
-                repRangeMax: existing.repRangeMax,
+                repRangeMin: progressionResult.nextState.repRangeMin,
+                repRangeMax: progressionResult.nextState.repRangeMax,
                 consecutiveFailures: progressionResult.nextState.consecutiveFailures,
                 lastEffortFeedback: progressionResult.nextState.lastEffortFeedback,
                 lastPerformedAt: completedAt

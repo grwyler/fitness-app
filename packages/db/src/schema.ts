@@ -22,10 +22,13 @@ import {
   programSources,
   progressMetricTypes,
   progressionStrategies,
+  progressionAggressivenessLevels,
   recoveryStates,
   setStatuses,
   trainingGoals,
   unitSystems,
+  bodyweightProgressionModes,
+  progressionConfidenceLevels,
   workoutSessionStatuses
 } from "@fitness/shared";
 
@@ -38,10 +41,13 @@ const effortFeedbackEnum = pgEnum("effort_feedback", effortFeedbackValues);
 const setStatusEnum = pgEnum("set_status", setStatuses);
 const progressMetricTypeEnum = pgEnum("progress_metric_type", progressMetricTypes);
 const progressionStrategyEnum = pgEnum("progression_strategy", progressionStrategies);
+const progressionAggressivenessEnum = pgEnum("progression_aggressiveness", progressionAggressivenessLevels);
 const programSourceEnum = pgEnum("program_source", programSources);
 const trainingGoalEnum = pgEnum("training_goal", trainingGoals);
 const recoveryStateEnum = pgEnum("recovery_state", recoveryStates);
 const idempotencyStatusEnum = pgEnum("idempotency_status", ["pending", "completed"]);
+const progressionConfidenceEnum = pgEnum("progression_confidence", progressionConfidenceLevels);
+const bodyweightProgressionModeEnum = pgEnum("bodyweight_progression_mode", bodyweightProgressionModes);
 
 const timestamps = {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -66,6 +72,42 @@ export const users = pgTable(
   (table) => ({
     authProviderIdUnique: uniqueIndex("idx_users_auth_provider_id").on(table.authProviderId),
     emailUnique: uniqueIndex("idx_users_email").on(table.email)
+  })
+);
+
+export const userTrainingSettings = pgTable(
+  "user_training_settings",
+  {
+    userId: uuid("user_id")
+      .primaryKey()
+      .references(() => users.id),
+    progressionAggressiveness: progressionAggressivenessEnum("progression_aggressiveness")
+      .notNull()
+      .default("balanced"),
+    defaultBarbellIncrementLbs: numeric("default_barbell_increment_lbs", { precision: 5, scale: 2 })
+      .notNull()
+      .default("5"),
+    defaultDumbbellIncrementLbs: numeric("default_dumbbell_increment_lbs", { precision: 5, scale: 2 })
+      .notNull()
+      .default("5"),
+    defaultMachineIncrementLbs: numeric("default_machine_increment_lbs", { precision: 5, scale: 2 })
+      .notNull()
+      .default("10"),
+    defaultCableIncrementLbs: numeric("default_cable_increment_lbs", { precision: 5, scale: 2 })
+      .notNull()
+      .default("5"),
+    useRecoveryAdjustments: boolean("use_recovery_adjustments").notNull().default(true),
+    defaultRecoveryState: recoveryStateEnum("default_recovery_state").notNull().default("normal"),
+    allowAutoDeload: boolean("allow_auto_deload").notNull().default(true),
+    allowRecalibration: boolean("allow_recalibration").notNull().default(true),
+    preferRepProgressionBeforeWeight: boolean("prefer_rep_progression_before_weight").notNull().default(true),
+    minimumConfidenceForIncrease: progressionConfidenceEnum("minimum_confidence_for_increase")
+      .notNull()
+      .default("medium"),
+    ...timestamps
+  },
+  (table) => ({
+    userIdIndex: index("idx_user_training_settings_user_id").on(table.userId)
   })
 );
 
@@ -121,6 +163,47 @@ export const exercises = pgTable(
       sql`${table.defaultStartingWeightLbs} >= 0`
     ),
     positiveIncrement: check("chk_exercises_default_increment_positive", sql`${table.defaultIncrementLbs} > 0`)
+  })
+);
+
+export const userExerciseProgressionSettings = pgTable(
+  "user_exercise_progression_settings",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").notNull().references(() => users.id),
+    exerciseId: uuid("exercise_id").notNull().references(() => exercises.id),
+    progressionStrategy: progressionStrategyEnum("progression_strategy"),
+    repRangeMin: integer("rep_range_min"),
+    repRangeMax: integer("rep_range_max"),
+    incrementOverrideLbs: numeric("increment_override_lbs", { precision: 5, scale: 2 }),
+    maxJumpPerSessionLbs: numeric("max_jump_per_session_lbs", { precision: 6, scale: 2 }),
+    bodyweightProgressionMode: bodyweightProgressionModeEnum("bodyweight_progression_mode"),
+    ...timestamps
+  },
+  (table) => ({
+    userExerciseUnique: uniqueIndex("idx_user_exercise_progression_unique").on(table.userId, table.exerciseId),
+    userIndex: index("idx_user_exercise_progression_user_id").on(table.userId),
+    exerciseIndex: index("idx_user_exercise_progression_exercise_id").on(table.exerciseId),
+    repRangeValid: check(
+      "chk_user_exercise_progression_rep_range_valid",
+      sql`(
+        (${table.repRangeMin} is null and ${table.repRangeMax} is null)
+        or (
+          ${table.repRangeMin} is not null
+          and ${table.repRangeMax} is not null
+          and ${table.repRangeMin} > 0
+          and ${table.repRangeMax} >= ${table.repRangeMin}
+        )
+      )`
+    ),
+    maxJumpPositive: check(
+      "chk_user_exercise_progression_max_jump_positive",
+      sql`${table.maxJumpPerSessionLbs} is null or ${table.maxJumpPerSessionLbs} > 0`
+    ),
+    incrementPositive: check(
+      "chk_user_exercise_progression_increment_positive",
+      sql`${table.incrementOverrideLbs} is null or ${table.incrementOverrideLbs} > 0`
+    )
   })
 );
 

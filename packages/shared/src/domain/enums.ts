@@ -55,6 +55,9 @@ export type ProgressionResult = (typeof progressionResults)[number];
 export const progressionConfidenceLevels = ["low", "medium", "high"] as const;
 export type ProgressionConfidence = (typeof progressionConfidenceLevels)[number];
 
+export const progressionAggressivenessLevels = ["conservative", "balanced", "aggressive"] as const;
+export type ProgressionAggressiveness = (typeof progressionAggressivenessLevels)[number];
+
 export const progressionStrategies = [
   "fixed_weight",
   "double_progression",
@@ -63,6 +66,9 @@ export const progressionStrategies = [
   "no_progression"
 ] as const;
 export type ProgressionStrategy = (typeof progressionStrategies)[number];
+
+export const bodyweightProgressionModes = ["auto", "reps", "weighted"] as const;
+export type BodyweightProgressionMode = (typeof bodyweightProgressionModes)[number];
 
 export const trainingGoals = [
   "strength",

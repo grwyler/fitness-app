@@ -1,4 +1,4 @@
-import type { EffortFeedback, ExerciseCategory } from "@fitness/shared";
+import type { EffortFeedback, ExerciseCategory, EquipmentType } from "@fitness/shared";
 
 export type ProgressionStateRecord = {
   id: string;
@@ -37,6 +37,7 @@ export type ExerciseProgressionSeedRecord = {
   exerciseId: string;
   exerciseName: string;
   exerciseCategory: ExerciseCategory;
+  equipmentType?: EquipmentType | null;
   defaultStartingWeightLbs: number;
   incrementLbs: number;
   isBodyweight: boolean;
