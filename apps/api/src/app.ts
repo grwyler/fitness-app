@@ -190,12 +190,14 @@ export function createApp(options?: {
         errorReporter.captureException(error, {
           code: appError.code,
           statusCode: appError.statusCode,
+          details: appError.details,
           ...errorContext,
           ...routeContext
         });
         logger.error("Unhandled API error", {
           code: appError.code,
           statusCode: appError.statusCode,
+          details: appError.details,
           ...errorContext,
           ...routeContext
         });
