@@ -17,6 +17,7 @@ import { createRequestContextMiddleware } from "./lib/auth/request-context.middl
 import { createProtectedAuthRouter, createPublicAuthRouter } from "./lib/auth/auth.routes.js";
 import { env } from "./config/env.js";
 import { createDevResetRouter } from "./modules/dev/reset-test-user-data.routes.js";
+import { createRequestIdMiddleware } from "./lib/http/request-id.middleware.js";
 
 type DatabaseLike = {
   select: (...args: any[]) => any;
@@ -118,6 +119,7 @@ export function createApp(options?: {
   const corsOptions = createCorsOptions();
 
   app.use(cors(corsOptions));
+  app.use(createRequestIdMiddleware());
   app.use((request, response, next) => {
     if (request.method === "OPTIONS") {
       response.status(200).end();
@@ -170,7 +172,8 @@ export function createApp(options?: {
         const routeContext = {
           method: request.method,
           path: request.originalUrl,
-          userId: requestContext?.userId
+          userId: requestContext?.userId,
+          requestId: (request as Request & { requestId?: string }).requestId
         };
         errorReporter.captureException(error, {
           code: appError.code,
@@ -192,7 +195,8 @@ export function createApp(options?: {
     logger.error("Unexpected API error", {
       method: request.method,
       path: request.originalUrl,
-      userId: (request.context as { userId?: string } | undefined)?.userId
+      userId: (request.context as { userId?: string } | undefined)?.userId,
+      requestId: (request as Request & { requestId?: string }).requestId
     });
     response.status(500).json(failure("INTERNAL_ERROR", "Unexpected backend error."));
   });

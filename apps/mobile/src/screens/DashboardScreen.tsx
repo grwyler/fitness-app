@@ -214,18 +214,6 @@ export function DashboardScreen({ navigation }: Props) {
         </View>
       ) : null}
 
-      <View style={styles.card}>
-        <Text style={styles.cardLabel}>Training</Text>
-        <Text style={styles.cardTitle}>Training settings</Text>
-        <Text style={styles.cardBody}>Set goals, progression preferences, and equipment increments.</Text>
-        <PrimaryButton
-          label="Open Training Settings"
-          tone="secondary"
-          disabled={Boolean(activeWorkout)}
-          onPress={() => navigation.navigate("TrainingProfile")}
-        />
-      </View>
-
       {!activeProgram ? (
         <View style={styles.card}>
           <Text style={styles.cardLabel}>Program setup</Text>
