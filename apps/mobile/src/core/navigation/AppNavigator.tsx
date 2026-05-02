@@ -1,4 +1,3 @@
-import { Pressable, Text } from "react-native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "./navigation-types";
 import { DashboardScreen } from "../../screens/DashboardScreen";
@@ -19,6 +18,7 @@ import { ExerciseProgressionSettingsScreen } from "../../screens/ExerciseProgres
 import { logSafeAuthDiagnostic } from "../auth/auth-debug";
 import { colors } from "../../theme/tokens";
 import { useAppAuth } from "../auth/AuthProvider";
+import { UserMenuButton } from "./UserMenuButton";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -60,67 +60,63 @@ export function AppNavigator() {
             component={DashboardScreen}
             options={{
               title: "Dashboard",
-              headerRight: () => (
-                <Pressable onPress={() => void auth.signOut()}>
-                  <Text style={{ color: colors.accentStrong, fontWeight: "600" }}>Sign Out</Text>
-                </Pressable>
-              )
+              headerRight: () => <UserMenuButton />
             }}
           />
           <Stack.Screen
             name="ActiveWorkout"
             component={ActiveWorkoutScreen}
-            options={{ title: "Active Workout" }}
+            options={{ title: "Active Workout", headerRight: () => <UserMenuButton /> }}
           />
           <Stack.Screen
             name="CreateProgram"
             component={CreateProgramScreen}
-            options={{ title: "Create Program" }}
+            options={{ title: "Create Program", headerRight: () => <UserMenuButton /> }}
           />
           <Stack.Screen
             name="WorkoutHistory"
             component={WorkoutHistoryScreen}
-            options={{ title: "Workout History" }}
+            options={{ title: "Workout History", headerRight: () => <UserMenuButton /> }}
           />
           <Stack.Screen
             name="WorkoutHistoryDetail"
             component={WorkoutHistoryDetailScreen}
-            options={{ title: "Workout Detail" }}
+            options={{ title: "Workout Detail", headerRight: () => <UserMenuButton /> }}
           />
           <Stack.Screen
             name="Progression"
             component={ProgressionScreen}
-            options={{ title: "Progression" }}
+            options={{ title: "Progression", headerRight: () => <UserMenuButton /> }}
           />
           <Stack.Screen
             name="WorkoutSummary"
             component={WorkoutSummaryScreen}
-            options={{ title: "Workout Summary" }}
+            options={{ title: "Workout Summary", headerRight: () => <UserMenuButton /> }}
           />
           <Stack.Screen
             name="FeedbackDebug"
             component={FeedbackDebugScreen}
-            options={{ title: "Feedback Debug" }}
+            options={{ title: "Feedback Debug", headerRight: () => <UserMenuButton /> }}
           />
           <Stack.Screen
             name="TrainingProfile"
             component={TrainingProfileScreen}
-            options={{ title: "Training Profile" }}
+            options={{ title: "Training Profile", headerRight: () => <UserMenuButton /> }}
           />
           <Stack.Screen
             name="ProgressionPreferences"
             component={ProgressionPreferencesScreen}
-            options={{ title: "Progression Preferences" }}
+            options={{ title: "Progression Preferences", headerRight: () => <UserMenuButton /> }}
           />
           <Stack.Screen
             name="EquipmentSettings"
             component={EquipmentSettingsScreen}
-            options={{ title: "Equipment Settings" }}
+            options={{ title: "Equipment Settings", headerRight: () => <UserMenuButton /> }}
           />
           <Stack.Screen
             name="ExerciseProgressionSettings"
             component={ExerciseProgressionSettingsScreen}
-            options={{ title: "Exercise Progression Settings" }}
+            options={{ title: "Exercise Progression Settings", headerRight: () => <UserMenuButton /> }}
           />
         </>
       )}

@@ -162,17 +162,25 @@ export function createApp(options?: {
     response.status(404).json(failure("NOT_FOUND", "Route not found."));
   });
 
-  app.use((error: unknown, _request: Request, response: Response, _next: NextFunction) => {
+  app.use((error: unknown, request: Request, response: Response, _next: NextFunction) => {
     const appError = isAppError(error) ? error : toAppError(error);
     if (isAppError(appError)) {
       if (appError.statusCode >= 500) {
+        const requestContext = request.context as { userId?: string } | undefined;
+        const routeContext = {
+          method: request.method,
+          path: request.originalUrl,
+          userId: requestContext?.userId
+        };
         errorReporter.captureException(error, {
           code: appError.code,
-          statusCode: appError.statusCode
+          statusCode: appError.statusCode,
+          ...routeContext
         });
         logger.error("Unhandled API error", {
           code: appError.code,
-          statusCode: appError.statusCode
+          statusCode: appError.statusCode,
+          ...routeContext
         });
       }
 
@@ -181,7 +189,11 @@ export function createApp(options?: {
     }
 
     errorReporter.captureException(error);
-    logger.error("Unexpected API error");
+    logger.error("Unexpected API error", {
+      method: request.method,
+      path: request.originalUrl,
+      userId: (request.context as { userId?: string } | undefined)?.userId
+    });
     response.status(500).json(failure("INTERNAL_ERROR", "Unexpected backend error."));
   });
 

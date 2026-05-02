@@ -84,7 +84,18 @@ export async function apiRequest<TData, TMeta extends Record<string, unknown> = 
     throw error;
   }
 
-  const payload = (await response.json()) as unknown;
+  let payload: unknown = undefined;
+  try {
+    payload = (await response.json()) as unknown;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const debugMessage = `API response JSON parse failed for ${path}. url=${requestUrl}. status=${response.status}. message=${message}`;
+    appendAuthDebugTimeline("api_response_parse_error", debugMessage);
+    setLastAuthDebugMessage(debugMessage);
+    if (isDevEnvironment) {
+      console.warn("[mobile-api] response_parse_error", { path, url: requestUrl, status: response.status, message });
+    }
+  }
   logSafeAuthDiagnostic("api_response_received", {
     authorizationHeaderSet: Boolean(token),
     path,

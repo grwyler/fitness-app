@@ -119,7 +119,7 @@ export function ProgressionPreferencesScreen() {
           label="Aggressiveness"
           options={progressionAggressivenessLevels}
           value={progressionAggressiveness}
-          onChange={setProgressionAggressiveness}
+          onChange={(next) => setProgressionAggressiveness(next)}
         />
 
         <ToggleRow
@@ -140,7 +140,7 @@ export function ProgressionPreferencesScreen() {
           label="Default recovery state"
           options={recoveryOptions}
           value={defaultRecoveryState}
-          onChange={setDefaultRecoveryState}
+          onChange={(next) => setDefaultRecoveryState(next)}
         />
 
         <ToggleRow
@@ -161,7 +161,7 @@ export function ProgressionPreferencesScreen() {
           label="Minimum confidence to increase"
           options={progressionConfidenceLevels}
           value={minimumConfidenceForIncrease}
-          onChange={setMinimumConfidenceForIncrease}
+          onChange={(next) => setMinimumConfidenceForIncrease(next)}
         />
       </View>
     </Screen>
@@ -260,4 +260,3 @@ const styles = StyleSheet.create({
     color: colors.danger
   }
 });
-
