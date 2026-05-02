@@ -3,6 +3,7 @@ import {
   idempotencyRecords,
   progressMetrics,
   progressionStates,
+  progressionRecommendationEvents,
   programs,
   sets,
   userProgramEnrollments,
@@ -59,6 +60,13 @@ async function resetTestUserData(database: DatabaseLike, userId: string) {
             .from(exerciseEntries)
             .where(inArray(exerciseEntries.workoutSessionId, sessionIds))
     );
+
+    const deletedProgressionRecommendationEvents = (
+      await tx
+        .delete(progressionRecommendationEvents)
+        .where(eq(progressionRecommendationEvents.userId, userId))
+        .returning({ id: progressionRecommendationEvents.id })
+    ).length;
     const customProgramIds = await selectIds(
       await tx
         .select({ id: programs.id })
@@ -133,6 +141,7 @@ async function resetTestUserData(database: DatabaseLike, userId: string) {
       deletedExerciseEntries,
       deletedIdempotencyRecords,
       deletedProgressMetrics,
+      deletedProgressionRecommendationEvents,
       deletedProgressionStates,
       deletedSets,
       deletedWorkoutSessions
@@ -170,6 +179,7 @@ export function createDevResetRouter(database: DatabaseLike) {
         idempotencyRecords: result.deletedIdempotencyRecords,
         progressMetrics: result.deletedProgressMetrics,
         programProgress: result.deletedEnrollments,
+        progressionRecommendationEvents: result.deletedProgressionRecommendationEvents,
         progression: result.deletedProgressionStates,
         sets: result.deletedSets,
         workoutSessions: result.deletedWorkoutSessions
