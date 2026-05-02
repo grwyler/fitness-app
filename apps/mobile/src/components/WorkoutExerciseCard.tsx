@@ -14,6 +14,8 @@ import {
 } from "../features/workout/utils/set-logging.shared";
 import { colors, spacing } from "../theme/tokens";
 import { PrimaryButton } from "./PrimaryButton";
+import { Card } from "./Card";
+import { Chip } from "./Chip";
 
 const effortOptions: EffortFeedback[] = ["too_easy", "just_right", "too_hard"];
 const weightAdjustments = [-5, -2.5, 2.5, 5];
@@ -61,7 +63,7 @@ export function WorkoutExerciseCard(props: {
       : null;
 
   return (
-    <View style={[styles.card, props.highlightMissingFeedback && styles.cardNeedsFeedback]}>
+    <Card style={[styles.card, props.highlightMissingFeedback && styles.cardNeedsFeedback]} elevated>
       <View style={styles.header}>
         <Text style={styles.title}>{props.exercise.exerciseName}</Text>
         <Text style={styles.subtitle}>
@@ -310,20 +312,18 @@ export function WorkoutExerciseCard(props: {
             const selected = props.selectedFeedback === option;
 
             return (
-              <Pressable
+              <Chip
                 key={option}
+                label={formatFeedbackLabel(option)}
                 onPress={() => props.onSelectFeedback(option)}
-                style={[styles.feedbackChip, selected && styles.feedbackChipSelected]}
-              >
-                <Text style={[styles.feedbackChipLabel, selected && styles.feedbackChipLabelSelected]}>
-                  {formatFeedbackLabel(option)}
-                </Text>
-              </Pressable>
+                selected={selected}
+                style={styles.feedbackChip}
+              />
             );
           })}
         </View>
       </View>
-    </View>
+    </Card>
   );
 }
 

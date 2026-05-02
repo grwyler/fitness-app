@@ -2,7 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { generateCustomWorkoutNameFromExercises } from "@fitness/shared";
 import type { AddCustomWorkoutExerciseRequest, ProgramDto, ProgramWorkoutTemplateDto } from "@fitness/shared";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { AppText } from "../components/AppText";
+import { Card } from "../components/Card";
+import { Chip } from "../components/Chip";
+import { Input } from "../components/Input";
+import { ModalSheet } from "../components/ModalSheet";
 import { Screen } from "../components/Screen";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { CustomExercisePickerModal } from "../features/workout/components/CustomExercisePickerModal";
@@ -26,7 +31,7 @@ import {
   type ProgramDayAssignment
 } from "../features/workout/utils/program-creator.shared";
 import { getHiddenExerciseCount, getPlannedExerciseLines } from "../features/workout/utils/dashboard-program.shared";
-import { colors, spacing } from "../theme/tokens";
+import { colors, radius, spacing } from "../theme/tokens";
 
 type Props = NativeStackScreenProps<RootStackParamList, "CreateProgram">;
 
@@ -275,45 +280,47 @@ export function CreateProgramScreen({ navigation, route }: Props) {
   return (
     <Screen>
       <View style={styles.header}>
-        <Text style={styles.eyebrow}>
+        <AppText variant="overline" tone="accent" style={styles.eyebrow}>
           {isEditing ? "Edit Program" : isCloning ? "Customize Program" : "Create Program"}
-        </Text>
-        <Text style={styles.title}>
+        </AppText>
+        <AppText variant="title2" style={styles.title}>
           {isEditing
             ? "Update your weekly training plan."
             : isCloning
               ? "Make this program yours with a custom copy."
               : "Build a weekly plan from workouts."}
-        </Text>
-        <Text style={styles.subtitle}>
+        </AppText>
+        <AppText tone="secondary" style={styles.subtitle}>
           Name the program, choose training days, then assign a workout to each day.
-        </Text>
+        </AppText>
       </View>
 
       {(isEditing || isCloning) && programsQuery.isLoading ? (
-        <Text style={styles.body}>Loading program...</Text>
+        <AppText tone="secondary">Loading program...</AppText>
       ) : null}
       {(isEditing || isCloning) && !programsQuery.isLoading && !editProgram ? (
-        <Text style={styles.errorText}>We couldn't find that program.</Text>
+        <AppText variant="meta" tone="danger">
+          We couldn't find that program.
+        </AppText>
       ) : null}
 
-      <View style={styles.card}>
-        <Text style={styles.label}>Program name</Text>
-        <TextInput
+      <Card style={styles.card}>
+        <Input
           autoCapitalize="words"
+          label="Program name"
           onChangeText={(value) => {
             setProgramName(value);
             setSavedProgramId(null);
           }}
           placeholder="Upper Lower Strength"
-          placeholderTextColor={colors.textSecondary}
-          style={styles.input}
           value={programName}
         />
-      </View>
+      </Card>
 
-      <View style={styles.card}>
-        <Text style={styles.label}>Days per week</Text>
+      <Card style={styles.card}>
+        <AppText variant="label" tone="accent">
+          Days per week
+        </AppText>
         <View style={styles.dayOptionRow}>
           {dayOptions.map((option) => {
             const selected = option === daysPerWeek;
@@ -323,28 +330,36 @@ export function CreateProgramScreen({ navigation, route }: Props) {
                 accessibilityRole="button"
                 key={option}
                 onPress={() => updateDaysPerWeek(option)}
-                style={[styles.dayOption, selected && styles.selectedDayOption]}
+                style={({ pressed }) => [
+                  styles.dayOption,
+                  selected && styles.selectedDayOption,
+                  pressed && styles.pressedTile
+                ]}
               >
-                <Text style={[styles.dayOptionText, selected && styles.selectedDayOptionText]}>
+                <AppText tone={selected ? "inverse" : "primary"} style={styles.dayOptionText}>
                   {option}
-                </Text>
+                </AppText>
               </Pressable>
             );
           })}
         </View>
-      </View>
+      </Card>
 
-      <View style={styles.card}>
-        <Text style={styles.label}>Program days</Text>
+      <Card style={styles.card}>
+        <AppText variant="label" tone="accent">
+          Program days
+        </AppText>
         {programsQuery.isLoading ? (
-          <Text style={styles.body}>Loading workouts...</Text>
+          <AppText tone="secondary">Loading workouts...</AppText>
         ) : (
           days.map((day) => (
-            <View key={day.dayNumber} style={styles.dayCard}>
+            <Card key={day.dayNumber} elevated={false} style={styles.dayCard}>
               <View style={styles.dayHeader}>
                 <View style={styles.dayTitleGroup}>
-                  <Text style={styles.dayLabel}>Day {day.dayNumber}</Text>
-                  <Text style={styles.workoutName}>{day.workout?.name ?? "No workout selected"}</Text>
+                  <AppText variant="overline" tone="accent">
+                    Day {day.dayNumber}
+                  </AppText>
+                  <AppText variant="bodyStrong">{day.workout?.name ?? "No workout selected"}</AppText>
                 </View>
                 <View style={styles.dayActions}>
                   {day.workout ? (
@@ -352,52 +367,70 @@ export function CreateProgramScreen({ navigation, route }: Props) {
                       accessibilityRole="button"
                       onPress={() => openCustomWorkoutEditorForDay(day.dayNumber, day.workout!)}
                     >
-                      <Text style={styles.addText}>Edit</Text>
+                      <AppText variant="meta" tone="accent">
+                        Edit
+                      </AppText>
                     </Pressable>
                   ) : null}
                   <Pressable
                     accessibilityRole="button"
                     onPress={() => setPickerDayNumber(day.dayNumber)}
                   >
-                    <Text style={styles.addText}>{day.workout ? "Change" : "Choose"}</Text>
+                    <AppText variant="meta" tone="accent">
+                      {day.workout ? "Change" : "Choose"}
+                    </AppText>
                   </Pressable>
                 </View>
               </View>
               {day.workout ? (
                 <WorkoutPreview workout={day.workout} />
               ) : (
-                <Text style={styles.body}>Choose a predefined workout or create one from scratch.</Text>
+                <AppText tone="secondary">Choose a predefined workout or create one from scratch.</AppText>
               )}
-            </View>
+            </Card>
           ))
         )}
         {!hasCustomWorkoutChoices ? (
-          <Text style={styles.body}>
+          <AppText tone="secondary">
             Your Workouts will appear here after custom programs have reusable workout days.
-          </Text>
+          </AppText>
         ) : null}
-      </View>
+      </Card>
 
-      {validationError ? <Text style={styles.errorText}>{validationError}</Text> : null}
+      {validationError ? (
+        <AppText variant="meta" tone="danger">
+          {validationError}
+        </AppText>
+      ) : null}
       {programsQuery.error instanceof Error ? (
-        <Text style={styles.errorText}>{programsQuery.error.message}</Text>
+        <AppText variant="meta" tone="danger">
+          {programsQuery.error.message}
+        </AppText>
       ) : null}
       {createProgramMutation.error instanceof Error ? (
-        <Text style={styles.errorText}>{createProgramMutation.error.message}</Text>
+        <AppText variant="meta" tone="danger">
+          {createProgramMutation.error.message}
+        </AppText>
       ) : null}
       {updateProgramMutation.error instanceof Error ? (
-        <Text style={styles.errorText}>{updateProgramMutation.error.message}</Text>
+        <AppText variant="meta" tone="danger">
+          {updateProgramMutation.error.message}
+        </AppText>
       ) : null}
       {followProgramMutation.error instanceof Error ? (
-        <Text style={styles.errorText}>{followProgramMutation.error.message}</Text>
+        <AppText variant="meta" tone="danger">
+          {followProgramMutation.error.message}
+        </AppText>
       ) : null}
 
       {savedProgramId ? (
-        <View style={styles.card}>
-          <Text style={styles.label}>Saved</Text>
-          <Text style={styles.body}>
+        <Card style={styles.card}>
+          <AppText variant="label" tone="accent">
+            Saved
+          </AppText>
+          <AppText tone="secondary">
             {isEditing ? "Your program changes are saved." : "Your program is ready to follow."}
-          </Text>
+          </AppText>
           <PrimaryButton
             label="Follow Program"
             loading={followProgramMutation.isPending}
@@ -408,7 +441,7 @@ export function CreateProgramScreen({ navigation, route }: Props) {
               })
             }
           />
-        </View>
+        </Card>
       ) : (
         <PrimaryButton
           label={isEditing ? "Save Changes" : "Save Program"}
@@ -459,16 +492,16 @@ function WorkoutPreview(props: { workout: ProgramWorkoutTemplateDto }) {
 
   return (
     <View style={styles.exerciseList}>
-      <Text style={styles.exerciseMeta}>
+      <AppText variant="meta" tone="secondary">
         {props.workout.category} - estimated {props.workout.estimatedDurationMinutes ?? 60} minutes
-      </Text>
+      </AppText>
       {plannedExerciseLines.map((line) => (
-        <Text key={line} style={styles.exerciseLine}>
+        <AppText key={line} variant="meta">
           {line}
-        </Text>
+        </AppText>
       ))}
       {hiddenExerciseCount > 0 ? (
-        <Text style={styles.exerciseLine}>+{hiddenExerciseCount} more planned</Text>
+        <AppText variant="meta">+{hiddenExerciseCount} more planned</AppText>
       ) : null}
     </View>
   );
@@ -532,65 +565,59 @@ function WorkoutPickerModal(props: {
   }
 
   return (
-    <Modal animationType="slide" transparent visible={props.visible} onRequestClose={props.onClose}>
-      <View style={styles.modalBackdrop}>
-        <View style={styles.modalSheet}>
-          <View style={styles.rowHeader}>
-            <View style={styles.modalTitleGroup}>
-              <Text style={styles.label}>Build workout</Text>
-              <Text style={styles.modalTitle}>Create a workout</Text>
-            </View>
-            <Pressable accessibilityRole="button" onPress={props.onClose}>
-              <Text style={styles.removeText}>Close</Text>
-            </Pressable>
-          </View>
-
-          <ScrollView contentContainerStyle={styles.workoutChoiceList}>
+    <ModalSheet
+      headerRight={
+        <Pressable accessibilityRole="button" onPress={props.onClose}>
+          <AppText tone="accent" variant="meta">
+            Close
+          </AppText>
+        </Pressable>
+      }
+      onClose={props.onClose}
+      subtitle="Build workout"
+      title="Create a workout"
+      visible={props.visible}
+    >
+      <ScrollView contentContainerStyle={styles.workoutChoiceList}>
             <View style={styles.searchPanel}>
               <View style={styles.searchHeaderRow}>
-                <Text style={styles.label}>Search workouts</Text>
+                <AppText variant="label" tone="accent">
+                  Search workouts
+                </AppText>
                 <Pressable accessibilityRole="button" onPress={() => setFiltersExpanded((current) => !current)}>
-                  <Text style={styles.addText}>
+                  <AppText variant="meta" tone="accent">
                     {filtersExpanded ? "Hide filters" : categoryFilter || lengthFilter !== "any" ? "Filters (on)" : "Filters"}
-                  </Text>
+                  </AppText>
                 </Pressable>
               </View>
-              <TextInput
+              <Input
                 autoCapitalize="words"
                 onChangeText={setSearchQuery}
                 placeholder="Push, legs, beginner, upper..."
-                placeholderTextColor={colors.textSecondary}
-                style={styles.input}
                 value={searchQuery}
               />
 
               {filtersExpanded ? (
                 <View style={styles.filterPanel}>
                   <View style={styles.chipRow}>
-                    <Text style={styles.chipRowLabel}>Type</Text>
-                    <Pressable
-                      accessibilityRole="button"
-                      onPress={() => setCategoryFilter(null)}
-                      style={[styles.chip, !categoryFilter && styles.chipSelected]}
-                    >
-                      <Text style={[styles.chipText, !categoryFilter && styles.chipTextSelected]}>All</Text>
-                    </Pressable>
+                    <AppText variant="overline" tone="secondary" style={styles.chipRowLabel}>
+                      Type
+                    </AppText>
+                    <Chip label="All" onPress={() => setCategoryFilter(null)} selected={!categoryFilter} />
                     {availableCategories.map((title) => (
-                      <Pressable
-                        accessibilityRole="button"
+                      <Chip
                         key={`cat:${title}`}
+                        label={title}
                         onPress={() => setCategoryFilter((current) => (current === title ? null : title))}
-                        style={[styles.chip, categoryFilter === title && styles.chipSelected]}
-                      >
-                        <Text style={[styles.chipText, categoryFilter === title && styles.chipTextSelected]}>
-                          {title}
-                        </Text>
-                      </Pressable>
+                        selected={categoryFilter === title}
+                      />
                     ))}
                   </View>
 
                   <View style={styles.chipRow}>
-                    <Text style={styles.chipRowLabel}>Length</Text>
+                    <AppText variant="overline" tone="secondary" style={styles.chipRowLabel}>
+                      Length
+                    </AppText>
                     {(["any", "quick", "standard", "long"] as const).map((value) => (
                       <Pressable
                         accessibilityRole="button"
@@ -598,7 +625,11 @@ function WorkoutPickerModal(props: {
                         onPress={() => setLengthFilter(value)}
                         style={[styles.chip, lengthFilter === value && styles.chipSelected]}
                       >
-                        <Text style={[styles.chipText, lengthFilter === value && styles.chipTextSelected]}>
+                        <AppText
+                          tone={lengthFilter === value ? "accent" : "secondary"}
+                          variant="meta"
+                          style={[styles.chipText, lengthFilter === value && styles.chipTextSelected]}
+                        >
                           {value === "any"
                             ? "Any"
                             : value === "quick"
@@ -606,13 +637,15 @@ function WorkoutPickerModal(props: {
                               : value === "standard"
                                 ? "Standard (4–6)"
                                 : "Long (7+)"}
-                        </Text>
+                        </AppText>
                       </Pressable>
                     ))}
 
                     {categoryFilter || lengthFilter !== "any" ? (
                       <Pressable accessibilityRole="button" onPress={clearFilters} style={styles.clearChip}>
-                        <Text style={styles.clearChipText}>Clear</Text>
+                        <AppText tone="secondary" variant="meta" style={styles.clearChipText}>
+                          Clear
+                        </AppText>
                       </Pressable>
                     ) : null}
                   </View>
@@ -620,69 +653,65 @@ function WorkoutPickerModal(props: {
               ) : null}
             </View>
 
-            <Pressable
-              accessibilityRole="button"
-              onPress={props.onCreateCustomWorkout}
-              style={[styles.workoutChoice, styles.createWorkoutChoice]}
-            >
+            <Card onPress={props.onCreateCustomWorkout} style={[styles.workoutChoice, styles.createWorkoutChoice]}>
               <View style={styles.workoutTitleGroup}>
-                <Text style={styles.workoutName}>Create a workout</Text>
-                <Text style={styles.exerciseMeta}>Choose the exact exercises you want for this day.</Text>
+                <AppText variant="bodyStrong">Create a workout</AppText>
+                <AppText variant="meta" tone="secondary">
+                  Choose the exact exercises you want for this day.
+                </AppText>
               </View>
-              <Text style={styles.addText}>Create</Text>
-            </Pressable>
+              <AppText variant="meta" tone="accent">
+                Create
+              </AppText>
+            </Card>
 
-            <Text style={styles.suggestionsLabel}>Suggested workouts</Text>
+            <AppText variant="overline" tone="secondary" style={styles.suggestionsLabel}>
+              Suggested workouts
+            </AppText>
             {props.loading ? (
-              <Text style={styles.body}>Loading workouts...</Text>
+              <AppText tone="secondary">Loading workouts...</AppText>
             ) : props.groups.length === 0 ? (
-              <Text style={styles.body}>No predefined or reusable workouts are available yet.</Text>
+              <AppText tone="secondary">No predefined or reusable workouts are available yet.</AppText>
             ) : isFiltering ? (
               filteredChoices.length === 0 ? (
-                <Text style={styles.body}>No workouts match your search.</Text>
+                <AppText tone="secondary">No workouts match your search.</AppText>
               ) : (
                 filteredChoices.map((choice) => (
-                  <Pressable
-                    accessibilityRole="button"
-                    key={choice.id}
-                    onPress={() => props.onSelectWorkout(choice)}
-                    style={styles.workoutChoice}
-                  >
+                  <Card key={choice.id} onPress={() => props.onSelectWorkout(choice)} style={styles.workoutChoice}>
                     <View style={styles.workoutTitleGroup}>
-                      <Text style={styles.workoutName}>{choice.workout.name}</Text>
-                      <Text style={styles.exerciseMeta}>
+                      <AppText variant="bodyStrong">{choice.workout.name}</AppText>
+                      <AppText variant="meta" tone="secondary">
                         {getAssignableWorkoutDescription(choice)} · {choice.category}
-                      </Text>
+                      </AppText>
                     </View>
-                    <Text style={styles.addText}>Use</Text>
-                  </Pressable>
+                    <AppText variant="meta" tone="accent">
+                      Use
+                    </AppText>
+                  </Card>
                 ))
               )
             ) : (
               props.groups.map((group) => (
                 <View key={group.title} style={styles.workoutGroup}>
-                  <Text style={styles.groupTitle}>{group.title}</Text>
+                  <AppText variant="headline">{group.title}</AppText>
                   {group.workouts.map((choice) => (
-                    <Pressable
-                      accessibilityRole="button"
-                      key={choice.id}
-                      onPress={() => props.onSelectWorkout(choice)}
-                      style={styles.workoutChoice}
-                    >
+                    <Card key={choice.id} onPress={() => props.onSelectWorkout(choice)} style={styles.workoutChoice}>
                       <View style={styles.workoutTitleGroup}>
-                        <Text style={styles.workoutName}>{choice.workout.name}</Text>
-                        <Text style={styles.exerciseMeta}>{getAssignableWorkoutDescription(choice)}</Text>
+                        <AppText variant="bodyStrong">{choice.workout.name}</AppText>
+                        <AppText variant="meta" tone="secondary">
+                          {getAssignableWorkoutDescription(choice)}
+                        </AppText>
                       </View>
-                      <Text style={styles.addText}>Use</Text>
-                    </Pressable>
+                      <AppText variant="meta" tone="accent">
+                        Use
+                      </AppText>
+                    </Card>
                   ))}
                 </View>
               ))
             )}
-          </ScrollView>
-        </View>
-      </View>
-    </Modal>
+      </ScrollView>
+    </ModalSheet>
   );
 }
 
@@ -746,11 +775,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: colors.background,
     borderColor: colors.border,
-    borderRadius: 12,
+    borderRadius: radius.md,
     borderWidth: 1,
     minWidth: 52,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm
+  },
+  pressedTile: {
+    opacity: 0.92,
+    transform: [{ scale: 0.98 }]
   },
   selectedDayOption: {
     backgroundColor: colors.accentStrong,
@@ -766,7 +799,7 @@ const styles = StyleSheet.create({
   },
   dayCard: {
     borderColor: colors.border,
-    borderRadius: 12,
+    borderRadius: radius.md,
     borderWidth: 1,
     gap: spacing.sm,
     padding: spacing.md

@@ -1,41 +1,30 @@
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { PrimaryButton } from "./PrimaryButton";
-import { colors, spacing } from "../theme/tokens";
+import { spacing } from "../theme/tokens";
+import { AppText } from "./AppText";
+import { Card } from "./Card";
 
 export function ErrorState(props: {
   title: string;
   message: string;
   actionLabel?: string;
   onAction?: () => void;
-}) {
+  }) {
   return (
-    <View style={styles.card}>
-      <Text style={styles.title}>{props.title}</Text>
-      <Text style={styles.message}>{props.message}</Text>
-      {props.actionLabel && props.onAction ? (
-        <PrimaryButton label={props.actionLabel} onPress={props.onAction} />
-      ) : null}
-    </View>
+    <Card elevated>
+      <View style={styles.content}>
+        <AppText variant="headline">{props.title}</AppText>
+        <AppText tone="secondary">{props.message}</AppText>
+        {props.actionLabel && props.onAction ? (
+          <PrimaryButton label={props.actionLabel} onPress={props.onAction} />
+        ) : null}
+      </View>
+    </Card>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderRadius: 12,
-    borderWidth: 1,
-    gap: spacing.md,
-    padding: spacing.lg
-  },
-  title: {
-    color: colors.textPrimary,
-    fontSize: 20,
-    fontWeight: "600"
-  },
-  message: {
-    color: colors.textSecondary,
-    fontSize: 16,
-    lineHeight: 22
+  content: {
+    gap: spacing.md
   }
 });
