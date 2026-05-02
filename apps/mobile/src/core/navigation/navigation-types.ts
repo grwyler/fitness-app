@@ -28,7 +28,8 @@ export type RootStackParamList = {
   WorkoutSummary: {
     summary: CompleteWorkoutSessionResponse;
   };
-  FeedbackDebug: undefined;
+  AdminDashboard: undefined;
+  AdminFeedback: undefined;
   TrainingProfile: undefined;
   ProgressionPreferences: undefined;
   EquipmentSettings: undefined;

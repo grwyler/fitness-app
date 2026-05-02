@@ -17,7 +17,6 @@ import { createAuthenticateRequestMiddleware } from "./lib/auth/auth.middleware.
 import { createRequestContextMiddleware } from "./lib/auth/request-context.middleware.js";
 import { createProtectedAuthRouter, createPublicAuthRouter } from "./lib/auth/auth.routes.js";
 import { env } from "./config/env.js";
-import { createDevResetRouter } from "./modules/dev/reset-test-user-data.routes.js";
 import { createRequestIdMiddleware } from "./lib/http/request-id.middleware.js";
 
 type DatabaseLike = {
@@ -114,6 +113,7 @@ export function createApp(options?: {
   database?: DatabaseLike;
   workoutRouter?: Router;
   feedbackRouter?: Router;
+  adminRouter?: Router;
 }) {
   const resolvedOptions = options ?? {};
   const app = express();
@@ -138,7 +138,9 @@ export function createApp(options?: {
   app.use(healthRouter);
   app.use("/api/v1", healthRouter);
 
-  const hasApiRouters = Boolean(resolvedOptions.workoutRouter || resolvedOptions.feedbackRouter);
+  const hasApiRouters = Boolean(
+    resolvedOptions.workoutRouter || resolvedOptions.feedbackRouter || resolvedOptions.adminRouter
+  );
 
   if (hasApiRouters) {
     if (resolvedOptions.database) {
@@ -153,7 +155,6 @@ export function createApp(options?: {
           database: resolvedOptions.database
         })
       );
-      app.use("/api/v1", createDevResetRouter(resolvedOptions.database));
     }
 
     if (resolvedOptions.workoutRouter) {
@@ -163,6 +164,10 @@ export function createApp(options?: {
     if (resolvedOptions.feedbackRouter) {
       app.use("/api/v1", resolvedOptions.feedbackRouter);
     }
+
+    if (resolvedOptions.adminRouter) {
+      app.use("/api/v1", resolvedOptions.adminRouter);
+    }
   }
 
   app.use((_request, response) => {
@@ -170,6 +175,16 @@ export function createApp(options?: {
   });
 
   app.use((error: unknown, request: Request, response: Response, _next: NextFunction) => {
+    if (
+      error instanceof SyntaxError &&
+      typeof (error as any).message === "string" &&
+      (error as any).message.toLowerCase().includes("json") &&
+      ((error as any).type === "entity.parse.failed" || (error as any).status === 400)
+    ) {
+      response.status(400).json(failure("VALIDATION_ERROR", "Invalid JSON body."));
+      return;
+    }
+
     const appError = isAppError(error) ? error : toAppError(error);
     if (isAppError(appError)) {
       if (appError.statusCode >= 500) {

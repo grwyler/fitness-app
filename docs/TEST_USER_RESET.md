@@ -2,29 +2,28 @@
 
 ## Purpose
 
-The app includes a development/manual-validation reset flow for the seeded test account:
+The app includes an admin-only development/manual-validation reset flow for the seeded test account:
 
 - Email: `test@test.com`
 - Password: `password`
 
 This exists only to support fresh end-to-end testing. It is not a general user data deletion feature.
 
-This endpoint is intentionally safe to keep enabled in production because it is hard-gated to the single seeded test account (`test@test.com`) on the backend.
+This endpoint is intentionally safe to keep enabled in production because it is hard-gated by admin role and a strict allowlist of test accounts.
 
 ## Mobile UI
 
-When the authenticated user email is exactly `test@test.com`, the Dashboard shows a low-risk `Dev/Test Tools` card with a `Reset Test Data` button.
+Admin users have access to an `Admin Dashboard` screen which includes:
 
-The button is hidden for every other authenticated user. The UI gate is only a convenience; the backend enforces the real restriction.
-
-The same test account also has access to a `Review feedback` button, which shows locally-saved `Report issue` entries and allows exporting them as JSON.
+- feedback management tools
+- test-account seed/reset tools (for allowlisted accounts like `test@test.com`)
 
 For faster triage, the Saved feedback screen also provides a `Copy Codex Prompt` action that formats entries into a Codex-ready prompt. The prompt instructs Codex to either implement an obvious, low-risk fix or log a backlog item in `docs/PRODUCT_ROADMAP.md`.
 
 Before calling the API, the app asks for confirmation:
 
 ```text
-This will delete workout history, custom workouts, progression state, and program progress for test@test.com only. Continue?
+This will reset workout data for test@test.com. Continue?
 ```
 
 After a successful reset, the app refreshes workout queries so dashboard, program, history, and progression views reflect the clean state.
@@ -32,7 +31,7 @@ After a successful reset, the app refreshes workout queries so dashboard, progra
 ## Endpoint
 
 ```http
-POST /api/v1/dev/reset-test-user-data
+POST /api/v1/admin/test-tools/reset-user-data
 Authorization: Bearer <app-issued-jwt>
 Content-Type: application/json
 ```
@@ -40,7 +39,7 @@ Content-Type: application/json
 Body:
 
 ```json
-{}
+{ "email": "test@test.com" }
 ```
 
 Success response:
@@ -63,9 +62,9 @@ The `reset` object includes deletion counts for the user-scoped domain tables.
 ## Safety Restrictions
 
 - The endpoint requires authentication.
-- The authenticated bearer token email must be exactly `test@test.com`.
-- Any other authenticated user receives `403 FORBIDDEN`.
-- Deletes are scoped to the resolved authenticated user id, not to a caller-supplied id or email.
+- The authenticated user must have `role === "admin"` (enforced server-side).
+- The reset only supports approved test accounts (currently `test@test.com`).
+- Deletes are scoped to the targeted test account, not to the requesting admin.
 - The reset runs in a database transaction.
 - The reset preserves the `users` row, email/password credentials, and bearer-token auth setup.
 - The reset deletes only non-auth domain data for the test user:

@@ -3,10 +3,18 @@ import { createServer } from "node:http";
 import type { Request } from "express";
 import { createApp } from "../../app.js";
 import { AppError } from "../../lib/http/errors.js";
-import { bootstrapDevelopmentDatabase, DEV_USER_ID, TEST_USER_ID } from "../../lib/db/dev-bootstrap.js";
+import {
+  ADMIN_USER_EMAIL,
+  ADMIN_USER_ID,
+  DEV_USER_ID,
+  TEST_USER_ID,
+  bootstrapDevelopmentDatabase
+} from "../../lib/db/dev-bootstrap.js";
 import { createPgliteClient, createPgliteDatabase } from "../../lib/db/connection.js";
 import type { HttpTestCase } from "../workout/http/test-helpers/http-test-case.js";
 import { createFeedbackHttpRouter } from "./feedback.module.js";
+import { createAdminHttpRouter } from "../admin/admin.module.js";
+import { idempotencyRecords } from "@fitness/db";
 
 const USER_1_ID = "11111111-1111-1111-1111-111111111111";
 const USER_2_ID = "22222222-2222-2222-2222-222222222222";
@@ -45,6 +53,12 @@ function createTestAuth() {
         return;
       }
 
+      if (token === "valid-admin-token") {
+        request.authUser = { email: ADMIN_USER_EMAIL, userId: ADMIN_USER_ID };
+        next();
+        return;
+      }
+
       next(new AppError(401, "UNAUTHENTICATED", "Authentication is required."));
     }
   };
@@ -54,7 +68,8 @@ async function startHttpServer(database: any) {
   const app = createApp({
     auth: createTestAuth(),
     database,
-    feedbackRouter: createFeedbackHttpRouter(database)
+    feedbackRouter: createFeedbackHttpRouter(database),
+    adminRouter: createAdminHttpRouter(database)
   });
   const server = createServer(app);
 
@@ -94,6 +109,13 @@ function createTestUserAuthHeaders(extraHeaders?: Record<string, string>) {
   };
 }
 
+function createAdminAuthHeaders(extraHeaders?: Record<string, string>) {
+  return {
+    Authorization: "Bearer valid-admin-token",
+    ...(extraHeaders ?? {})
+  };
+}
+
 export const feedbackHttpTestCases: HttpTestCase[] = [
   {
     name: "Feedback routes require authentication",
@@ -112,7 +134,7 @@ export const feedbackHttpTestCases: HttpTestCase[] = [
     }
   },
   {
-    name: "Feedback entries persist in the database and are visible across devices",
+    name: "Feedback entries persist in the database and are scoped to the current user",
     run: async () => {
       const client = createPgliteClient();
       await bootstrapDevelopmentDatabase(client as any);
@@ -162,16 +184,17 @@ export const feedbackHttpTestCases: HttpTestCase[] = [
         const createResponseTwo = await fetch(`${server.baseUrl}/api/v1/feedback`, {
           method: "POST",
           headers: {
-            Authorization: "Bearer valid-user-2-token",
-            "Content-Type": "application/json",
-            "Idempotency-Key": entryTwo.id
+            ...createAuthHeaders({
+              "Content-Type": "application/json",
+              "Idempotency-Key": entryTwo.id
+            })
           },
           body: JSON.stringify(entryTwo)
         });
         assert.equal(createResponseTwo.status, 200);
 
         const listResponse = await fetch(`${server.baseUrl}/api/v1/feedback`, {
-          headers: createTestUserAuthHeaders()
+          headers: createAuthHeaders()
         });
         const listPayload = await readJson(listResponse);
         assert.equal(listResponse.status, 200);
@@ -179,13 +202,22 @@ export const feedbackHttpTestCases: HttpTestCase[] = [
         const ids = listPayload.data.map((item: any) => item.id);
         assert.ok(ids.includes(entryOne.id));
         assert.ok(ids.includes(entryTwo.id));
+
+        const otherUserListResponse = await fetch(`${server.baseUrl}/api/v1/feedback`, {
+          headers: {
+            Authorization: "Bearer valid-user-2-token"
+          }
+        });
+        const otherUserListPayload = await readJson(otherUserListResponse);
+        assert.equal(otherUserListResponse.status, 200);
+        assert.deepEqual(otherUserListPayload.data, []);
       } finally {
         await server.close();
       }
     }
   },
   {
-    name: "Feedback entries can be updated and deleted",
+    name: "Feedback entries can be updated and deleted by the reporter",
     run: async () => {
       const client = createPgliteClient();
       await bootstrapDevelopmentDatabase(client as any);
@@ -242,7 +274,7 @@ export const feedbackHttpTestCases: HttpTestCase[] = [
         assert.equal(deleteResponse.status, 200);
 
         const listResponse = await fetch(`${server.baseUrl}/api/v1/feedback`, {
-          headers: createTestUserAuthHeaders()
+          headers: createAuthHeaders()
         });
         const listPayload = await readJson(listResponse);
         const ids = listPayload.data.map((item: any) => item.id);
@@ -251,5 +283,136 @@ export const feedbackHttpTestCases: HttpTestCase[] = [
         await server.close();
       }
     }
-  }
+  },
+  {
+    name: "Admin can access admin feedback routes",
+    run: async () => {
+      const client = createPgliteClient();
+      await bootstrapDevelopmentDatabase(client as any);
+      const db = createPgliteDatabase(client);
+
+      await db.insert(idempotencyRecords).values({
+        id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+        userId: TEST_USER_ID,
+        key: "seed-key-1",
+        routeFamily: "test",
+        targetResourceId: "",
+        requestFingerprint: "fingerprint",
+        status: "completed",
+        responseStatusCode: 200,
+        responseBody: "{}",
+        completedAt: new Date("2026-05-01T00:00:00.000Z"),
+        createdAt: new Date("2026-05-01T00:00:00.000Z"),
+        updatedAt: new Date("2026-05-01T00:00:00.000Z")
+      });
+
+      const server = await startHttpServer(db);
+      try {
+        const listResponse = await fetch(`${server.baseUrl}/api/v1/admin/feedback`, {
+          headers: createAdminAuthHeaders()
+        });
+        assert.equal(listResponse.status, 200);
+      } finally {
+        await server.close();
+      }
+    }
+  },
+  {
+    name: "Normal users cannot access admin routes",
+    run: async () => {
+      const client = createPgliteClient();
+      await bootstrapDevelopmentDatabase(client as any);
+      const db = createPgliteDatabase(client);
+
+      const server = await startHttpServer(db);
+      try {
+        const response = await fetch(`${server.baseUrl}/api/v1/admin/feedback`, {
+          headers: createAuthHeaders()
+        });
+        assert.equal(response.status, 403);
+      } finally {
+        await server.close();
+      }
+    }
+  },
+  {
+    name: "Test account cannot access admin dashboard data",
+    run: async () => {
+      const client = createPgliteClient();
+      await bootstrapDevelopmentDatabase(client as any);
+      const db = createPgliteDatabase(client);
+
+      const server = await startHttpServer(db);
+      try {
+        const response = await fetch(`${server.baseUrl}/api/v1/admin/feedback`, {
+          headers: createTestUserAuthHeaders()
+        });
+        assert.equal(response.status, 403);
+      } finally {
+        await server.close();
+      }
+    }
+  },
+  {
+    name: "Admin can reset the test account data",
+    run: async () => {
+      const client = createPgliteClient();
+      await bootstrapDevelopmentDatabase(client as any);
+      const db = createPgliteDatabase(client);
+
+      await db.insert(idempotencyRecords).values({
+        id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+        userId: TEST_USER_ID,
+        key: "seed-key-2",
+        routeFamily: "test",
+        targetResourceId: "",
+        requestFingerprint: "fingerprint",
+        status: "completed",
+        responseStatusCode: 200,
+        responseBody: "{}",
+        completedAt: new Date("2026-05-01T00:00:00.000Z"),
+        createdAt: new Date("2026-05-01T00:00:00.000Z"),
+        updatedAt: new Date("2026-05-01T00:00:00.000Z")
+      });
+
+      const server = await startHttpServer(db);
+      try {
+        const response = await fetch(`${server.baseUrl}/api/v1/admin/test-tools/reset-user-data`, {
+          method: "POST",
+          headers: createAdminAuthHeaders({
+            "Content-Type": "application/json"
+          }),
+          body: JSON.stringify({ email: "test@test.com" })
+        });
+        const payload = await readJson(response);
+        assert.equal(response.status, 200);
+        assert.equal(payload.data.email, "test@test.com");
+        assert.equal(payload.data.deleted.idempotencyRecords, 1);
+      } finally {
+        await server.close();
+      }
+    }
+  },
+  {
+    name: "Normal users cannot reset test account data",
+    run: async () => {
+      const client = createPgliteClient();
+      await bootstrapDevelopmentDatabase(client as any);
+      const db = createPgliteDatabase(client);
+
+      const server = await startHttpServer(db);
+      try {
+        const response = await fetch(`${server.baseUrl}/api/v1/admin/test-tools/reset-user-data`, {
+          method: "POST",
+          headers: createAuthHeaders({
+            "Content-Type": "application/json"
+          }),
+          body: JSON.stringify({ email: "test@test.com" })
+        });
+        assert.equal(response.status, 403);
+      } finally {
+        await server.close();
+      }
+    }
+  },
 ];

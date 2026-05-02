@@ -3,6 +3,7 @@ import { users } from "@fitness/db";
 import { eq } from "drizzle-orm";
 import type { UnitSystem } from "@fitness/shared";
 import type { AppAuthState } from "./auth.types.js";
+import type { UserRole } from "../../modules/workout/application/types/request-context.js";
 
 type DatabaseLike = {
   select: (...args: any[]) => any;
@@ -12,6 +13,7 @@ type DatabaseLike = {
 export type ResolvedAppUser = {
   id: string;
   unitSystem: UnitSystem;
+  role: UserRole;
 };
 
 async function findUserById(
@@ -21,7 +23,8 @@ async function findUserById(
   const rows = await database
     .select({
       id: users.id,
-      unitSystem: users.unitSystem
+      unitSystem: users.unitSystem,
+      role: users.role
     })
     .from(users)
     .where(eq(users.id, userId))
@@ -45,7 +48,8 @@ export async function resolveUser(input: {
       id: input.authUser.userId || randomUUID(),
       authProviderId: input.authUser.userId,
       email: input.authUser.email,
-      displayName: input.authUser.email.split("@")[0] ?? null
+      displayName: input.authUser.email.split("@")[0] ?? null,
+      role: "user"
     })
     .onConflictDoNothing({
       target: users.id

@@ -7,7 +7,8 @@ import { WorkoutSummaryScreen } from "../../screens/WorkoutSummaryScreen";
 import { WorkoutHistoryScreen } from "../../screens/WorkoutHistoryScreen";
 import { WorkoutHistoryDetailScreen } from "../../screens/WorkoutHistoryDetailScreen";
 import { ProgressionScreen } from "../../screens/ProgressionScreen";
-import { FeedbackDebugScreen } from "../../screens/FeedbackDebugScreen";
+import { AdminDashboardScreen } from "../../screens/AdminDashboardScreen";
+import { AdminFeedbackScreen } from "../../screens/AdminFeedbackScreen";
 import { AuthLoadingScreen } from "../../screens/AuthLoadingScreen";
 import { SignInScreen } from "../../screens/SignInScreen";
 import { SignUpScreen } from "../../screens/SignUpScreen";
@@ -93,11 +94,20 @@ export function AppNavigator() {
             component={WorkoutSummaryScreen}
             options={{ title: "Workout Summary", headerRight: () => <UserMenuButton /> }}
           />
-          <Stack.Screen
-            name="FeedbackDebug"
-            component={FeedbackDebugScreen}
-            options={{ title: "Feedback Debug", headerRight: () => <UserMenuButton /> }}
-          />
+          {auth.isAdmin ? (
+            <>
+              <Stack.Screen
+                name="AdminDashboard"
+                component={AdminDashboardScreen}
+                options={{ title: "Admin Dashboard", headerRight: () => <UserMenuButton /> }}
+              />
+              <Stack.Screen
+                name="AdminFeedback"
+                component={AdminFeedbackScreen}
+                options={{ title: "Feedback", headerRight: () => <UserMenuButton /> }}
+              />
+            </>
+          ) : null}
           <Stack.Screen
             name="TrainingProfile"
             component={TrainingProfileScreen}

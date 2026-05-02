@@ -1,12 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Alert, Platform, Share, StyleSheet, Text, TextInput, View } from "react-native";
 import { Screen } from "../components/Screen";
 import { PrimaryButton } from "../components/PrimaryButton";
-import { deleteFeedbackEntry, listFeedbackEntries, submitFeedbackEntry, updateFeedbackEntry } from "../api/feedback";
-import { feedbackStorage as legacyFeedbackStorage } from "../features/feedback/storage/feedback-storage";
-import { feedbackCategories, feedbackPriorities, feedbackSeverities, type FeedbackEntry, type FeedbackPriority } from "../features/feedback/types";
+import { deleteAdminFeedbackEntry, listAdminFeedbackEntries, updateAdminFeedbackEntry, type AdminFeedbackEntry } from "../api/admin";
+import { feedbackCategories, feedbackPriorities, feedbackSeverities, type FeedbackPriority } from "../features/feedback/types";
 import { buildCodexPromptFromFeedbackEntry } from "../features/feedback/utils/build-codex-prompt";
 import { colors, spacing } from "../theme/tokens";
+import { useAppAuth } from "../core/auth/AuthProvider";
+import { Card } from "../components/Card";
+import { AppText } from "../components/AppText";
 
 type SortMode = "Newest" | "Oldest" | "Priority";
 
@@ -20,8 +22,9 @@ function priorityRank(priority: FeedbackPriority) {
   return feedbackPriorities.indexOf(priority);
 }
 
-export function FeedbackDebugScreen() {
-  const [entries, setEntries] = useState<FeedbackEntry[]>([]);
+export function AdminFeedbackScreen() {
+  const auth = useAppAuth();
+  const [entries, setEntries] = useState<AdminFeedbackEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [categoryFilterIndex, setCategoryFilterIndex] = useState(-1);
@@ -42,43 +45,17 @@ export function FeedbackDebugScreen() {
     setLoading(true);
 
     try {
-      let serverEntries = (await listFeedbackEntries()).data;
-
-      try {
-        const legacyEntries = await legacyFeedbackStorage.listEntries();
-        const serverIds = new Set(serverEntries.map((entry) => entry.id));
-        const legacyToUpload = legacyEntries.filter((entry) => !serverIds.has(entry.id));
-
-        if (legacyToUpload.length > 0) {
-          const results = await Promise.allSettled(
-            legacyToUpload.map((entry) => submitFeedbackEntry(entry))
-          );
-
-          const uploadedIds = legacyToUpload
-            .filter((_, index) => results[index]?.status === "fulfilled")
-            .map((entry) => entry.id);
-
-          if (uploadedIds.length > 0) {
-            await legacyFeedbackStorage.replaceEntries(
-              legacyEntries.filter((entry) => !uploadedIds.includes(entry.id))
-            );
-            serverEntries = (await listFeedbackEntries()).data;
-          }
-        }
-      } catch (error) {
-        console.warn("Unable to upload legacy locally saved feedback entries", error);
-      }
-
+      const serverEntries = (await listAdminFeedbackEntries()).data;
       setEntries(serverEntries);
     } catch (error) {
-      console.error("Unable to load feedback entries", error);
+      console.error("Unable to load admin feedback entries", error);
       Alert.alert("Feedback unavailable", "Saved feedback could not be loaded from the server.");
     } finally {
       setLoading(false);
     }
   }
 
-  function startEdit(entry: FeedbackEntry) {
+  function startEdit(entry: AdminFeedbackEntry) {
     setEditingId(entry.id);
     setEditDescription(entry.description);
     setEditCategoryIndex(Math.max(0, feedbackCategories.indexOf(entry.category)));
@@ -98,7 +75,7 @@ export function FeedbackDebugScreen() {
         return;
       }
 
-      await updateFeedbackEntry(entryId, {
+      await updateAdminFeedbackEntry(entryId, {
         description: nextDescription,
         category: feedbackCategories[editCategoryIndex] ?? feedbackCategories[0],
         severity: feedbackSeverities[editSeverityIndex] ?? feedbackSeverities[0],
@@ -116,7 +93,7 @@ export function FeedbackDebugScreen() {
   async function deleteEntry(entryId: string) {
     const performDelete = async () => {
       try {
-        await deleteFeedbackEntry(entryId);
+        await deleteAdminFeedbackEntry(entryId);
         if (editingId === entryId) {
           setEditingId(null);
         }
@@ -127,211 +104,161 @@ export function FeedbackDebugScreen() {
       }
     };
 
-    if (Platform.OS === "web") {
-      const webGlobal = globalThis as unknown as { confirm?: (message: string) => boolean };
-      const shouldDelete =
-        typeof webGlobal.confirm === "function"
-          ? webGlobal.confirm("Delete feedback?\n\nThis will remove the saved entry from the server.")
-          : true;
-
-      if (shouldDelete) {
-        await performDelete();
-      }
-      return;
-    }
-
-    Alert.alert("Delete feedback?", "This will remove the saved entry from the server.", [
+    Alert.alert("Delete feedback?", "This cannot be undone.", [
       { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: () => void performDelete() }
+      { text: "Delete", style: "destructive", onPress: performDelete }
     ]);
   }
 
-  async function copyCodexPrompt(entry: FeedbackEntry) {
-    try {
-      const prompt = buildCodexPromptFromFeedbackEntry(entry);
-      const hasNavigatorClipboard =
-        typeof navigator !== "undefined" &&
-        "clipboard" in navigator &&
-        typeof (navigator as any).clipboard?.writeText === "function";
+  const filteredEntries = useMemo(() => {
+    let next = entries.slice();
+    const query = search.trim().toLowerCase();
 
-      if (hasNavigatorClipboard) {
-        await (navigator as any).clipboard.writeText(prompt);
-        Alert.alert("Copied", "Codex prompt copied to clipboard.");
-        return;
-      }
-
-      try {
-        const clipboard = await import("expo-clipboard");
-        await clipboard.setStringAsync(prompt);
-        Alert.alert("Copied", "Codex prompt copied to clipboard.");
-      } catch (error) {
-        console.error("Unable to copy prompt to clipboard", error);
-        await Share.share({
-          message: prompt
-        });
-      }
-    } catch (error) {
-      console.error("Unable to build feedback prompt", error);
-      Alert.alert("Copy failed", "Saved feedback could not be formatted for Codex.");
+    if (query) {
+      next = next.filter((entry) => {
+        const meta = `${entry.category} ${entry.severity} ${entry.priority ?? ""} ${entry.reporter.email ?? ""}`;
+        return (
+          entry.description.toLowerCase().includes(query) ||
+          meta.toLowerCase().includes(query) ||
+          entry.id.toLowerCase().includes(query)
+        );
+      });
     }
-  }
 
-  const normalizedSearch = search.trim().toLowerCase();
-  const categoryFilter = categoryFilterIndex >= 0 ? feedbackCategories[categoryFilterIndex] : null;
-  const severityFilter = severityFilterIndex >= 0 ? feedbackSeverities[severityFilterIndex] : null;
-  const priorityFilter = priorityFilterIndex >= 0 ? feedbackPriorities[priorityFilterIndex] : null;
-  const sortMode = sortModes[sortModeIndex] ?? "Newest";
+    if (categoryFilterIndex >= 0) {
+      const category = feedbackCategories[categoryFilterIndex];
+      next = next.filter((entry) => entry.category === category);
+    }
 
-  const filteredEntries = entries
-    .filter((entry) => {
-      if (categoryFilter && entry.category !== categoryFilter) {
-        return false;
-      }
-      if (severityFilter && entry.severity !== severityFilter) {
-        return false;
-      }
-      if (priorityFilter && coercePriority(entry.priority) !== priorityFilter) {
-        return false;
-      }
-      if (!normalizedSearch) {
-        return true;
-      }
+    if (severityFilterIndex >= 0) {
+      const severity = feedbackSeverities[severityFilterIndex];
+      next = next.filter((entry) => entry.severity === severity);
+    }
 
-      const haystack = [
-        entry.description,
-        entry.category,
-        entry.severity,
-        entry.context.screenName,
-        entry.context.routeName,
-        entry.context.lastAction ?? ""
-      ]
-        .join(" ")
-        .toLowerCase();
+    if (priorityFilterIndex >= 0) {
+      const priority = feedbackPriorities[priorityFilterIndex];
+      next = next.filter((entry) => (entry.priority ?? "P2") === priority);
+    }
 
-      return haystack.includes(normalizedSearch);
-    })
-    .sort((left, right) => {
-      if (sortMode === "Oldest") {
-        return left.createdAt.localeCompare(right.createdAt);
-      }
-
+    const sortMode = sortModes[sortModeIndex] ?? "Newest";
+    next.sort((a, b) => {
       if (sortMode === "Priority") {
-        const priorityDelta = priorityRank(coercePriority(left.priority)) - priorityRank(coercePriority(right.priority));
-        if (priorityDelta !== 0) {
-          return priorityDelta;
-        }
-        return right.createdAt.localeCompare(left.createdAt);
+        const priorityDiff = priorityRank(coercePriority(a.priority)) - priorityRank(coercePriority(b.priority));
+        if (priorityDiff !== 0) return priorityDiff;
       }
 
-      return right.createdAt.localeCompare(left.createdAt);
+      const timestampDiff = new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      return sortMode === "Oldest" ? -timestampDiff : timestampDiff;
     });
 
-  function cycleFilterIndex(currentIndex: number, valuesLength: number) {
-    if (valuesLength <= 0) {
-      return -1;
+    return next;
+  }, [categoryFilterIndex, entries, priorityFilterIndex, search, severityFilterIndex, sortModeIndex]);
+
+  async function copyCodexPrompt(entry: AdminFeedbackEntry) {
+    const prompt = buildCodexPromptFromFeedbackEntry(entry);
+    const canShare = typeof Share?.share === "function";
+
+    if (!canShare) {
+      Alert.alert("Copy not supported", "Sharing is not available on this platform.");
+      return;
     }
-    const nextIndex = currentIndex + 1;
-    return nextIndex >= valuesLength ? -1 : nextIndex;
+
+    try {
+      await Share.share({ message: prompt });
+    } catch (error) {
+      console.error("Unable to share Codex prompt", error);
+      Alert.alert("Share failed", "Unable to share this prompt.");
+    }
   }
 
-  function clearFilters() {
-    setSearch("");
-    setCategoryFilterIndex(-1);
-    setSeverityFilterIndex(-1);
-    setPriorityFilterIndex(-1);
+  if (!auth.isAdmin) {
+    return (
+      <Screen>
+        <Card variant="default" style={styles.emptyCard}>
+          <AppText variant="title2">Admin access required</AppText>
+          <AppText tone="secondary">This screen is only available to admin users.</AppText>
+        </Card>
+      </Screen>
+    );
   }
 
   return (
     <Screen>
       <View style={styles.header}>
-        <Text style={styles.title}>Saved feedback</Text>
+        <Text style={styles.title}>Admin Feedback</Text>
         <Text style={styles.subtitle}>
-          {loading
-            ? "Loading feedback..."
-            : `${entries.length} entr${entries.length === 1 ? "y" : "ies"} saved in the backend • ${filteredEntries.length} shown`}
+          {loading ? "Loading feedback…" : `${filteredEntries.length} items`}
         </Text>
-      </View>
-
-      <View style={styles.actions}>
-        <PrimaryButton label="Refresh" onPress={() => void loadEntries()} tone="secondary" loading={loading} />
-        <PrimaryButton
-          label={`Sort: ${sortMode}`}
-          onPress={() => setSortModeIndex((current) => (current + 1) % sortModes.length)}
-          tone="secondary"
-          disabled={loading || entries.length === 0}
-        />
-        <PrimaryButton label="Clear filters" onPress={clearFilters} tone="secondary" disabled={loading || entries.length === 0} />
       </View>
 
       <View style={styles.filtersCard}>
         <TextInput
-          placeholder="Search feedback..."
+          placeholder="Search description, category, priority, or reporter…"
           placeholderTextColor={colors.textSecondary}
+          style={styles.searchInput}
           value={search}
           onChangeText={setSearch}
-          style={styles.searchInput}
-          editable={!loading}
         />
 
         <View style={styles.filtersRow}>
           <PrimaryButton
-            label={`Category: ${categoryFilter ?? "All"}`}
+            label={`Category: ${categoryFilterIndex >= 0 ? feedbackCategories[categoryFilterIndex] : "All"}`}
             tone="secondary"
-            onPress={() => setCategoryFilterIndex((current) => cycleFilterIndex(current, feedbackCategories.length))}
-            disabled={loading || entries.length === 0}
+            onPress={() => setCategoryFilterIndex((current) => (current + 1) % (feedbackCategories.length + 1) - 1)}
           />
           <PrimaryButton
-            label={`Severity: ${severityFilter ?? "All"}`}
+            label={`Severity: ${severityFilterIndex >= 0 ? feedbackSeverities[severityFilterIndex] : "All"}`}
             tone="secondary"
-            onPress={() => setSeverityFilterIndex((current) => cycleFilterIndex(current, feedbackSeverities.length))}
-            disabled={loading || entries.length === 0}
+            onPress={() => setSeverityFilterIndex((current) => (current + 1) % (feedbackSeverities.length + 1) - 1)}
           />
           <PrimaryButton
-            label={`Priority: ${priorityFilter ?? "All"}`}
+            label={`Priority: ${priorityFilterIndex >= 0 ? feedbackPriorities[priorityFilterIndex] : "All"}`}
             tone="secondary"
-            onPress={() => setPriorityFilterIndex((current) => cycleFilterIndex(current, feedbackPriorities.length))}
-            disabled={loading || entries.length === 0}
+            onPress={() => setPriorityFilterIndex((current) => (current + 1) % (feedbackPriorities.length + 1) - 1)}
           />
+          <PrimaryButton
+            label={`Sort: ${sortModes[sortModeIndex] ?? "Newest"}`}
+            tone="secondary"
+            onPress={() => setSortModeIndex((current) => (current + 1) % sortModes.length)}
+          />
+          <PrimaryButton label="Reload" tone="secondary" onPress={() => void loadEntries()} />
         </View>
       </View>
 
       <View style={styles.list}>
-        {entries.length === 0 ? (
+        {loading ? (
           <View style={styles.emptyCard}>
-            <Text style={styles.emptyText}>No feedback has been saved yet.</Text>
+            <Text style={styles.emptyText}>Loading…</Text>
           </View>
         ) : filteredEntries.length === 0 ? (
           <View style={styles.emptyCard}>
-            <Text style={styles.emptyText}>No feedback matches the current filters.</Text>
+            <Text style={styles.emptyText}>No feedback matches these filters.</Text>
           </View>
         ) : (
           filteredEntries.map((entry) => {
-            const isEditing = editingId === entry.id;
-            const displayPriority = coercePriority(entry.priority);
-
+            const reporterLabel = entry.reporter.email ?? entry.reporter.userId;
             return (
               <View key={entry.id} style={styles.issueCard}>
                 <View style={styles.issueHeader}>
                   <View style={styles.issueMeta}>
-                    <Text style={styles.issueTitle} numberOfLines={2}>
-                      {entry.description}
-                    </Text>
+                    <Text style={styles.issueTitle}>{entry.category}</Text>
                     <Text style={styles.issueSubtitle}>
-                      {displayPriority} • {entry.severity} • {entry.category}
+                      {entry.severity} • {entry.priority ?? "P2"} • {reporterLabel}
                     </Text>
-                    <Text style={styles.issueDetails} numberOfLines={2}>
-                      {entry.createdAt} • {entry.context.screenName} • {entry.context.routeName}
-                      {entry.context.lastAction ? ` • last: ${entry.context.lastAction}` : ""}
+                    <Text style={styles.issueDetails}>
+                      {new Date(entry.createdAt).toLocaleString()} • {entry.context.screenName}
                     </Text>
                   </View>
                 </View>
 
-                {isEditing ? (
+                {editingId === entry.id ? (
                   <View style={styles.editor}>
                     <Text style={styles.editorLabel}>Description</Text>
                     <TextInput
                       value={editDescription}
                       onChangeText={setEditDescription}
+                      placeholder="Describe the issue…"
+                      placeholderTextColor={colors.textSecondary}
                       style={styles.editorInput}
                       multiline
                     />
@@ -367,15 +294,18 @@ export function FeedbackDebugScreen() {
                     <View style={styles.issueActions}>
                       <PrimaryButton label="Cancel" tone="secondary" onPress={cancelEdit} />
                       <PrimaryButton label="Save" onPress={() => void saveEdit(entry.id)} />
-                      <PrimaryButton label="Delete" tone="danger" onPress={() => deleteEntry(entry.id)} />
+                      <PrimaryButton label="Delete" tone="danger" onPress={() => void deleteEntry(entry.id)} />
                     </View>
                   </View>
                 ) : (
-                  <View style={styles.issueActions}>
-                    <PrimaryButton label="Copy Codex Prompt" onPress={() => void copyCodexPrompt(entry)} />
-                    <PrimaryButton label="Edit" tone="secondary" onPress={() => startEdit(entry)} />
-                    <PrimaryButton label="Delete" tone="danger" onPress={() => deleteEntry(entry.id)} />
-                  </View>
+                  <>
+                    <Text style={styles.issueDetails}>{entry.description}</Text>
+                    <View style={styles.issueActions}>
+                      <PrimaryButton label="Copy Codex Prompt" onPress={() => void copyCodexPrompt(entry)} />
+                      <PrimaryButton label="Edit" tone="secondary" onPress={() => startEdit(entry)} />
+                      <PrimaryButton label="Delete" tone="danger" onPress={() => void deleteEntry(entry.id)} />
+                    </View>
+                  </>
                 )}
               </View>
             );
@@ -399,10 +329,6 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: 16,
     lineHeight: 22
-  },
-  actions: {
-    flexDirection: "row",
-    gap: spacing.sm
   },
   filtersCard: {
     backgroundColor: colors.surface,
@@ -512,3 +438,4 @@ const styles = StyleSheet.create({
     gap: spacing.sm
   }
 });
+

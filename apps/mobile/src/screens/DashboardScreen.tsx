@@ -17,7 +17,6 @@ import { useAppAuth } from "../core/auth/AuthProvider";
 import { useDashboard } from "../features/workout/hooks/useDashboard";
 import { useFollowProgram } from "../features/workout/hooks/useFollowProgram";
 import { usePrograms } from "../features/workout/hooks/usePrograms";
-import { useResetTestUserData } from "../features/workout/hooks/useResetTestUserData";
 import { useStartWorkout } from "../features/workout/hooks/useStartWorkout";
 import {
   getCurrentProgramWorkoutChoices,
@@ -30,94 +29,21 @@ import {
   getWorkoutIntentSummary,
   type CurrentProgramWorkoutChoice
 } from "../features/workout/utils/dashboard-program.shared";
-import { requestResetTestDataConfirmation } from "../features/workout/utils/reset-test-data.shared";
-import {
-  TEST_USER_EMAIL,
-  isTestUserEmail,
-  shouldShowReviewFeedbackButton
-} from "../features/workout/utils/test-account.shared";
 import type { RootStackParamList } from "../core/navigation/navigation-types";
 import { colors, radius, spacing } from "../theme/tokens";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Dashboard">;
 
-const RESET_TEST_DATA_CONFIRMATION =
-  "This will delete workout history, custom workouts, progression state, and program progress for test@test.com only. Continue?";
-const RESET_DELETED_COUNT_KEYS = [
-  "customPrograms",
-  "customTemplateEntries",
-  "customTemplates",
-  "enrollments",
-  "exerciseEntries",
-  "idempotencyRecords",
-  "progressMetrics",
-  "progression",
-  "sets",
-  "workoutSessions"
-] as const;
-const isDevEnvironment = typeof __DEV__ !== "undefined" && __DEV__;
-
-function logResetDiagnostic(event: string) {
-  if (isDevEnvironment) {
-    console.info("[reset-test-data]", event);
-  }
-}
-
 export function DashboardScreen({ navigation }: Props) {
   const [isProgramPickerOpen, setIsProgramPickerOpen] = useState(false);
   const [isCurrentProgramWorkoutPickerOpen, setIsCurrentProgramWorkoutPickerOpen] = useState(false);
   const [selectedStartingWorkoutId, setSelectedStartingWorkoutId] = useState<string | null>(null);
-  const [resetFeedback, setResetFeedback] = useState<string | null>(null);
   const auth = useAppAuth();
   const dashboardQuery = useDashboard();
   const programsQuery = usePrograms(Boolean(dashboardQuery.data));
   const followProgramMutation = useFollowProgram();
-  const resetTestUserDataMutation = useResetTestUserData();
   const startWorkoutMutation = useStartWorkout();
   const [lastAction, setLastAction] = useState<string | null>(null);
-  const isTestUser = isTestUserEmail(auth.userEmail);
-  const canReviewFeedback = shouldShowReviewFeedbackButton({
-    isDev: __DEV__,
-    userEmail: auth.userEmail
-  });
-
-  function runResetTestData() {
-    logResetDiagnostic("handler_entered");
-    setLastAction("reset_test_data");
-    setResetFeedback(null);
-    logResetDiagnostic("mutation_started");
-    resetTestUserDataMutation.mutate(undefined, {
-      onSuccess: (response) => {
-        logResetDiagnostic("mutation_success");
-        const deletedCount = RESET_DELETED_COUNT_KEYS.reduce(
-          (total, key) => total + (response.data.deleted[key] ?? 0),
-          0
-        );
-        const message = `Test data reset complete. ${deletedCount} records cleared.`;
-        setResetFeedback(message);
-        Alert.alert("Reset Complete", message);
-      },
-      onError: (error) => {
-        logResetDiagnostic("mutation_error");
-        const message = error instanceof Error ? error.message : "Unable to reset test data.";
-        setResetFeedback(message);
-        Alert.alert("Reset Failed", message);
-      }
-    });
-  }
-
-  function confirmResetTestData() {
-    const webConfirm = (globalThis as { confirm?: (message: string) => boolean }).confirm;
-
-    requestResetTestDataConfirmation({
-      alert: Alert,
-      confirmationMessage: RESET_TEST_DATA_CONFIRMATION,
-      confirm: webConfirm,
-      log: logResetDiagnostic,
-      onConfirm: runResetTestData,
-      platformOs: Platform.OS
-    });
-  }
 
   if (dashboardQuery.isLoading) {
     return (
@@ -394,34 +320,7 @@ export function DashboardScreen({ navigation }: Props) {
           workoutSessionId={activeWorkout?.id ?? null}
           lastAction={lastAction}
         />
-        {canReviewFeedback ? (
-          <PrimaryButton
-            label="Review feedback"
-            tone="secondary"
-            onPress={() => navigation.navigate("FeedbackDebug")}
-          />
-        ) : null}
       </View>
-
-      {isTestUser ? (
-        <Card variant="default" style={styles.card}>
-          <AppText variant="caption" tone="accent">
-            Dev/Test Tools
-          </AppText>
-          <AppText variant="title2">Test account reset</AppText>
-          <AppText tone="secondary">
-            Clears workout history, custom workouts, progression state, and program progress for test@test.com only.
-          </AppText>
-          <PrimaryButton
-            label="Reset Test Data"
-            tone="danger"
-            loading={resetTestUserDataMutation.isPending}
-            disabled={resetTestUserDataMutation.isPending}
-            onPress={confirmResetTestData}
-          />
-          {resetFeedback ? <AppText tone="secondary">{resetFeedback}</AppText> : null}
-        </Card>
-      ) : null}
 
       <ProgramPickerModal
         activeProgramId={activeProgram?.program.id ?? null}

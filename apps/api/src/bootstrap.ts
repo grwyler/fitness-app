@@ -9,6 +9,7 @@ import {
 import { bootstrapDevelopmentDatabase } from "./lib/db/dev-bootstrap.js";
 import { createWorkoutHttpRouter } from "./modules/workout/http/workout.module.js";
 import { createFeedbackHttpRouter } from "./modules/feedback/feedback.module.js";
+import { createAdminHttpRouter } from "./modules/admin/admin.module.js";
 
 export type ApiRuntime = {
   app: ReturnType<typeof createApp>;
@@ -25,7 +26,8 @@ export async function createRuntimeApp(): Promise<ApiRuntime> {
       app: createApp({
         database,
         workoutRouter: createWorkoutHttpRouter(database),
-        feedbackRouter: createFeedbackHttpRouter(database)
+        feedbackRouter: createFeedbackHttpRouter(database),
+        adminRouter: createAdminHttpRouter(database)
       }),
       databaseMode: "pglite-dev"
     };
@@ -50,7 +52,8 @@ function createPostgresRuntimeAppFromPool(pool: ReturnType<typeof createPostgres
     app: createApp({
       database,
       workoutRouter: createWorkoutHttpRouter(database),
-      feedbackRouter: createFeedbackHttpRouter(database)
+      feedbackRouter: createFeedbackHttpRouter(database),
+      adminRouter: createAdminHttpRouter(database)
     }),
     databaseMode: "postgres"
   };

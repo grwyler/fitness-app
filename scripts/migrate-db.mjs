@@ -1,7 +1,9 @@
 import { readFile, readdir } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import pg from "pg";
+import { config as loadDotEnv } from "dotenv";
 
 const MIGRATIONS_DIR = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -10,6 +12,18 @@ const MIGRATIONS_DIR = path.resolve(
   "db",
   "migrations"
 );
+
+const repoRootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const envCandidatePaths = [
+  path.resolve(repoRootDir, ".env.local"),
+  path.resolve(repoRootDir, ".env")
+];
+
+for (const candidatePath of envCandidatePaths) {
+  if (existsSync(candidatePath)) {
+    loadDotEnv({ path: candidatePath, override: false });
+  }
+}
 
 function parseArgs(argv) {
   const args = { dryRun: false };
@@ -124,4 +138,3 @@ async function main() {
 }
 
 await main();
-

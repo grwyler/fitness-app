@@ -17,6 +17,8 @@ type AuthContextValue = {
   signOut: () => Promise<void>;
   status: "checking_session" | "authenticated" | "unauthenticated";
   userEmail: string | null;
+  userRole: AuthUser["role"] | null;
+  isAdmin: boolean;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -96,9 +98,11 @@ export function AuthProvider({ children }: PropsWithChildren) {
       completeSignIn,
       signOut,
       status,
-      userEmail: user?.email ?? null
+      userEmail: user?.email ?? null,
+      userRole: user?.role ?? null,
+      isAdmin: user?.role === "admin"
     };
-  }, [completeSignIn, signOut, status, token, user?.email]);
+  }, [completeSignIn, signOut, status, token, user?.email, user?.role]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

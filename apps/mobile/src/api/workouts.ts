@@ -34,18 +34,6 @@ export async function fetchDashboard() {
   return apiRequest<GetDashboardResponse>("/dashboard");
 }
 
-export async function resetTestUserData() {
-  return apiRequest<{
-    deleted: Record<string, number>;
-    email: string;
-    reset: Record<string, number>;
-    success: true;
-  }>("/dev/reset-test-user-data", {
-    method: "POST",
-    body: {}
-  });
-}
-
 export async function fetchPrograms() {
   return apiRequest<ListProgramsResponse>("/programs");
 }

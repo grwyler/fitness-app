@@ -7,6 +7,7 @@ import { failure, success } from "../http/envelope.js";
 import { createRateLimitMiddleware } from "../http/rate-limit.js";
 import { hashPassword, verifyPassword } from "./password.js";
 import { issueAuthToken } from "./token.js";
+import type { UserRole } from "../../modules/workout/application/types/request-context.js";
 
 type DatabaseLike = {
   select: (...args: any[]) => any;
@@ -18,10 +19,11 @@ const credentialsSchema = z.object({
   password: z.string().min(8)
 });
 
-function publicUser(user: { email: string; id: string }) {
+function publicUser(user: { email: string; id: string; role: UserRole }) {
   return {
     email: user.email,
-    id: user.id
+    id: user.id,
+    role: user.role
   };
 }
 
@@ -61,6 +63,7 @@ async function findUserByEmail(database: DatabaseLike, email: string) {
     .select({
       email: users.email,
       id: users.id,
+      role: users.role,
       passwordHash: users.passwordHash,
       deletedAt: users.deletedAt
     })
@@ -76,6 +79,7 @@ async function findUserById(database: DatabaseLike, userId: string) {
     .select({
       email: users.email,
       id: users.id,
+      role: users.role,
       deletedAt: users.deletedAt
     })
     .from(users)
@@ -121,7 +125,8 @@ export function createPublicAuthRouter(database: DatabaseLike) {
           authProviderId: userId,
           email: parsedCredentials.data.email,
           displayName: parsedCredentials.data.email.split("@")[0] ?? null,
-          passwordHash
+          passwordHash,
+          role: "user"
         });
       } catch (error) {
         if (isUniqueConstraintViolation(error)) {
@@ -141,7 +146,8 @@ export function createPublicAuthRouter(database: DatabaseLike) {
         token,
         user: publicUser({
           email: parsedCredentials.data.email,
-          id: userId
+          id: userId,
+          role: "user"
         })
       }));
     } catch (error) {

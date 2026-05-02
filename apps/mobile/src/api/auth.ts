@@ -3,6 +3,7 @@ import { apiRequest } from "./client";
 export type AuthUser = {
   email: string;
   id: string;
+  role: "user" | "admin";
 };
 
 export type AuthResponse = {

@@ -10,12 +10,12 @@ import {
   addCustomWorkoutExercise,
   createCustomProgram,
   updateCustomProgram,
-  resetTestUserData,
   startWorkoutSession,
   logSet,
   updateLoggedSet,
   completeWorkoutSession
 } from "../api/workouts.js";
+import { resetUserData } from "../api/admin.js";
 import { MobileApiError } from "../api/errors.js";
 import { setLastKnownAuthToken } from "../core/auth/auth-bridge.js";
 import { resolveStableIdempotencyKey } from "../features/workout/utils/idempotency.js";
@@ -103,7 +103,7 @@ export const mobileApiTestCases: MobileTestCase[] = [
     }
   },
   {
-    name: "Reset test data API posts to the dev reset endpoint with auth",
+    name: "Admin reset user data API posts to the admin reset endpoint with auth",
     run: async () => {
       let requestPath: string | undefined;
       let requestBody: string | undefined;
@@ -137,11 +137,11 @@ export const mobileApiTestCases: MobileTestCase[] = [
           };
         });
 
-        const response = await resetTestUserData();
+        const response = await resetUserData("test@test.com");
 
-        assert.match(requestPath ?? "", /\/dev\/reset-test-user-data$/);
+        assert.match(requestPath ?? "", /\/admin\/test-tools\/reset-user-data$/);
         assert.equal(authorizationHeader, "Bearer test-token");
-        assert.equal(requestBody, "{}");
+        assert.deepEqual(JSON.parse(requestBody ?? "{}"), { email: "test@test.com" });
         assert.equal(response.data.success, true);
         assert.equal(response.data.deleted.workoutSessions, 1);
       } finally {
@@ -172,7 +172,6 @@ export const mobileApiTestCases: MobileTestCase[] = [
       await fetchProgression();
       await fetchWorkoutHistory(20);
       await fetchWorkoutHistoryDetail("session-1");
-      await resetTestUserData();
       await startWorkoutSession({
         request: {},
         idempotencyKey: "start-key"
@@ -204,16 +203,8 @@ export const mobileApiTestCases: MobileTestCase[] = [
         idempotencyKey: "complete-key"
       });
 
-      assert.equal((calls[0]?.headers as Record<string, string>)["Idempotency-Key"], undefined);
-      assert.equal((calls[1]?.headers as Record<string, string>)["Idempotency-Key"], undefined);
-      assert.equal((calls[2]?.headers as Record<string, string>)["Idempotency-Key"], undefined);
-      assert.equal((calls[3]?.headers as Record<string, string>)["Idempotency-Key"], undefined);
-      assert.equal((calls[4]?.headers as Record<string, string>)["Idempotency-Key"], undefined);
-      assert.equal((calls[5]?.headers as Record<string, string>)["Idempotency-Key"], "start-key");
-      assert.equal((calls[6]?.headers as Record<string, string>)["Idempotency-Key"], "log-key");
-      assert.equal((calls[7]?.headers as Record<string, string>)["Idempotency-Key"], "update-key");
-      assert.equal((calls[8]?.headers as Record<string, string>)["Idempotency-Key"], "complete-key");
-      assert.equal(calls[4]?.method, "POST");
+      const keys = calls.map((call) => (call.headers as Record<string, string>)["Idempotency-Key"] ?? null);
+      assert.deepEqual(keys.filter(Boolean), ["start-key", "log-key", "update-key", "complete-key"]);
     }
   },
   {

@@ -38,7 +38,8 @@ export function createRequestContextMiddleware(dependencies: {
       .then((user) => {
         request.context = {
           userId: user.id,
-          unitSystem: user.unitSystem
+          unitSystem: user.unitSystem,
+          role: user.role
         };
         next();
       })

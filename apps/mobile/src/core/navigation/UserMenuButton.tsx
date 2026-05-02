@@ -77,6 +77,21 @@ export function UserMenuButton() {
             >
               <Text style={styles.menuItemText}>Settings</Text>
             </Pressable>
+            {auth.isAdmin ? (
+              <>
+                <View style={styles.separator} />
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => {
+                    setMenuOpen(false);
+                    navigation.navigate("AdminDashboard");
+                  }}
+                  style={({ pressed }) => [styles.menuItem, pressed && styles.menuItemPressed]}
+                >
+                  <Text style={styles.menuItemText}>Admin Dashboard</Text>
+                </Pressable>
+              </>
+            ) : null}
             <View style={styles.separator} />
             <Pressable
               accessibilityRole="button"
@@ -164,4 +179,3 @@ const styles = StyleSheet.create({
     backgroundColor: colors.border
   }
 });
-

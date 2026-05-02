@@ -42,6 +42,7 @@ create table users (
   email text not null unique,
   password_hash text,
   display_name text,
+  role text not null default 'user',
   timezone text not null default 'America/New_York',
   unit_system text not null default 'imperial',
   experience_level text,

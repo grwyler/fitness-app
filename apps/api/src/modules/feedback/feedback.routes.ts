@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { feedbackEntries } from "@fitness/db";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { success } from "../../lib/http/envelope.js";
 import { AppError } from "../../lib/http/errors.js";
 import { getRequestContext } from "../../lib/auth/request-context.middleware.js";
@@ -74,10 +74,12 @@ export function createFeedbackRouter(database: DatabaseLike) {
 
   router.get(
     "/feedback",
-    asyncHandler(async (_request, response) => {
+    asyncHandler(async (request, response) => {
+      const { userId } = getRequestContext(request);
       const rows = await database
         .select()
         .from(feedbackEntries)
+        .where(eq(feedbackEntries.reporterUserId, userId))
         .orderBy(desc(feedbackEntries.createdAt))
         .limit(200);
 
@@ -128,6 +130,7 @@ export function createFeedbackRouter(database: DatabaseLike) {
     asyncHandler(async (request, response) => {
       const { id } = validateParams(feedbackIdParamsSchema, request);
       const patch = validateBody(feedbackEntryPatchSchema, request);
+      const { userId } = getRequestContext(request);
 
       const [row] = await database
         .update(feedbackEntries)
@@ -135,7 +138,7 @@ export function createFeedbackRouter(database: DatabaseLike) {
           ...patch,
           updatedAt: new Date()
         })
-        .where(eq(feedbackEntries.id, id))
+        .where(and(eq(feedbackEntries.id, id), eq(feedbackEntries.reporterUserId, userId)))
         .returning();
 
       if (!row) {
@@ -150,10 +153,11 @@ export function createFeedbackRouter(database: DatabaseLike) {
     "/feedback/:id",
     asyncHandler(async (request, response) => {
       const { id } = validateParams(feedbackIdParamsSchema, request);
+      const { userId } = getRequestContext(request);
 
       const [row] = await database
         .delete(feedbackEntries)
-        .where(eq(feedbackEntries.id, id))
+        .where(and(eq(feedbackEntries.id, id), eq(feedbackEntries.reporterUserId, userId)))
         .returning({
           id: feedbackEntries.id
         });
@@ -168,4 +172,3 @@ export function createFeedbackRouter(database: DatabaseLike) {
 
   return router;
 }
-

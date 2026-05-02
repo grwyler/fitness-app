@@ -48,6 +48,7 @@ const recoveryStateEnum = pgEnum("recovery_state", recoveryStates);
 const idempotencyStatusEnum = pgEnum("idempotency_status", ["pending", "completed"]);
 const progressionConfidenceEnum = pgEnum("progression_confidence", progressionConfidenceLevels);
 const bodyweightProgressionModeEnum = pgEnum("bodyweight_progression_mode", bodyweightProgressionModes);
+const userRoleEnum = pgEnum("user_role", ["user", "admin"]);
 
 const timestamps = {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -62,6 +63,7 @@ export const users = pgTable(
     email: text("email").notNull(),
     passwordHash: text("password_hash"),
     displayName: text("display_name"),
+    role: userRoleEnum("role").notNull().default("user"),
     timezone: text("timezone").notNull().default("America/New_York"),
     unitSystem: unitSystemEnum("unit_system").notNull().default("imperial"),
     experienceLevel: difficultyLevelEnum("experience_level"),

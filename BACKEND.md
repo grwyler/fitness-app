@@ -17,7 +17,9 @@ The core backend slice currently supports:
 - `POST /api/v1/workout-sessions/start`
 - `POST /api/v1/sets/:setId/log`
 - `POST /api/v1/workout-sessions/:sessionId/complete`
-- `POST /api/v1/dev/reset-test-user-data` for development/manual validation of `test@test.com` only
+- `GET /api/v1/admin/feedback` (admin-only)
+- `POST /api/v1/admin/test-tools/seed-test-account` (admin-only)
+- `POST /api/v1/admin/test-tools/reset-user-data` (admin-only)
 
 ## Run the API
 
@@ -134,7 +136,7 @@ The backend:
 
 1. verifies the app-issued bearer token at the HTTP boundary
 2. resolves the current app user through `users.id`
-3. loads the user's internal `id` and `unit_system`
+3. loads the user's internal `id`, `unit_system`, and `role`
 4. returns the same `RequestContext` shape used by the use-cases
 
 For local development, the seeded default internal user id is:
@@ -145,15 +147,15 @@ The MVP auth endpoints are `POST /api/v1/auth/signup`, `POST /api/v1/auth/signin
 
 ## Test user reset
 
-`POST /api/v1/dev/reset-test-user-data` is a protected development/manual-validation endpoint for the test account only.
+`POST /api/v1/admin/test-tools/reset-user-data` is an admin-only development/manual-validation endpoint for approved test accounts.
 
 Safety rules:
 
 - Requires `Authorization: Bearer <app-issued-jwt>`.
-- Allows only authenticated email `test@test.com`.
-- Returns `403 FORBIDDEN` for every other authenticated user.
-- Deletes only the resolved authenticated user's workout/history/progression/program domain rows.
-- Preserves the user account row, email/password credentials, and bearer-token auth setup.
+- Requires `users.role === "admin"` server-side for every request.
+- Only supports approved test accounts (currently `test@test.com`).
+- Deletes only the targeted test user's workout/history/progression/program domain rows.
+- Preserves the user account row and authentication credentials.
 
 See [docs/TEST_USER_RESET.md](C:\Users\Grwyl\repos\fitness-app\docs\TEST_USER_RESET.md) for the mobile flow, endpoint contract, and full safety restrictions.
 

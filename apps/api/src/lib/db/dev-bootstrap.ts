@@ -4,6 +4,8 @@ import { hashPassword } from "../auth/password.js";
 export const DEV_USER_ID = "11111111-1111-1111-1111-111111111111";
 export const TEST_USER_ID = "99999999-9999-9999-9999-999999999999";
 export const TEST_USER_EMAIL = "test@test.com";
+export const ADMIN_USER_ID = "88888888-8888-8888-8888-888888888888";
+export const ADMIN_USER_EMAIL = "grwyler@gmail.com";
 const PROGRAM_ID = "22222222-2222-2222-2222-222222222222";
 const UPPER_LOWER_ARMS_PROGRAM_ID = "22222222-2222-2222-2222-222222222223";
 const CUSTOM_WORKOUT_PROGRAM_ID = "22222222-2222-2222-2222-222222222299";
@@ -218,7 +220,8 @@ const templateEntries = [
 ] as const;
 
 const schemaSql = `
- create table if not exists users (id uuid primary key, auth_provider_id text not null unique, email text not null unique, password_hash text, display_name text, timezone text not null default 'America/New_York', unit_system text not null default 'imperial', experience_level text, training_goal text, deleted_at timestamptz, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
+ create table if not exists users (id uuid primary key, auth_provider_id text not null unique, email text not null unique, password_hash text, display_name text, role text not null default 'user', timezone text not null default 'America/New_York', unit_system text not null default 'imperial', experience_level text, training_goal text, deleted_at timestamptz, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
+ alter table users add column if not exists role text not null default 'user';
 create table if not exists user_training_settings (user_id uuid primary key references users(id), progression_aggressiveness text not null default 'balanced', default_barbell_increment_lbs numeric(5,2) not null default 5, default_dumbbell_increment_lbs numeric(5,2) not null default 5, default_machine_increment_lbs numeric(5,2) not null default 10, default_cable_increment_lbs numeric(5,2) not null default 5, use_recovery_adjustments boolean not null default true, default_recovery_state text not null default 'normal', allow_auto_deload boolean not null default true, allow_recalibration boolean not null default true, prefer_rep_progression_before_weight boolean not null default true, minimum_confidence_for_increase text not null default 'medium', created_at timestamptz not null default now(), updated_at timestamptz not null default now());
 alter table users add column if not exists password_hash text;
 create table if not exists password_reset_tokens (id uuid primary key, user_id uuid not null references users(id), token_hash text not null unique, expires_at timestamptz not null, consumed_at timestamptz, created_at timestamptz not null default now());
@@ -290,27 +293,44 @@ export async function bootstrapDevelopmentDatabase(executor: SqlExecutor) {
   }
 
   const testUserPasswordHash = await hashPassword("password");
+  const adminUserPasswordHash = await hashPassword("password");
 
   await executor.query(
-    `insert into users (id, auth_provider_id, email, password_hash, display_name, timezone, unit_system, experience_level)
-     values ($1, $2, $3, $4, $5, $6, $7, $8)
+    `insert into users (id, auth_provider_id, email, password_hash, display_name, role, timezone, unit_system, experience_level)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
      on conflict (email) do update
      set password_hash = excluded.password_hash,
          deleted_at = null,
          display_name = excluded.display_name,
+         role = excluded.role,
          timezone = excluded.timezone,
          unit_system = excluded.unit_system,
          experience_level = excluded.experience_level,
          updated_at = now()`,
-    [TEST_USER_ID, TEST_USER_ID, TEST_USER_EMAIL, testUserPasswordHash, "test", "America/New_York", "imperial", "beginner"]
+    [ADMIN_USER_ID, ADMIN_USER_ID, ADMIN_USER_EMAIL, adminUserPasswordHash, "Admin", "admin", "America/New_York", "imperial", "beginner"]
   );
 
   await executor.query(
-    `insert into users (id, auth_provider_id, email, display_name, timezone, unit_system, experience_level)
-     values ($1, $2, $3, $4, $5, $6, $7)
+    `insert into users (id, auth_provider_id, email, password_hash, display_name, role, timezone, unit_system, experience_level)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+     on conflict (email) do update
+     set password_hash = excluded.password_hash,
+         deleted_at = null,
+         display_name = excluded.display_name,
+         role = excluded.role,
+         timezone = excluded.timezone,
+         unit_system = excluded.unit_system,
+         experience_level = excluded.experience_level,
+         updated_at = now()`,
+    [TEST_USER_ID, TEST_USER_ID, TEST_USER_EMAIL, testUserPasswordHash, "test", "user", "America/New_York", "imperial", "beginner"]
+  );
+
+  await executor.query(
+    `insert into users (id, auth_provider_id, email, display_name, role, timezone, unit_system, experience_level)
+     values ($1, $2, $3, $4, $5, $6, $7, $8)
      on conflict (id) do update
-     set auth_provider_id = excluded.auth_provider_id, email = excluded.email, display_name = excluded.display_name, timezone = excluded.timezone, unit_system = excluded.unit_system, experience_level = excluded.experience_level, updated_at = now()`,
-    [DEV_USER_ID, "dev-user-1", "dev-user@example.com", "Development User", "America/New_York", "imperial", "beginner"]
+     set auth_provider_id = excluded.auth_provider_id, email = excluded.email, display_name = excluded.display_name, role = excluded.role, timezone = excluded.timezone, unit_system = excluded.unit_system, experience_level = excluded.experience_level, updated_at = now()`,
+    [DEV_USER_ID, "dev-user-1", "dev-user@example.com", "Development User", "user", "America/New_York", "imperial", "beginner"]
   );
 
   await syncPredefinedProgramCatalog(executor);
