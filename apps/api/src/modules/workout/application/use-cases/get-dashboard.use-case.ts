@@ -50,6 +50,29 @@ async function runDashboardStage<T>(
   }
 }
 
+async function runOptionalDashboardStage<T>(
+  stage: string,
+  context: RequestContext,
+  fallback: T,
+  operation: () => Promise<T>
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    const cause = (error as { cause?: unknown } | null)?.cause;
+    logger.error("Optional dashboard stage failed (using fallback)", {
+      stage,
+      userId: context.userId,
+      errorMessage: error instanceof Error ? error.message : String(error),
+      errorName: error instanceof Error ? error.name : "NonErrorThrown",
+      errorStack: error instanceof Error ? error.stack : undefined,
+      causeMessage: cause instanceof Error ? cause.message : cause ? String(cause) : undefined,
+      causeName: cause instanceof Error ? cause.name : cause ? "NonErrorThrown" : undefined
+    });
+    return fallback;
+  }
+}
+
 export class GetDashboardUseCase {
   public constructor(
     private readonly workoutSessionRepository: WorkoutSessionRepository,
@@ -62,29 +85,43 @@ export class GetDashboardUseCase {
   public async execute(input: {
     context: RequestContext;
   }): Promise<UseCaseResult<GetDashboardResponse>> {
-    const [activeWorkoutSessionGraph, activeEnrollment, recentProgressMetrics, recentWorkoutHistory] =
-      await Promise.all([
-        runDashboardStage(
-          "workoutSessionRepository.findInProgressByUserId",
-          input.context,
-          () => this.workoutSessionRepository.findInProgressByUserId(input.context.userId)
-        ),
-        runDashboardStage(
-          "enrollmentRepository.findActiveByUserId",
-          input.context,
-          () => this.enrollmentRepository.findActiveByUserId(input.context.userId)
-        ),
-        runDashboardStage(
-          "progressMetricRepository.listRecentByUserId",
-          input.context,
-          () => this.progressMetricRepository.listRecentByUserId(input.context.userId, 20)
-        ),
-        runDashboardStage(
-          "workoutSessionRepository.listRecentCompletedByUserId",
-          input.context,
-          () => this.workoutSessionRepository.listRecentCompletedByUserId(input.context.userId, 20)
-        )
-      ]);
+    const [activeEnrollment, weeklyWorkoutCount] = await Promise.all([
+      runDashboardStage(
+        "enrollmentRepository.findActiveByUserId",
+        input.context,
+        () => this.enrollmentRepository.findActiveByUserId(input.context.userId)
+      ),
+      runDashboardStage(
+        "workoutSessionRepository.countCompletedByUserIdWithinRange",
+        input.context,
+        () =>
+          this.workoutSessionRepository.countCompletedByUserIdWithinRange(
+            input.context.userId,
+            getWeekRange(new Date())
+          )
+      )
+    ]);
+
+    const [activeWorkoutSessionGraph, recentProgressMetrics, recentWorkoutHistory] = await Promise.all([
+      runOptionalDashboardStage(
+        "workoutSessionRepository.findInProgressByUserId",
+        input.context,
+        null,
+        () => this.workoutSessionRepository.findInProgressByUserId(input.context.userId)
+      ),
+      runOptionalDashboardStage(
+        "progressMetricRepository.listRecentByUserId",
+        input.context,
+        [],
+        () => this.progressMetricRepository.listRecentByUserId(input.context.userId, 20)
+      ),
+      runOptionalDashboardStage(
+        "workoutSessionRepository.listRecentCompletedByUserId",
+        input.context,
+        [],
+        () => this.workoutSessionRepository.listRecentCompletedByUserId(input.context.userId, 20)
+      )
+    ]);
 
     let nextWorkoutTemplate = null;
     let activeProgram = null;
@@ -124,16 +161,6 @@ export class GetDashboardUseCase {
         });
       }
     }
-
-    const weeklyWorkoutCount = await runDashboardStage(
-      "workoutSessionRepository.countCompletedByUserIdWithinRange",
-      input.context,
-      () =>
-        this.workoutSessionRepository.countCompletedByUserIdWithinRange(
-          input.context.userId,
-          getWeekRange(new Date())
-        )
-    );
 
     return {
       data: mapDashboardDto({
