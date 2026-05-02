@@ -34,7 +34,41 @@ import {
   resolveExecutor
 } from "../db/drizzle-helpers.js";
 
-function mapWorkoutSessionRecord(row: typeof workoutSessions.$inferSelect): WorkoutSessionRecord {
+const workoutSessionCoreColumns = {
+  id: workoutSessions.id,
+  userId: workoutSessions.userId,
+  programId: workoutSessions.programId,
+  workoutTemplateId: workoutSessions.workoutTemplateId,
+  status: workoutSessions.status,
+  startedAt: workoutSessions.startedAt,
+  completedAt: workoutSessions.completedAt,
+  durationSeconds: workoutSessions.durationSeconds,
+  isPartial: workoutSessions.isPartial,
+  programNameSnapshot: workoutSessions.programNameSnapshot,
+  workoutNameSnapshot: workoutSessions.workoutNameSnapshot,
+  createdAt: workoutSessions.createdAt,
+  updatedAt: workoutSessions.updatedAt
+} as const;
+
+type WorkoutSessionCoreRow = {
+  id: string;
+  userId: string;
+  programId: string;
+  workoutTemplateId: string;
+  status: WorkoutSessionRecord["status"];
+  startedAt: Date | null;
+  completedAt: Date | null;
+  durationSeconds: number | null;
+  isPartial: boolean;
+  programNameSnapshot: string;
+  workoutNameSnapshot: string;
+  createdAt: Date;
+  updatedAt: Date;
+  userEffortFeedback?: WorkoutSessionRecord["userEffortFeedback"];
+  recoveryState?: WorkoutSessionRecord["recoveryState"];
+};
+
+function mapWorkoutSessionRecord(row: WorkoutSessionCoreRow): WorkoutSessionRecord {
   return {
     id: row.id,
     userId: row.userId,
@@ -45,7 +79,7 @@ function mapWorkoutSessionRecord(row: typeof workoutSessions.$inferSelect): Work
     completedAt: row.completedAt,
     durationSeconds: row.durationSeconds,
     isPartial: row.isPartial,
-    userEffortFeedback: row.userEffortFeedback,
+    userEffortFeedback: row.userEffortFeedback ?? null,
     recoveryState: row.recoveryState ?? null,
     programNameSnapshot: row.programNameSnapshot,
     workoutNameSnapshot: row.workoutNameSnapshot,
@@ -106,9 +140,12 @@ export class DrizzleWorkoutSessionRepository implements WorkoutSessionRepository
     sessionId: string,
     executor: any
   ): Promise<WorkoutSessionGraph | null> {
-    const sessionRow = await executor.query.workoutSessions.findFirst({
-      where: eq(workoutSessions.id, sessionId)
-    });
+    const sessionRows: WorkoutSessionCoreRow[] = await executor
+      .select(workoutSessionCoreColumns)
+      .from(workoutSessions)
+      .where(eq(workoutSessions.id, sessionId))
+      .limit(1);
+    const sessionRow = sessionRows[0] ?? null;
     if (!sessionRow) {
       return null;
     }
@@ -181,9 +218,12 @@ export class DrizzleWorkoutSessionRepository implements WorkoutSessionRepository
     options?: RepositoryOptions
   ): Promise<WorkoutSessionGraph | null> {
     const executor = resolveExecutor(this.db, options);
-    const sessionRow = await executor.query.workoutSessions.findFirst({
-      where: and(eq(workoutSessions.userId, userId), eq(workoutSessions.status, "in_progress"))
-    });
+    const rows: Array<{ id: string }> = await executor
+      .select({ id: workoutSessions.id })
+      .from(workoutSessions)
+      .where(and(eq(workoutSessions.userId, userId), eq(workoutSessions.status, "in_progress")))
+      .limit(1);
+    const sessionRow = rows[0] ?? null;
 
     return sessionRow ? this.loadSessionGraph(sessionRow.id, executor) : null;
   }
@@ -194,9 +234,12 @@ export class DrizzleWorkoutSessionRepository implements WorkoutSessionRepository
     options?: RepositoryOptions
   ): Promise<WorkoutSessionRecord | null> {
     const executor = resolveExecutor(this.db, options);
-    const row = await executor.query.workoutSessions.findFirst({
-      where: and(eq(workoutSessions.id, sessionId), eq(workoutSessions.userId, userId))
-    });
+    const rows: WorkoutSessionCoreRow[] = await executor
+      .select(workoutSessionCoreColumns)
+      .from(workoutSessions)
+      .where(and(eq(workoutSessions.id, sessionId), eq(workoutSessions.userId, userId)))
+      .limit(1);
+    const row = rows[0] ?? null;
 
     return row ? mapWorkoutSessionRecord(row) : null;
   }
@@ -207,9 +250,12 @@ export class DrizzleWorkoutSessionRepository implements WorkoutSessionRepository
     options?: RepositoryOptions
   ): Promise<WorkoutSessionGraph | null> {
     const executor = resolveExecutor(this.db, options);
-    const sessionRow = await executor.query.workoutSessions.findFirst({
-      where: and(eq(workoutSessions.id, sessionId), eq(workoutSessions.userId, userId))
-    });
+    const rows: Array<{ id: string }> = await executor
+      .select({ id: workoutSessions.id })
+      .from(workoutSessions)
+      .where(and(eq(workoutSessions.id, sessionId), eq(workoutSessions.userId, userId)))
+      .limit(1);
+    const sessionRow = rows[0] ?? null;
 
     return sessionRow ? this.loadSessionGraph(sessionId, executor) : null;
   }
