@@ -17,8 +17,16 @@ const envCandidatePaths = [
 ];
 const resolvedEnvPath = envCandidatePaths.find((candidatePath) => existsSync(candidatePath));
 
-if (resolvedEnvPath) {
-  loadDotEnv({ path: resolvedEnvPath });
+let didLoadDotEnv = false;
+function loadDotEnvOnce() {
+  if (didLoadDotEnv) {
+    return;
+  }
+  didLoadDotEnv = true;
+
+  if (resolvedEnvPath) {
+    loadDotEnv({ path: resolvedEnvPath });
+  }
 }
 
 const trimmedOptionalString = z.preprocess(
@@ -74,8 +82,98 @@ function getEnvHint() {
     : `No .env file found. Checked: ${envCandidatePaths.join(", ")}. Copy .env.example to .env at the repo root.`;
 }
 
-function parseEnv(): AppEnv {
-  const parsedEnv = envSchema.safeParse({
+export class EnvConfigError extends Error {
+  readonly name = "EnvConfigError";
+  readonly problems: string[];
+  readonly hint: string;
+
+  constructor(input: { problems: string[]; hint: string }) {
+    const formattedProblems = input.problems.map((problem) => `- ${problem}`).join("\n");
+    const message = [
+      "Invalid API environment configuration.",
+      formattedProblems.length > 0 ? formattedProblems : "- Unknown error.",
+      "",
+      "Fix:",
+      "- In Vercel: Project Settings → Environment Variables → Production",
+      "  - EMAIL_PROVIDER=resend",
+      "  - RESEND_API_KEY=<your Resend API key>",
+      "  - EMAIL_FROM=\"Your App <no-reply@your-domain.com>\"",
+      "  - PASSWORD_RESET_LINK_BASE_URL=<deep link or URL used in password reset emails>",
+      "- Redeploy after updating env vars (Vercel only injects env vars into new deployments).",
+      "",
+      input.hint,
+      "See DEPLOYMENT.md (API Vercel project setup) for the full list."
+    ].join("\n");
+
+    super(message);
+    this.problems = input.problems;
+    this.hint = input.hint;
+  }
+}
+
+export function parseEnvFrom(values: Record<string, string | undefined>): AppEnv {
+  const parsedEnv = envSchema.safeParse(values);
+  const problems: string[] = [];
+
+  if (!parsedEnv.success) {
+    for (const issue of parsedEnv.error.issues) {
+      const key = issue.path.join(".") || "env";
+      problems.push(`${key}: ${issue.message}`);
+    }
+  } else {
+    const data = parsedEnv.data;
+
+    if (!data.USE_PGLITE_DEV && !data.DATABASE_URL) {
+      problems.push("DATABASE_URL is required unless USE_PGLITE_DEV=true.");
+    }
+
+    const nodeEnv = data.NODE_ENV;
+    const emailProvider = data.EMAIL_PROVIDER ?? (nodeEnv === "production" ? undefined : "console");
+    const resolvedEmailProvider = emailProvider ?? "console";
+
+    if (nodeEnv === "production") {
+      if (!data.JWT_SECRET) {
+        problems.push("JWT_SECRET is required in production (min 32 characters).");
+      }
+
+      if (!emailProvider) {
+        problems.push("EMAIL_PROVIDER is required in production (set EMAIL_PROVIDER=resend).");
+      } else if (resolvedEmailProvider !== "resend") {
+        problems.push("EMAIL_PROVIDER must be resend in production.");
+      }
+
+      if (!data.RESEND_API_KEY) {
+        problems.push("RESEND_API_KEY is required in production (Resend).");
+      }
+
+      if (!data.EMAIL_FROM) {
+        problems.push("EMAIL_FROM is required in production (Resend sender address).");
+      }
+
+      if (!data.PASSWORD_RESET_LINK_BASE_URL) {
+        problems.push("PASSWORD_RESET_LINK_BASE_URL is required in production (password reset link base).");
+      }
+    }
+
+    if (problems.length === 0) {
+      return {
+        ...data,
+        EMAIL_PROVIDER: resolvedEmailProvider,
+        JWT_SECRET: data.JWT_SECRET ?? "development-only-jwt-secret-change-before-production",
+        PASSWORD_RESET_LINK_BASE_URL: data.PASSWORD_RESET_LINK_BASE_URL ?? "fitnessapp://reset-password",
+        PASSWORD_RESET_TOKEN_SECRET:
+          data.PASSWORD_RESET_TOKEN_SECRET ??
+          (data.JWT_SECRET ?? "development-only-jwt-secret-change-before-production")
+      };
+    }
+  }
+
+  throw new EnvConfigError({ problems, hint: getEnvHint() });
+}
+
+export function parseEnvFromProcess(): AppEnv {
+  loadDotEnvOnce();
+  return parseEnvFrom({
     CORS_ALLOWED_ORIGINS: process.env.CORS_ALLOWED_ORIGINS,
     DATABASE_URL: process.env.DATABASE_URL,
     EMAIL_FROM: process.env.EMAIL_FROM,
@@ -89,65 +187,24 @@ function parseEnv(): AppEnv {
     RESEND_API_KEY: process.env.RESEND_API_KEY,
     USE_PGLITE_DEV: process.env.USE_PGLITE_DEV
   });
-
-  if (!parsedEnv.success) {
-    const details = parsedEnv.error.issues
-      .map((issue) => `${issue.path.join(".") || "env"}: ${issue.message}`)
-      .join("; ");
-    throw new Error(`Invalid API environment configuration. ${details} ${getEnvHint()}`);
-  }
-
-  if (!parsedEnv.data.USE_PGLITE_DEV && !parsedEnv.data.DATABASE_URL) {
-    throw new Error(
-      `Invalid API environment configuration. DATABASE_URL is required unless USE_PGLITE_DEV=true. ${getEnvHint()}`
-    );
-  }
-
-  if (parsedEnv.data.NODE_ENV === "production" && !parsedEnv.data.JWT_SECRET) {
-    throw new Error(
-      "Invalid API environment configuration. JWT_SECRET is required in production and must be at least 32 characters."
-    );
-  }
-
-  const emailProvider = parsedEnv.data.EMAIL_PROVIDER ?? (parsedEnv.data.NODE_ENV === "production" ? undefined : "console");
-  if (parsedEnv.data.NODE_ENV === "production" && !emailProvider) {
-    throw new Error(
-      "Invalid API environment configuration. EMAIL_PROVIDER is required in production. Set EMAIL_PROVIDER=resend."
-    );
-  }
-
-  const resolvedEmailProvider = emailProvider ?? "console";
-
-  if (parsedEnv.data.NODE_ENV === "production") {
-    if (resolvedEmailProvider !== "resend") {
-      throw new Error(
-        "Invalid API environment configuration. EMAIL_PROVIDER must be resend in production."
-      );
-    }
-
-    if (!parsedEnv.data.RESEND_API_KEY || parsedEnv.data.RESEND_API_KEY.length === 0) {
-      throw new Error("Invalid API environment configuration. RESEND_API_KEY is required in production.");
-    }
-
-    if (!parsedEnv.data.EMAIL_FROM || parsedEnv.data.EMAIL_FROM.length === 0) {
-      throw new Error("Invalid API environment configuration. EMAIL_FROM is required in production.");
-    }
-
-    if (!parsedEnv.data.PASSWORD_RESET_LINK_BASE_URL || parsedEnv.data.PASSWORD_RESET_LINK_BASE_URL.length === 0) {
-      throw new Error("Invalid API environment configuration. PASSWORD_RESET_LINK_BASE_URL is required in production.");
-    }
-  }
-
-  return {
-    ...parsedEnv.data,
-    EMAIL_PROVIDER: resolvedEmailProvider,
-    JWT_SECRET: parsedEnv.data.JWT_SECRET ?? "development-only-jwt-secret-change-before-production",
-    PASSWORD_RESET_LINK_BASE_URL:
-      parsedEnv.data.PASSWORD_RESET_LINK_BASE_URL ?? "fitnessapp://reset-password",
-    PASSWORD_RESET_TOKEN_SECRET:
-      parsedEnv.data.PASSWORD_RESET_TOKEN_SECRET ??
-      (parsedEnv.data.JWT_SECRET ?? "development-only-jwt-secret-change-before-production")
-  };
 }
 
-export const env = parseEnv();
+let cachedEnv: AppEnv | null = null;
+let cachedEnvError: unknown | null = null;
+
+export function getEnv(): AppEnv {
+  if (cachedEnv) {
+    return cachedEnv;
+  }
+  if (cachedEnvError) {
+    throw cachedEnvError;
+  }
+
+  try {
+    cachedEnv = parseEnvFromProcess();
+    return cachedEnv;
+  } catch (error) {
+    cachedEnvError = error;
+    throw error;
+  }
+}

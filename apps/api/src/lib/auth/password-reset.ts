@@ -1,11 +1,13 @@
 import { createHmac, randomBytes } from "node:crypto";
-import { env } from "../../config/env.js";
+import { getEnv } from "../../config/env.js";
 
 export function hashPasswordResetToken(token: string) {
+  const env = getEnv();
   return createHmac("sha256", env.PASSWORD_RESET_TOKEN_SECRET).update(token).digest("base64url");
 }
 
 export function generatePasswordResetToken() {
+  const env = getEnv();
   const token = randomBytes(32).toString("base64url");
   const tokenHash = hashPasswordResetToken(token);
 
@@ -21,9 +23,9 @@ export function generatePasswordResetToken() {
 }
 
 export function buildPasswordResetLink(token: string) {
+  const env = getEnv();
   const base = env.PASSWORD_RESET_LINK_BASE_URL;
   const url = new URL(base);
   url.searchParams.set("token", token);
   return url.toString();
 }
-

@@ -1,5 +1,5 @@
 import { createApp } from "./app.js";
-import { env } from "./config/env.js";
+import { getEnv } from "./config/env.js";
 import {
   createPgliteClient,
   createPgliteDatabase,
@@ -17,6 +17,7 @@ export type ApiRuntime = {
 };
 
 export async function createRuntimeApp(): Promise<ApiRuntime> {
+  const env = getEnv();
   if (env.USE_PGLITE_DEV) {
     const client = createPgliteClient();
     await bootstrapDevelopmentDatabase(client as any);
@@ -41,7 +42,7 @@ export async function createRuntimeApp(): Promise<ApiRuntime> {
   return createPostgresRuntimeAppFromPool(pool);
 }
 
-export function createPostgresRuntimeApp(connectionString = env.DATABASE_URL!): ApiRuntime {
+export function createPostgresRuntimeApp(connectionString = getEnv().DATABASE_URL!): ApiRuntime {
   return createPostgresRuntimeAppFromPool(createPostgresPool(connectionString));
 }
 

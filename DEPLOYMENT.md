@@ -99,6 +99,8 @@ Set these environment variables in the Vercel project:
 - `EMAIL_FROM`: sender address, for example `Setwise Fit <no-reply@setwisefit.com>`
 - `PASSWORD_RESET_LINK_BASE_URL`: base deep link / URL used in reset emails (token is appended as `?token=...`)
 
+If any required production environment variables are missing, the API will fail fast during startup with an actionable configuration error. Vercel production builds also validate these env vars during `build` so misconfigured deploys fail before serving 500s.
+
 Optional:
 
 - `PORT` is not needed on Vercel

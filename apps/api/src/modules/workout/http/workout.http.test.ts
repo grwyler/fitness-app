@@ -18,7 +18,7 @@ import {
 } from "@fitness/db";
 import type { Request } from "express";
 import { createApp } from "../../../app.js";
-import { env } from "../../../config/env.js";
+import { getEnv } from "../../../config/env.js";
 import { createAuthenticateRequestMiddleware } from "../../../lib/auth/auth.middleware.js";
 import { hashPassword } from "../../../lib/auth/password.js";
 import { issueAuthToken } from "../../../lib/auth/token.js";
@@ -60,7 +60,7 @@ function createCustomAuthToken(input: {
   );
   const unsignedToken = `${header}.${payload}`;
 
-  return `${unsignedToken}.${signAuthToken(unsignedToken, env.JWT_SECRET)}`;
+  return `${unsignedToken}.${signAuthToken(unsignedToken, getEnv().JWT_SECRET)}`;
 }
 
 function createTestAuth() {

@@ -1,8 +1,9 @@
 import { createPostgresPool } from "../lib/db/connection.js";
-import { env } from "../config/env.js";
+import { getEnv } from "../config/env.js";
 import { bootstrapDevelopmentDatabase, DEV_USER_ID } from "../lib/db/dev-bootstrap.js";
 
 async function main() {
+  const env = getEnv();
   if (!env.DATABASE_URL) {
     throw new Error("DATABASE_URL is required for setup:dev when targeting a real Postgres database.");
   }

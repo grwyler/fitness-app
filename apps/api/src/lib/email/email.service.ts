@@ -1,4 +1,4 @@
-import { env } from "../../config/env.js";
+import { getEnv } from "../../config/env.js";
 import { logger } from "../observability/logger.js";
 import { recordPasswordResetEmail } from "./email.test-store.js";
 
@@ -7,11 +7,12 @@ export type EmailService = {
 };
 
 async function sendResendEmail(input: { to: string; subject: string; html: string }) {
+  const env = getEnv();
   const apiKey = env.RESEND_API_KEY;
   const from = env.EMAIL_FROM;
 
   if (!apiKey || !from) {
-    throw new Error("Email provider is not configured.");
+    throw new Error("Email provider is not configured. Set RESEND_API_KEY and EMAIL_FROM.");
   }
 
   const response = await fetch("https://api.resend.com/emails", {
@@ -35,6 +36,7 @@ async function sendResendEmail(input: { to: string; subject: string; html: strin
 }
 
 function createEmailService(): EmailService {
+  const env = getEnv();
   if (env.NODE_ENV !== "production") {
     return {
       async sendPasswordResetEmail(input) {
@@ -71,4 +73,3 @@ function createEmailService(): EmailService {
 }
 
 export const emailService: EmailService = createEmailService();
-

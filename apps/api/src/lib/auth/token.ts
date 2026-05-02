@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { env } from "../../config/env.js";
+import { getEnv } from "../../config/env.js";
 
 const TOKEN_TTL_SECONDS = 60 * 60 * 24 * 30;
 const CLOCK_SKEW_SECONDS = 60 * 5;
@@ -20,6 +20,7 @@ function base64UrlDecode(value: string) {
 }
 
 function sign(input: string) {
+  const env = getEnv();
   return createHmac("sha256", env.JWT_SECRET).update(input).digest("base64url");
 }
 

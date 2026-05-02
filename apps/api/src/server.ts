@@ -1,9 +1,10 @@
 import { createServer } from "node:http";
-import { env } from "./config/env.js";
+import { getEnv } from "./config/env.js";
 import { createRuntimeApp } from "./bootstrap.js";
 import { logger } from "./lib/observability/logger.js";
 
 async function main() {
+  const env = getEnv();
   const { app, databaseMode } = await createRuntimeApp();
   const server = createServer(app);
 

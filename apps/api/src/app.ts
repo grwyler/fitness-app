@@ -16,7 +16,7 @@ import { toAppError } from "./modules/workout/http/workout.http-errors.js";
 import { createAuthenticateRequestMiddleware } from "./lib/auth/auth.middleware.js";
 import { createRequestContextMiddleware } from "./lib/auth/request-context.middleware.js";
 import { createProtectedAuthRouter, createPublicAuthRouter } from "./lib/auth/auth.routes.js";
-import { env } from "./config/env.js";
+import { getEnv, type AppEnv } from "./config/env.js";
 import { createRequestIdMiddleware } from "./lib/http/request-id.middleware.js";
 
 type DatabaseLike = {
@@ -69,7 +69,7 @@ function isPrivateNetworkOrigin(origin: string) {
   }
 }
 
-function resolveAllowedOrigins() {
+function resolveAllowedOrigins(env: AppEnv) {
   const defaultAllowedOrigins =
     env.NODE_ENV === "production"
       ? productionAllowedOrigins
@@ -82,8 +82,8 @@ function resolveAllowedOrigins() {
   return new Set([...defaultAllowedOrigins, ...configuredOrigins]);
 }
 
-export function createCorsOptions(): CorsOptions {
-  const allowedOrigins = resolveAllowedOrigins();
+export function createCorsOptions(env: AppEnv = getEnv()): CorsOptions {
+  const allowedOrigins = resolveAllowedOrigins(env);
 
   return {
     allowedHeaders: ["Authorization", "Content-Type", "Idempotency-Key", "Accept"],
@@ -118,7 +118,8 @@ export function createApp(options?: {
 }) {
   const resolvedOptions = options ?? {};
   const app = express();
-  const corsOptions = createCorsOptions();
+  const env = getEnv();
+  const corsOptions = createCorsOptions(env);
 
   app.use(cors(corsOptions));
   app.use(createRequestIdMiddleware());

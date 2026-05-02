@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "build:vercel": "tsc -p tsconfig.vercel.json --pretty false",
+    "build:vercel": "tsc -p tsconfig.vercel.json --pretty false && node dist/scripts/validate-env.js",
     "dev": "tsx watch src/server.ts",
     "setup:dev": "npm run build && node dist/scripts/setup-dev.js",
     "start": "node dist/server.js",
