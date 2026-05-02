@@ -634,7 +634,16 @@ export class DrizzleWorkoutSessionRepository implements WorkoutSessionRepository
   ): Promise<WorkoutHistorySummaryRecord[]> {
     const executor = resolveExecutor(this.db, options);
     const rows = await executor
-      .select()
+      .select({
+        id: workoutSessions.id,
+        workoutNameSnapshot: workoutSessions.workoutNameSnapshot,
+        programNameSnapshot: workoutSessions.programNameSnapshot,
+        status: workoutSessions.status,
+        startedAt: workoutSessions.startedAt,
+        completedAt: workoutSessions.completedAt,
+        durationSeconds: workoutSessions.durationSeconds,
+        isPartial: workoutSessions.isPartial
+      })
       .from(workoutSessions)
       .where(and(eq(workoutSessions.userId, userId), eq(workoutSessions.status, "completed")))
       .orderBy(desc(workoutSessions.completedAt), desc(workoutSessions.startedAt))

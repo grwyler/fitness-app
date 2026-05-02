@@ -34,12 +34,15 @@ async function runDashboardStage<T>(
   try {
     return await operation();
   } catch (error) {
+    const cause = (error as { cause?: unknown } | null)?.cause;
     logger.error("Dashboard stage failed", {
       stage,
       userId: context.userId,
       errorMessage: error instanceof Error ? error.message : String(error),
       errorName: error instanceof Error ? error.name : "NonErrorThrown",
-      errorStack: error instanceof Error ? error.stack : undefined
+      errorStack: error instanceof Error ? error.stack : undefined,
+      causeMessage: cause instanceof Error ? cause.message : cause ? String(cause) : undefined,
+      causeName: cause instanceof Error ? cause.name : cause ? "NonErrorThrown" : undefined
     });
     throw new AppError(500, "INTERNAL_ERROR", "Unable to load dashboard.", [
       { field: "stage", message: stage }
