@@ -4,6 +4,8 @@ import type { ExerciseRepository } from "../../repositories/interfaces/exercise.
 import type { ProgramRepository } from "../../repositories/interfaces/program.repository.js";
 import type { ProgressMetricRepository } from "../../repositories/interfaces/progress-metric.repository.js";
 import type { WorkoutSessionRepository } from "../../repositories/interfaces/workout-session.repository.js";
+import { AppError } from "../../../../lib/http/errors.js";
+import { logger } from "../../../../lib/observability/logger.js";
 import { mapActiveProgramDto, mapDashboardDto } from "../mappers/workout-dto.mapper.js";
 import type { RequestContext } from "../types/request-context.js";
 import type { UseCaseResult } from "../types/use-case-result.js";
@@ -24,6 +26,27 @@ function getWeekRange(now: Date) {
   };
 }
 
+async function runDashboardStage<T>(
+  stage: string,
+  context: RequestContext,
+  operation: () => Promise<T>
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    logger.error("Dashboard stage failed", {
+      stage,
+      userId: context.userId,
+      errorMessage: error instanceof Error ? error.message : String(error),
+      errorName: error instanceof Error ? error.name : "NonErrorThrown",
+      errorStack: error instanceof Error ? error.stack : undefined
+    });
+    throw new AppError(500, "INTERNAL_ERROR", "Unable to load dashboard.", [
+      { field: "stage", message: stage }
+    ]);
+  }
+}
+
 export class GetDashboardUseCase {
   public constructor(
     private readonly workoutSessionRepository: WorkoutSessionRepository,
@@ -38,27 +61,54 @@ export class GetDashboardUseCase {
   }): Promise<UseCaseResult<GetDashboardResponse>> {
     const [activeWorkoutSessionGraph, activeEnrollment, recentProgressMetrics, recentWorkoutHistory] =
       await Promise.all([
-        this.workoutSessionRepository.findInProgressByUserId(input.context.userId),
-        this.enrollmentRepository.findActiveByUserId(input.context.userId),
-        this.progressMetricRepository.listRecentByUserId(input.context.userId, 20),
-        this.workoutSessionRepository.listRecentCompletedByUserId(input.context.userId, 20)
+        runDashboardStage(
+          "workoutSessionRepository.findInProgressByUserId",
+          input.context,
+          () => this.workoutSessionRepository.findInProgressByUserId(input.context.userId)
+        ),
+        runDashboardStage(
+          "enrollmentRepository.findActiveByUserId",
+          input.context,
+          () => this.enrollmentRepository.findActiveByUserId(input.context.userId)
+        ),
+        runDashboardStage(
+          "progressMetricRepository.listRecentByUserId",
+          input.context,
+          () => this.progressMetricRepository.listRecentByUserId(input.context.userId, 20)
+        ),
+        runDashboardStage(
+          "workoutSessionRepository.listRecentCompletedByUserId",
+          input.context,
+          () => this.workoutSessionRepository.listRecentCompletedByUserId(input.context.userId, 20)
+        )
       ]);
 
     let nextWorkoutTemplate = null;
     let activeProgram = null;
     if (activeEnrollment?.currentWorkoutTemplateId) {
-      const activeTemplates = await this.exerciseRepository.findActiveTemplatesByProgramId(
-        activeEnrollment.programId
+      const activeTemplates = await runDashboardStage(
+        "exerciseRepository.findActiveTemplatesByProgramId",
+        input.context,
+        () => this.exerciseRepository.findActiveTemplatesByProgramId(activeEnrollment.programId)
       );
       nextWorkoutTemplate =
         activeTemplates.find((template) => template.id === activeEnrollment.currentWorkoutTemplateId) ??
         null;
 
       const [programDefinition, completedWorkoutCount] = await Promise.all([
-        this.programRepository.findActiveById(activeEnrollment.programId, input.context.userId),
-        this.workoutSessionRepository.countCompletedByUserIdAndProgramId(
-          input.context.userId,
-          activeEnrollment.programId
+        runDashboardStage(
+          "programRepository.findActiveById",
+          input.context,
+          () => this.programRepository.findActiveById(activeEnrollment.programId, input.context.userId)
+        ),
+        runDashboardStage(
+          "workoutSessionRepository.countCompletedByUserIdAndProgramId",
+          input.context,
+          () =>
+            this.workoutSessionRepository.countCompletedByUserIdAndProgramId(
+              input.context.userId,
+              activeEnrollment.programId
+            )
         )
       ]);
 
@@ -72,9 +122,14 @@ export class GetDashboardUseCase {
       }
     }
 
-    const weeklyWorkoutCount = await this.workoutSessionRepository.countCompletedByUserIdWithinRange(
-      input.context.userId,
-      getWeekRange(new Date())
+    const weeklyWorkoutCount = await runDashboardStage(
+      "workoutSessionRepository.countCompletedByUserIdWithinRange",
+      input.context,
+      () =>
+        this.workoutSessionRepository.countCompletedByUserIdWithinRange(
+          input.context.userId,
+          getWeekRange(new Date())
+        )
     );
 
     return {
