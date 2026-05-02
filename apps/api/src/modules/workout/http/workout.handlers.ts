@@ -165,6 +165,9 @@ export function createWorkoutHandlers(dependencies: {
           name: workout.name,
           exercises: workout.exercises.map((exercise) => ({
             exerciseId: exercise.exerciseId,
+            ...(exercise.workoutTemplateExerciseEntryId
+              ? { workoutTemplateExerciseEntryId: exercise.workoutTemplateExerciseEntryId }
+              : {}),
             targetSets: exercise.targetSets,
             targetReps: exercise.targetReps,
             ...(exercise.repRangeMin != null ? { repRangeMin: exercise.repRangeMin } : {}),

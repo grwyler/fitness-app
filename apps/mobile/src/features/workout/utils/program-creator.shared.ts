@@ -10,6 +10,11 @@ import type {
 import { predefinedWorkoutCategories } from "./dashboard-program.shared";
 
 export const CUSTOM_WORKOUT_BUILDER_PREFIX = "custom-builder:";
+const CUSTOM_WORKOUT_SESSION_PREFIX = "custom-session:";
+
+export type CustomExercisePickerRequest = AddCustomWorkoutExerciseRequest & {
+  workoutTemplateExerciseEntryId?: string;
+};
 
 export type AssignableWorkoutSource = "predefined" | "custom";
 
@@ -118,6 +123,7 @@ export function getAssignableWorkoutDescription(choice: AssignableWorkoutChoice)
 export function buildAssignedProgramRequest(input: {
   name: string;
   days: ProgramDayAssignment[];
+  preserveEntryIdsForWorkoutIds?: Set<string>;
 }): BuildAssignedProgramRequestResult {
   const name = input.name.trim().replace(/\s+/g, " ");
   if (!name) {
@@ -147,6 +153,7 @@ export function buildAssignedProgramRequest(input: {
       name,
       workouts: input.days.map((day) => {
         const workout = day.workout!;
+        const shouldPreserveEntryIds = input.preserveEntryIdsForWorkoutIds?.has(workout.id) ?? false;
 
         return {
           name: `Day ${day.dayNumber}: ${workout.name}`,
@@ -154,6 +161,9 @@ export function buildAssignedProgramRequest(input: {
             .sort((left, right) => left.sequenceOrder - right.sequenceOrder)
             .map((exercise) => ({
               exerciseId: exercise.exerciseId,
+              ...(shouldPreserveEntryIds && isStableTemplateEntryId(exercise.id)
+                ? { workoutTemplateExerciseEntryId: exercise.id }
+                : {}),
               targetSets: exercise.targetSets,
               targetReps: exercise.targetReps,
               ...(exercise.repRangeMin != null && exercise.repRangeMax != null && exercise.repRangeMax > exercise.repRangeMin
@@ -167,6 +177,14 @@ export function buildAssignedProgramRequest(input: {
     },
     error: null
   };
+}
+
+function isStableTemplateEntryId(value: string) {
+  if (!value) {
+    return false;
+  }
+
+  return !value.startsWith(CUSTOM_WORKOUT_BUILDER_PREFIX) && !value.startsWith(CUSTOM_WORKOUT_SESSION_PREFIX);
 }
 
 export function buildProgramDayWorkoutFromCustomSession(input: {
@@ -233,11 +251,12 @@ export function isProgramDayWorkoutBuilderWorkout(workout: ProgramWorkoutTemplat
 
 export function buildCustomWorkoutExerciseRequestsFromProgramWorkout(
   workout: ProgramWorkoutTemplateDto
-): AddCustomWorkoutExerciseRequest[] {
+): CustomExercisePickerRequest[] {
   return [...workout.exercises]
     .sort((left, right) => left.sequenceOrder - right.sequenceOrder)
     .map((exercise) => ({
       exerciseId: exercise.exerciseId,
+      workoutTemplateExerciseEntryId: exercise.id,
       targetSets: exercise.targetSets,
       targetReps: exercise.targetReps,
       ...(exercise.repRangeMin != null && exercise.repRangeMax != null && exercise.repRangeMax > exercise.repRangeMin

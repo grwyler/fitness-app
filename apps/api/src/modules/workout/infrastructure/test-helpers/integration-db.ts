@@ -169,10 +169,12 @@ create table workout_template_exercise_entries (
   rep_range_max integer,
   rest_seconds integer,
   progression_strategy text,
+  deleted_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 create unique index idx_workout_template_entry_sequence on workout_template_exercise_entries(workout_template_id, sequence_order);
+create index idx_workout_template_exercise_entries_active_template on workout_template_exercise_entries(workout_template_id) where deleted_at is null;
 
 create table workout_sessions (
   id text primary key,
@@ -903,6 +905,7 @@ export async function countRecords(context: WorkoutInfrastructureTestContext) {
 }
 
 export {
+  exercises,
   idempotencyRecords,
   progressMetrics,
   progressionRecommendationEvents,
@@ -910,6 +913,7 @@ export {
   progressionStatesV2,
   sets,
   userProgramEnrollments,
+  users,
   workoutTemplateExerciseEntries,
   workoutTemplates,
   workoutSessions

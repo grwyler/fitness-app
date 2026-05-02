@@ -18,7 +18,8 @@ import {
   eq,
   inArray,
   normalizeNumeric,
-  resolveExecutor
+  resolveExecutor,
+  sql
 } from "../db/drizzle-helpers.js";
 
 function mapExerciseRecord(row: typeof exercises.$inferSelect): ExerciseRecord {
@@ -105,7 +106,12 @@ export class DrizzleExerciseRepository implements ExerciseRepository {
       })
       .from(workoutTemplateExerciseEntries)
       .innerJoin(exercises, eq(workoutTemplateExerciseEntries.exerciseId, exercises.id))
-      .where(eq(workoutTemplateExerciseEntries.workoutTemplateId, templateId))
+      .where(
+        and(
+          eq(workoutTemplateExerciseEntries.workoutTemplateId, templateId),
+          sql`${workoutTemplateExerciseEntries.deletedAt} is null`
+        )
+      )
       .orderBy(asc(workoutTemplateExerciseEntries.sequenceOrder));
 
     return {
@@ -209,7 +215,8 @@ export class DrizzleExerciseRepository implements ExerciseRepository {
       .where(
         and(
           eq(workoutTemplateExerciseEntries.workoutTemplateId, templateId),
-          inArray(workoutTemplateExerciseEntries.sequenceOrder, uniqueOrders)
+          inArray(workoutTemplateExerciseEntries.sequenceOrder, uniqueOrders),
+          sql`${workoutTemplateExerciseEntries.deletedAt} is null`
         )
       );
 

@@ -17,6 +17,7 @@ import type {
   ProgramTemplateRecord,
   UpdateCustomProgramInput
 } from "../../repositories/models/program.persistence.js";
+import { WorkoutApplicationError } from "../../application/errors/workout-application.error.js";
 import {
   and,
   asc,
@@ -280,12 +281,114 @@ export class DrizzleProgramRepository implements ProgramRepository {
         });
       }
 
-      await executor
-        .delete(workoutTemplateExerciseEntries)
-        .where(eq(workoutTemplateExerciseEntries.workoutTemplateId, templateId));
+      const existingEntryRows = (await executor
+        .select()
+        .from(workoutTemplateExerciseEntries)
+        .where(
+          and(
+            eq(workoutTemplateExerciseEntries.workoutTemplateId, templateId),
+            sql`${workoutTemplateExerciseEntries.deletedAt} is null`
+          )
+        )
+        .orderBy(asc(workoutTemplateExerciseEntries.sequenceOrder))) as Array<
+        typeof workoutTemplateExerciseEntries.$inferSelect
+      >;
 
-      await executor.insert(workoutTemplateExerciseEntries).values(
-        workout.exercises.map((exercise, index) => ({
+      const existingById = new Map(
+        existingEntryRows.map((row: typeof workoutTemplateExerciseEntries.$inferSelect) => [row.id, row])
+      );
+      const availableByExerciseId = new Map<string, string[]>();
+      for (const entry of existingEntryRows) {
+        const existing = availableByExerciseId.get(entry.exerciseId) ?? [];
+        existing.push(entry.id);
+        availableByExerciseId.set(entry.exerciseId, existing);
+      }
+
+      const usedEntryIds = new Set<string>();
+      const updateInputs: Array<{
+        id: string;
+        sequenceOrder: number;
+        targetSets: number;
+        targetReps: number;
+        repRangeMin: number | null;
+        repRangeMax: number | null;
+        restSeconds: number | null;
+        progressionStrategy: string | null;
+      }> = [];
+      const insertInputs: Array<typeof workoutTemplateExerciseEntries.$inferInsert> = [];
+
+      for (const [index, exercise] of workout.exercises.entries()) {
+        const desiredEntryId = exercise.workoutTemplateExerciseEntryId ?? null;
+
+        if (desiredEntryId) {
+          const existingEntry = existingById.get(desiredEntryId);
+          if (!existingEntry) {
+            throw new WorkoutApplicationError(
+              "VALIDATION_ERROR",
+              "One or more workoutTemplateExerciseEntryId values do not belong to this workout."
+            );
+          }
+
+          if (existingEntry.exerciseId !== exercise.exerciseId) {
+            throw new WorkoutApplicationError(
+              "VALIDATION_ERROR",
+              "One or more workoutTemplateExerciseEntryId values do not match the selected exercise."
+            );
+          }
+
+          if (usedEntryIds.has(desiredEntryId)) {
+            throw new WorkoutApplicationError(
+              "VALIDATION_ERROR",
+              "Each workoutTemplateExerciseEntryId may only be used once."
+            );
+          }
+
+          usedEntryIds.add(desiredEntryId);
+          updateInputs.push({
+            id: desiredEntryId,
+            sequenceOrder: index + 1,
+            targetSets: exercise.targetSets,
+            targetReps: exercise.targetReps,
+            repRangeMin: exercise.repRangeMin ?? null,
+            repRangeMax: exercise.repRangeMax ?? null,
+            restSeconds: exercise.restSeconds,
+            progressionStrategy: exercise.progressionStrategy ?? null
+          });
+          continue;
+        }
+
+        const available = availableByExerciseId.get(exercise.exerciseId) ?? [];
+        const fallbackEntryId = (() => {
+          while (available.length > 0) {
+            const candidate = available.shift();
+            if (!candidate) {
+              continue;
+            }
+
+            if (!usedEntryIds.has(candidate)) {
+              return candidate;
+            }
+          }
+
+          return null;
+        })();
+
+        if (fallbackEntryId) {
+          usedEntryIds.add(fallbackEntryId);
+          updateInputs.push({
+            id: fallbackEntryId,
+            sequenceOrder: index + 1,
+            targetSets: exercise.targetSets,
+            targetReps: exercise.targetReps,
+            repRangeMin: exercise.repRangeMin ?? null,
+            repRangeMax: exercise.repRangeMax ?? null,
+            restSeconds: exercise.restSeconds,
+            progressionStrategy: exercise.progressionStrategy ?? null
+          });
+          continue;
+        }
+
+        insertInputs.push({
           id: randomUUID(),
           workoutTemplateId: templateId,
           exerciseId: exercise.exerciseId,
@@ -296,10 +399,55 @@ export class DrizzleProgramRepository implements ProgramRepository {
           repRangeMax: exercise.repRangeMax ?? null,
           restSeconds: exercise.restSeconds,
           progressionStrategy: exercise.progressionStrategy ?? null,
+          deletedAt: null,
           createdAt: input.updatedAt,
           updatedAt: input.updatedAt
-        }))
+        });
+      }
+
+      const removedEntries = existingEntryRows.filter(
+        (row: typeof workoutTemplateExerciseEntries.$inferSelect) => !usedEntryIds.has(row.id)
       );
+      for (const [removedIndex, removed] of removedEntries.entries()) {
+        await executor
+          .update(workoutTemplateExerciseEntries)
+          .set({
+            sequenceOrder: 10_000 + removedIndex + 1,
+            deletedAt: input.updatedAt,
+            updatedAt: input.updatedAt
+          })
+          .where(eq(workoutTemplateExerciseEntries.id, removed.id));
+      }
+
+      for (const [tempIndex, update] of updateInputs.entries()) {
+        await executor
+          .update(workoutTemplateExerciseEntries)
+          .set({
+            sequenceOrder: 20_000 + tempIndex + 1,
+            updatedAt: input.updatedAt
+          })
+          .where(eq(workoutTemplateExerciseEntries.id, update.id));
+      }
+
+      if (insertInputs.length > 0) {
+        await executor.insert(workoutTemplateExerciseEntries).values(insertInputs);
+      }
+
+      for (const update of updateInputs) {
+        await executor
+          .update(workoutTemplateExerciseEntries)
+          .set({
+            sequenceOrder: update.sequenceOrder,
+            targetSets: update.targetSets,
+            targetReps: update.targetReps,
+            repRangeMin: update.repRangeMin,
+            repRangeMax: update.repRangeMax,
+            restSeconds: update.restSeconds,
+            progressionStrategy: update.progressionStrategy,
+            updatedAt: input.updatedAt
+          })
+          .where(eq(workoutTemplateExerciseEntries.id, update.id));
+      }
     }
 
     const inactiveTemplateIds = existingTemplateRows
@@ -398,7 +546,12 @@ export class DrizzleProgramRepository implements ProgramRepository {
             })
             .from(workoutTemplateExerciseEntries)
             .innerJoin(exercises, eq(workoutTemplateExerciseEntries.exerciseId, exercises.id))
-            .where(inArray(workoutTemplateExerciseEntries.workoutTemplateId, templateIds))
+            .where(
+              and(
+                inArray(workoutTemplateExerciseEntries.workoutTemplateId, templateIds),
+                sql`${workoutTemplateExerciseEntries.deletedAt} is null`
+              )
+            )
             .orderBy(asc(workoutTemplateExerciseEntries.sequenceOrder));
 
     const exercisesByTemplateId = new Map<string, ProgramTemplateRecord["exercises"]>();

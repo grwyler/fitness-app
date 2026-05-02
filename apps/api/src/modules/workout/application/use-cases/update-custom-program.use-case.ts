@@ -42,6 +42,7 @@ function validateUpdateCustomProgramRequest(request: UpdateCustomProgramRequest)
       name: workoutName,
       sequenceOrder: index + 1,
       exercises: workout.exercises.map((exercise) => {
+        const workoutTemplateExerciseEntryId = exercise.workoutTemplateExerciseEntryId?.trim() || null;
         if (!Number.isInteger(exercise.targetSets) || exercise.targetSets <= 0) {
           throw new WorkoutApplicationError("VALIDATION_ERROR", "Sets must be a positive number.");
         }
@@ -81,6 +82,7 @@ function validateUpdateCustomProgramRequest(request: UpdateCustomProgramRequest)
 
         return {
           exerciseId: exercise.exerciseId,
+          workoutTemplateExerciseEntryId,
           targetSets: exercise.targetSets,
           targetReps: exercise.targetReps,
           repRangeMin,

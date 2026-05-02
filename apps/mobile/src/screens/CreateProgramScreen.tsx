@@ -28,6 +28,7 @@ import {
   getAssignableWorkoutChoices,
   groupAssignableWorkoutChoices,
   resizeProgramDayAssignments,
+  type CustomExercisePickerRequest,
   type AssignableWorkoutChoice,
   type AssignableWorkoutGroup,
   type ProgramDayAssignment
@@ -59,8 +60,9 @@ export function CreateProgramScreen({ navigation, route }: Props) {
   const [customWorkoutName, setCustomWorkoutName] = useState("");
   const [customExerciseError, setCustomExerciseError] = useState<string | null>(null);
   const [customWorkoutInitialRequests, setCustomWorkoutInitialRequests] = useState<
-    AddCustomWorkoutExerciseRequest[] | null
+    CustomExercisePickerRequest[] | null
   >(null);
+  const [editingWorkoutTemplateId, setEditingWorkoutTemplateId] = useState<string | null>(null);
   const [customWorkoutInitKey, setCustomWorkoutInitKey] = useState(0);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [savedProgramId, setSavedProgramId] = useState<string | null>(null);
@@ -147,6 +149,7 @@ export function CreateProgramScreen({ navigation, route }: Props) {
     setCustomWorkoutName("");
     setCustomExerciseError(null);
     setCustomWorkoutInitialRequests(null);
+    setEditingWorkoutTemplateId(null);
     setCustomWorkoutInitKey((current) => current + 1);
   }
 
@@ -157,6 +160,7 @@ export function CreateProgramScreen({ navigation, route }: Props) {
     setCustomWorkoutName(workout.name);
     setCustomExerciseError(null);
     setCustomWorkoutInitialRequests(buildCustomWorkoutExerciseRequestsFromProgramWorkout(workout));
+    setEditingWorkoutTemplateId(isEditing && editProgram?.source === "custom" ? workout.id : null);
     setCustomWorkoutInitKey((current) => current + 1);
   }
 
@@ -165,10 +169,11 @@ export function CreateProgramScreen({ navigation, route }: Props) {
     setCustomWorkoutName("");
     setCustomExerciseError(null);
     setCustomWorkoutInitialRequests(null);
+    setEditingWorkoutTemplateId(null);
   }
 
   function assignCustomWorkoutToDay(input: {
-    requests: AddCustomWorkoutExerciseRequest[];
+    requests: CustomExercisePickerRequest[];
   }) {
     if (!customWorkoutDayNumber) {
       return;
@@ -202,9 +207,10 @@ export function CreateProgramScreen({ navigation, route }: Props) {
 
     const workoutName = normalizedName || suggestedName || "Workout";
     const workoutIdSuffix = input.requests.map((request) => request.exerciseId).join(":") || "empty";
+    const workoutId = editingWorkoutTemplateId ?? `custom-builder:${workoutIdSuffix}`;
 
     assignWorkoutToDay(customWorkoutDayNumber, {
-      id: `custom-builder:${workoutIdSuffix}`,
+      id: workoutId,
       name: workoutName,
       category: "Full Body",
       sequenceOrder: 1,
@@ -212,7 +218,7 @@ export function CreateProgramScreen({ navigation, route }: Props) {
       exercises: input.requests.map((request, index) => {
         const exercise = exercisesById.get(request.exerciseId)!;
         return {
-          id: `custom-builder:${request.exerciseId}`,
+          id: request.workoutTemplateExerciseEntryId ?? `custom-builder:${request.exerciseId}:${index + 1}`,
           exerciseId: request.exerciseId,
           exerciseName: exercise.name,
           category: exercise.category,
@@ -228,9 +234,15 @@ export function CreateProgramScreen({ navigation, route }: Props) {
   }
 
   function handleSaveProgram() {
+    const preserveEntryIdsForWorkoutIds =
+      editProgramId && editProgram?.source === "custom"
+        ? new Set(editProgram.workouts.map((workout) => workout.id))
+        : undefined;
+
     const result = buildAssignedProgramRequest({
       name: programName,
-      days
+      days,
+      preserveEntryIdsForWorkoutIds
     });
 
     if (result.error) {

@@ -44,6 +44,10 @@ type FilterOption = {
   count: number;
 };
 
+type CustomExercisePickerRequest = AddCustomWorkoutExerciseRequest & {
+  workoutTemplateExerciseEntryId?: string;
+};
+
 function parseIntDraft(value: string) {
   if (!value.trim()) {
     return null;
@@ -167,7 +171,7 @@ export function CustomExercisePickerModal(props: {
   errorMessage: string | null;
   exercises: ExerciseCatalogItemDto[];
   loadingExercises: boolean;
-  initialRequests?: AddCustomWorkoutExerciseRequest[] | null;
+  initialRequests?: CustomExercisePickerRequest[] | null;
   initializationKey?: string | number;
   mode: CustomWorkoutBuilderMode;
   programDayNumber?: number | null;
@@ -176,7 +180,7 @@ export function CustomExercisePickerModal(props: {
   visible: boolean;
   onChangeWorkoutName?: (value: string) => void;
   onClose: () => void;
-  onSubmit: (input: { requests: AddCustomWorkoutExerciseRequest[] }) => void;
+  onSubmit: (input: { requests: CustomExercisePickerRequest[] }) => void;
 }) {
   const [step, setStep] = useState<Step>("select");
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -190,7 +194,8 @@ export function CustomExercisePickerModal(props: {
   const [selectedExerciseIds, setSelectedExerciseIds] = useState<string[]>([]);
   const [configureIndex, setConfigureIndex] = useState(0);
   const [configByExerciseId, setConfigByExerciseId] = useState<Record<string, ExerciseConfigDraft>>({});
-  const pendingInitialRequestsRef = useRef<AddCustomWorkoutExerciseRequest[] | null>(null);
+  const pendingInitialRequestsRef = useRef<CustomExercisePickerRequest[] | null>(null);
+  const templateEntryIdByExerciseIdRef = useRef<Record<string, string>>({});
 
   useEffect(() => {
     if (!props.visible) {
@@ -209,11 +214,21 @@ export function CustomExercisePickerModal(props: {
     setConfigureIndex(0);
     setConfigByExerciseId({});
     setValidationError(null);
+    templateEntryIdByExerciseIdRef.current = {};
 
     const initialRequests = props.initialRequests?.length ? props.initialRequests : null;
     pendingInitialRequestsRef.current = initialRequests;
     if (initialRequests) {
       setSelectedExerciseIds(initialRequests.map((request) => request.exerciseId));
+      templateEntryIdByExerciseIdRef.current = Object.fromEntries(
+        initialRequests
+          .map((request) =>
+            request.workoutTemplateExerciseEntryId
+              ? ([request.exerciseId, request.workoutTemplateExerciseEntryId] as const)
+              : null
+          )
+          .filter((value): value is readonly [string, string] => value !== null)
+      );
     }
   }, [props.visible, props.initializationKey]);
 
@@ -230,7 +245,7 @@ export function CustomExercisePickerModal(props: {
     setConfigByExerciseId((current) => {
       let didChange = false;
       const next = { ...current };
-      const remaining: AddCustomWorkoutExerciseRequest[] = [];
+      const remaining: CustomExercisePickerRequest[] = [];
 
       for (const request of pending) {
         const exercise = props.exercises.find((candidate) => candidate.id === request.exerciseId);
@@ -349,6 +364,12 @@ export function CustomExercisePickerModal(props: {
         ? current.filter((selectedExerciseId) => selectedExerciseId !== exerciseId)
         : [...current, exerciseId]
     );
+
+    if (selectedExerciseIdSet.has(exerciseId)) {
+      const current = { ...templateEntryIdByExerciseIdRef.current };
+      delete current[exerciseId];
+      templateEntryIdByExerciseIdRef.current = current;
+    }
   }
 
   function moveToConfigureStep() {
@@ -453,7 +474,7 @@ export function CustomExercisePickerModal(props: {
       return;
     }
 
-    const requests: AddCustomWorkoutExerciseRequest[] = selectedExercises.map((exercise) => {
+    const requests: CustomExercisePickerRequest[] = selectedExercises.map((exercise) => {
       const config = configByExerciseId[exercise.id] ?? buildDefaultConfig(exercise);
       const sets = parseIntDraft(config.targetSetsText) ?? CUSTOM_WORKOUT_DEFAULT_TARGET_SETS;
       const repDraft = parseRepGoalDraft(config.targetRepsText);
@@ -461,9 +482,11 @@ export function CustomExercisePickerModal(props: {
       const repRangeMin = repDraft?.repRangeMin ?? null;
       const repRangeMax = repDraft?.repRangeMax ?? null;
       const weight = parseFloatDraft(config.targetWeightText);
+      const workoutTemplateExerciseEntryId = templateEntryIdByExerciseIdRef.current[exercise.id] ?? null;
 
       return {
         exerciseId: exercise.id,
+        ...(workoutTemplateExerciseEntryId ? { workoutTemplateExerciseEntryId } : {}),
         targetSets: sets,
         targetReps: reps,
         ...(repRangeMin !== null && repRangeMax !== null && repRangeMax > repRangeMin

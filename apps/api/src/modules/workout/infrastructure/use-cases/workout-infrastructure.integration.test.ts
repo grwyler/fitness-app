@@ -3,19 +3,23 @@ import { bootstrapDevelopmentDatabase, DEV_USER_ID } from "../../../../lib/db/de
 import { createPgliteClient } from "../../../../lib/db/connection.js";
 import { WorkoutApplicationError } from "../../application/errors/workout-application.error.js";
 import { CompleteWorkoutSessionUseCase } from "../../application/use-cases/complete-workout-session.use-case.js";
+import { CreateCustomProgramUseCase } from "../../application/use-cases/create-custom-program.use-case.js";
 import { LogSetUseCase } from "../../application/use-cases/log-set.use-case.js";
 import { StartWorkoutSessionUseCase } from "../../application/use-cases/start-workout-session.use-case.js";
+import { UpdateCustomProgramUseCase } from "../../application/use-cases/update-custom-program.use-case.js";
 import type { InfrastructureTestCase } from "../test-helpers/infrastructure-test-case.js";
 import { eq } from "../db/drizzle-helpers.js";
 import {
   countRecords,
   createWorkoutInfrastructureTestContext,
   disposeWorkoutInfrastructureTestContext,
+  exercises,
   idempotencyRecords,
   progressMetrics,
   progressionRecommendationEvents,
   progressionStates,
   progressionStatesV2,
+  users,
   seedBaseWorkoutProgram,
   seedInProgressWorkout,
   sets,
@@ -24,6 +28,141 @@ import {
   workoutTemplates,
   workoutSessions
 } from "../test-helpers/integration-db.js";
+
+async function cancelActiveEnrollment(context: Awaited<ReturnType<typeof createWorkoutInfrastructureTestContext>>, userId: string) {
+  await context.db
+    .update(userProgramEnrollments)
+    .set({
+      status: "cancelled",
+      completedAt: new Date("2026-04-24T10:00:00.000Z"),
+      updatedAt: new Date("2026-04-24T10:00:00.000Z")
+    })
+    .where(eq(userProgramEnrollments.userId, userId));
+}
+
+async function createAndEnrollCustomProgram(input: {
+  context: Awaited<ReturnType<typeof createWorkoutInfrastructureTestContext>>;
+  userId: string;
+  programName: string;
+  workouts: Array<{
+    name: string;
+    exercises: Array<{
+      exerciseId: string;
+      targetSets: number;
+      targetReps: number;
+    }>;
+  }>;
+  idempotencyKey: string;
+}) {
+  const createUseCase = new CreateCustomProgramUseCase(
+    input.context.repositories.programRepository,
+    input.context.transactionManager,
+    input.context.repositories.idempotencyRepository
+  );
+
+  const created = await createUseCase.execute({
+    context: { userId: input.userId, unitSystem: "imperial" },
+    request: {
+      name: input.programName,
+      workouts: input.workouts
+    },
+    idempotencyKey: input.idempotencyKey
+  });
+
+  const firstTemplateId = created.data.program.workouts[0]?.id;
+  if (!firstTemplateId) {
+    throw new Error("Custom program did not create a workout template.");
+  }
+
+  await cancelActiveEnrollment(input.context, input.userId);
+
+  await input.context.db.insert(userProgramEnrollments).values({
+    id: `enrollment-${input.userId}-${input.idempotencyKey}`,
+    userId: input.userId,
+    programId: created.data.program.id,
+    status: "active",
+    startedAt: new Date("2026-04-24T10:00:00.000Z"),
+    completedAt: null,
+    currentWorkoutTemplateId: firstTemplateId,
+    createdAt: new Date("2026-04-24T10:00:00.000Z"),
+    updatedAt: new Date("2026-04-24T10:00:00.000Z")
+  });
+
+  return created.data.program;
+}
+
+async function startAndCompleteWorkout(input: {
+  context: Awaited<ReturnType<typeof createWorkoutInfrastructureTestContext>>;
+  userId: string;
+  templateId: string;
+  idempotencyKey: string;
+}) {
+  const startUseCase = new StartWorkoutSessionUseCase(
+    input.context.repositories.workoutSessionRepository,
+    input.context.repositories.enrollmentRepository,
+    input.context.repositories.progressionStateRepository,
+    input.context.repositories.progressionStateV2Repository,
+    input.context.repositories.exerciseRepository,
+    input.context.transactionManager,
+    input.context.repositories.idempotencyRepository
+  );
+  const logUseCase = new LogSetUseCase(
+    input.context.repositories.workoutSessionRepository,
+    input.context.transactionManager,
+    input.context.repositories.idempotencyRepository
+  );
+  const completeUseCase = new CompleteWorkoutSessionUseCase(
+    input.context.repositories.workoutSessionRepository,
+    input.context.repositories.enrollmentRepository,
+    input.context.repositories.progressionStateRepository,
+    input.context.repositories.progressionStateV2Repository,
+    input.context.repositories.exerciseRepository,
+    input.context.repositories.userRepository,
+    input.context.repositories.programRepository,
+    input.context.repositories.progressMetricRepository,
+    input.context.repositories.progressionRecommendationEventRepository,
+    input.context.repositories.trainingSettingsRepository,
+    input.context.repositories.exerciseProgressionSettingsRepository,
+    input.context.transactionManager,
+    input.context.repositories.idempotencyRepository
+  );
+
+  const started = await startUseCase.execute({
+    context: { userId: input.userId, unitSystem: "imperial" },
+    request: { workoutTemplateId: input.templateId },
+    idempotencyKey: `${input.idempotencyKey}:start`
+  });
+
+  for (const exercise of started.data.exercises) {
+    for (const set of exercise.sets) {
+      await logUseCase.execute({
+        context: { userId: input.userId, unitSystem: "imperial" },
+        setId: set.id,
+        request: { actualReps: set.targetReps },
+        idempotencyKey: `${input.idempotencyKey}:log:${set.id}`
+      });
+    }
+  }
+
+  const completed = await completeUseCase.execute({
+    context: { userId: input.userId, unitSystem: "imperial" },
+    sessionId: started.data.id,
+    request: {
+      completedAt: "2026-04-24T10:45:00.000Z",
+      exerciseFeedback: started.data.exercises.map((exercise) => ({
+        exerciseEntryId: exercise.id,
+        effortFeedback: "just_right"
+      })),
+      userEffortFeedback: "just_right"
+    },
+    idempotencyKey: `${input.idempotencyKey}:complete`
+  });
+
+  return {
+    started: started.data,
+    completed: completed.data
+  };
+}
 
 export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[] = [
   {
@@ -328,6 +467,466 @@ export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[]
 
         assert.equal(String(row1?.currentWeightLbs), "200.00");
         assert.equal(String(row2?.currentWeightLbs), "135.00");
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "Custom program edit (rename-only) preserves progression_states_v2 by template entry id",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+
+        const program = await createAndEnrollCustomProgram({
+          context,
+          userId: "user-1",
+          programName: "My Custom Program",
+          workouts: [
+            {
+              name: "Day 1",
+              exercises: [{ exerciseId: "exercise-1", targetSets: 3, targetReps: 8 }]
+            }
+          ],
+          idempotencyKey: "custom-edit-rename-only"
+        });
+
+        await startAndCompleteWorkout({
+          context,
+          userId: "user-1",
+          templateId: program.workouts[0]!.id,
+          idempotencyKey: "custom-edit-rename-only"
+        });
+
+        const templateEntryId = program.workouts[0]!.exercises[0]!.id;
+        const [before] = await context.db
+          .select()
+          .from(progressionStatesV2)
+          .where(eq(progressionStatesV2.workoutTemplateExerciseEntryId, templateEntryId));
+
+        assert.equal(String(before?.currentWeightLbs), "140.00");
+
+        const updateUseCase = new UpdateCustomProgramUseCase(
+          context.repositories.programRepository,
+          context.transactionManager
+        );
+
+        await updateUseCase.execute({
+          context: { userId: "user-1", unitSystem: "imperial" },
+          programId: program.id,
+          request: {
+            name: "My Custom Program (Renamed)",
+            workouts: [
+              {
+                name: "Day 1",
+                exercises: [
+                  {
+                    exerciseId: "exercise-1",
+                    workoutTemplateExerciseEntryId: templateEntryId,
+                    targetSets: 3,
+                    targetReps: 8
+                  }
+                ]
+              }
+            ]
+          }
+        });
+
+        const startUseCase = new StartWorkoutSessionUseCase(
+          context.repositories.workoutSessionRepository,
+          context.repositories.enrollmentRepository,
+          context.repositories.progressionStateRepository,
+          context.repositories.progressionStateV2Repository,
+          context.repositories.exerciseRepository,
+          context.transactionManager,
+          context.repositories.idempotencyRepository
+        );
+
+        const started = await startUseCase.execute({
+          context: { userId: "user-1", unitSystem: "imperial" },
+          request: { workoutTemplateId: program.workouts[0]!.id },
+          idempotencyKey: "custom-edit-rename-only:start-again"
+        });
+
+        assert.equal(started.data.exercises[0]!.workoutTemplateExerciseEntryId, templateEntryId);
+        assert.equal(started.data.exercises[0]!.targetWeight.value, 140);
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "Custom program edit (reorder/add/remove) preserves progression_states_v2 and seeds new entries",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+
+        await context.db.insert(exercises).values({
+          id: "exercise-2",
+          name: "Barbell Row",
+          category: "compound",
+          movementPattern: "pull",
+          primaryMuscleGroup: "back",
+          equipmentType: "barbell",
+          defaultStartingWeightLbs: "95.00",
+          defaultIncrementLbs: "5.00",
+          isActive: true,
+          createdAt: new Date("2026-04-24T10:00:00.000Z"),
+          updatedAt: new Date("2026-04-24T10:00:00.000Z")
+        });
+
+        await context.db.insert(exercises).values({
+          id: "exercise-3",
+          name: "Dumbbell Curl",
+          category: "accessory",
+          movementPattern: "pull",
+          primaryMuscleGroup: "biceps",
+          equipmentType: "dumbbell",
+          defaultStartingWeightLbs: "25.00",
+          defaultIncrementLbs: "2.50",
+          isActive: true,
+          createdAt: new Date("2026-04-24T10:00:00.000Z"),
+          updatedAt: new Date("2026-04-24T10:00:00.000Z")
+        });
+
+        const program = await createAndEnrollCustomProgram({
+          context,
+          userId: "user-1",
+          programName: "Two Exercise Program",
+          workouts: [
+            {
+              name: "Day 1",
+              exercises: [
+                { exerciseId: "exercise-1", targetSets: 3, targetReps: 8 },
+                { exerciseId: "exercise-2", targetSets: 3, targetReps: 8 }
+              ]
+            }
+          ],
+          idempotencyKey: "custom-edit-reorder-add-remove"
+        });
+
+        await startAndCompleteWorkout({
+          context,
+          userId: "user-1",
+          templateId: program.workouts[0]!.id,
+          idempotencyKey: "custom-edit-reorder-add-remove"
+        });
+
+        const entryA = program.workouts[0]!.exercises.find((exercise) => exercise.exerciseId === "exercise-1")!.id;
+        const entryB = program.workouts[0]!.exercises.find((exercise) => exercise.exerciseId === "exercise-2")!.id;
+
+        const v2RowsBefore = await context.db
+          .select()
+          .from(progressionStatesV2)
+          .where(eq(progressionStatesV2.userId, "user-1"));
+        const v2ByEntryId = new Map(v2RowsBefore.map((row) => [row.workoutTemplateExerciseEntryId, row]));
+
+        const weightA = Number(v2ByEntryId.get(entryA)!.currentWeightLbs);
+        const weightB = Number(v2ByEntryId.get(entryB)!.currentWeightLbs);
+
+        const updateUseCase = new UpdateCustomProgramUseCase(
+          context.repositories.programRepository,
+          context.transactionManager
+        );
+
+        await updateUseCase.execute({
+          context: { userId: "user-1", unitSystem: "imperial" },
+          programId: program.id,
+          request: {
+            name: "Two Exercise Program (Edited)",
+            workouts: [
+              {
+                name: "Day 1",
+                exercises: [
+                  { exerciseId: "exercise-2", workoutTemplateExerciseEntryId: entryB, targetSets: 3, targetReps: 8 },
+                  { exerciseId: "exercise-1", workoutTemplateExerciseEntryId: entryA, targetSets: 3, targetReps: 8 },
+                  { exerciseId: "exercise-3", targetSets: 2, targetReps: 12 }
+                ]
+              }
+            ]
+          }
+        });
+
+        const startUseCase = new StartWorkoutSessionUseCase(
+          context.repositories.workoutSessionRepository,
+          context.repositories.enrollmentRepository,
+          context.repositories.progressionStateRepository,
+          context.repositories.progressionStateV2Repository,
+          context.repositories.exerciseRepository,
+          context.transactionManager,
+          context.repositories.idempotencyRepository
+        );
+
+        const startedAfterAdd = await startUseCase.execute({
+          context: { userId: "user-1", unitSystem: "imperial" },
+          request: { workoutTemplateId: program.workouts[0]!.id },
+          idempotencyKey: "custom-edit-reorder-add-remove:start-after-add"
+        });
+
+        assert.equal(startedAfterAdd.data.exercises[0]!.exerciseId, "exercise-2");
+        assert.equal(startedAfterAdd.data.exercises[0]!.targetWeight.value, weightB);
+        assert.equal(startedAfterAdd.data.exercises[1]!.exerciseId, "exercise-1");
+        assert.equal(startedAfterAdd.data.exercises[1]!.targetWeight.value, weightA);
+        assert.equal(startedAfterAdd.data.exercises[2]!.exerciseId, "exercise-3");
+        assert.equal(startedAfterAdd.data.exercises[2]!.targetWeight.value, 25);
+
+        await context.db
+          .update(workoutSessions)
+          .set({ status: "abandoned", updatedAt: new Date("2026-04-24T10:46:00.000Z") })
+          .where(eq(workoutSessions.id, startedAfterAdd.data.id));
+
+        await cancelActiveEnrollment(context, "user-1");
+        await context.db.insert(userProgramEnrollments).values({
+          id: "enrollment-user-1-custom-edit-reorder-add-remove-2",
+          userId: "user-1",
+          programId: program.id,
+          status: "active",
+          startedAt: new Date("2026-04-24T10:00:00.000Z"),
+          completedAt: null,
+          currentWorkoutTemplateId: program.workouts[0]!.id,
+          createdAt: new Date("2026-04-24T10:00:00.000Z"),
+          updatedAt: new Date("2026-04-24T10:00:00.000Z")
+        });
+
+        await updateUseCase.execute({
+          context: { userId: "user-1", unitSystem: "imperial" },
+          programId: program.id,
+          request: {
+            name: "Two Exercise Program (Removed B)",
+            workouts: [
+              {
+                name: "Day 1",
+                exercises: [
+                  { exerciseId: "exercise-1", workoutTemplateExerciseEntryId: entryA, targetSets: 3, targetReps: 8 }
+                ]
+              }
+            ]
+          }
+        });
+
+        const startedAfterRemove = await startUseCase.execute({
+          context: { userId: "user-1", unitSystem: "imperial" },
+          request: { workoutTemplateId: program.workouts[0]!.id },
+          idempotencyKey: "custom-edit-reorder-add-remove:start-after-remove"
+        });
+
+        assert.deepEqual(
+          startedAfterRemove.data.exercises.map((exercise) => exercise.exerciseId),
+          ["exercise-1"]
+        );
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "Custom program edit preserves separate progression states for duplicate exercises when entry ids are provided",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+
+        const program = await createAndEnrollCustomProgram({
+          context,
+          userId: "user-1",
+          programName: "Duplicate Exercise Program",
+          workouts: [
+            {
+              name: "Day 1",
+              exercises: [
+                { exerciseId: "exercise-1", targetSets: 3, targetReps: 8 },
+                { exerciseId: "exercise-1", targetSets: 4, targetReps: 8 }
+              ]
+            }
+          ],
+          idempotencyKey: "custom-edit-duplicate"
+        });
+
+        const startUseCase = new StartWorkoutSessionUseCase(
+          context.repositories.workoutSessionRepository,
+          context.repositories.enrollmentRepository,
+          context.repositories.progressionStateRepository,
+          context.repositories.progressionStateV2Repository,
+          context.repositories.exerciseRepository,
+          context.transactionManager,
+          context.repositories.idempotencyRepository
+        );
+
+        const started = await startUseCase.execute({
+          context: { userId: "user-1", unitSystem: "imperial" },
+          request: { workoutTemplateId: program.workouts[0]!.id },
+          idempotencyKey: "custom-edit-duplicate:start"
+        });
+
+        const [firstEntryId, secondEntryId] = started.data.exercises.map((exercise) => exercise.workoutTemplateExerciseEntryId);
+        if (!firstEntryId || !secondEntryId) {
+          throw new Error("Expected template entry ids for duplicate exercises.");
+        }
+
+        await context.db
+          .update(progressionStatesV2)
+          .set({ currentWeightLbs: "111.00", updatedAt: new Date("2026-04-24T10:30:00.000Z") })
+          .where(eq(progressionStatesV2.workoutTemplateExerciseEntryId, firstEntryId));
+        await context.db
+          .update(progressionStatesV2)
+          .set({ currentWeightLbs: "222.00", updatedAt: new Date("2026-04-24T10:30:00.000Z") })
+          .where(eq(progressionStatesV2.workoutTemplateExerciseEntryId, secondEntryId));
+
+        await context.db
+          .update(workoutSessions)
+          .set({ status: "abandoned", updatedAt: new Date("2026-04-24T10:31:00.000Z") })
+          .where(eq(workoutSessions.id, started.data.id));
+
+        const updateUseCase = new UpdateCustomProgramUseCase(
+          context.repositories.programRepository,
+          context.transactionManager
+        );
+
+        await updateUseCase.execute({
+          context: { userId: "user-1", unitSystem: "imperial" },
+          programId: program.id,
+          request: {
+            name: "Duplicate Exercise Program (Reordered)",
+            workouts: [
+              {
+                name: "Day 1",
+                exercises: [
+                  { exerciseId: "exercise-1", workoutTemplateExerciseEntryId: secondEntryId, targetSets: 4, targetReps: 8 },
+                  { exerciseId: "exercise-1", workoutTemplateExerciseEntryId: firstEntryId, targetSets: 3, targetReps: 8 }
+                ]
+              }
+            ]
+          }
+        });
+
+        const restarted = await startUseCase.execute({
+          context: { userId: "user-1", unitSystem: "imperial" },
+          request: { workoutTemplateId: program.workouts[0]!.id },
+          idempotencyKey: "custom-edit-duplicate:restart"
+        });
+
+        assert.equal(restarted.data.exercises[0]!.workoutTemplateExerciseEntryId, secondEntryId);
+        assert.equal(restarted.data.exercises[0]!.targetWeight.value, 222);
+        assert.equal(restarted.data.exercises[1]!.workoutTemplateExerciseEntryId, firstEntryId);
+        assert.equal(restarted.data.exercises[1]!.targetWeight.value, 111);
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "Custom program edit rejects invalid or foreign workoutTemplateExerciseEntryId references",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+
+        const program = await createAndEnrollCustomProgram({
+          context,
+          userId: "user-1",
+          programName: "Validation Program",
+          workouts: [
+            {
+              name: "Day 1",
+              exercises: [{ exerciseId: "exercise-1", targetSets: 3, targetReps: 8 }]
+            }
+          ],
+          idempotencyKey: "custom-edit-invalid-entry"
+        });
+
+        const updateUseCase = new UpdateCustomProgramUseCase(
+          context.repositories.programRepository,
+          context.transactionManager
+        );
+
+        await assert.rejects(
+          () =>
+            updateUseCase.execute({
+              context: { userId: "user-1", unitSystem: "imperial" },
+              programId: program.id,
+              request: {
+                name: "Validation Program",
+                workouts: [
+                  {
+                    name: "Day 1",
+                    exercises: [
+                      {
+                        exerciseId: "exercise-1",
+                        workoutTemplateExerciseEntryId: "not-a-real-entry",
+                        targetSets: 3,
+                        targetReps: 8
+                      }
+                    ]
+                  }
+                ]
+              }
+            }),
+          (error: unknown) =>
+            error instanceof WorkoutApplicationError &&
+            error.code === "VALIDATION_ERROR" &&
+            /workoutTemplateExerciseEntryId/i.test(error.message)
+        );
+
+        await context.db.insert(users).values({
+          id: "user-2",
+          authProviderId: "auth-user-2",
+          email: "user-2@example.com",
+          displayName: "User Two",
+          timezone: "America/New_York",
+          unitSystem: "imperial",
+          experienceLevel: "beginner",
+          createdAt: new Date("2026-04-24T10:00:00.000Z"),
+          updatedAt: new Date("2026-04-24T10:00:00.000Z")
+        });
+
+        const otherProgram = await createAndEnrollCustomProgram({
+          context,
+          userId: "user-2",
+          programName: "Other User Program",
+          workouts: [
+            {
+              name: "Day 1",
+              exercises: [{ exerciseId: "exercise-1", targetSets: 3, targetReps: 8 }]
+            }
+          ],
+          idempotencyKey: "custom-edit-foreign-entry"
+        });
+
+        const foreignEntryId = otherProgram.workouts[0]!.exercises[0]!.id;
+
+        await assert.rejects(
+          () =>
+            updateUseCase.execute({
+              context: { userId: "user-1", unitSystem: "imperial" },
+              programId: program.id,
+              request: {
+                name: "Validation Program",
+                workouts: [
+                  {
+                    name: "Day 1",
+                    exercises: [
+                      {
+                        exerciseId: "exercise-1",
+                        workoutTemplateExerciseEntryId: foreignEntryId,
+                        targetSets: 3,
+                        targetReps: 8
+                      }
+                    ]
+                  }
+                ]
+              }
+            }),
+          (error: unknown) =>
+            error instanceof WorkoutApplicationError &&
+            error.code === "VALIDATION_ERROR" &&
+            /workoutTemplateExerciseEntryId/i.test(error.message)
+        );
       } finally {
         await disposeWorkoutInfrastructureTestContext(context);
       }

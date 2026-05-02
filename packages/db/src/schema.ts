@@ -289,6 +289,7 @@ export const workoutTemplateExerciseEntries = pgTable(
     repRangeMax: integer("rep_range_max"),
     restSeconds: integer("rest_seconds"),
     progressionStrategy: progressionStrategyEnum("progression_strategy"),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
     ...timestamps
   },
   (table) => ({

@@ -149,6 +149,7 @@ export type ProgramDto = {
 
 export type CreateCustomProgramExerciseRequest = {
   exerciseId: UUID;
+  workoutTemplateExerciseEntryId?: UUID;
   targetSets: number;
   targetReps: number;
   repRangeMin?: number;

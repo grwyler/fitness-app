@@ -38,6 +38,7 @@ export const programParamsSchema = z.object({
 
 const createCustomProgramExerciseSchema = z.object({
   exerciseId: z.string().min(1),
+  workoutTemplateExerciseEntryId: z.string().min(1).optional(),
   targetSets: z.number().int().min(1).max(20),
   targetReps: z.number().int().min(1).max(100),
   repRangeMin: z.number().int().min(1).max(100).nullable().optional(),

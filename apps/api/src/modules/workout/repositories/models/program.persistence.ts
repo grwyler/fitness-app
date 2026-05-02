@@ -62,6 +62,7 @@ export type CreateEnrollmentInput = {
 
 export type CreateCustomProgramExerciseInput = {
   exerciseId: string;
+  workoutTemplateExerciseEntryId?: string | null;
   targetSets: number;
   targetReps: number;
   repRangeMin?: number | null;

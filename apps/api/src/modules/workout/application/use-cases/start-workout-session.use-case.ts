@@ -127,12 +127,13 @@ export class StartWorkoutSessionUseCase {
         });
 
         const exerciseIds = templateExercises.map((row) => row.exerciseId);
+        const uniqueExerciseIds = [...new Set(exerciseIds)];
         const progressionSeeds = await this.exerciseRepository.findProgressionSeedsByExerciseIds(
-          exerciseIds,
+          uniqueExerciseIds,
           { tx }
         );
 
-        if (progressionSeeds.length !== exerciseIds.length) {
+        if (progressionSeeds.length !== uniqueExerciseIds.length) {
           throw new WorkoutApplicationError(
             "PROGRESSION_SEED_NOT_FOUND",
             "One or more exercise progression seeds could not be found."
@@ -141,7 +142,7 @@ export class StartWorkoutSessionUseCase {
 
         const existingProgressionStates = await this.progressionStateRepository.findByUserIdAndExerciseIds(
           input.context.userId,
-          exerciseIds,
+          uniqueExerciseIds,
           { tx }
         );
 
