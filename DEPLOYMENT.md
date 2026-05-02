@@ -144,6 +144,19 @@ The API workflow does not run production schema changes automatically. Apply rev
 
 To roll back either deployment, use the Vercel dashboard to promote a previous production deployment for that project, or rerun the GitHub Actions workflow from a known-good commit. To manually redeploy the latest `main`, open the matching workflow in GitHub Actions and run `workflow_dispatch`.
 
+## Applying production migrations
+
+If you see production 500s with a `Failed query:` log (often caused by missing columns after a deploy), apply the SQL migrations in `packages/db/migrations` to your production database before redeploying.
+
+Recommended (runs migrations in order and records them in `schema_migrations`):
+
+```powershell
+$env:DATABASE_URL="postgresql://...";
+npm run db:migrate
+```
+
+Alternatively, copy/paste the migration SQL files into the Neon/Supabase SQL editor and run them in filename order.
+
 ## API dashboard flow
 
 1. Push the repo to GitHub.

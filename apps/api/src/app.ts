@@ -11,6 +11,7 @@ import { failure } from "./lib/http/envelope.js";
 import { isAppError } from "./lib/http/errors.js";
 import { errorReporter } from "./lib/observability/error-reporter.js";
 import { logger } from "./lib/observability/logger.js";
+import { describeErrorForLogs } from "./lib/observability/describe-error.js";
 import { toAppError } from "./modules/workout/http/workout.http-errors.js";
 import { createAuthenticateRequestMiddleware } from "./lib/auth/auth.middleware.js";
 import { createRequestContextMiddleware } from "./lib/auth/request-context.middleware.js";
@@ -130,6 +131,10 @@ export function createApp(options?: {
   });
   app.use(express.json());
 
+  if (resolvedOptions.database) {
+    app.locals.database = resolvedOptions.database;
+  }
+
   app.use(healthRouter);
   app.use("/api/v1", healthRouter);
 
@@ -169,18 +174,22 @@ export function createApp(options?: {
     if (isAppError(appError)) {
       if (appError.statusCode >= 500) {
         const requestContext = request.context as { userId?: string } | undefined;
-        const errorContext =
-          error instanceof Error
-            ? {
-                errorMessage: error.message,
-                errorName: error.name,
-                errorStack: error.stack
-              }
-            : {
-                errorMessage: String(error),
-                errorName: "NonErrorThrown",
-                errorStack: undefined
-              };
+        const describedError = describeErrorForLogs(error);
+        const errorContext = {
+          errorMessage: describedError.message,
+          errorName: describedError.name,
+          errorStack: describedError.stack,
+          errorCause: describedError.cause,
+          errorCode: describedError.code,
+          errorDetail: describedError.detail,
+          errorHint: describedError.hint,
+          errorWhere: describedError.where,
+          errorSchema: describedError.schema,
+          errorTable: describedError.table,
+          errorColumn: describedError.column,
+          errorConstraint: describedError.constraint,
+          errorRoutine: describedError.routine
+        };
         const routeContext = {
           method: request.method,
           path: request.originalUrl,
