@@ -1,21 +1,36 @@
 import { randomUUID } from "node:crypto";
-import { users } from "@fitness/db";
-import { and, eq, isNull } from "drizzle-orm";
+import { passwordResetTokens, users } from "@fitness/db";
+import { and, eq, gt, isNull } from "drizzle-orm";
 import { Router } from "express";
 import { z } from "zod";
 import { failure, success } from "../http/envelope.js";
 import { createRateLimitMiddleware } from "../http/rate-limit.js";
+import { createSoftRateLimiter } from "../http/soft-rate-limit.js";
+import { emailService } from "../email/email.service.js";
+import { logger } from "../observability/logger.js";
 import { hashPassword, verifyPassword } from "./password.js";
+import { buildPasswordResetLink, generatePasswordResetToken, hashPasswordResetToken } from "./password-reset.js";
 import { issueAuthToken } from "./token.js";
 import type { UserRole } from "../../modules/workout/application/types/request-context.js";
 
 type DatabaseLike = {
   select: (...args: any[]) => any;
   insert: (...args: any[]) => any;
+  update: (...args: any[]) => any;
+  transaction: <T>(operation: (tx: any) => Promise<T>) => Promise<T>;
 };
 
 const credentialsSchema = z.object({
   email: z.string().email().transform((value) => value.trim().toLowerCase()),
+  password: z.string().min(8)
+});
+
+const passwordResetRequestSchema = z.object({
+  email: z.string().email().transform((value) => value.trim().toLowerCase())
+});
+
+const passwordResetConfirmSchema = z.object({
+  token: z.string().min(1),
   password: z.string().min(8)
 });
 
@@ -103,6 +118,12 @@ export function createPublicAuthRouter(database: DatabaseLike) {
     windowMs: 60_000
   });
 
+  const passwordResetRequestLimiter = createSoftRateLimiter({
+    key: (request) => `auth_password_reset_request|email=${normalizeEmailFromBody((request.body as any)?.email) ?? "none"}`,
+    max: 3,
+    windowMs: 60_000
+  });
+
   router.post("/auth/signup", signUpRateLimit, async (request, response, next) => {
     try {
       const parsedCredentials = credentialsSchema.safeParse(request.body);
@@ -179,6 +200,116 @@ export function createPublicAuthRouter(database: DatabaseLike) {
         token,
         user: publicUser(existingUser)
       }));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/auth/password-reset/request", async (request, response, next) => {
+    try {
+      const parsed = passwordResetRequestSchema.safeParse(request.body);
+      if (!parsed.success) {
+        response.status(400).json(failure("VALIDATION_ERROR", "Enter a valid email address."));
+        return;
+      }
+
+      if (!passwordResetRequestLimiter.allow(request)) {
+        response.json(success({}));
+        return;
+      }
+
+      const existingUser = await findUserByEmail(database, parsed.data.email);
+      if (existingUser) {
+        try {
+          const tokenDetails = generatePasswordResetToken();
+          const resetLink = buildPasswordResetLink(tokenDetails.token);
+
+          await database.transaction(async (tx) => {
+            await tx
+              .update(passwordResetTokens)
+              .set({
+                consumedAt: new Date()
+              })
+              .where(and(eq(passwordResetTokens.userId, existingUser.id), isNull(passwordResetTokens.consumedAt)));
+
+            await tx.insert(passwordResetTokens).values({
+              id: randomUUID(),
+              userId: existingUser.id,
+              tokenHash: tokenDetails.tokenHash,
+              expiresAt: tokenDetails.expiresAt
+            });
+          });
+
+          await emailService.sendPasswordResetEmail({
+            to: existingUser.email,
+            resetLink
+          });
+        } catch (error) {
+          logger.error("password_reset_request_failed", {
+            userId: existingUser.id,
+            email: existingUser.email,
+            errorMessage: error instanceof Error ? error.message : String(error),
+            errorName: error instanceof Error ? error.name : "NonErrorThrown"
+          });
+        }
+      }
+
+      response.json(success({}));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/auth/password-reset/confirm", async (request, response, next) => {
+    try {
+      const parsed = passwordResetConfirmSchema.safeParse(request.body);
+      if (!parsed.success) {
+        response.status(400).json(failure("VALIDATION_ERROR", "Enter a valid reset token and a password with at least 8 characters."));
+        return;
+      }
+
+      const now = new Date();
+      const tokenHash = hashPasswordResetToken(parsed.data.token);
+      const passwordHash = await hashPassword(parsed.data.password);
+
+      const updatedUserId = await database.transaction(async (tx) => {
+        const [tokenRow] = await tx
+          .update(passwordResetTokens)
+          .set({
+            consumedAt: now
+          })
+          .where(
+            and(
+              eq(passwordResetTokens.tokenHash, tokenHash),
+              isNull(passwordResetTokens.consumedAt),
+              gt(passwordResetTokens.expiresAt, now)
+            )
+          )
+          .returning({
+            userId: passwordResetTokens.userId
+          });
+
+        if (!tokenRow) {
+          return null;
+        }
+
+        await tx
+          .update(users)
+          .set({
+            passwordHash,
+            updatedAt: now
+          })
+          .where(eq(users.id, tokenRow.userId));
+
+        return tokenRow.userId as string;
+      });
+
+      if (!updatedUserId) {
+        response.status(400).json(failure("VALIDATION_ERROR", "Invalid or expired reset token."));
+        return;
+      }
+
+      response.json(success({}));
     } catch (error) {
       next(error);
     }

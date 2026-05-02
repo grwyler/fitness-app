@@ -43,6 +43,9 @@ jobs:
       - name: Pull API Vercel environment
         run: npx vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
 
+      - name: Run production database migrations
+        run: npm run db:migrate
+
       - name: Build API Vercel output
         run: npx vercel build --prod --local-config vercel.api.json --token=${{ secrets.VERCEL_TOKEN }}
 

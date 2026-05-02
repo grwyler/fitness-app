@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import type { ApiErrorEnvelope } from "@fitness/shared";
 import { apiRequest, buildApiUrl } from "../api/client.js";
 import { normalizeApiBaseUrl } from "../api/config.js";
+import { confirmPasswordReset, requestPasswordReset } from "../api/auth.js";
 import {
   fetchDashboard,
   fetchProgression,
@@ -100,6 +101,40 @@ export const mobileApiTestCases: MobileTestCase[] = [
         () => apiRequest("/dashboard"),
         (error: unknown) => error instanceof MobileApiError && error.code === "CONFLICT"
       );
+    }
+  },
+  {
+    name: "Password reset APIs post to public auth endpoints without requiring auth",
+    run: async () => {
+      let requestPath: string | undefined;
+      let requestBody: string | undefined;
+      let requestMethod: string | undefined;
+      let authorizationHeader: string | undefined;
+
+      setMockFetch(async (input, init) => {
+        requestPath = input.toString();
+        requestBody = init?.body as string | undefined;
+        requestMethod = init?.method;
+        authorizationHeader = (init?.headers as Record<string, string>).Authorization;
+
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            data: {},
+            meta: {}
+          })
+        };
+      });
+
+      await requestPasswordReset({ email: "test@test.com" });
+      assert.equal(requestMethod, "POST");
+      assert.match(requestPath ?? "", /\/auth\/password-reset\/request$/);
+      assert.deepEqual(JSON.parse(requestBody ?? "{}"), { email: "test@test.com" });
+      assert.equal(authorizationHeader, undefined);
+
+      await confirmPasswordReset({ token: "token-value", password: "new-password-123" });
+      assert.match(requestPath ?? "", /\/auth\/password-reset\/confirm$/);
     }
   },
   {

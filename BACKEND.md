@@ -17,6 +17,8 @@ The core backend slice currently supports:
 - `POST /api/v1/workout-sessions/start`
 - `POST /api/v1/sets/:setId/log`
 - `POST /api/v1/workout-sessions/:sessionId/complete`
+- `POST /api/v1/auth/password-reset/request`
+- `POST /api/v1/auth/password-reset/confirm`
 - `GET /api/v1/admin/feedback` (admin-only)
 - `POST /api/v1/admin/test-tools/seed-test-account` (admin-only)
 - `POST /api/v1/admin/test-tools/reset-user-data` (admin-only)
@@ -59,7 +61,19 @@ The API reads:
 - `DATABASE_URL`: required PostgreSQL connection string
 - `PORT`: optional, defaults to `4000`
 - `NODE_ENV`: optional, one of `development`, `test`, `production`
+- `JWT_SECRET`: used to sign app auth tokens (required in production)
 - `USE_PGLITE_DEV`: optional, set to `true` only for local PGlite development
+
+Password reset + email delivery:
+
+- In `development` / `test`, password reset emails are recorded in-memory for tests and logged when `EMAIL_PROVIDER=console`.
+- In `production`, startup fails unless email delivery is configured.
+- Key variables:
+  - `EMAIL_PROVIDER`: `resend` in production
+  - `RESEND_API_KEY` + `EMAIL_FROM`: required when using Resend
+  - `PASSWORD_RESET_LINK_BASE_URL`: base deep link / URL used in reset emails
+  - `PASSWORD_RESET_TOKEN_TTL_MINUTES`: token lifetime (default `30`)
+  - `PASSWORD_RESET_TOKEN_SECRET`: optional; defaults to `JWT_SECRET`
 
 Hosted Postgres notes:
 
@@ -143,7 +157,13 @@ For local development, the seeded default internal user id is:
 
 - `11111111-1111-1111-1111-111111111111`
 
-The MVP auth endpoints are `POST /api/v1/auth/signup`, `POST /api/v1/auth/signin`, and `GET /api/v1/auth/me`.
+The MVP auth endpoints are:
+
+- `POST /api/v1/auth/signup`
+- `POST /api/v1/auth/signin`
+- `GET /api/v1/auth/me`
+- `POST /api/v1/auth/password-reset/request`
+- `POST /api/v1/auth/password-reset/confirm`
 
 ## Test user reset
 

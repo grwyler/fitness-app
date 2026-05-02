@@ -83,6 +83,11 @@ export function SignInScreen({ navigation }: Props) {
           onPress={() => void handleSubmit()}
         />
         <PrimaryButton
+          label="Forgot password"
+          onPress={() => navigation.navigate("ForgotPassword")}
+          tone="secondary"
+        />
+        <PrimaryButton
           label="Create account"
           onPress={() => navigation.navigate("SignUp")}
           tone="secondary"

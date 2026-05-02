@@ -4,6 +4,12 @@ import type { CustomWorkoutBuilderMode } from "../../features/workout/utils/cust
 export type RootStackParamList = {
   SignIn: undefined;
   SignUp: undefined;
+  ForgotPassword: undefined;
+  ResetPassword:
+    | {
+        email?: string;
+      }
+    | undefined;
   Dashboard: undefined;
   CreateProgram:
     | {

@@ -40,3 +40,17 @@ export async function fetchCurrentUser() {
 
   return response.data.user;
 }
+
+export async function requestPasswordReset(input: { email: string }) {
+  await apiRequest<Record<string, never>>("/auth/password-reset/request", {
+    body: input,
+    method: "POST"
+  });
+}
+
+export async function confirmPasswordReset(input: { token: string; password: string }) {
+  await apiRequest<Record<string, never>>("/auth/password-reset/confirm", {
+    body: input,
+    method: "POST"
+  });
+}

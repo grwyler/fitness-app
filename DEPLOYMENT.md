@@ -94,11 +94,17 @@ Set these environment variables in the Vercel project:
 - `JWT_SECRET`: unique random secret, at least 32 characters, used to sign app auth tokens
 - `CORS_ALLOWED_ORIGINS`: comma-separated web origins allowed to call the API, for example `http://localhost:8081,https://setwisefit.vercel.app`
 - `NODE_ENV=production`
+- `EMAIL_PROVIDER=resend`
+- `RESEND_API_KEY`: Resend API key used to deliver password reset emails
+- `EMAIL_FROM`: sender address, for example `Setwise Fit <no-reply@setwisefit.com>`
+- `PASSWORD_RESET_LINK_BASE_URL`: base deep link / URL used in reset emails (token is appended as `?token=...`)
 
 Optional:
 
 - `PORT` is not needed on Vercel
 - `USE_PGLITE_DEV` should be left unset in production
+- `PASSWORD_RESET_TOKEN_TTL_MINUTES`: token lifetime in minutes (default `30`)
+- `PASSWORD_RESET_TOKEN_SECRET`: optional; defaults to `JWT_SECRET`
 
 ## Deploy the API
 
@@ -139,8 +145,12 @@ Production API runtime configuration belongs in the API Vercel project environme
 - `JWT_SECRET`
 - `CORS_ALLOWED_ORIGINS`
 - `NODE_ENV=production`
+- `EMAIL_PROVIDER=resend`
+- `RESEND_API_KEY`
+- `EMAIL_FROM`
+- `PASSWORD_RESET_LINK_BASE_URL`
 
-The API workflow does not run production schema changes automatically. Apply reviewed database migrations before merging code that requires them. The local `setup:dev` command is intentionally not used in production CI because it can seed development data.
+The API workflow runs database migrations automatically during production deploys. The local `setup:dev` command is intentionally not used in production CI because it can seed development data.
 
 To roll back either deployment, use the Vercel dashboard to promote a previous production deployment for that project, or rerun the GitHub Actions workflow from a known-good commit. To manually redeploy the latest `main`, open the matching workflow in GitHub Actions and run `workflow_dispatch`.
 
@@ -154,6 +164,8 @@ Recommended (runs migrations in order and records them in `schema_migrations`):
 $env:DATABASE_URL="postgresql://...";
 npm run db:migrate
 ```
+
+If you deploy via GitHub Actions, `vercel-api-production.yml` runs `npm run db:migrate` automatically after pulling the production Vercel environment, so merges to `main` should not require a manual migration step.
 
 Alternatively, copy/paste the migration SQL files into the Neon/Supabase SQL editor and run them in filename order.
 

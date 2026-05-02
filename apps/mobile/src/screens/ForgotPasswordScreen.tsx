@@ -1,27 +1,24 @@
 import { useState } from "react";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { StyleSheet, Text, TextInput, View } from "react-native";
-import { signUpWithPassword } from "../api/auth";
-import { Screen } from "../components/Screen";
+import { requestPasswordReset } from "../api/auth";
 import { PrimaryButton } from "../components/PrimaryButton";
+import { Screen } from "../components/Screen";
 import type { RootStackParamList } from "../core/navigation/navigation-types";
-import { useAppAuth } from "../core/auth/AuthProvider";
 import { colors, spacing } from "../theme/tokens";
 
-type Props = NativeStackScreenProps<RootStackParamList, "SignUp">;
+type Props = NativeStackScreenProps<RootStackParamList, "ForgotPassword">;
 
 function getErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "Unable to create account.";
+  return error instanceof Error ? error.message : "Unable to request a password reset.";
 }
 
-export function SignUpScreen({ navigation }: Props) {
-  const auth = useAppAuth();
+export function ForgotPasswordScreen({ navigation }: Props) {
   const [emailAddress, setEmailAddress] = useState("");
-  const [password, setPassword] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleCreateAccount = async () => {
+  const handleSubmit = async () => {
     if (isSubmitting) {
       return;
     }
@@ -30,11 +27,9 @@ export function SignUpScreen({ navigation }: Props) {
     setErrorMessage(null);
 
     try {
-      const result = await signUpWithPassword({
-        email: emailAddress.trim(),
-        password
-      });
-      await auth.completeSignIn(result);
+      const normalizedEmail = emailAddress.trim();
+      await requestPasswordReset({ email: normalizedEmail });
+      navigation.navigate("ResetPassword", { email: normalizedEmail });
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
     } finally {
@@ -45,9 +40,11 @@ export function SignUpScreen({ navigation }: Props) {
   return (
     <Screen>
       <View style={styles.hero}>
-        <Text style={styles.eyebrow}>Create account</Text>
-        <Text style={styles.title}>Start with a simple sign up.</Text>
-        <Text style={styles.subtitle}>Use an email and password to get started.</Text>
+        <Text style={styles.eyebrow}>Password reset</Text>
+        <Text style={styles.title}>Find your account.</Text>
+        <Text style={styles.subtitle}>
+          Enter your email. If an account exists, we’ll send you a reset link.
+        </Text>
       </View>
 
       <View style={styles.card}>
@@ -63,30 +60,10 @@ export function SignUpScreen({ navigation }: Props) {
           value={emailAddress}
         />
 
-        <Text style={styles.label}>Password</Text>
-        <TextInput
-          autoCapitalize="none"
-          autoComplete="new-password"
-          onChangeText={setPassword}
-          placeholder="Choose a password"
-          placeholderTextColor={colors.textSecondary}
-          secureTextEntry
-          style={styles.input}
-          value={password}
-        />
-
         {errorMessage ? <Text style={styles.error}>{errorMessage}</Text> : null}
 
-        <PrimaryButton
-          label="Create account"
-          loading={isSubmitting}
-          onPress={() => void handleCreateAccount()}
-        />
-        <PrimaryButton
-          label="Back to sign in"
-          onPress={() => navigation.navigate("SignIn")}
-          tone="secondary"
-        />
+        <PrimaryButton label="Send reset link" loading={isSubmitting} onPress={() => void handleSubmit()} />
+        <PrimaryButton label="Back to sign in" onPress={() => navigation.navigate("SignIn")} tone="secondary" />
       </View>
     </Screen>
   );
@@ -143,3 +120,4 @@ const styles = StyleSheet.create({
     lineHeight: 20
   }
 });
+

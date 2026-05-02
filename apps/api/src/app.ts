@@ -22,6 +22,7 @@ import { createRequestIdMiddleware } from "./lib/http/request-id.middleware.js";
 type DatabaseLike = {
   select: (...args: any[]) => any;
   insert: (...args: any[]) => any;
+  update: (...args: any[]) => any;
   transaction: <T>(operation: (tx: any) => Promise<T>) => Promise<T>;
 };
 

@@ -1,27 +1,27 @@
 import { useState } from "react";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { StyleSheet, Text, TextInput, View } from "react-native";
-import { signUpWithPassword } from "../api/auth";
-import { Screen } from "../components/Screen";
+import { confirmPasswordReset } from "../api/auth";
 import { PrimaryButton } from "../components/PrimaryButton";
+import { Screen } from "../components/Screen";
 import type { RootStackParamList } from "../core/navigation/navigation-types";
-import { useAppAuth } from "../core/auth/AuthProvider";
 import { colors, spacing } from "../theme/tokens";
 
-type Props = NativeStackScreenProps<RootStackParamList, "SignUp">;
+type Props = NativeStackScreenProps<RootStackParamList, "ResetPassword">;
 
 function getErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "Unable to create account.";
+  return error instanceof Error ? error.message : "Unable to reset password.";
 }
 
-export function SignUpScreen({ navigation }: Props) {
-  const auth = useAppAuth();
-  const [emailAddress, setEmailAddress] = useState("");
+export function ResetPasswordScreen({ navigation, route }: Props) {
+  const [token, setToken] = useState("");
   const [password, setPassword] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleCreateAccount = async () => {
+  const email = route.params?.email;
+
+  const handleSubmit = async () => {
     if (isSubmitting) {
       return;
     }
@@ -30,11 +30,11 @@ export function SignUpScreen({ navigation }: Props) {
     setErrorMessage(null);
 
     try {
-      const result = await signUpWithPassword({
-        email: emailAddress.trim(),
+      await confirmPasswordReset({
+        token: token.trim(),
         password
       });
-      await auth.completeSignIn(result);
+      navigation.navigate("SignIn");
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
     } finally {
@@ -45,30 +45,31 @@ export function SignUpScreen({ navigation }: Props) {
   return (
     <Screen>
       <View style={styles.hero}>
-        <Text style={styles.eyebrow}>Create account</Text>
-        <Text style={styles.title}>Start with a simple sign up.</Text>
-        <Text style={styles.subtitle}>Use an email and password to get started.</Text>
+        <Text style={styles.eyebrow}>Password reset</Text>
+        <Text style={styles.title}>Set a new password.</Text>
+        <Text style={styles.subtitle}>
+          {email ? `Use the link we sent to ${email}, or paste the token below.` : "Use the link we sent, or paste the token below."}
+        </Text>
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.label}>Email</Text>
+        <Text style={styles.label}>Reset token</Text>
         <TextInput
           autoCapitalize="none"
-          autoComplete="email"
-          keyboardType="email-address"
-          onChangeText={setEmailAddress}
-          placeholder="you@example.com"
+          autoCorrect={false}
+          onChangeText={setToken}
+          placeholder="Paste token"
           placeholderTextColor={colors.textSecondary}
           style={styles.input}
-          value={emailAddress}
+          value={token}
         />
 
-        <Text style={styles.label}>Password</Text>
+        <Text style={styles.label}>New password</Text>
         <TextInput
           autoCapitalize="none"
           autoComplete="new-password"
           onChangeText={setPassword}
-          placeholder="Choose a password"
+          placeholder="New password (8+ characters)"
           placeholderTextColor={colors.textSecondary}
           secureTextEntry
           style={styles.input}
@@ -77,16 +78,8 @@ export function SignUpScreen({ navigation }: Props) {
 
         {errorMessage ? <Text style={styles.error}>{errorMessage}</Text> : null}
 
-        <PrimaryButton
-          label="Create account"
-          loading={isSubmitting}
-          onPress={() => void handleCreateAccount()}
-        />
-        <PrimaryButton
-          label="Back to sign in"
-          onPress={() => navigation.navigate("SignIn")}
-          tone="secondary"
-        />
+        <PrimaryButton label="Reset password" loading={isSubmitting} onPress={() => void handleSubmit()} />
+        <PrimaryButton label="Back to sign in" onPress={() => navigation.navigate("SignIn")} tone="secondary" />
       </View>
     </Screen>
   );
@@ -143,3 +136,4 @@ const styles = StyleSheet.create({
     lineHeight: 20
   }
 });
+

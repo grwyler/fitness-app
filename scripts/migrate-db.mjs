@@ -15,6 +15,10 @@ const MIGRATIONS_DIR = path.resolve(
 
 const repoRootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const envCandidatePaths = [
+  path.resolve(repoRootDir, ".vercel", ".env.production.local"),
+  path.resolve(repoRootDir, ".vercel", ".env.preview.local"),
+  path.resolve(repoRootDir, ".vercel", ".env.development.local"),
+  path.resolve(repoRootDir, ".vercel", ".env.local"),
   path.resolve(repoRootDir, ".env.local"),
   path.resolve(repoRootDir, ".env")
 ];
