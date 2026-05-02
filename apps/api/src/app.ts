@@ -169,6 +169,18 @@ export function createApp(options?: {
     if (isAppError(appError)) {
       if (appError.statusCode >= 500) {
         const requestContext = request.context as { userId?: string } | undefined;
+        const errorContext =
+          error instanceof Error
+            ? {
+                errorMessage: error.message,
+                errorName: error.name,
+                errorStack: error.stack
+              }
+            : {
+                errorMessage: String(error),
+                errorName: "NonErrorThrown",
+                errorStack: undefined
+              };
         const routeContext = {
           method: request.method,
           path: request.originalUrl,
@@ -178,11 +190,13 @@ export function createApp(options?: {
         errorReporter.captureException(error, {
           code: appError.code,
           statusCode: appError.statusCode,
+          ...errorContext,
           ...routeContext
         });
         logger.error("Unhandled API error", {
           code: appError.code,
           statusCode: appError.statusCode,
+          ...errorContext,
           ...routeContext
         });
       }
@@ -196,7 +210,10 @@ export function createApp(options?: {
       method: request.method,
       path: request.originalUrl,
       userId: (request.context as { userId?: string } | undefined)?.userId,
-      requestId: (request as Request & { requestId?: string }).requestId
+      requestId: (request as Request & { requestId?: string }).requestId,
+      errorMessage: error instanceof Error ? error.message : String(error),
+      errorName: error instanceof Error ? error.name : "NonErrorThrown",
+      errorStack: error instanceof Error ? error.stack : undefined
     });
     response.status(500).json(failure("INTERNAL_ERROR", "Unexpected backend error."));
   });
