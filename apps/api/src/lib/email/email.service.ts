@@ -72,4 +72,16 @@ function createEmailService(): EmailService {
   throw new Error("Email provider is not configured.");
 }
 
-export const emailService: EmailService = createEmailService();
+let cachedEmailService: EmailService | null = null;
+
+export function resetEmailServiceForTests() {
+  cachedEmailService = null;
+}
+
+export function getEmailService(): EmailService {
+  if (!cachedEmailService) {
+    cachedEmailService = createEmailService();
+  }
+
+  return cachedEmailService;
+}

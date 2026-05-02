@@ -77,9 +77,19 @@ export type AppEnv = z.infer<typeof envSchema> & {
 };
 
 function getEnvHint() {
-  return resolvedEnvPath
-    ? `Loaded environment from ${resolvedEnvPath}.`
-    : `No .env file found. Checked: ${envCandidatePaths.join(", ")}. Copy .env.example to .env at the repo root.`;
+  const isVercel = process.env.VERCEL === "1";
+  const vercelEnv = process.env.VERCEL_ENV;
+
+  if (isVercel) {
+    const scope = typeof vercelEnv === "string" && vercelEnv.length > 0 ? vercelEnv : "production";
+    return `Vercel detected (VERCEL_ENV=${scope}). Configure env vars in Vercel Project Settings -> Environment Variables -> ${scope}, then redeploy.`;
+  }
+
+  if (resolvedEnvPath) {
+    return `Loaded environment from ${resolvedEnvPath}.`;
+  }
+
+  return `No .env file found. Checked: ${envCandidatePaths.join(", ")}. Copy .env.example to .env at the repo root.`;
 }
 
 export class EnvConfigError extends Error {
@@ -89,17 +99,31 @@ export class EnvConfigError extends Error {
 
   constructor(input: { problems: string[]; hint: string }) {
     const formattedProblems = input.problems.map((problem) => `- ${problem}`).join("\n");
+    const isVercel = process.env.VERCEL === "1";
+    const vercelEnv = process.env.VERCEL_ENV;
+    const vercelScope = typeof vercelEnv === "string" && vercelEnv.length > 0 ? vercelEnv : "production";
+
+    const fixLines = isVercel
+      ? [
+          "Fix (Vercel):",
+          `- Project Settings -> Environment Variables -> ${vercelScope}`,
+          "  - EMAIL_PROVIDER=resend",
+          "  - RESEND_API_KEY=<your Resend API key>",
+          "  - EMAIL_FROM=\"Your App <no-reply@your-domain.com>\"",
+          "  - PASSWORD_RESET_LINK_BASE_URL=<deep link or URL used in password reset emails>",
+          "- Redeploy after updating env vars (Vercel only injects env vars into new deployments)."
+        ]
+      : [
+          "Fix (local):",
+          "- Copy .env.example -> .env and set required values, or export them in your shell environment.",
+          "- For production hosting, configure environment variables in your hosting provider and redeploy."
+        ];
+
     const message = [
       "Invalid API environment configuration.",
       formattedProblems.length > 0 ? formattedProblems : "- Unknown error.",
       "",
-      "Fix:",
-      "- In Vercel: Project Settings → Environment Variables → Production",
-      "  - EMAIL_PROVIDER=resend",
-      "  - RESEND_API_KEY=<your Resend API key>",
-      "  - EMAIL_FROM=\"Your App <no-reply@your-domain.com>\"",
-      "  - PASSWORD_RESET_LINK_BASE_URL=<deep link or URL used in password reset emails>",
-      "- Redeploy after updating env vars (Vercel only injects env vars into new deployments).",
+      ...fixLines,
       "",
       input.hint,
       "See DEPLOYMENT.md (API Vercel project setup) for the full list."
@@ -191,6 +215,12 @@ export function parseEnvFromProcess(): AppEnv {
 
 let cachedEnv: AppEnv | null = null;
 let cachedEnvError: unknown | null = null;
+
+export function resetEnvForTests() {
+  cachedEnv = null;
+  cachedEnvError = null;
+  didLoadDotEnv = false;
+}
 
 export function getEnv(): AppEnv {
   if (cachedEnv) {

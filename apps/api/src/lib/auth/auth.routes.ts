@@ -6,7 +6,7 @@ import { z } from "zod";
 import { failure, success } from "../http/envelope.js";
 import { createRateLimitMiddleware } from "../http/rate-limit.js";
 import { createSoftRateLimiter } from "../http/soft-rate-limit.js";
-import { emailService } from "../email/email.service.js";
+import { getEmailService } from "../email/email.service.js";
 import { logger } from "../observability/logger.js";
 import { hashPassword, verifyPassword } from "./password.js";
 import { buildPasswordResetLink, generatePasswordResetToken, hashPasswordResetToken } from "./password-reset.js";
@@ -240,7 +240,7 @@ export function createPublicAuthRouter(database: DatabaseLike) {
             });
           });
 
-          await emailService.sendPasswordResetEmail({
+          await getEmailService().sendPasswordResetEmail({
             to: existingUser.email,
             resetLink
           });

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { EnvConfigError, parseEnvFrom } from "./env.js";
+import { EnvConfigError, parseEnvFrom, resetEnvForTests } from "./env.js";
 import type { ConfigTestCase } from "./test-helpers/config-test-case.js";
 
 function baseProductionEnv(overrides?: Record<string, string | undefined>) {
@@ -19,6 +19,7 @@ export const envConfigTestCases: ConfigTestCase[] = [
   {
     name: "parseEnv: production with missing EMAIL_PROVIDER fails clearly",
     run: () => {
+      resetEnvForTests();
       try {
         parseEnvFrom(baseProductionEnv({ EMAIL_PROVIDER: undefined }));
         assert.fail("Expected parseEnvFrom to throw.");
@@ -31,6 +32,7 @@ export const envConfigTestCases: ConfigTestCase[] = [
   {
     name: "parseEnv: production with EMAIL_PROVIDER=resend succeeds",
     run: () => {
+      resetEnvForTests();
       const env = parseEnvFrom(baseProductionEnv());
       assert.equal(env.NODE_ENV, "production");
       assert.equal(env.EMAIL_PROVIDER, "resend");
@@ -39,6 +41,7 @@ export const envConfigTestCases: ConfigTestCase[] = [
   {
     name: "parseEnv: production with EMAIL_PROVIDER=resend but missing RESEND_API_KEY fails",
     run: () => {
+      resetEnvForTests();
       try {
         parseEnvFrom(baseProductionEnv({ RESEND_API_KEY: undefined }));
         assert.fail("Expected parseEnvFrom to throw.");
@@ -51,6 +54,7 @@ export const envConfigTestCases: ConfigTestCase[] = [
   {
     name: "parseEnv: non-production defaults EMAIL_PROVIDER to console",
     run: () => {
+      resetEnvForTests();
       const env = parseEnvFrom({
         NODE_ENV: "development",
         USE_PGLITE_DEV: "true"
@@ -60,4 +64,3 @@ export const envConfigTestCases: ConfigTestCase[] = [
     }
   }
 ];
-
