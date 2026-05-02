@@ -10,6 +10,12 @@ exception
   when duplicate_object then null;
 end $$;
 
+do $$ begin
+  create type recovery_state as enum ('fresh', 'normal', 'fatigued', 'exhausted');
+exception
+  when duplicate_object then null;
+end $$;
+
 create table if not exists user_training_settings (
   user_id uuid primary key references users(id),
   progression_aggressiveness progression_aggressiveness not null default 'balanced',
@@ -29,3 +35,5 @@ create table if not exists user_training_settings (
 
 create index if not exists idx_user_training_settings_user_id on user_training_settings(user_id);
 
+alter table if exists workout_sessions
+  add column if not exists recovery_state recovery_state;
