@@ -1,5 +1,5 @@
 import type { EffortFeedback, ExerciseEntryDto, SetDto } from "@fitness/shared";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 import {
   adjustWeightText,
   buildLogSetRequestFromDraft,
@@ -12,10 +12,12 @@ import {
   validateSetLogDraft,
   type SetLogDraft
 } from "../features/workout/utils/set-logging.shared";
-import { colors, spacing } from "../theme/tokens";
+import { colors, radius, spacing } from "../theme/tokens";
+import { AppText } from "./AppText";
 import { PrimaryButton } from "./PrimaryButton";
 import { Card } from "./Card";
 import { Chip } from "./Chip";
+import { SetMetricInput } from "./SetMetricInput";
 
 const effortOptions: EffortFeedback[] = ["too_easy", "just_right", "too_hard"];
 const weightAdjustments = [-5, -2.5, 2.5, 5];
@@ -37,6 +39,7 @@ export function WorkoutExerciseCard(props: {
   highlightMissingFeedback?: boolean;
   loggingSetId?: string | null;
   editingSetId?: string | null;
+  recentlyLoggedSetId?: string | null;
   submittingSetIds?: Record<string, boolean>;
   deletingSetIds?: Record<string, boolean>;
   addingSet?: boolean;
@@ -62,24 +65,36 @@ export function WorkoutExerciseCard(props: {
       ? `${props.exercise.repRangeMin}-${props.exercise.repRangeMax}`
       : null;
 
+  const pendingSets = props.exercise.sets
+    .filter((set) => set.status === "pending")
+    .sort((left, right) => left.setNumber - right.setNumber);
+  const currentPendingSetId = pendingSets[0]?.id ?? null;
+  const nextUpPendingSetId = pendingSets[1]?.id ?? null;
+
   return (
-    <Card style={[styles.card, props.highlightMissingFeedback && styles.cardNeedsFeedback]} elevated>
+    <Card variant="default" style={[styles.card, props.highlightMissingFeedback && styles.cardNeedsFeedback]}>
       <View style={styles.header}>
-        <Text style={styles.title}>{props.exercise.exerciseName}</Text>
-        <Text style={styles.subtitle}>
+        <AppText variant="cardTitle">{props.exercise.exerciseName}</AppText>
+        <AppText tone="secondary">
           {props.exercise.targetSets} x {props.exercise.targetReps}
           {repRangeText ? ` (range ${repRangeText})` : ""} at {props.exercise.targetWeight.value} lb
-        </Text>
-        <Text style={styles.helper}>Rest {props.exercise.restSeconds ?? 0}s between sets</Text>
+        </AppText>
+        <AppText variant="caption" tone="secondary">
+          Rest {props.exercise.restSeconds ?? 0}s between sets
+        </AppText>
       </View>
 
       <View style={styles.setList}>
-        {props.exercise.sets.map((set) => {
+        {props.exercise.sets.map((set, setIndex) => {
           const isPending = set.status === "pending";
           const isEditing = props.editingSetId === set.id;
           const isLogging = props.loggingSetId === set.id || props.submittingSetIds?.[set.id] === true;
           const isDeleting = props.deletingSetIds?.[set.id] === true;
+          const isCurrentPending = isPending && currentPendingSetId === set.id;
+          const isNextUp = isPending && nextUpPendingSetId === set.id;
+          const isJustLogged = props.recentlyLoggedSetId === set.id && !isPending;
           const canDeleteSet = isPending && set.setNumber === maxSetNumber && props.exercise.sets.length > 1;
+          const isLastSet = setIndex === props.exercise.sets.length - 1;
           const previousSet = getPreviousLoggedSet({
             sets: props.exercise.sets,
             setNumber: set.setNumber
@@ -95,174 +110,188 @@ export function WorkoutExerciseCard(props: {
           });
           const canSubmit = (isPending || isEditing) && request !== null && !isLogging;
           const previousWeight = previousSet?.actualWeight?.value ?? null;
+          const loggedOutcomeText = !isPending
+            ? getSetOutcomeText({
+                actualReps: set.actualReps ?? null,
+                targetReps: set.targetReps,
+                actualWeightValue: set.actualWeight?.value ?? null,
+                targetWeightValue: set.targetWeight.value
+              })
+            : null;
+          const outcomeTone =
+            loggedOutcomeText === "Meets target"
+              ? ("success" as const)
+              : loggedOutcomeText === "Below target" || loggedOutcomeText === "Heavy work"
+                ? ("secondary" as const)
+                : null;
 
           return (
-            <View key={set.id} style={[styles.setRow, !isPending && styles.setRowLogged]}>
-              <View style={styles.setInfo}>
+            <View
+              key={set.id}
+              style={[
+                styles.setRow,
+                !isLastSet ? styles.setRowDivider : null,
+                isPending && !isCurrentPending ? styles.setRowPending : null,
+                isCurrentPending || isLogging ? styles.setRowCurrent : null,
+                isNextUp ? styles.setRowNextUp : null,
+                !isPending && set.status === "failed" ? styles.setRowMissed : null,
+                !isPending && set.status === "skipped" ? styles.setRowSkipped : null,
+                isJustLogged ? styles.setRowJustLogged : null,
+                isEditing ? styles.setRowEditing : null
+              ]}
+            >
+              <View style={styles.setRowContent}>
                 <View style={styles.setTitleRow}>
-                  <Text style={styles.setTitle}>Set {set.setNumber}</Text>
+                  <AppText variant="bodyStrong">Set {set.setNumber}</AppText>
                   <View style={styles.setActions}>
+                    {isCurrentPending ? (
+                      <AppText variant="caption" tone="accent" style={styles.statusTag}>
+                        {isLogging ? "Saving..." : "Current"}
+                      </AppText>
+                    ) : isNextUp ? (
+                      <AppText variant="caption" tone="tertiary" style={styles.statusTag}>
+                        Next
+                      </AppText>
+                    ) : !isPending && set.status !== "completed" ? (
+                      <AppText variant="caption" tone={set.status === "failed" ? "secondary" : "tertiary"} style={styles.statusTag}>
+                        {getSetStatusLabel(set)}
+                      </AppText>
+                    ) : null}
                     {canDeleteSet ? (
-                      <Pressable
-                        accessibilityRole="button"
+                      <InlineTextButton
+                        label={isDeleting ? "Removing..." : "Remove"}
                         disabled={isLogging || isDeleting}
                         onPress={() => props.onDeleteSet(set)}
-                        style={[styles.deleteSetButton, (isLogging || isDeleting) && styles.disabledControl]}
-                      >
-                        <Text style={styles.deleteSetLabel}>{isDeleting ? "Removing..." : "Remove"}</Text>
-                      </Pressable>
+                        tone="danger"
+                      />
                     ) : null}
                     {!isPending ? (
-                      <Pressable
-                        accessibilityRole="button"
+                      <InlineTextButton
+                        label={isEditing ? "Cancel" : "Edit"}
                         disabled={isLogging || isDeleting}
                         onPress={() => (isEditing ? props.onCancelEditSet(set) : props.onStartEditSet(set))}
-                        style={[styles.editSetButton, (isLogging || isDeleting) && styles.disabledControl]}
-                      >
-                        <Text style={styles.editSetLabel}>{isEditing ? "Cancel" : "Edit"}</Text>
-                      </Pressable>
+                        tone={isEditing ? "accent" : "secondary"}
+                      />
                     ) : null}
-                    <Text
-                      style={[
-                        styles.statusPill,
-                        set.status === "completed" && styles.statusPillComplete,
-                        set.status === "failed" && styles.statusPillFailed
-                      ]}
-                    >
-                      {getSetStatusLabel(set)}
-                    </Text>
                   </View>
                 </View>
-                <Text style={styles.setMeta}>
+                <AppText variant="caption" tone="secondary">
                   Target {set.targetReps} reps at {set.targetWeight.value} lb
-                </Text>
+                </AppText>
               </View>
 
               {isPending || isEditing ? (
                 <View style={styles.pendingSetBody}>
                   <View style={styles.inputGrid}>
-                    <View style={styles.inputGroup}>
-                      <Text style={styles.inputLabel}>Reps</Text>
-                      <View style={styles.stepperRow}>
+                    <SetMetricInput
+                      label="Reps"
+                      accessibilityLabel={`Set ${set.setNumber} reps`}
+                      disabled={isLogging}
+                      error={Boolean(validation.error)}
+                      inputMode="numeric"
+                      keyboardType="number-pad"
+                      maxLength={3}
+                      onChangeText={(value) =>
+                        props.onChangeSetLogDraft(set.id, {
+                          ...draft,
+                          repsText: normalizeRepsInput(value)
+                        })
+                      }
+                      onSubmitEditing={() => {
+                        if (canSubmit) {
+                          if (isPending) {
+                            props.onLogSet(props.exercise, set, draft);
+                          } else {
+                            props.onUpdateLoggedSet(props.exercise, set, draft);
+                          }
+                        }
+                      }}
+                      returnKeyType="done"
+                      selectTextOnFocus
+                      stepper={{
+                        onDecrement: () => {
+                          const nextReps = Math.max(0, (validation.actualReps ?? 0) - 1);
+                          props.onChangeSetLogDraft(set.id, {
+                            ...draft,
+                            repsText: nextReps.toString()
+                          });
+                        },
+                        onIncrement: () => {
+                          const nextReps = (validation.actualReps ?? 0) + 1;
+                          props.onChangeSetLogDraft(set.id, {
+                            ...draft,
+                            repsText: nextReps.toString()
+                          });
+                        }
+                      }}
+                      value={draft.repsText}
+                    />
+                    <SetMetricInput
+                      label="Load"
+                      accessibilityLabel={`Set ${set.setNumber} load`}
+                      disabled={isLogging}
+                      error={Boolean(validation.error)}
+                      helperRight={
+                        previousWeight !== null ? (
+                          <AppText variant="caption" tone="secondary" style={styles.previousValue}>
+                            Previous {previousWeight} lb
+                          </AppText>
+                        ) : null
+                      }
+                      inputMode="decimal"
+                      keyboardType="decimal-pad"
+                      maxLength={7}
+                      onChangeText={(value) =>
+                        props.onChangeSetLogDraft(set.id, {
+                          ...draft,
+                          weightText: normalizeWeightInput(value)
+                        })
+                      }
+                      onSubmitEditing={() => {
+                        if (canSubmit) {
+                          if (isPending) {
+                            props.onLogSet(props.exercise, set, draft);
+                          } else {
+                            props.onUpdateLoggedSet(props.exercise, set, draft);
+                          }
+                        }
+                      }}
+                      returnKeyType="done"
+                      selectTextOnFocus
+                      textAlign="left"
+                      value={draft.weightText}
+                    />
+                    <View style={styles.weightAdjustRow}>
+                      {weightAdjustments.map((delta) => (
                         <Pressable
+                          key={delta}
                           accessibilityRole="button"
                           disabled={isLogging}
-                          onPress={() => {
-                            const nextReps = Math.max(0, (validation.actualReps ?? 0) - 1);
+                          onPress={() =>
                             props.onChangeSetLogDraft(set.id, {
                               ...draft,
-                              repsText: nextReps.toString()
-                            });
-                          }}
-                          style={[styles.stepperButton, isLogging && styles.disabledControl]}
-                        >
-                          <Text style={styles.stepperLabel}>-</Text>
-                        </Pressable>
-                        <TextInput
-                          accessibilityLabel={`Set ${set.setNumber} reps`}
-                          editable={!isLogging}
-                          inputMode="numeric"
-                          keyboardType="number-pad"
-                          maxLength={3}
-                          onChangeText={(value) =>
-                            props.onChangeSetLogDraft(set.id, {
-                              ...draft,
-                              repsText: normalizeRepsInput(value)
-                            })
-                          }
-                          onSubmitEditing={() => {
-                            if (canSubmit) {
-                              if (isPending) {
-                                props.onLogSet(props.exercise, set, draft);
-                              } else {
-                                props.onUpdateLoggedSet(props.exercise, set, draft);
-                              }
-                            }
-                          }}
-                          returnKeyType="done"
-                          selectTextOnFocus
-                          style={styles.setInput}
-                          value={draft.repsText}
-                        />
-                        <Pressable
-                          accessibilityRole="button"
-                          disabled={isLogging}
-                          onPress={() => {
-                            const nextReps = (validation.actualReps ?? 0) + 1;
-                            props.onChangeSetLogDraft(set.id, {
-                              ...draft,
-                              repsText: nextReps.toString()
-                            });
-                          }}
-                          style={[styles.stepperButton, isLogging && styles.disabledControl]}
-                        >
-                          <Text style={styles.stepperLabel}>+</Text>
-                        </Pressable>
-                      </View>
-                    </View>
-                    <View style={styles.inputGroup}>
-                      <View style={styles.labelRow}>
-                        <Text style={styles.inputLabel}>Load</Text>
-                        {previousWeight !== null ? (
-                          <Text style={styles.previousValue}>Previous {previousWeight} lb</Text>
-                        ) : null}
-                      </View>
-                      <View style={styles.weightEntryRow}>
-                        <TextInput
-                          accessibilityLabel={`Set ${set.setNumber} load`}
-                          editable={!isLogging}
-                          inputMode="decimal"
-                          keyboardType="decimal-pad"
-                          maxLength={7}
-                          onChangeText={(value) =>
-                            props.onChangeSetLogDraft(set.id, {
-                              ...draft,
-                              weightText: normalizeWeightInput(value)
-                            })
-                          }
-                          onSubmitEditing={() => {
-                            if (canSubmit) {
-                              if (isPending) {
-                                props.onLogSet(props.exercise, set, draft);
-                              } else {
-                                props.onUpdateLoggedSet(props.exercise, set, draft);
-                              }
-                            }
-                          }}
-                          returnKeyType="done"
-                          selectTextOnFocus
-                          style={styles.weightInput}
-                          value={draft.weightText}
-                        />
-                      </View>
-                      <View style={styles.weightAdjustRow}>
-                        {weightAdjustments.map((delta) => (
-                          <Pressable
-                            key={delta}
-                            accessibilityRole="button"
-                            disabled={isLogging}
-                            onPress={() =>
-                              props.onChangeSetLogDraft(set.id, {
-                                ...draft,
-                                weightText: adjustWeightText({
-                                  weightText: draft.weightText,
-                                  delta
-                                })
+                              weightText: adjustWeightText({
+                                weightText: draft.weightText,
+                                delta
                               })
-                            }
-                            style={[styles.weightAdjustButton, isLogging && styles.disabledControl]}
-                          >
-                            <Text style={styles.weightAdjustLabel}>
-                              {delta > 0 ? `+${delta}` : delta}
-                            </Text>
-                          </Pressable>
-                        ))}
-                      </View>
+                            })
+                          }
+                          style={({ pressed }) => [
+                            styles.adjustButton,
+                            isLogging ? styles.disabled : null,
+                            pressed && !isLogging ? styles.adjustButtonPressed : null
+                          ]}
+                        >
+                          <AppText variant="meta" tone="secondary" style={styles.adjustButtonLabel}>
+                            {delta > 0 ? `+${delta}` : String(delta)}
+                          </AppText>
+                        </Pressable>
+                      ))}
                     </View>
                   </View>
-                  <Text style={[styles.setHint, validation.error && styles.setHintError]}>
+                  <AppText variant={validation.error ? "error" : "caption"} tone={validation.error ? "danger" : "secondary"}>
                     {validation.error ?? outcomeText}
-                  </Text>
+                  </AppText>
                   <PrimaryButton
                     label={
                       isLogging
@@ -285,9 +314,16 @@ export function WorkoutExerciseCard(props: {
                   />
                 </View>
               ) : (
-                <Text style={styles.loggedSummary}>
-                  Logged {set.actualReps ?? 0} reps at {set.actualWeight?.value ?? set.targetWeight.value} lb
-                </Text>
+                <View style={styles.loggedSummaryRow}>
+                  <AppText variant="caption" tone="secondary" style={styles.loggedSummary}>
+                    Logged {set.actualReps ?? 0} reps at {set.actualWeight?.value ?? set.targetWeight.value} lb
+                  </AppText>
+                  {outcomeTone && loggedOutcomeText && loggedOutcomeText !== "Ready" ? (
+                    <AppText variant="caption" tone={outcomeTone}>
+                      {loggedOutcomeText}
+                    </AppText>
+                  ) : null}
+                </View>
               )}
             </View>
           );
@@ -296,16 +332,18 @@ export function WorkoutExerciseCard(props: {
 
       <PrimaryButton
         label={props.addingSet ? "Adding set..." : "Add set"}
-        tone="secondary"
+        variant="secondary"
         onPress={() => props.onAddSet(props.exercise)}
         disabled={props.addingSet}
         loading={props.addingSet}
       />
 
       <View style={styles.feedbackSection}>
-        <Text style={styles.feedbackTitle}>How did this exercise feel?</Text>
+        <AppText variant="bodyStrong">How did this exercise feel?</AppText>
         {props.highlightMissingFeedback && props.selectedFeedback === undefined ? (
-          <Text style={styles.feedbackHint}>Rate effort to finish this workout.</Text>
+          <AppText variant="caption" tone="secondary">
+            Rate effort to finish this workout.
+          </AppText>
         ) : null}
         <View style={styles.feedbackOptions}>
           {effortOptions.map((option) => {
@@ -317,7 +355,7 @@ export function WorkoutExerciseCard(props: {
                 label={formatFeedbackLabel(option)}
                 onPress={() => props.onSelectFeedback(option)}
                 selected={selected}
-                style={styles.feedbackChip}
+                variant={selected ? "selected" : "muted"}
               />
             );
           })}
@@ -327,63 +365,91 @@ export function WorkoutExerciseCard(props: {
   );
 }
 
+function InlineTextButton(props: {
+  label: string;
+  onPress: () => void;
+  disabled?: boolean;
+  tone?: "accent" | "secondary" | "danger";
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      disabled={props.disabled}
+      onPress={props.onPress}
+      style={({ pressed }) => [
+        styles.inlineButton,
+        props.disabled ? styles.disabled : null,
+        pressed && !props.disabled ? styles.inlineButtonPressed : null
+      ]}
+    >
+      <AppText
+        variant="caption"
+        tone={props.tone === "danger" ? "danger" : props.tone === "accent" ? "accent" : "secondary"}
+        style={styles.inlineButtonLabel}
+      >
+        {props.label}
+      </AppText>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderRadius: 12,
-    borderWidth: 1,
     gap: spacing.md,
     padding: spacing.lg
   },
   cardNeedsFeedback: {
-    backgroundColor: colors.accentMuted,
-    borderColor: colors.accent
+    backgroundColor: colors.accentMuted
   },
   header: {
     gap: spacing.xs
   },
-  title: {
-    color: colors.textPrimary,
-    fontSize: 22,
-    fontWeight: "600"
-  },
-  subtitle: {
-    color: colors.textSecondary,
-    fontSize: 16
-  },
-  helper: {
-    color: colors.textSecondary,
-    fontSize: 14
-  },
   setList: {
-    gap: spacing.sm
+    borderRadius: 10,
+    overflow: "hidden"
   },
   setRow: {
-    backgroundColor: colors.background,
-    borderColor: "transparent",
-    borderRadius: 12,
-    borderWidth: 1,
     gap: spacing.sm,
-    padding: spacing.md
+    paddingVertical: spacing.md
   },
-  setRowLogged: {
-    borderColor: colors.border,
-    opacity: 0.86
+  setRowDivider: { borderBottomColor: colors.border, borderBottomWidth: StyleSheet.hairlineWidth },
+  setRowCurrent: {
+    backgroundColor: colors.surface,
+    borderLeftColor: colors.accentStrong,
+    borderLeftWidth: 2,
+    paddingLeft: spacing.md - 2
   },
-  setInfo: {
-    gap: 4
+  setRowNextUp: {
+    backgroundColor: colors.surface,
+    borderLeftColor: "rgba(102, 112, 133, 0.55)",
+    borderLeftWidth: 2,
+    paddingLeft: spacing.md - 2
+  },
+  setRowEditing: {
+    backgroundColor: colors.surface
+  },
+  setRowJustLogged: {
+    backgroundColor: "rgba(22, 121, 76, 0.04)"
+  },
+  setRowMissed: {
+    borderLeftColor: "rgba(180, 35, 24, 0.45)",
+    borderLeftWidth: 2,
+    paddingLeft: spacing.md - 2
+  },
+  setRowSkipped: {
+    opacity: 0.78
+  },
+  setRowPending: {
+    opacity: 0.84
+  },
+  setRowContent: {
+    gap: spacing.sm
   },
   setTitleRow: {
     alignItems: "center",
     flexDirection: "row",
     gap: spacing.sm,
     justifyContent: "space-between"
-  },
-  setTitle: {
-    color: colors.textPrimary,
-    fontSize: 18,
-    fontWeight: "600"
   },
   setActions: {
     alignItems: "center",
@@ -393,213 +459,67 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
     justifyContent: "flex-end"
   },
-  deleteSetButton: {
-    borderColor: colors.border,
-    borderRadius: 999,
-    borderWidth: 1,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 5
-  },
-  deleteSetLabel: {
-    color: colors.danger,
-    fontSize: 12,
-    fontWeight: "600"
-  },
-  editSetButton: {
-    borderColor: colors.border,
-    borderRadius: 999,
-    borderWidth: 1,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 5
-  },
-  editSetLabel: {
-    color: colors.textPrimary,
-    fontSize: 12,
-    fontWeight: "600"
-  },
-  setMeta: {
-    color: colors.textSecondary,
-    fontSize: 14
-  },
-  statusPill: {
-    backgroundColor: colors.surfaceMuted,
-    borderRadius: 999,
-    color: colors.textSecondary,
-    fontSize: 12,
-    fontWeight: "600",
-    overflow: "hidden",
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 5
-  },
-  statusPillComplete: {
-    backgroundColor: colors.success,
-    color: colors.surface
-  },
-  statusPillFailed: {
-    backgroundColor: colors.danger,
-    color: colors.surface
+  statusTag: {
+    marginTop: 1
   },
   pendingSetBody: {
     gap: spacing.sm
   },
   inputGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm
-  },
-  inputGroup: {
-    flexBasis: "100%",
-    flexGrow: 1,
-    flexShrink: 1,
-    gap: 6,
-    maxWidth: "100%",
-    minWidth: 0
-  },
-  inputLabel: {
-    color: colors.textSecondary,
-    fontSize: 13,
-    fontWeight: "600"
-  },
-  labelRow: {
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "space-between",
     gap: spacing.sm
   },
   previousValue: {
-    color: colors.textSecondary,
-    flexShrink: 1,
-    fontSize: 12,
-    fontWeight: "600",
     textAlign: "right"
-  },
-  stepperRow: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: spacing.xs,
-    maxWidth: "100%",
-    minWidth: 0
-  },
-  stepperButton: {
-    alignItems: "center",
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderRadius: 10,
-    borderWidth: 1,
-    flexShrink: 0,
-    height: 48,
-    justifyContent: "center",
-    width: 44
-  },
-  stepperLabel: {
-    color: colors.textPrimary,
-    fontSize: 22,
-    fontWeight: "600"
-  },
-  disabledControl: {
-    opacity: 0.55
-  },
-  setInput: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderRadius: 10,
-    borderWidth: 1,
-    color: colors.textPrimary,
-    flex: 1,
-    flexShrink: 1,
-    fontSize: 20,
-    fontWeight: "600",
-    minWidth: 48,
-    minHeight: 48,
-    paddingHorizontal: spacing.sm,
-    textAlign: "center"
-  },
-  weightInput: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderRadius: 10,
-    borderWidth: 1,
-    color: colors.textPrimary,
-    fontSize: 20,
-    fontWeight: "600",
-    maxWidth: "100%",
-    minHeight: 48,
-    minWidth: 0,
-    paddingHorizontal: spacing.sm,
-    width: "100%"
-  },
-  weightEntryRow: {
-    maxWidth: "100%"
   },
   weightAdjustRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: spacing.xs
   },
-  weightAdjustButton: {
-    alignItems: "center",
+  adjustButton: {
+    alignSelf: "flex-start",
     backgroundColor: colors.surfaceMuted,
-    borderColor: "transparent",
-    borderRadius: 10,
-    borderWidth: 1,
-    flexBasis: "23%",
-    flexGrow: 1,
-    minHeight: 40,
-    justifyContent: "center"
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6
   },
-  weightAdjustLabel: {
-    color: colors.textSecondary,
-    fontSize: 14,
-    fontWeight: "600"
+  adjustButtonPressed: {
+    opacity: 0.9
   },
-  setHint: {
-    color: colors.textSecondary,
-    fontSize: 13,
-    fontWeight: "600"
-  },
-  setHintError: {
-    color: colors.danger
+  adjustButtonLabel: {
+    fontSize: 13
   },
   loggedSummary: {
-    color: colors.textSecondary,
-    fontSize: 14,
-    fontWeight: "600"
+    marginTop: 2
+  },
+  loggedSummaryRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.xs,
+    justifyContent: "space-between"
   },
   feedbackSection: {
     gap: spacing.sm
-  },
-  feedbackTitle: {
-    color: colors.textPrimary,
-    fontSize: 16,
-    fontWeight: "600"
-  },
-  feedbackHint: {
-    color: colors.textSecondary,
-    fontSize: 14,
-    lineHeight: 20
   },
   feedbackOptions: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: spacing.sm
   },
-  feedbackChip: {
-    borderColor: colors.border,
-    borderRadius: 999,
-    borderWidth: 1,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm
+  inlineButton: {
+    alignSelf: "flex-start",
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 4
   },
-  feedbackChipSelected: {
-    backgroundColor: colors.accentStrong,
-    borderColor: colors.accentStrong
+  inlineButtonPressed: {
+    backgroundColor: colors.surfaceMuted
   },
-  feedbackChipLabel: {
-    color: colors.textPrimary,
-    fontSize: 14,
-    fontWeight: "600"
+  inlineButtonLabel: {
+    fontSize: 13
   },
-  feedbackChipLabelSelected: {
-    color: colors.surface
+  disabled: {
+    opacity: 0.55
   }
 });

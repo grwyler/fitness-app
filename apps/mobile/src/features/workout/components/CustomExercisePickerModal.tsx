@@ -5,17 +5,21 @@ import {
   FlatList,
   Keyboard,
   KeyboardAvoidingView,
-  Modal,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
-  Text,
-  TextInput,
   View
 } from "react-native";
+import { AppText } from "../../../components/AppText";
+import { Button } from "../../../components/Button";
+import { Card } from "../../../components/Card";
+import { Chip } from "../../../components/Chip";
+import { EmptyState } from "../../../components/EmptyState";
+import { Input } from "../../../components/Input";
+import { ListRow } from "../../../components/ListRow";
+import { ModalSheet } from "../../../components/ModalSheet";
 import { PrimaryButton } from "../../../components/PrimaryButton";
-import { colors, spacing } from "../../../theme/tokens";
+import { borderWidths, colors, spacing } from "../../../theme/tokens";
 import {
   CUSTOM_WORKOUT_DEFAULT_TARGET_REPS,
   CUSTOM_WORKOUT_DEFAULT_TARGET_SETS
@@ -115,6 +119,20 @@ function buildDefaultConfig(exercise: ExerciseCatalogItemDto): ExerciseConfigDra
 
 function buildExerciseMeta(exercise: ExerciseCatalogItemDto) {
   return [exercise.category, exercise.primaryMuscleGroup, exercise.equipmentType].filter(Boolean).join(" - ");
+}
+
+function getAvailableProgressionStrategies(exercise: ExerciseCatalogItemDto): ProgressionStrategy[] {
+  if (!exercise.isProgressionEligible) {
+    return ["no_progression"];
+  }
+
+  if (exercise.isBodyweight) {
+    return exercise.isWeightOptional
+      ? ["bodyweight_reps", "bodyweight_weighted", "no_progression"]
+      : ["bodyweight_reps", "no_progression"];
+  }
+
+  return ["double_progression", "fixed_weight", "no_progression"];
 }
 
 function normalizeFilterKey(value: string) {
@@ -466,28 +484,20 @@ export function CustomExercisePickerModal(props: {
   });
 
   return (
-    <Modal animationType="slide" transparent visible={props.visible} onRequestClose={props.onClose}>
-      <View style={styles.modalBackdrop}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-          style={[styles.modalSheet, isHeaderCompact && styles.modalSheetCompact]}
-        >
-          <View style={styles.modalHeader}>
-            <View style={styles.modalTitleGroup}>
-              <Text style={styles.cardLabel}>Custom workout</Text>
-              <Text style={[styles.modalTitle, step === "select" && styles.modalTitleSelect]}>
-                {step === "select" ? "Choose exercises" : "Configure exercise"}
-              </Text>
-              {step === "configure" && activeExercise ? (
-                <Text style={styles.cardBody}>
-                  {configureIndex + 1} of {selectedExercises.length}: {activeExercise.name}
-                </Text>
-              ) : null}
-            </View>
-            <Pressable accessibilityRole="button" onPress={props.onClose} style={styles.closeButton}>
-              <Text style={styles.closeLabel}>Close</Text>
-            </Pressable>
-          </View>
+    <ModalSheet
+      visible={props.visible}
+      onClose={props.onClose}
+      title={step === "select" ? "Choose exercises" : "Configure exercise"}
+      subtitle={
+        step === "configure" && activeExercise
+          ? `${configureIndex + 1} of ${selectedExercises.length}: ${activeExercise.name}`
+          : "Custom workout"
+      }
+      headerRight={<PrimaryButton label="Close" onPress={props.onClose} variant="ghost" fullWidth={false} size="sm" />}
+      style={isHeaderCompact ? styles.sheetCompact : undefined}
+      contentStyle={styles.sheetContent}
+    >
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.flex}>
 
           {step === "select" ? (
             <>
@@ -502,57 +512,54 @@ export function CustomExercisePickerModal(props: {
                   <View style={styles.listHeader}>
                     {!isHeaderCompact ? (
                       <View style={styles.detailsRow}>
-                        <Pressable accessibilityRole="button" onPress={toggleDetailsExpanded} style={styles.detailsToggle}>
-                          <Text style={styles.detailsToggleText}>
-                            {detailsExpanded ? "Hide details" : "Workout details"}
-                          </Text>
-                        </Pressable>
+                        <Button
+                          label={detailsExpanded ? "Hide details" : "Workout details"}
+                          onPress={toggleDetailsExpanded}
+                          variant="ghost"
+                          fullWidth={false}
+                          size="sm"
+                        />
                       </View>
                     ) : null}
 
                     {detailsExpanded && !isHeaderCompact ? (
-                      <View style={styles.detailsPanel}>
-                        <Text style={styles.cardBody}>
+                      <Card variant="muted" padding="md" contentStyle={styles.detailsCardContent}>
+                        <AppText tone="secondary">
                           Pick exercises, then set sets/reps/weight before adding them.
-                        </Text>
+                        </AppText>
                         {props.mode === "assignToProgramDay" ? (
                           <View style={styles.inputGroup}>
-                            <Text style={styles.inputLabel}>Workout name</Text>
-                            <TextInput
+                            <Input
                               autoCapitalize="words"
                               onChangeText={props.onChangeWorkoutName}
                               placeholder="Optional"
-                              placeholderTextColor={colors.textSecondary}
-                              style={styles.input}
                               value={props.workoutName ?? ""}
                             />
                           </View>
                         ) : null}
-                      </View>
+                      </Card>
                     ) : null}
 
                     <View style={styles.inputGroup}>
                       <View style={styles.searchHeaderRow}>
-                        <Text style={styles.inputLabel}>Search</Text>
-                        <Pressable
-                          accessibilityRole="button"
+                        <AppText variant="caption" tone="secondary">
+                          Exercises
+                        </AppText>
+                        <Button
+                          label={filtersExpanded ? "Hide filters" : hasAnyFilter ? "Filters (on)" : "Filters"}
                           onPress={toggleFiltersExpanded}
-                          style={styles.filtersToggle}
-                        >
-                          <Text style={styles.filtersToggleText}>
-                            {filtersExpanded ? "Hide filters" : hasAnyFilter ? "Filters (on)" : "Filters"}
-                          </Text>
-                        </Pressable>
+                          variant="ghost"
+                          fullWidth={false}
+                          size="sm"
+                        />
                       </View>
-                      <TextInput
+                      <Input
                         autoCapitalize="none"
                         autoCorrect={false}
                         onChangeText={setSearchQuery}
                         onFocus={() => setIsSearchFocused(true)}
                         onBlur={() => setIsSearchFocused(false)}
                         placeholder="Bench press, curl, cable..."
-                        placeholderTextColor={colors.textSecondary}
-                        style={styles.input}
                         value={searchQuery}
                       />
                     </View>
@@ -565,26 +572,16 @@ export function CustomExercisePickerModal(props: {
                           showsHorizontalScrollIndicator={false}
                           contentContainerStyle={styles.filterRow}
                         >
-                          <Text style={styles.filterRowLabel}>Category</Text>
+                          <AppText variant="caption" tone="secondary">
+                            Category
+                          </AppText>
                           {categoryOptions.map((option) => (
-                            <Pressable
-                              accessibilityRole="button"
+                            <Chip
                               key={`category:${option.key}`}
+                              label={option.label}
+                              selected={selectedCategory === option.key}
                               onPress={() => toggleFilter(selectedCategory, option.key, setSelectedCategory)}
-                              style={[
-                                styles.filterChip,
-                                selectedCategory === option.key && styles.filterChipSelected
-                              ]}
-                            >
-                              <Text
-                                style={[
-                                  styles.filterChipText,
-                                  selectedCategory === option.key && styles.filterChipTextSelected
-                                ]}
-                              >
-                                {option.label}
-                              </Text>
-                            </Pressable>
+                            />
                           ))}
                         </ScrollView>
 
@@ -594,26 +591,16 @@ export function CustomExercisePickerModal(props: {
                           showsHorizontalScrollIndicator={false}
                           contentContainerStyle={styles.filterRow}
                         >
-                          <Text style={styles.filterRowLabel}>Muscle</Text>
+                          <AppText variant="caption" tone="secondary">
+                            Muscle
+                          </AppText>
                           {muscleGroupOptions.map((option) => (
-                            <Pressable
-                              accessibilityRole="button"
+                            <Chip
                               key={`muscle:${option.key}`}
+                              label={option.label}
+                              selected={selectedMuscleGroup === option.key}
                               onPress={() => toggleFilter(selectedMuscleGroup, option.key, setSelectedMuscleGroup)}
-                              style={[
-                                styles.filterChip,
-                                selectedMuscleGroup === option.key && styles.filterChipSelected
-                              ]}
-                            >
-                              <Text
-                                style={[
-                                  styles.filterChipText,
-                                  selectedMuscleGroup === option.key && styles.filterChipTextSelected
-                                ]}
-                              >
-                                {option.label}
-                              </Text>
-                            </Pressable>
+                            />
                           ))}
                         </ScrollView>
 
@@ -623,32 +610,20 @@ export function CustomExercisePickerModal(props: {
                           showsHorizontalScrollIndicator={false}
                           contentContainerStyle={styles.filterRow}
                         >
-                          <Text style={styles.filterRowLabel}>Equipment</Text>
+                          <AppText variant="caption" tone="secondary">
+                            Equipment
+                          </AppText>
                           {equipmentOptions.map((option) => (
-                            <Pressable
-                              accessibilityRole="button"
+                            <Chip
                               key={`equipment:${option.key}`}
+                              label={option.label}
+                              selected={selectedEquipmentType === option.key}
                               onPress={() => toggleFilter(selectedEquipmentType, option.key, setSelectedEquipmentType)}
-                              style={[
-                                styles.filterChip,
-                                selectedEquipmentType === option.key && styles.filterChipSelected
-                              ]}
-                            >
-                              <Text
-                                style={[
-                                  styles.filterChipText,
-                                  selectedEquipmentType === option.key && styles.filterChipTextSelected
-                                ]}
-                              >
-                                {option.label}
-                              </Text>
-                            </Pressable>
+                            />
                           ))}
 
                           {hasAnyFilter ? (
-                            <Pressable accessibilityRole="button" onPress={clearFilters} style={styles.clearChip}>
-                              <Text style={styles.clearChipText}>Clear</Text>
-                            </Pressable>
+                            <Button label="Clear" onPress={clearFilters} variant="ghost" fullWidth={false} size="sm" />
                           ) : null}
                         </ScrollView>
                       </View>
@@ -657,37 +632,38 @@ export function CustomExercisePickerModal(props: {
                 }
                 ListEmptyComponent={
                   props.loadingExercises ? (
-                    <Text style={styles.cardBody}>Loading exercises...</Text>
+                    <AppText tone="secondary">Loading exercises...</AppText>
                   ) : (
-                    <Text style={styles.cardBody}>
-                      {hasAnyFilter || searchQuery.trim()
-                        ? "No exercises match your search."
-                        : "No exercises available."}
-                    </Text>
+                    <EmptyState
+                      title={hasAnyFilter || searchQuery.trim() ? "No matches" : "No exercises"}
+                      message={
+                        hasAnyFilter || searchQuery.trim()
+                          ? "No exercises match your search."
+                          : "No exercises are available yet."
+                      }
+                    />
                   )
                 }
                 renderItem={({ item: exercise }) => {
                   const isSelected = selectedExerciseIdSet.has(exercise.id);
                   return (
-                    <Pressable
-                      accessibilityRole="button"
+                    <ListRow
+                      title={exercise.name}
+                      subtitle={buildExerciseMeta(exercise)}
                       onPress={() => handleToggleExercise(exercise.id)}
-                      style={[styles.exerciseChoice, isSelected && styles.selectedExerciseChoice]}
-                    >
-                      <View style={styles.exerciseChoiceText}>
-                        <Text style={styles.exerciseName}>{exercise.name}</Text>
-                        <Text style={styles.exerciseMeta}>{buildExerciseMeta(exercise)}</Text>
-                      </View>
-                      <Text style={[styles.selectState, isSelected && styles.selectedState]}>
-                        {isSelected ? "Selected" : "Add"}
-                      </Text>
-                    </Pressable>
+                      style={isSelected ? styles.selectedExerciseChoice : undefined}
+                      right={
+                        <AppText variant="caption" tone={isSelected ? "accent" : "tertiary"}>
+                          {isSelected ? "Selected" : "Add"}
+                        </AppText>
+                      }
+                    />
                   );
                 }}
               />
 
-              {props.errorMessage ? <Text style={styles.errorText}>{props.errorMessage}</Text> : null}
-              {validationError ? <Text style={styles.errorText}>{validationError}</Text> : null}
+              {props.errorMessage ? <AppText variant="error">{props.errorMessage}</AppText> : null}
+              {validationError ? <AppText variant="error">{validationError}</AppText> : null}
               <PrimaryButton
                 label={actionLabel}
                 disabled={
@@ -706,83 +682,84 @@ export function CustomExercisePickerModal(props: {
               keyboardDismissMode="on-drag"
               keyboardShouldPersistTaps="handled"
             >
-              <View style={styles.configureCard}>
-                <Text style={styles.configureTitle}>{activeExercise.name}</Text>
-                <Text style={styles.cardBody}>{buildExerciseMeta(activeExercise)}</Text>
+              <Card variant="elevated" padding="md" contentStyle={styles.configureCardContent}>
+                <AppText variant="cardTitle">{activeExercise.name}</AppText>
+                <AppText tone="secondary">{buildExerciseMeta(activeExercise)}</AppText>
                 <View style={styles.configureInputs}>
+                  <Input
+                    label="Sets"
+                    keyboardType="number-pad"
+                    value={activeExerciseConfig.targetSetsText}
+                    onChangeText={(value) => updateActiveConfig({ targetSetsText: value })}
+                    placeholder="3"
+                  />
+                  <Input
+                    label="Reps (e.g. 8 or 8-12)"
+                    keyboardType={Platform.OS === "ios" ? "numbers-and-punctuation" : "default"}
+                    value={activeExerciseConfig.targetRepsText}
+                    onChangeText={(value) => updateActiveConfig({ targetRepsText: value })}
+                    placeholder="8"
+                  />
+                  <Input
+                    label={activeExercise.isWeightOptional ? "Weight (lb, optional)" : "Weight (lb)"}
+                    keyboardType="decimal-pad"
+                    value={activeExerciseConfig.targetWeightText}
+                    onChangeText={(value) => updateActiveConfig({ targetWeightText: value })}
+                    placeholder={activeExercise.isWeightOptional ? "Optional" : "135"}
+                  />
                   <View style={styles.inlineInputGroup}>
-                    <Text style={styles.inputLabel}>Sets</Text>
-                    <TextInput
-                      keyboardType="number-pad"
-                      onChangeText={(value) => updateActiveConfig({ targetSetsText: value })}
-                      placeholder="3"
-                      placeholderTextColor={colors.textSecondary}
-                      style={styles.input}
-                      value={activeExerciseConfig.targetSetsText}
-                    />
-                  </View>
-                  <View style={styles.inlineInputGroup}>
-                    <Text style={styles.inputLabel}>Reps (e.g. 8 or 8-12)</Text>
-                    <TextInput
-                      keyboardType={Platform.OS === "ios" ? "numbers-and-punctuation" : "default"}
-                      onChangeText={(value) => updateActiveConfig({ targetRepsText: value })}
-                      placeholder="8"
-                      placeholderTextColor={colors.textSecondary}
-                      style={styles.input}
-                      value={activeExerciseConfig.targetRepsText}
-                    />
-                  </View>
-                  <View style={styles.inlineInputGroup}>
-                    <Text style={styles.inputLabel}>{activeExercise.isWeightOptional ? "Weight (lb, optional)" : "Weight (lb)"}</Text>
-                    <TextInput
-                      keyboardType="decimal-pad"
-                      onChangeText={(value) => updateActiveConfig({ targetWeightText: value })}
-                      placeholder={activeExercise.isWeightOptional ? "Optional" : "135"}
-                      placeholderTextColor={colors.textSecondary}
-                      style={styles.input}
-                      value={activeExerciseConfig.targetWeightText}
-                    />
-                  </View>
-                  <View style={styles.inlineInputGroup}>
-                    <Text style={styles.inputLabel}>Progression</Text>
-                    <View style={styles.strategyChipRow}>
-                      {(progressionStrategies as readonly ProgressionStrategy[]).map((strategy) => {
+                    <AppText variant="sectionLabel" tone="secondary">
+                      Progression method
+                    </AppText>
+                    <AppText variant="caption" tone="tertiary">
+                      Sets how we recommend increases for this exercise.
+                    </AppText>
+                    {!activeExercise.isProgressionEligible ? (
+                      <AppText variant="caption" tone="tertiary">
+                        Progression recommendations are off for this exercise.
+                      </AppText>
+                    ) : null}
+                    <View style={styles.strategyList}>
+                      {getAvailableProgressionStrategies(activeExercise).map((strategy) => {
                         const selected = activeExerciseConfig.progressionStrategy === strategy;
-                        const label =
+                        const option =
                           strategy === "double_progression"
-                            ? "Double"
+                            ? { title: "Reps then weight", subtitle: "Build reps in your range, then add weight." }
                             : strategy === "fixed_weight"
-                              ? "Fixed"
+                              ? { title: "Weight only", subtitle: "Keep reps steady and add weight over time." }
                               : strategy === "bodyweight_reps"
-                                ? "BW reps"
+                                ? { title: "Bodyweight reps", subtitle: "Add reps over time. No added load." }
                                 : strategy === "bodyweight_weighted"
-                                  ? "BW weighted"
-                                  : "None";
+                                  ? { title: "Bodyweight + load", subtitle: "Add load over time (belt/vest)." }
+                                  : { title: "Manual", subtitle: "No recommendations. You control changes manually." };
 
                         return (
-                          <Pressable
+                          <ListRow
                             key={strategy}
-                            accessibilityRole="button"
+                            title={option.title}
+                            subtitle={option.subtitle}
                             onPress={() => updateActiveConfig({ progressionStrategy: strategy })}
-                            style={[styles.strategyChip, selected && styles.strategyChipSelected]}
-                          >
-                            <Text style={[styles.strategyChipText, selected && styles.strategyChipTextSelected]}>
-                              {label}
-                            </Text>
-                          </Pressable>
+                            right={
+                              selected ? (
+                                <AppText variant="caption" tone="accent">
+                                  Selected
+                                </AppText>
+                              ) : null
+                            }
+                          />
                         );
                       })}
                     </View>
                   </View>
                 </View>
-              </View>
+              </Card>
 
-              {props.errorMessage ? <Text style={styles.errorText}>{props.errorMessage}</Text> : null}
-              {validationError ? <Text style={styles.errorText}>{validationError}</Text> : null}
+              {props.errorMessage ? <AppText variant="error">{props.errorMessage}</AppText> : null}
+              {validationError ? <AppText variant="error">{validationError}</AppText> : null}
               <View style={styles.configureActions}>
                 <PrimaryButton
                   label={configureIndex === 0 ? "Back" : "Previous"}
-                  tone="secondary"
+                  variant="secondary"
                   onPress={() => {
                     if (configureIndex === 0) {
                       setValidationError(null);
@@ -803,64 +780,19 @@ export function CustomExercisePickerModal(props: {
               </View>
             </ScrollView>
           ) : (
-            <Text style={styles.cardBody}>Choose an exercise to continue.</Text>
+            <AppText tone="secondary">Choose an exercise to continue.</AppText>
           )}
-        </KeyboardAvoidingView>
-      </View>
-    </Modal>
+      </KeyboardAvoidingView>
+    </ModalSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  modalBackdrop: {
-    alignItems: "center",
-    backgroundColor: "rgba(17, 24, 39, 0.46)",
-    flex: 1,
-    justifyContent: "flex-end",
-    padding: spacing.md
-  },
-  modalSheet: {
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    gap: spacing.md,
-    flex: 1,
-    maxHeight: "92%",
-    maxWidth: 620,
-    padding: spacing.lg,
-    width: "100%"
-  },
-  modalSheetCompact: {
+  flex: { flex: 1 },
+  sheetContent: { flex: 1 },
+  sheetCompact: {
     gap: spacing.sm,
     padding: spacing.md
-  },
-  modalHeader: {
-    alignItems: "flex-start",
-    flexDirection: "row",
-    gap: spacing.md,
-    justifyContent: "space-between"
-  },
-  modalTitleGroup: {
-    flex: 1,
-    gap: spacing.xs
-  },
-  cardLabel: {
-    color: colors.accentStrong,
-    fontSize: 13,
-    fontWeight: "600",
-    textTransform: "uppercase"
-  },
-  modalTitle: {
-    color: colors.textPrimary,
-    fontSize: 24,
-    fontWeight: "600"
-  },
-  modalTitleSelect: {
-    fontSize: 20
-  },
-  cardBody: {
-    color: colors.textSecondary,
-    fontSize: 16,
-    lineHeight: 22
   },
   inputGroup: {
     gap: spacing.xs,
@@ -871,69 +803,15 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between"
   },
-  filtersToggle: {
-    paddingHorizontal: spacing.xs,
-    paddingVertical: 6
-  },
-  filtersToggleText: {
-    color: colors.accentStrong,
-    fontSize: 14,
-    fontWeight: "700"
-  },
   inlineInputGroup: {
     gap: spacing.xs
   },
-  strategyChipRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.xs
-  },
-  strategyChip: {
-    borderColor: colors.border,
-    borderRadius: 999,
-    borderWidth: 1,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 8
-  },
-  strategyChipSelected: {
-    backgroundColor: colors.accentStrong,
-    borderColor: colors.accentStrong
-  },
-  strategyChipText: {
-    color: colors.textPrimary,
-    fontSize: 14,
-    fontWeight: "600"
-  },
-  strategyChipTextSelected: {
-    color: colors.surface
-  },
-  inputLabel: {
-    color: colors.accentStrong,
-    fontSize: 13,
-    fontWeight: "600",
-    textTransform: "uppercase"
-  },
-  input: {
-    backgroundColor: colors.background,
-    borderColor: colors.border,
-    borderRadius: 12,
-    borderWidth: 1,
-    color: colors.textPrimary,
-    fontSize: 17,
-    fontWeight: "600",
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm
-  },
-  closeButton: {
-    paddingVertical: spacing.xs
-  },
-  closeLabel: {
-    color: colors.accentStrong,
-    fontSize: 15,
-    fontWeight: "600"
+  strategyList: {
+    gap: 0
   },
   exerciseChoiceList: {
-    gap: spacing.sm
+    gap: spacing.sm,
+    paddingBottom: spacing.lg
   },
   exerciseList: {
     flex: 1
@@ -945,21 +823,8 @@ const styles = StyleSheet.create({
   detailsRow: {
     alignItems: "flex-start"
   },
-  detailsToggle: {
-    paddingVertical: 4
-  },
-  detailsToggleText: {
-    color: colors.accentStrong,
-    fontSize: 14,
-    fontWeight: "700"
-  },
-  detailsPanel: {
-    backgroundColor: colors.surfaceMuted,
-    borderColor: colors.border,
-    borderRadius: 12,
-    borderWidth: 1,
-    gap: spacing.sm,
-    padding: spacing.md
+  detailsCardContent: {
+    gap: spacing.sm
   },
   filterSection: {
     gap: spacing.xs
@@ -969,93 +834,10 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
     paddingVertical: 2
   },
-  filterRowLabel: {
-    color: colors.textSecondary,
-    fontSize: 13,
-    fontWeight: "700",
-    marginRight: spacing.xs,
-    textTransform: "uppercase"
-  },
-  filterChip: {
-    backgroundColor: colors.background,
-    borderColor: colors.border,
-    borderRadius: 999,
-    borderWidth: 1,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 6
-  },
-  filterChipSelected: {
-    backgroundColor: colors.accentMuted,
-    borderColor: colors.accentStrong
-  },
-  filterChipText: {
-    color: colors.textSecondary,
-    fontSize: 14,
-    fontWeight: "700",
-    textTransform: "capitalize"
-  },
-  filterChipTextSelected: {
-    color: colors.accentStrong
-  },
-  clearChip: {
-    backgroundColor: "transparent",
-    borderColor: colors.border,
-    borderRadius: 999,
-    borderWidth: 1,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 6
-  },
-  clearChipText: {
-    color: colors.textSecondary,
-    fontSize: 14,
-    fontWeight: "700"
-  },
-  exerciseChoice: {
-    alignItems: "center",
-    borderColor: colors.border,
-    borderRadius: 12,
-    borderWidth: 1,
-    flexDirection: "row",
-    gap: spacing.md,
-    justifyContent: "space-between",
-    padding: spacing.md
-  },
   selectedExerciseChoice: {
-    borderColor: colors.accentStrong,
-    borderWidth: 2
-  },
-  exerciseChoiceText: {
-    flex: 1,
-    gap: 4
-  },
-  exerciseName: {
-    color: colors.textPrimary,
-    fontSize: 17,
-    fontWeight: "600",
-    lineHeight: 22
-  },
-  exerciseMeta: {
-    color: colors.textSecondary,
-    fontSize: 14,
-    fontWeight: "600",
-    lineHeight: 20,
-    textTransform: "capitalize"
-  },
-  selectState: {
-    color: colors.textSecondary,
-    fontSize: 14,
-    fontWeight: "600"
-  },
-  selectedState: {
-    color: colors.accentStrong
-  },
-  configureCard: {
     backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderRadius: 12,
-    borderWidth: 1,
-    gap: spacing.sm,
-    padding: spacing.md
+    borderColor: colors.accentStrong,
+    borderLeftWidth: borderWidths.thick
   },
   configureScroll: {
     flex: 1
@@ -1064,11 +846,7 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     paddingBottom: spacing.lg
   },
-  configureTitle: {
-    color: colors.textPrimary,
-    fontSize: 18,
-    fontWeight: "700"
-  },
+  configureCardContent: { gap: spacing.sm },
   configureInputs: {
     gap: spacing.sm
   },
@@ -1076,10 +854,5 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: spacing.md,
     justifyContent: "space-between"
-  },
-  errorText: {
-    color: colors.danger,
-    fontSize: 14,
-    fontWeight: "600"
   }
 });

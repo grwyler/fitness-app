@@ -1,12 +1,14 @@
 import type { PropsWithChildren } from "react";
 import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
-import { borderWidths, colors, elevation, pressable, radius, spacing } from "../theme/tokens";
+import { colors, componentTokens, elevation, pressable, radius, spacing } from "../theme/tokens";
 
 type CardPadding = "none" | "sm" | "md" | "lg";
+export type CardVariant = "default" | "elevated" | "hero" | "interactive" | "muted" | "plain";
 
 type BaseProps = PropsWithChildren<{
   padding?: CardPadding;
   elevated?: boolean;
+  variant?: CardVariant;
   style?: StyleProp<ViewStyle>;
   contentStyle?: StyleProp<ViewStyle>;
 }>;
@@ -30,10 +32,27 @@ function resolvePadding(padding: CardPadding | undefined) {
   }
 }
 
-export function Card({ padding = "md", elevated = true, style, contentStyle, children, onPress, disabled }: PressableProps) {
+export function Card({
+  padding = "md",
+  elevated = true,
+  variant,
+  style,
+  contentStyle,
+  children,
+  onPress,
+  disabled
+}: PressableProps) {
+  const resolvedVariant: CardVariant = variant ?? (onPress ? "interactive" : elevated ? "elevated" : "default");
+
   const baseStyle = [
     styles.base,
-    elevated ? styles.elevated : null,
+    resolvedVariant === "default" || resolvedVariant === "muted" ? styles.bordered : null,
+    resolvedVariant === "default" ? styles.default : null,
+    resolvedVariant === "elevated" ? styles.elevated : null,
+    resolvedVariant === "hero" ? styles.hero : null,
+    resolvedVariant === "interactive" ? styles.interactive : null,
+    resolvedVariant === "muted" ? styles.muted : null,
+    resolvedVariant === "plain" ? styles.plain : null,
     { padding: resolvePadding(padding) },
     style
   ];
@@ -65,17 +84,41 @@ export function Card({ padding = "md", elevated = true, style, contentStyle, chi
 const styles = StyleSheet.create({
   base: {
     backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    borderWidth: borderWidths.hairline
+    borderRadius: componentTokens.card.borderRadius,
   },
-  elevated: elevation.sm,
+  bordered: {
+    borderColor: colors.border,
+    borderWidth: componentTokens.card.borderWidth
+  },
+  default: {
+    ...elevation.none
+  },
+  elevated: {
+    ...elevation.xs
+  },
+  hero: {
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: radius.lg,
+    ...elevation.md
+  },
+  interactive: {
+    ...elevation.xs
+  },
+  muted: {
+    backgroundColor: colors.surfaceMuted,
+    ...elevation.none
+  },
+  plain: {
+    backgroundColor: "transparent",
+    borderRadius: 0,
+    borderWidth: 0,
+    ...elevation.none
+  },
   pressed: {
     opacity: pressable.pressedOpacity,
-    transform: [{ scale: pressable.pressedScale }]
+    transform: [{ scale: pressable.pressedScaleSubtle }]
   },
   disabled: {
     opacity: pressable.disabledOpacity
   }
 });
-

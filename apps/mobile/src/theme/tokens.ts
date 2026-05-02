@@ -2,6 +2,7 @@ export const colors = {
   background: "#f6f7f9",
   surface: "#ffffff",
   surfaceMuted: "#f1f5f9",
+  surfaceSunken: "#e9eef5",
   surfaceElevated: "#ffffff",
   textPrimary: "#111827",
   textSecondary: "#667085",
@@ -10,6 +11,7 @@ export const colors = {
   accentMuted: "#eff6ff",
   accentStrong: "#2563eb",
   success: "#16794c",
+  warning: "#b45309",
   danger: "#b42318",
   border: "#e5e7eb",
   borderStrong: "#d0d5dd",
@@ -84,6 +86,13 @@ export const elevation = {
     shadowRadius: 0,
     shadowOffset: { width: 0, height: 0 }
   },
+  xs: {
+    elevation: 1,
+    shadowColor: colors.shadow,
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 }
+  },
   sm: {
     elevation: 2,
     shadowColor: colors.shadow,
@@ -117,5 +126,21 @@ export const motion = {
 export const pressable = {
   pressedOpacity: 0.92,
   pressedScale: 0.98,
+  pressedScaleSubtle: 0.992,
   disabledOpacity: 0.55
+} as const;
+
+export const componentTokens = {
+  card: {
+    borderRadius: radius.md,
+    borderWidth: borderWidths.hairline
+  },
+  button: {
+    radius: radius.md,
+    height: {
+      sm: 40,
+      md: 48,
+      lg: 56
+    }
+  }
 } as const;

@@ -11,9 +11,20 @@ type Props = PropsWithChildren<{
   headerRight?: ReactNode;
   maxWidth?: number;
   style?: StyleProp<ViewStyle>;
+  contentStyle?: StyleProp<ViewStyle>;
 }>;
 
-export function ModalSheet({ visible, title, subtitle, onClose, headerRight, maxWidth = 620, style, children }: Props) {
+export function ModalSheet({
+  visible,
+  title,
+  subtitle,
+  onClose,
+  headerRight,
+  maxWidth = 620,
+  style,
+  contentStyle,
+  children
+}: Props) {
   return (
     <Modal animationType="fade" transparent visible={visible} onRequestClose={onClose}>
       <Pressable accessibilityRole="button" onPress={onClose} style={styles.backdrop}>
@@ -35,7 +46,7 @@ export function ModalSheet({ visible, title, subtitle, onClose, headerRight, max
               {headerRight ? <View>{headerRight}</View> : null}
             </View>
           ) : null}
-          {children}
+          {contentStyle ? <View style={contentStyle}>{children}</View> : children}
         </Pressable>
       </Pressable>
     </Modal>

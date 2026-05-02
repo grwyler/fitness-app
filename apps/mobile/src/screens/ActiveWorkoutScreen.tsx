@@ -1,8 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { ExerciseEntryDto, RecoveryState, SetDto } from "@fitness/shared";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, View } from "react-native";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
+import { AppText } from "../components/AppText";
+import { Card } from "../components/Card";
+import { Chip } from "../components/Chip";
+import { EmptyState } from "../components/EmptyState";
 import { Screen } from "../components/Screen";
 import { LoadingState } from "../components/LoadingState";
 import { ErrorState } from "../components/ErrorState";
@@ -94,6 +98,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
   const [customExerciseError, setCustomExerciseError] = useState<string | null>(null);
   const [programDayWorkoutName, setProgramDayWorkoutName] = useState("");
   const [restTimer, setRestTimer] = useState<RestTimerState>(null);
+  const [recentlyLoggedSetId, setRecentlyLoggedSetId] = useState<string | null>(null);
   const [restTimerNowMs, setRestTimerNowMs] = useState(() => Date.now());
   const inFlightSetIds = useRef<Set<string>>(new Set());
   const completionInFlight = useRef(false);
@@ -123,6 +128,15 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
   const restSecondsRemaining = restTimer
     ? getRestTimerSecondsRemaining({ endAtMs: restTimer.endAtMs, nowMs: restTimerNowMs })
     : 0;
+
+  useEffect(() => {
+    if (!recentlyLoggedSetId) {
+      return;
+    }
+
+    const timeout = setTimeout(() => setRecentlyLoggedSetId(null), 1200);
+    return () => clearTimeout(timeout);
+  }, [recentlyLoggedSetId]);
 
   useEffect(() => {
     if (!restTimer) {
@@ -234,6 +248,12 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
   }
 
   const workout = activeWorkout;
+  const totalPlannedSets = workout.exercises.reduce((total, exercise) => total + exercise.sets.length, 0);
+  const loggedSetCount = workout.exercises.reduce(
+    (total, exercise) => total + exercise.sets.filter((set) => set.status !== "pending").length,
+    0
+  );
+  const remainingSetCount = Math.max(0, totalPlannedSets - loggedSetCount);
   const availableCustomExercises = (exercisesQuery.data ?? []).filter(
     (exercise) => !workout.exercises.some((entry) => entry.exerciseId === exercise.id)
   );
@@ -269,20 +289,22 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
   );
 
   const restTimerCard = restTimer ? (
-    <View style={styles.restTimerCard}>
+    <Card variant="hero" style={styles.restTimerCard} padding="sm">
       <View style={styles.restTimerTextGroup}>
-        <Text style={styles.restTimerLabel}>{restSecondsRemaining > 0 ? "Rest timer" : "Rest done"}</Text>
-        <Text style={styles.restTimerTitle}>
+        <AppText variant="sectionLabel" tone="inverse">
+          {restSecondsRemaining > 0 ? "Rest timer" : "Rest done"}
+        </AppText>
+        <AppText variant="meta" tone="inverse" style={styles.restTimerTitle}>
           {restTimer.exerciseName} after set {restTimer.setNumber}
-        </Text>
+        </AppText>
       </View>
       <View style={styles.restTimerValueGroup}>
-        <Text style={styles.restTimerValue}>{formatRestTimer(restSecondsRemaining)}</Text>
-        <Text style={styles.restTimerSkip} onPress={() => setRestTimer(null)}>
-          Skip
-        </Text>
+        <AppText variant="headline" tone="inverse" style={styles.restTimerValue}>
+          {formatRestTimer(restSecondsRemaining)}
+        </AppText>
+        <PrimaryButton label="Skip" onPress={() => setRestTimer(null)} variant="ghost" fullWidth={false} size="sm" />
       </View>
-    </View>
+    </Card>
   ) : null;
 
   function handleLogSet(exercise: ExerciseEntryDto, set: SetDto, draft: SetLogDraft) {
@@ -333,6 +355,9 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
         request
       },
       {
+        onSuccess: () => {
+          setRecentlyLoggedSetId(set.id);
+        },
         onSettled: () => {
           inFlightSetIds.current.delete(set.id);
           setSubmittingSetIds((current) => {
@@ -603,8 +628,8 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
   return (
     <Screen fixedFooter={restTimerCard} fixedFooterHeight={restTimer ? 92 : 0}>
       <View style={styles.header}>
-        <Text style={styles.title}>{workout.workoutName}</Text>
-        <Text style={styles.subtitle}>
+        <AppText variant="screenTitle">{workout.workoutName}</AppText>
+        <AppText tone="secondary">
           {isProgramDayCustomWorkoutBuilder && programDayNumber
             ? `Building custom workout for Program Day ${programDayNumber}`
             : workout.sessionType === "custom"
@@ -612,15 +637,28 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
               ? "Custom workout started."
               : `${workout.exercises.length} exercises in progress`
             : `${workout.exercises.length} exercises in ${workout.programName}`}
-        </Text>
+        </AppText>
+        {totalPlannedSets > 0 ? (
+          <View style={styles.headerStatsRow}>
+            <AppText variant="caption" tone={loggedSetCount > 0 ? "success" : "secondary"}>
+              {loggedSetCount}/{totalPlannedSets} logged
+            </AppText>
+            <AppText variant="caption" tone="tertiary">
+              /
+            </AppText>
+            <AppText variant="caption" tone={remainingSetCount === 0 ? "success" : "secondary"}>
+              {remainingSetCount} remaining
+            </AppText>
+          </View>
+        ) : null}
       </View>
 
       {workout.exercises.length === 0 ? (
         <View style={styles.emptyStateCard}>
-          <Text style={styles.emptyStateTitle}>No exercises yet</Text>
-          <Text style={styles.footerText}>
-            Add at least one exercise from your exercise list to start logging sets.
-          </Text>
+          <EmptyState
+            title="No exercises yet"
+            message="Add at least one exercise from your exercise list to start logging sets."
+          />
           <PrimaryButton
             label="Choose exercises"
             onPress={() => {
@@ -635,7 +673,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
           {workout.sessionType === "custom" ? (
             <PrimaryButton
               label="Add exercise"
-              tone="secondary"
+              variant="secondary"
               onPress={() => {
                 setCustomExerciseError(null);
                 setIsExercisePickerOpen(true);
@@ -654,6 +692,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
                 : {})}
               loggingSetId={logSetMutation.isPending ? logSetMutation.variables?.setId ?? null : null}
               editingSetId={editingSetId}
+              recentlyLoggedSetId={recentlyLoggedSetId}
               submittingSetIds={submittingSetIds}
               deletingSetIds={deletingSetIds}
               addingSet={
@@ -679,112 +718,113 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
 
       <View style={styles.footer}>
         {logSetMutation.isError ? (
-          <Text style={styles.errorText}>Set not saved. Check the values and try again.</Text>
+          <AppText variant="error">Set not saved. Check the values and try again.</AppText>
         ) : null}
         {updateLoggedSetMutation.isError ? (
-          <Text style={styles.errorText}>Set not updated. Check the values and try again.</Text>
+          <AppText variant="error">Set not updated. Check the values and try again.</AppText>
         ) : null}
         {addWorkoutSetMutation.isError ? (
-          <Text style={styles.errorText}>Set not added. Try again.</Text>
+          <AppText variant="error">Set not added. Try again.</AppText>
         ) : null}
         {deleteWorkoutSetMutation.isError ? (
-          <Text style={styles.errorText}>Set not removed. Only the last pending set can be removed.</Text>
+          <AppText variant="error">Set not removed. Only the last pending set can be removed.</AppText>
         ) : null}
         {addCustomWorkoutExerciseMutation.isError ? (
-          <Text style={styles.errorText}>Exercise not added. Check your connection and try again.</Text>
+          <AppText variant="error">Exercise not added. Check your connection and try again.</AppText>
         ) : null}
         {completeWorkoutMutation.isError ? (
-          <Text style={styles.errorText}>
+          <AppText variant="error">
             {getWorkoutCompletionErrorMessage(completeWorkoutMutation.error)}
-          </Text>
+          </AppText>
         ) : null}
         {cancelWorkoutMutation.isError ? (
-          <Text style={styles.errorText}>
+          <AppText variant="error">
             {getWorkoutDiscardErrorMessage(cancelWorkoutMutation.error)}
-          </Text>
+          </AppText>
         ) : null}
-        <Text style={styles.footerText}>
+        <AppText variant="caption" tone="secondary" style={styles.footerText}>
           {isProgramDayCustomWorkoutBuilder
             ? "Choose exercises for this program day, then return to your program."
             : completionUiState.footerMessage}
-        </Text>
+        </AppText>
         {!isProgramDayCustomWorkoutBuilder && !showDiscardConfirmation ? (
-          <View style={styles.recoveryCard}>
-            <Text style={styles.recoveryLabel}>Recovery</Text>
+          <Card variant="muted" style={styles.recoveryCard} padding="sm">
+            <AppText variant="sectionLabel" tone="secondary">
+              Recovery
+            </AppText>
             <View style={styles.recoveryPillRow}>
               {(["fresh", "normal", "fatigued", "exhausted"] as const).map((value) => {
                 const active = recoveryState === value;
                 const label = value === "fatigued" ? "Fatigued" : value === "exhausted" ? "Exhausted" : value === "fresh" ? "Fresh" : "Normal";
                 return (
-                  <Pressable
+                  <Chip
                     key={value}
-                    style={[styles.recoveryPill, active && styles.recoveryPillActive]}
+                    label={label}
+                    selected={active}
                     onPress={() => setRecoveryState(value)}
                     disabled={completeWorkoutMutation.isPending || cancelWorkoutMutation.isPending}
-                  >
-                    <Text style={[styles.recoveryPillText, active && styles.recoveryPillTextActive]}>{label}</Text>
-                  </Pressable>
+                  />
                 );
               })}
             </View>
-          </View>
+          </Card>
         ) : null}
         {!completionUiState.hasPendingSets && showMissingFeedbackHighlights && !completionUiState.hasCompleteFeedback ? (
-          <View style={styles.missingFeedbackCallout}>
-            <Text style={styles.missingFeedbackCalloutTitle}>Effort feedback needed</Text>
-            <Text style={styles.missingFeedbackCalloutBody}>
+          <Card variant="muted" style={styles.missingFeedbackCallout} padding="sm">
+            <AppText variant="cardTitle">Effort feedback needed</AppText>
+            <AppText tone="secondary">
               Rate effort for the highlighted exercises to finish this workout.
-            </Text>
-          </View>
+            </AppText>
+          </Card>
         ) : null}
         {!isProgramDayCustomWorkoutBuilder && showFinishEarlyConfirmation ? (
-          <View style={styles.confirmation}>
-            <Text style={styles.confirmationTitle}>Finish early?</Text>
-            <Text style={styles.footerText}>
+          <Card variant="elevated" style={styles.confirmation} padding="sm">
+            <AppText variant="cardTitle">Finish early?</AppText>
+            <AppText tone="secondary">
               You haven't completed all planned sets. Finish this workout anyway?
-            </Text>
+            </AppText>
             {showFinishEarlyFeedbackWarning ? (
-              <Text style={styles.footerText}>
+              <AppText tone="secondary">
                 Some completed exercises are missing effort feedback. Progression will be skipped for those exercises.
-              </Text>
+              </AppText>
             ) : null}
             <View style={styles.confirmationActions}>
               <PrimaryButton
                 label={showFinishEarlyFeedbackWarning ? "Go back and rate effort" : "Keep working out"}
-                tone="secondary"
+                variant="secondary"
                 onPress={() => setShowFinishEarlyConfirmation(false)}
                 disabled={completeWorkoutMutation.isPending}
               />
               <PrimaryButton
                 label="Finish anyway"
-                tone="danger"
+                variant="danger"
                 onPress={handleCompleteWorkout}
                 loading={completeWorkoutMutation.isPending}
               />
             </View>
-          </View>
+          </Card>
         ) : null}
         {showDiscardConfirmation ? (
-          <View style={styles.confirmation}>
-            <Text style={styles.confirmationTitle}>Discard workout?</Text>
-            <Text style={styles.footerText}>
+          <Card variant="elevated" style={styles.confirmation} padding="sm">
+            <AppText variant="cardTitle">Discard workout?</AppText>
+            <AppText tone="secondary">
               This workout will not be saved and your program will not advance.
-            </Text>
+            </AppText>
             <View style={styles.confirmationActions}>
               <PrimaryButton
                 label="Keep Workout"
-                tone="secondary"
+                variant="secondary"
                 onPress={() => setShowDiscardConfirmation(false)}
                 disabled={cancelWorkoutMutation.isPending}
               />
               <PrimaryButton
                 label="Discard"
-                tone="danger"
+                variant="danger"
                 onPress={handleDiscardWorkout}
                 loading={cancelWorkoutMutation.isPending}
               />
             </View>
-          </View>
+          </Card>
         ) : null}
         {!isProgramDayCustomWorkoutBuilder ? (
           <PrimaryButton
@@ -842,6 +882,12 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
 const styles = StyleSheet.create({
   header: {
     gap: spacing.xs
+  },
+  headerStatsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.xs,
+    marginTop: 2
   },
   title: {
     color: colors.textPrimary,
@@ -969,21 +1015,4 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: spacing.xs
   },
-  recoveryPill: {
-    backgroundColor: colors.surfaceMuted,
-    borderRadius: 999,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 8
-  },
-  recoveryPillActive: {
-    backgroundColor: colors.textPrimary
-  },
-  recoveryPillText: {
-    color: colors.textPrimary,
-    fontSize: 13,
-    fontWeight: "600"
-  },
-  recoveryPillTextActive: {
-    color: colors.surface
-  }
 });
