@@ -1,0 +1,56 @@
+name: Deploy Staging (Web) to Vercel
+
+on:
+  push:
+    branches:
+      - develop
+  workflow_dispatch:
+
+concurrency:
+  group: vercel-staging-web
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Staging preview deploy
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Pull Vercel environment (preview/develop)
+        run: npx vercel pull --yes --environment=preview --git-branch=develop --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Build Vercel output (preview)
+        run: npx vercel build --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Smoke check built web app
+        run: npm run smoke:mobile:web
+
+      - name: Deploy to preview (develop)
+        run: |
+          DEPLOYMENT_OUTPUT="$(npx vercel deploy --prebuilt --yes --token=${{ secrets.VERCEL_TOKEN }})"
+          DEPLOYMENT_URL="$(printf "%s\n" "$DEPLOYMENT_OUTPUT" | tail -n 1)"
+          echo "DEPLOYMENT_URL=$DEPLOYMENT_URL" >> "$GITHUB_ENV"
+          printf "%s\n" "$DEPLOYMENT_OUTPUT"
+
+      - name: Optional alias to stable staging domain
+        env:
+          STAGING_DOMAIN: ${{ vars.VERCEL_STAGING_DOMAIN }}
+        run: |
+          if [ -n "$STAGING_DOMAIN" ]; then
+            npx vercel alias set "$DEPLOYMENT_URL" "$STAGING_DOMAIN" --token=${{ secrets.VERCEL_TOKEN }}
+          fi

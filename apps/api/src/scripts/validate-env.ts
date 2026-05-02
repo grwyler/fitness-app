@@ -1,7 +1,15 @@
 import { EnvConfigError, getEnv } from "../config/env.js";
+import { detectDeploymentStage } from "../config/deployment-stage.js";
 
 function shouldValidateEnv() {
-  return process.env.VERCEL === "1" && process.env.VERCEL_ENV === "production";
+  const stage = detectDeploymentStage({
+    nodeEnv: process.env.NODE_ENV,
+    vercel: process.env.VERCEL,
+    vercelEnv: process.env.VERCEL_ENV,
+    vercelGitCommitRef: process.env.VERCEL_GIT_COMMIT_REF
+  });
+
+  return stage === "production" || stage === "staging";
 }
 
 if (!shouldValidateEnv()) {
@@ -21,4 +29,3 @@ try {
 
   process.exit(1);
 }
-

@@ -3,6 +3,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { config as loadDotEnv } from "dotenv";
 import { z } from "zod";
+import { detectDeploymentStage, type DeploymentStage } from "./deployment-stage.js";
 
 const currentFileDirectory = dirname(fileURLToPath(import.meta.url));
 const envCandidatePaths = [
@@ -60,6 +61,9 @@ const envSchema = z.object({
     .pipe(z.number().int().positive().optional())
     .transform((value) => value ?? 30),
   RESEND_API_KEY: trimmedOptionalString,
+  VERCEL: trimmedOptionalString,
+  VERCEL_ENV: trimmedOptionalString,
+  VERCEL_GIT_COMMIT_REF: trimmedOptionalString,
   USE_PGLITE_DEV: z
     .preprocess(
       (value) => (typeof value === "string" ? value.trim() : value),
@@ -79,10 +83,15 @@ export type AppEnv = z.infer<typeof envSchema> & {
 function getEnvHint() {
   const isVercel = process.env.VERCEL === "1";
   const vercelEnv = process.env.VERCEL_ENV;
+  const vercelBranch = process.env.VERCEL_GIT_COMMIT_REF;
 
   if (isVercel) {
     const scope = typeof vercelEnv === "string" && vercelEnv.length > 0 ? vercelEnv : "production";
-    return `Vercel detected (VERCEL_ENV=${scope}). Configure env vars in Vercel Project Settings -> Environment Variables -> ${scope}, then redeploy.`;
+    const branchHint =
+      scope === "preview" && typeof vercelBranch === "string" && vercelBranch.length > 0
+        ? ` (git branch: ${vercelBranch})`
+        : "";
+    return `Vercel detected (VERCEL_ENV=${scope})${branchHint}. Configure env vars in Vercel Project Settings -> Environment Variables -> ${scope} (and branch overrides when needed), then redeploy.`;
   }
 
   if (resolvedEnvPath) {
@@ -102,11 +111,16 @@ export class EnvConfigError extends Error {
     const isVercel = process.env.VERCEL === "1";
     const vercelEnv = process.env.VERCEL_ENV;
     const vercelScope = typeof vercelEnv === "string" && vercelEnv.length > 0 ? vercelEnv : "production";
+    const vercelBranch = process.env.VERCEL_GIT_COMMIT_REF;
+    const branchSuffix =
+      vercelScope === "preview" && typeof vercelBranch === "string" && vercelBranch.length > 0
+        ? ` (branch: ${vercelBranch})`
+        : "";
 
     const fixLines = isVercel
       ? [
           "Fix (Vercel):",
-          `- Project Settings -> Environment Variables -> ${vercelScope}`,
+          `- Project Settings -> Environment Variables -> ${vercelScope}${branchSuffix}`,
           "  - EMAIL_PROVIDER=resend",
           "  - RESEND_API_KEY=<your Resend API key>",
           "  - EMAIL_FROM=\"Your App <no-reply@your-domain.com>\"",
@@ -147,35 +161,47 @@ export function parseEnvFrom(values: Record<string, string | undefined>): AppEnv
   } else {
     const data = parsedEnv.data;
 
+    const stage: DeploymentStage = detectDeploymentStage({
+      nodeEnv: data.NODE_ENV,
+      vercel: data.VERCEL,
+      vercelEnv: data.VERCEL_ENV,
+      vercelGitCommitRef: data.VERCEL_GIT_COMMIT_REF
+    });
+
+    const requiresHostedDependencies = stage === "production" || stage === "staging";
+
     if (!data.USE_PGLITE_DEV && !data.DATABASE_URL) {
       problems.push("DATABASE_URL is required unless USE_PGLITE_DEV=true.");
     }
 
-    const nodeEnv = data.NODE_ENV;
-    const emailProvider = data.EMAIL_PROVIDER ?? (nodeEnv === "production" ? undefined : "console");
+    if (requiresHostedDependencies && data.USE_PGLITE_DEV) {
+      problems.push("USE_PGLITE_DEV must be false/unset in staging/production.");
+    }
+
+    const emailProvider = data.EMAIL_PROVIDER ?? (requiresHostedDependencies ? undefined : "console");
     const resolvedEmailProvider = emailProvider ?? "console";
 
-    if (nodeEnv === "production") {
+    if (requiresHostedDependencies) {
       if (!data.JWT_SECRET) {
-        problems.push("JWT_SECRET is required in production (min 32 characters).");
+        problems.push("JWT_SECRET is required in staging/production (min 32 characters).");
       }
 
       if (!emailProvider) {
-        problems.push("EMAIL_PROVIDER is required in production (set EMAIL_PROVIDER=resend).");
+        problems.push("EMAIL_PROVIDER is required in staging/production (set EMAIL_PROVIDER=resend).");
       } else if (resolvedEmailProvider !== "resend") {
-        problems.push("EMAIL_PROVIDER must be resend in production.");
+        problems.push("EMAIL_PROVIDER must be resend in staging/production.");
       }
 
       if (!data.RESEND_API_KEY) {
-        problems.push("RESEND_API_KEY is required in production (Resend).");
+        problems.push("RESEND_API_KEY is required in staging/production (Resend).");
       }
 
       if (!data.EMAIL_FROM) {
-        problems.push("EMAIL_FROM is required in production (Resend sender address).");
+        problems.push("EMAIL_FROM is required in staging/production (Resend sender address).");
       }
 
       if (!data.PASSWORD_RESET_LINK_BASE_URL) {
-        problems.push("PASSWORD_RESET_LINK_BASE_URL is required in production (password reset link base).");
+        problems.push("PASSWORD_RESET_LINK_BASE_URL is required in staging/production (password reset link base).");
       }
     }
 
@@ -209,6 +235,9 @@ export function parseEnvFromProcess(): AppEnv {
     PASSWORD_RESET_TOKEN_SECRET: process.env.PASSWORD_RESET_TOKEN_SECRET,
     PASSWORD_RESET_TOKEN_TTL_MINUTES: process.env.PASSWORD_RESET_TOKEN_TTL_MINUTES,
     RESEND_API_KEY: process.env.RESEND_API_KEY,
+    VERCEL: process.env.VERCEL,
+    VERCEL_ENV: process.env.VERCEL_ENV,
+    VERCEL_GIT_COMMIT_REF: process.env.VERCEL_GIT_COMMIT_REF,
     USE_PGLITE_DEV: process.env.USE_PGLITE_DEV
   });
 }

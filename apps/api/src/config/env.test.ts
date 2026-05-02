@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { EnvConfigError, parseEnvFrom, resetEnvForTests } from "./env.js";
 import type { ConfigTestCase } from "./test-helpers/config-test-case.js";
+import { detectDeploymentStage } from "./deployment-stage.js";
 
 function baseProductionEnv(overrides?: Record<string, string | undefined>) {
   return {
@@ -16,6 +17,34 @@ function baseProductionEnv(overrides?: Record<string, string | undefined>) {
 }
 
 export const envConfigTestCases: ConfigTestCase[] = [
+  {
+    name: "deploymentStage: vercel preview develop resolves to staging",
+    run: () => {
+      assert.equal(
+        detectDeploymentStage({
+          nodeEnv: "production",
+          vercel: "1",
+          vercelEnv: "preview",
+          vercelGitCommitRef: "develop"
+        }),
+        "staging"
+      );
+    }
+  },
+  {
+    name: "deploymentStage: vercel preview feature branch resolves to preview",
+    run: () => {
+      assert.equal(
+        detectDeploymentStage({
+          nodeEnv: "production",
+          vercel: "1",
+          vercelEnv: "preview",
+          vercelGitCommitRef: "feature-x"
+        }),
+        "preview"
+      );
+    }
+  },
   {
     name: "parseEnv: production with missing EMAIL_PROVIDER fails clearly",
     run: () => {
@@ -61,6 +90,40 @@ export const envConfigTestCases: ConfigTestCase[] = [
       });
       assert.equal(env.NODE_ENV, "development");
       assert.equal(env.EMAIL_PROVIDER, "console");
+    }
+  },
+  {
+    name: "parseEnv: vercel preview feature branch does not require resend secrets",
+    run: () => {
+      resetEnvForTests();
+      const env = parseEnvFrom({
+        VERCEL: "1",
+        VERCEL_ENV: "preview",
+        VERCEL_GIT_COMMIT_REF: "feature-x",
+        NODE_ENV: "production",
+        USE_PGLITE_DEV: "true"
+      });
+      assert.equal(env.EMAIL_PROVIDER, "console");
+    }
+  },
+  {
+    name: "parseEnv: vercel preview develop requires resend secrets (staging)",
+    run: () => {
+      resetEnvForTests();
+      try {
+        parseEnvFrom({
+          VERCEL: "1",
+          VERCEL_ENV: "preview",
+          VERCEL_GIT_COMMIT_REF: "develop",
+          NODE_ENV: "production",
+          USE_PGLITE_DEV: "false",
+          DATABASE_URL: "postgresql://user:pass@host/db?sslmode=require"
+        });
+        assert.fail("Expected parseEnvFrom to throw.");
+      } catch (error) {
+        assert.ok(error instanceof EnvConfigError);
+        assert.ok(error.problems.some((problem) => problem.toLowerCase().includes("jwt_secret")));
+      }
     }
   }
 ];

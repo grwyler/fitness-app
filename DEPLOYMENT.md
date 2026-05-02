@@ -156,6 +156,110 @@ The API workflow runs database migrations automatically during production deploy
 
 To roll back either deployment, use the Vercel dashboard to promote a previous production deployment for that project, or rerun the GitHub Actions workflow from a known-good commit. To manually redeploy the latest `main`, open the matching workflow in GitHub Actions and run `workflow_dispatch`.
 
+## Staging / test environment (develop branch)
+
+Goal:
+
+- keep `main` → production exactly as-is
+- add a persistent, safe staging environment on `develop`
+- prevent feature branches from accidentally using staging or production secrets
+
+This repo implements a CLI-first staging workflow using:
+
+- branch-specific Preview environment variables for `develop`
+- GitHub Actions deployments on pushes to `develop`
+- optional stable staging domains via `vercel alias set`
+
+### Branch strategy
+
+- `feature/*` → PR into `develop`
+- `develop` → automatic Vercel **Preview** deploy (staging)
+- `main` → existing Vercel **Production** deploy
+
+### Safety model for environment variables
+
+Recommended pattern (API):
+
+- Default Preview env vars (applies to all non-production branches):
+  - `USE_PGLITE_DEV=true`
+  - `EMAIL_PROVIDER=console`
+  - (do not set `DATABASE_URL`, `JWT_SECRET`, or email provider secrets here)
+- Branch-specific Preview env vars for `develop`:
+  - `USE_PGLITE_DEV=false`
+  - set real staging `DATABASE_URL`, `JWT_SECRET`, and email provider secrets
+
+This way:
+
+- feature branches can deploy Preview builds without a hosted database
+- only `develop` gets access to staging secrets
+
+### Local setup (CLI-first)
+
+1. Install Vercel CLI and authenticate:
+
+```powershell
+npm i -g vercel
+vercel login
+```
+
+2. Create `.env.vercel.local` (ignored):
+
+- copy `.env.vercel.local.example` → `.env.vercel.local`
+- fill in `VERCEL_WEB_PROJECT_ID` and `VERCEL_API_PROJECT_ID`
+- optionally set `VERCEL_SCOPE` and staging domains
+
+3. Run the staging setup helper:
+
+```powershell
+npm run vercel:staging:setup
+```
+
+4. Create local ignored staging env files:
+
+- `.env.web.staging` (copy from `.env.web.staging.example`)
+- `.env.api.staging` (copy from `.env.api.staging.example`)
+
+5. Push branch-specific Preview env vars for `develop`:
+
+```powershell
+npm run vercel:staging:env:push
+npm run vercel:staging:env:check
+```
+
+6. Validate the API build under the same env vars Vercel will use for `develop`:
+
+```powershell
+npm run vercel:staging:validate
+```
+
+### Automatic staging deploys
+
+Pushes to `develop` deploy staging via:
+
+- [`.github/workflows/vercel-staging.yml`](C:\Users\Grwyl\repos\fitness-app\.github\workflows\vercel-staging.yml)
+- [`.github/workflows/vercel-api-staging.yml`](C:\Users\Grwyl\repos\fitness-app\.github\workflows\vercel-api-staging.yml)
+
+Both use:
+
+- `vercel pull --environment=preview --git-branch=develop`
+- `vercel build`
+- `vercel deploy --prebuilt` (Preview)
+
+### Stable staging/test domains
+
+Vercel supports assigning a domain to a Git branch via the dashboard or REST API, but those branch-domain associations are automatically applied when using the Git Integration. If you deploy from GitHub Actions using the CLI (as in this repo), the reliable approach is to alias the newly created deployment with:
+
+```text
+vercel alias set <deployment-url> <custom-domain>
+```
+
+The staging workflows support this if you set GitHub repository variables:
+
+- `VERCEL_STAGING_DOMAIN` (web)
+- `VERCEL_API_STAGING_DOMAIN` (api)
+
+The domain itself still requires DNS ownership/verification in Vercel (this is inherently external to git).
+
 ## Applying production migrations
 
 If you see production 500s with a `Failed query:` log (often caused by missing columns after a deploy), apply the SQL migrations in `packages/db/migrations` to your production database before redeploying.
