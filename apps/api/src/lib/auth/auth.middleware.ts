@@ -18,14 +18,16 @@ export function createAuthenticateRequestMiddleware(dependencies?: {
   return (request, _response, next) => {
     const authorizationHeader = request.header("authorization");
     const token = extractBearerToken(authorizationHeader);
+    const requestId = (request as { requestId?: string }).requestId;
     const diagnosticContext = {
       authorizationHeaderPresent: Boolean(authorizationHeader),
-      bearerTokenPresent: Boolean(token)
+      bearerTokenPresent: Boolean(token),
+      requestId
     };
 
     if (!token) {
       authLogger.warn("API auth rejected request without bearer token", diagnosticContext);
-      next(new AppError(401, "UNAUTHENTICATED", "Authentication is required."));
+      next(new AppError(401, "UNAUTHENTICATED", "Missing bearer token."));
       return;
     }
 
@@ -42,7 +44,7 @@ export function createAuthenticateRequestMiddleware(dependencies?: {
         verificationErrorMessage: error instanceof Error ? error.message : "Unknown auth verification error.",
         verificationErrorName: error instanceof Error ? error.name : "UnknownError"
       });
-      next(new AppError(401, "UNAUTHENTICATED", "Authentication is required."));
+      next(new AppError(401, "UNAUTHENTICATED", "Invalid bearer token."));
     }
   };
 }
