@@ -15,7 +15,7 @@ type Props = PropsWithChildren<{
 }>;
 
 export function Chip({ label, selected, variant, disabled, onPress, style, children }: Props) {
-  const resolvedVariant: ChipVariant = variant ?? (selected ? "selected" : "default");
+  const resolvedVariant: ChipVariant = selected ? "selected" : (variant ?? "default");
 
   const content = (
     <View style={styles.row}>
