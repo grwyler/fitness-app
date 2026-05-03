@@ -1,10 +1,8 @@
-import { spawnSync } from "node:child_process";
 import {
-  commandExists,
   getRepoRootFromScriptUrl,
   parseArgs,
   readLocalVercelConfig,
-  requireNonEmpty,
+  spawnVercelSync,
   resolveProjectConfig
 } from "./_lib.mjs";
 
@@ -38,7 +36,8 @@ function main() {
     usageAndExit();
   }
 
-  if (!commandExists("vercel")) {
+  const vercelProbe = spawnVercelSync(["--version"], { stdio: "ignore" });
+  if (vercelProbe.error) {
     throw new Error("Vercel CLI not found. Install it with `npm i -g vercel` and run `vercel login`.");
   }
 
@@ -46,16 +45,8 @@ function main() {
   const localVercel = readLocalVercelConfig(repoRoot);
   const scope = process.env.VERCEL_SCOPE ?? localVercel.VERCEL_SCOPE;
   const token = process.env.VERCEL_TOKEN ?? localVercel.VERCEL_TOKEN;
-  const webProjectId = process.env.VERCEL_WEB_PROJECT_ID ?? localVercel.VERCEL_WEB_PROJECT_ID;
-  const apiProjectId = process.env.VERCEL_API_PROJECT_ID ?? localVercel.VERCEL_API_PROJECT_ID;
-  const projectId = project === "api" ? apiProjectId : webProjectId;
-  const resolvedProjectId = requireNonEmpty(
-    project === "api" ? "VERCEL_API_PROJECT_ID" : "VERCEL_WEB_PROJECT_ID",
-    projectId
-  );
 
-  const result = spawnSync(
-    "vercel",
+  const result = spawnVercelSync(
     [
       "env",
       "pull",
@@ -66,11 +57,9 @@ function main() {
       "--git-branch",
       branch,
       ...(scope ? ["--scope", scope] : []),
-      ...(token ? ["--token", token] : []),
-      "--project",
-      resolvedProjectId
+      ...(token ? ["--token", token] : [])
     ],
-    { encoding: "utf8", stdio: "inherit", cwd: projectConfig.cwd, env: { ...process.env, VERCEL_PROJECT_ID: resolvedProjectId } }
+    { encoding: "utf8", stdio: "inherit", cwd: projectConfig.cwd, env: { ...process.env } }
   );
 
   if (result.status !== 0) {
@@ -79,4 +68,3 @@ function main() {
 }
 
 main();
-

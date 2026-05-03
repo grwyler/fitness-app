@@ -1,16 +1,16 @@
-import { spawnSync } from "node:child_process";
 import {
-  commandExists,
   getRepoRootFromScriptUrl,
   parseArgs,
   readLocalVercelConfig,
-  requireNonEmpty
+  spawnVercelSync,
+  resolveProjectConfig
 } from "./_lib.mjs";
 
 const requiredByProject = {
   api: [
     "DATABASE_URL",
     "JWT_SECRET",
+    "CORS_ALLOWED_ORIGINS",
     "EMAIL_PROVIDER",
     "RESEND_API_KEY",
     "EMAIL_FROM",
@@ -61,38 +61,33 @@ function main() {
   const branch = typeof args.branch === "string" ? args.branch : "develop";
   const environment = typeof args.env === "string" ? args.env : "preview";
 
-  if (!commandExists("vercel")) {
+  const vercelProbe = spawnVercelSync(["--version"], { stdio: "ignore" });
+  if (vercelProbe.error) {
     throw new Error("Vercel CLI not found. Install it with `npm i -g vercel` and run `vercel login`.");
   }
 
   const localVercel = readLocalVercelConfig(repoRoot);
   const scope = process.env.VERCEL_SCOPE ?? localVercel.VERCEL_SCOPE;
   const token = process.env.VERCEL_TOKEN ?? localVercel.VERCEL_TOKEN;
-  const webProjectId = process.env.VERCEL_WEB_PROJECT_ID ?? localVercel.VERCEL_WEB_PROJECT_ID;
-  const apiProjectId = process.env.VERCEL_API_PROJECT_ID ?? localVercel.VERCEL_API_PROJECT_ID;
-  const projectId = project === "api" ? apiProjectId : webProjectId;
-  const resolvedProjectId = requireNonEmpty(
-    project === "api" ? "VERCEL_API_PROJECT_ID" : "VERCEL_WEB_PROJECT_ID",
-    projectId
-  );
+  const projectConfig = resolveProjectConfig({ repoRoot, project });
 
-  const result = spawnSync(
-    "vercel",
+  const result = spawnVercelSync(
     [
       "env",
       "ls",
       environment,
       branch,
       ...(scope ? ["--scope", scope] : []),
-      ...(token ? ["--token", token] : []),
-      "--project",
-      resolvedProjectId
+      ...(token ? ["--token", token] : [])
     ],
-    { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"], env: { ...process.env, VERCEL_PROJECT_ID: resolvedProjectId } }
+    { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], cwd: projectConfig.cwd, env: { ...process.env } }
   );
 
   if (result.status !== 0) {
-    throw new Error("Failed to list Vercel env vars.");
+    const stderr = (result.stderr ?? "").trim();
+    const stdout = (result.stdout ?? "").trim();
+    const extra = [stdout && `stdout: ${stdout}`, stderr && `stderr: ${stderr}`].filter(Boolean).join("\n");
+    throw new Error(`Failed to list Vercel env vars.${extra ? `\n${extra}` : ""}`);
   }
 
   const keys = parseEnvLsOutput(result.stdout ?? "");

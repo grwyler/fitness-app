@@ -1,6 +1,5 @@
-import { spawnSync } from "node:child_process";
+import { spawnVercelSync } from "./_lib.mjs";
 import {
-  commandExists,
   getRepoRootFromScriptUrl,
   looksSensitiveKey,
   parseArgs,
@@ -38,7 +37,8 @@ function main() {
   const branch = typeof args.branch === "string" ? args.branch : "develop";
   const environment = typeof args.env === "string" ? args.env : "preview";
 
-  if (!commandExists("vercel")) {
+  const vercelProbe = spawnVercelSync(["--version"], { stdio: "ignore" });
+  if (vercelProbe.error) {
     throw new Error("Vercel CLI not found. Install it with `npm i -g vercel` and run `vercel login`.");
   }
 
@@ -49,20 +49,10 @@ function main() {
   const localVercel = readLocalVercelConfig(repoRoot);
   const scope = process.env.VERCEL_SCOPE ?? localVercel.VERCEL_SCOPE;
   const token = process.env.VERCEL_TOKEN ?? localVercel.VERCEL_TOKEN;
-  const webProjectId = process.env.VERCEL_WEB_PROJECT_ID ?? localVercel.VERCEL_WEB_PROJECT_ID;
-  const apiProjectId = process.env.VERCEL_API_PROJECT_ID ?? localVercel.VERCEL_API_PROJECT_ID;
-  const projectId = project === "api" ? apiProjectId : webProjectId;
-
-  const resolvedProjectId = requireNonEmpty(
-    project === "api" ? "VERCEL_API_PROJECT_ID" : "VERCEL_WEB_PROJECT_ID",
-    projectId
-  );
 
   const globalArgs = [
     ...(scope ? ["--scope", scope] : []),
-    ...(token ? ["--token", token] : []),
-    "--project",
-    resolvedProjectId
+    ...(token ? ["--token", token] : [])
   ];
 
   const keys = Object.keys(envVars).sort();
@@ -82,22 +72,24 @@ function main() {
     const updateArgs = ["env", "update", key, environment, branch, "--yes", ...sensitiveArgs, ...globalArgs];
     const addArgs = ["env", "add", key, environment, branch, ...sensitiveArgs, ...globalArgs];
 
-    const updateResult = spawnSync("vercel", updateArgs, {
+    const updateResult = spawnVercelSync(updateArgs, {
       input: `${value}\n`,
       encoding: "utf8",
       stdio: ["pipe", "inherit", "inherit"],
-      env: { ...process.env, VERCEL_PROJECT_ID: resolvedProjectId }
+      cwd: projectConfig.cwd,
+      env: { ...process.env }
     });
 
     if (updateResult.status === 0) {
       continue;
     }
 
-    const addResult = spawnSync("vercel", addArgs, {
+    const addResult = spawnVercelSync(addArgs, {
       input: `${value}\n`,
       encoding: "utf8",
       stdio: ["pipe", "inherit", "inherit"],
-      env: { ...process.env, VERCEL_PROJECT_ID: resolvedProjectId }
+      cwd: projectConfig.cwd,
+      env: { ...process.env }
     });
 
     if (addResult.status !== 0) {

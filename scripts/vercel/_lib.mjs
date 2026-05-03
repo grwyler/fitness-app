@@ -13,6 +13,60 @@ export function commandExists(command) {
   return result.status === 0;
 }
 
+let cachedVercelCli = null;
+export function resolveVercelCli() {
+  if (cachedVercelCli) {
+    return cachedVercelCli;
+  }
+
+  if (!isWindows()) {
+    cachedVercelCli = { command: "vercel", argsPrefix: [] };
+    return cachedVercelCli;
+  }
+
+  // Prefer vercel.cmd for Node spawnSync on Windows.
+  const cmdLookup = spawnSync("where", ["vercel.cmd"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+  if (cmdLookup.status === 0) {
+    const first = (cmdLookup.stdout ?? "").split(/\r?\n/).find(Boolean);
+    if (first) {
+      const resolved = first.trim();
+      // .cmd is not directly executable via CreateProcess; use cmd.exe wrapper.
+      cachedVercelCli = { command: "cmd.exe", argsPrefix: ["/d", "/s", "/c", resolved] };
+      return cachedVercelCli;
+    }
+  }
+
+  // Fallback: PowerShell shim (vercel.ps1) is common for global installs.
+  const lookup = spawnSync("where", ["vercel"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+  if (lookup.status === 0) {
+    const first = (lookup.stdout ?? "").split(/\r?\n/).find(Boolean);
+    if (first) {
+      const resolved = first.trim();
+      if (/\.ps1$/i.test(resolved)) {
+        cachedVercelCli = {
+          command: "powershell",
+          argsPrefix: ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", resolved]
+        };
+        return cachedVercelCli;
+      }
+      if (/\.cmd$/i.test(resolved) || /\.bat$/i.test(resolved)) {
+        cachedVercelCli = { command: "cmd.exe", argsPrefix: ["/d", "/s", "/c", resolved] };
+        return cachedVercelCli;
+      }
+      cachedVercelCli = { command: resolved, argsPrefix: [] };
+      return cachedVercelCli;
+    }
+  }
+
+  cachedVercelCli = { command: "vercel", argsPrefix: [] };
+  return cachedVercelCli;
+}
+
+export function spawnVercelSync(args, options = {}) {
+  const { command, argsPrefix } = resolveVercelCli();
+  return spawnSync(command, [...argsPrefix, ...args], options);
+}
+
 export function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
     encoding: "utf8",
@@ -126,8 +180,8 @@ export function resolveProjectConfig({ repoRoot, project }) {
   if (project === "api") {
     return {
       label: "api",
-      cwd: repoRoot,
-      localConfig: resolve(repoRoot, "vercel.api.json"),
+      cwd: resolve(repoRoot, "apps", "api"),
+      localConfig: resolve(repoRoot, "apps", "api", "vercel.json"),
       envFile: resolve(repoRoot, ".env.api.staging")
     };
   }
@@ -135,8 +189,8 @@ export function resolveProjectConfig({ repoRoot, project }) {
   if (project === "web") {
     return {
       label: "web",
-      cwd: repoRoot,
-      localConfig: resolve(repoRoot, "vercel.json"),
+      cwd: resolve(repoRoot, "apps", "mobile"),
+      localConfig: resolve(repoRoot, "apps", "mobile", "vercel.json"),
       envFile: resolve(repoRoot, ".env.web.staging")
     };
   }

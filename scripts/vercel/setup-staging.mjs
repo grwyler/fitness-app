@@ -49,15 +49,23 @@ async function main() {
 
   const webLinked = existsSync(resolve(repoRoot, ".vercel", "project.json"));
   const apiLinked = existsSync(resolve(repoRoot, "apps", "api", ".vercel", "project.json"));
+  const mobileLinked = existsSync(resolve(repoRoot, "apps", "mobile", ".vercel", "project.json"));
 
   console.log("Vercel CLI project linking:");
   console.log(`- web linked (repo root): ${webLinked ? "yes" : "no"}`);
+  console.log(`- web linked (apps/mobile): ${mobileLinked ? "yes" : "no"}`);
   console.log(`- api linked (apps/api): ${apiLinked ? "yes" : "no"}`);
 
   if (webLinked) {
     const linked = readLinkedProjectJson(resolve(repoRoot, ".vercel", "project.json"));
     if (linked?.projectId) {
       console.log(`- web linked projectId: ${linked.projectId}`);
+    }
+  }
+  if (mobileLinked) {
+    const linked = readLinkedProjectJson(resolve(repoRoot, "apps", "mobile", ".vercel", "project.json"));
+    if (linked?.projectId) {
+      console.log(`- mobile linked projectId: ${linked.projectId}`);
     }
   }
   if (apiLinked) {

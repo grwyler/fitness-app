@@ -260,6 +260,22 @@ The staging workflows support this if you set GitHub repository variables:
 
 The domain itself still requires DNS ownership/verification in Vercel (this is inherently external to git).
 
+### If staging returns 401 before the app loads (Vercel Authentication)
+
+If `https://<your-staging>.vercel.app/` returns `401 Unauthorized` with an `Authentication Required` HTML page, that is Vercel Deployment Protection (Vercel Authentication) happening *before* your app code runs.
+
+To make staging publicly accessible for testers, disable Vercel Authentication on the **web** and **api** projects:
+
+```powershell
+# Web (mobile) project
+'{"ssoProtection":null}' | vercel api /v9/projects/prj_PpeS1JVS7wa0rtqAGmgFnlrZQs0r -X PATCH --input -
+
+# API project
+'{"ssoProtection":null}' | vercel api /v9/projects/prj_92QxggggUr2anFDyzzR0gnzM2vcF -X PATCH --input -
+```
+
+If you prefer staging to remain protected, use a Deployment Protection bypass secret for automation and add the documented headers to smoke/E2E requests instead of making staging public.
+
 ## Applying production migrations
 
 If you see production 500s with a `Failed query:` log (often caused by missing columns after a deploy), apply the SQL migrations in `packages/db/migrations` to your production database before redeploying.

@@ -3,6 +3,9 @@ dist/
 .expo/
 .turbo/
 .vercel/
+.vercel
+**/.vercel/
+**/.vercel/.env.*
 .npm-cache/
 .DS_Store
 coverage/
@@ -15,5 +18,3 @@ coverage/
 .env.web.staging
 .env.vercel.local
 
-
-.vercel

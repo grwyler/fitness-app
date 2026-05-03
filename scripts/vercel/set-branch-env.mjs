@@ -1,7 +1,6 @@
-import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import {
-  commandExists,
+  spawnVercelSync,
   getRepoRootFromScriptUrl,
   looksSensitiveKey,
   parseArgs,
@@ -38,12 +37,13 @@ function normalizeVarSpec(spec) {
   return { key, value };
 }
 
-function spawnVercelWithInput({ args, value, extraEnv }) {
-  const child = spawnSync("vercel", args, {
+function spawnVercelWithInput({ args, value, extraEnv, cwd }) {
+  const child = spawnVercelSync(args, {
     input: `${value}\n`,
     encoding: "utf8",
     stdio: ["pipe", "inherit", "inherit"],
-    env: { ...process.env, ...(extraEnv ?? {}) }
+    env: { ...process.env, ...(extraEnv ?? {}) },
+    cwd
   });
 
   return child;
@@ -69,7 +69,8 @@ function main() {
 
   const readFromStdin = Boolean(args["value-from-stdin"]);
 
-  if (!commandExists("vercel")) {
+  const vercelProbe = spawnVercelSync(["--version"], { stdio: "ignore" });
+  if (vercelProbe.error) {
     throw new Error("Vercel CLI not found. Install it with `npm i -g vercel` and run `vercel login`.");
   }
 
@@ -78,18 +79,8 @@ function main() {
 
   const scope = process.env.VERCEL_SCOPE ?? localVercel.VERCEL_SCOPE;
   const token = process.env.VERCEL_TOKEN ?? localVercel.VERCEL_TOKEN;
-  const webProjectId = process.env.VERCEL_WEB_PROJECT_ID ?? localVercel.VERCEL_WEB_PROJECT_ID;
-  const apiProjectId = process.env.VERCEL_API_PROJECT_ID ?? localVercel.VERCEL_API_PROJECT_ID;
-
-  const projectId = project === "api" ? apiProjectId : webProjectId;
-  const resolvedProjectId = requireNonEmpty(
-    project === "api" ? "VERCEL_API_PROJECT_ID" : "VERCEL_WEB_PROJECT_ID",
-    projectId
-  );
-
   const extraEnv = {
-    ...(token ? { VERCEL_TOKEN: token } : {}),
-    VERCEL_PROJECT_ID: resolvedProjectId
+    ...(token ? { VERCEL_TOKEN: token } : {})
   };
 
   /** @type {Array<{key: string, value: string | null}>} */
@@ -119,9 +110,7 @@ function main() {
 
     const globalArgs = [
       ...(scope ? ["--scope", scope] : []),
-      ...(token ? ["--token", token] : []),
-      "--project",
-      resolvedProjectId
+      ...(token ? ["--token", token] : [])
     ];
 
     const sensitiveArgs = looksSensitiveKey(key) ? ["--sensitive"] : [];
@@ -129,12 +118,22 @@ function main() {
     const updateArgs = ["env", "update", key, environment, branch, "--yes", ...sensitiveArgs, ...globalArgs];
     const addArgs = ["env", "add", key, environment, branch, ...sensitiveArgs, ...globalArgs];
 
-    const updateResult = spawnVercelWithInput({ args: updateArgs, value: resolvedValue, extraEnv });
+    const updateResult = spawnVercelWithInput({
+      args: updateArgs,
+      value: resolvedValue,
+      extraEnv: { ...extraEnv },
+      cwd: projectConfig.cwd
+    });
     if (updateResult.status === 0) {
       continue;
     }
 
-    const addResult = spawnVercelWithInput({ args: addArgs, value: resolvedValue, extraEnv });
+    const addResult = spawnVercelWithInput({
+      args: addArgs,
+      value: resolvedValue,
+      extraEnv: { ...extraEnv },
+      cwd: projectConfig.cwd
+    });
     if (addResult.status !== 0) {
       throw new Error(`Failed to add/update ${key} for ${projectConfig.label} (${environment}/${branch}).`);
     }

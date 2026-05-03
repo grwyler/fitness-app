@@ -27,6 +27,8 @@
     "vercel:staging:env:pull:web": "node scripts/vercel/pull-staging-env.mjs --project web --out .vercel/.env.web.preview.develop.local",
     "vercel:staging:env:pull": "npm run vercel:staging:env:pull:api && npm run vercel:staging:env:pull:web",
     "vercel:staging:validate": "node scripts/vercel/validate-staging.mjs",
+    "vercel:staging:disable-auth": "node scripts/vercel/disable-vercel-auth.mjs",
+    "vercel:staging:smoke": "node scripts/vercel/smoke-staging.mjs --web-url https://setwisefit-test.vercel.app/",
     "vercel:staging:deploy": "node scripts/vercel/deploy-staging.mjs --all",
     "github:protect-branches": "node scripts/github/protect-branches.mjs",
     "typecheck": "tsc -b --pretty false",

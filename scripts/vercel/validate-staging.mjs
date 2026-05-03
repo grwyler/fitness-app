@@ -1,10 +1,10 @@
-import { spawnSync } from "node:child_process";
 import {
   commandExists,
   getRepoRootFromScriptUrl,
   parseArgs,
   readLocalVercelConfig,
-  requireNonEmpty
+  spawnVercelSync,
+  resolveProjectConfig
 } from "./_lib.mjs";
 
 function main() {
@@ -14,18 +14,26 @@ function main() {
   const branch = typeof args.branch === "string" ? args.branch : "develop";
   const environment = typeof args.env === "string" ? args.env : "preview";
 
-  if (!commandExists("vercel")) {
+  const vercelProbe = spawnVercelSync(["--version"], { stdio: "ignore" });
+  if (vercelProbe.error) {
     throw new Error("Vercel CLI not found. Install it with `npm i -g vercel` and run `vercel login`.");
   }
 
   const localVercel = readLocalVercelConfig(repoRoot);
   const scope = process.env.VERCEL_SCOPE ?? localVercel.VERCEL_SCOPE;
   const token = process.env.VERCEL_TOKEN ?? localVercel.VERCEL_TOKEN;
-  const apiProjectId = process.env.VERCEL_API_PROJECT_ID ?? localVercel.VERCEL_API_PROJECT_ID;
-  const resolvedProjectId = requireNonEmpty("VERCEL_API_PROJECT_ID", apiProjectId);
+  const apiProject = resolveProjectConfig({ repoRoot, project: "api" });
 
-  const result = spawnSync(
-    "vercel",
+  const bootstrap = [
+    "process.env.VERCEL='1';",
+    `process.env.VERCEL_ENV=${JSON.stringify(environment)};`,
+    `process.env.VERCEL_GIT_COMMIT_REF=${JSON.stringify(branch)};`,
+    "const { spawnSync } = require('child_process');",
+    "const r = spawnSync('npm', ['run','build:vercel'], { stdio: 'inherit', shell: true });",
+    "process.exit(typeof r.status === 'number' ? r.status : 1);"
+  ].join("");
+
+  const result = spawnVercelSync(
     [
       "env",
       "run",
@@ -35,14 +43,12 @@ function main() {
       branch,
       ...(scope ? ["--scope", scope] : []),
       ...(token ? ["--token", token] : []),
-      "--project",
-      resolvedProjectId,
       "--",
-      "npm",
-      "run",
-      "build:api:vercel"
+      "node",
+      "-e",
+      bootstrap
     ],
-    { encoding: "utf8", stdio: "inherit", cwd: repoRoot, env: { ...process.env, VERCEL_PROJECT_ID: resolvedProjectId } }
+    { encoding: "utf8", stdio: "inherit", cwd: apiProject.cwd, env: { ...process.env } }
   );
 
   if (result.status !== 0) {
@@ -51,4 +57,3 @@ function main() {
 }
 
 main();
-
