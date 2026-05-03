@@ -41,6 +41,7 @@ export type RootStackParamList = {
   };
   AdminDashboard: undefined;
   AdminFeedback: undefined;
+  AdminUsers: undefined;
   TrainingProfile: undefined;
   ProgressionPreferences: undefined;
   EquipmentSettings: undefined;

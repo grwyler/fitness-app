@@ -1,12 +1,12 @@
 import { Router } from "express";
 import { z } from "zod";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { feedbackEntries, users } from "@fitness/db";
 import { success } from "../../lib/http/envelope.js";
 import { AppError } from "../../lib/http/errors.js";
 import { requireAdmin } from "../../lib/auth/require-admin.middleware.js";
 import { desc } from "../workout/infrastructure/db/drizzle-helpers.js";
-import { asyncHandler, validateBody, validateParams } from "../workout/http/workout.http-utils.js";
+import { asyncHandler, validateBody, validateParams, validateQuery } from "../workout/http/workout.http-utils.js";
 import {
   exerciseEntries,
   idempotencyRecords,
@@ -20,7 +20,6 @@ import {
   workoutTemplateExerciseEntries,
   workoutTemplates
 } from "@fitness/db";
-import { and } from "drizzle-orm";
 import { hashPassword } from "../../lib/auth/password.js";
 
 const feedbackEntryPatchSchema = z
@@ -58,6 +57,88 @@ const testToolEmailSchema = z.object({
 });
 
 const ALLOWED_TEST_TOOL_EMAILS = new Set(["test@test.com"]);
+
+function parseOptionalString(value: unknown): string | undefined {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  }
+
+  if (Array.isArray(value) && typeof value[0] === "string") {
+    const trimmed = value[0].trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  }
+
+  return undefined;
+}
+
+function parseOptionalNumber(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  const raw = parseOptionalString(value);
+  if (!raw) {
+    return undefined;
+  }
+
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed)) {
+    return undefined;
+  }
+
+  return parsed;
+}
+
+const adminUsersQuerySchema = z
+  .object({
+    limit: z.any().optional(),
+    offset: z.any().optional(),
+    search: z.any().optional(),
+    role: z.any().optional()
+  })
+  .transform((input) => {
+    const limit = parseOptionalNumber(input.limit) ?? 50;
+    const offset = parseOptionalNumber(input.offset) ?? 0;
+    const search = parseOptionalString(input.search);
+    const role = parseOptionalString(input.role);
+
+    return {
+      limit,
+      offset,
+      search,
+      role
+    };
+  })
+  .superRefine((value, ctx) => {
+    if (!Number.isInteger(value.limit) || value.limit < 1 || value.limit > 200) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "limit must be an integer between 1 and 200."
+      });
+    }
+
+    if (!Number.isInteger(value.offset) || value.offset < 0 || value.offset > 100_000) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "offset must be an integer between 0 and 100000."
+      });
+    }
+
+    if (value.search && value.search.length > 254) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "search must be 254 characters or fewer."
+      });
+    }
+
+    if (value.role && value.role !== "user" && value.role !== "admin") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "role must be 'user' or 'admin'."
+      });
+    }
+  });
 
 async function selectIds<TId extends string>(rows: Array<{ id: TId }>): Promise<TId[]> {
   return rows.map((row) => row.id);
@@ -171,6 +252,98 @@ export function createAdminRouter(database: DatabaseLike) {
   const router = Router();
 
   router.use("/admin", requireAdmin());
+
+  function toIsoString(value: unknown): string {
+    if (value instanceof Date) {
+      return value.toISOString();
+    }
+
+    if (typeof value === "string" || typeof value === "number") {
+      const parsed = new Date(value);
+      if (!Number.isNaN(parsed.valueOf())) {
+        return parsed.toISOString();
+      }
+    }
+
+    throw new Error(`Unsupported date value: ${String(value)}`);
+  }
+
+  router.get(
+    "/admin/users",
+    asyncHandler(async (request, response) => {
+      const query = validateQuery(adminUsersQuerySchema, request);
+      const limit = query.limit;
+      const offset = query.offset;
+
+      const whereConditions: any[] = [isNull(users.deletedAt)];
+
+      if (query.search) {
+        whereConditions.push(sql`lower(${users.email}) like ${`%${query.search.toLowerCase()}%`}`);
+      }
+
+      if (query.role) {
+        whereConditions.push(eq(users.role, query.role as "user" | "admin"));
+      }
+
+      const workoutAgg = database
+        .select({
+          userId: workoutSessions.userId,
+          workoutCount: sql<number>`count(*)`.as("workout_count"),
+          lastWorkoutAt: sql<Date | null>`max(coalesce(${workoutSessions.completedAt}, ${workoutSessions.startedAt}, ${workoutSessions.createdAt}))`.as(
+            "last_workout_at"
+          )
+        })
+        .from(workoutSessions)
+        .where(eq(workoutSessions.status, "completed"))
+        .groupBy(workoutSessions.userId)
+        .as("workout_agg");
+
+      const rows = await database
+        .select({
+          id: users.id,
+          email: users.email,
+          role: users.role,
+          trainingGoal: users.trainingGoal,
+          experienceLevel: users.experienceLevel,
+          unitSystem: users.unitSystem,
+          createdAt: users.createdAt,
+          updatedAt: users.updatedAt,
+          workoutCount: workoutAgg.workoutCount,
+          lastWorkoutAt: workoutAgg.lastWorkoutAt
+        })
+        .from(users)
+        .leftJoin(workoutAgg, eq(workoutAgg.userId, users.id))
+        .where(and(...whereConditions))
+        .orderBy(desc(users.createdAt), desc(users.id))
+        .limit(limit + 1)
+        .offset(offset);
+
+      const hasMore = rows.length > limit;
+      const page = hasMore ? rows.slice(0, limit) : rows;
+
+      response.json(
+        success(
+          page.map((row: any) => ({
+            id: row.id,
+            email: row.email,
+            role: row.role,
+            trainingGoal: row.trainingGoal,
+            experienceLevel: row.experienceLevel,
+            unitSystem: row.unitSystem,
+            createdAt: toIsoString(row.createdAt),
+            updatedAt: toIsoString(row.updatedAt),
+            workoutCount: Number(row.workoutCount ?? 0),
+            lastWorkoutAt: row.lastWorkoutAt ? toIsoString(row.lastWorkoutAt) : null
+          })),
+          {
+            limit,
+            offset,
+            nextOffset: hasMore ? offset + limit : null
+          }
+        )
+      );
+    })
+  );
 
   router.get(
     "/admin/feedback",

@@ -9,6 +9,7 @@ import { WorkoutHistoryDetailScreen } from "../../screens/WorkoutHistoryDetailSc
 import { ProgressionScreen } from "../../screens/ProgressionScreen";
 import { AdminDashboardScreen } from "../../screens/AdminDashboardScreen";
 import { AdminFeedbackScreen } from "../../screens/AdminFeedbackScreen";
+import { AdminUsersScreen } from "../../screens/AdminUsersScreen";
 import { AuthLoadingScreen } from "../../screens/AuthLoadingScreen";
 import { SignInScreen } from "../../screens/SignInScreen";
 import { SignUpScreen } from "../../screens/SignUpScreen";
@@ -117,6 +118,11 @@ export function AppNavigator() {
                 name="AdminFeedback"
                 component={AdminFeedbackScreen}
                 options={{ title: "Feedback", headerRight: () => <UserMenuButton /> }}
+              />
+              <Stack.Screen
+                name="AdminUsers"
+                component={AdminUsersScreen}
+                options={{ title: "Users", headerRight: () => <UserMenuButton /> }}
               />
             </>
           ) : null}

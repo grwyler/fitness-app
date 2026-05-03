@@ -3,5 +3,12 @@ import { healthHttpTestCases } from "../../health/health.http.test.js";
 import { workoutHttpTestCases } from "./workout.http.test.js";
 import { feedbackHttpTestCases } from "../../feedback/feedback.http.test.js";
 import { passwordResetHttpTestCases } from "../../../lib/auth/password-reset.http.test.js";
+import { adminUsersHttpTestCases } from "../../admin/admin.users.http.test.js";
 
-await runHttpTestCases([...healthHttpTestCases, ...workoutHttpTestCases, ...feedbackHttpTestCases, ...passwordResetHttpTestCases]);
+await runHttpTestCases([
+  ...healthHttpTestCases,
+  ...workoutHttpTestCases,
+  ...feedbackHttpTestCases,
+  ...adminUsersHttpTestCases,
+  ...passwordResetHttpTestCases
+]);
