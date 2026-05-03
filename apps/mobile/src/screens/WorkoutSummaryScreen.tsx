@@ -6,6 +6,7 @@ import { Screen } from "../components/Screen";
 import { PrimaryButton } from "../components/PrimaryButton";
 import type { RootStackParamList } from "../core/navigation/navigation-types";
 import { FeedbackButton } from "../features/feedback/components/FeedbackButton";
+import { useTrainingSettings } from "../features/workout/hooks/useTrainingSettings";
 import {
   getWorkoutSummaryEncouragement,
   getWorkoutSummaryHeadline,
@@ -23,10 +24,12 @@ type Props = NativeStackScreenProps<RootStackParamList, "WorkoutSummary">;
 
 export function WorkoutSummaryScreen({ navigation, route }: Props) {
   const { summary } = route.params;
+  const trainingSettingsQuery = useTrainingSettings();
+  const unitSystem = trainingSettingsQuery.data?.unitSystem ?? "imperial";
   const [lastAction, setLastAction] = useState<string | null>("completed_workout");
   const headline = getWorkoutSummaryHeadline(summary);
-  const encouragement = getWorkoutSummaryEncouragement(summary);
-  const outcomes = getWorkoutSummaryOutcomes(summary);
+  const encouragement = getWorkoutSummaryEncouragement(summary, unitSystem);
+  const outcomes = getWorkoutSummaryOutcomes(summary, unitSystem);
 
   return (
     <Screen>
@@ -104,9 +107,9 @@ export function WorkoutSummaryScreen({ navigation, route }: Props) {
               </View>
 
               <View style={styles.progressionDetails}>
-                <Text style={styles.rowBody}>
+                  <Text style={styles.rowBody}>
                   <Text style={styles.progressionDetailLabel}>Weight: </Text>
-                  {getProgressionUpdateWeightChangeText(update)}
+                  {getProgressionUpdateWeightChangeText(update, unitSystem)}
                 </Text>
                 {getProgressionUpdateRepGoalChangeText(update) ? (
                   <Text style={styles.rowBody}>

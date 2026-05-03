@@ -23,6 +23,7 @@ import { CustomExercisePickerModal } from "../features/workout/components/Custom
 import { useAddCustomWorkoutExercise } from "../features/workout/hooks/useCustomWorkoutExercises";
 import { useExercises } from "../features/workout/hooks/useExercises";
 import { useAddWorkoutSet, useDeleteWorkoutSet } from "../features/workout/hooks/useWorkoutSets";
+import { useTrainingSettings } from "../features/workout/hooks/useTrainingSettings";
 import { useActiveWorkoutStore } from "../features/workout/store/active-workout-store";
 import { type CustomWorkoutBuilderMode } from "../features/workout/utils/custom-workout-builder.shared";
 import { buildProgramDayWorkoutFromCustomSession } from "../features/workout/utils/program-creator.shared";
@@ -75,6 +76,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
   }, []);
 
   const currentWorkoutQuery = useCurrentWorkout();
+  const trainingSettingsQuery = useTrainingSettings();
   const logSetMutation = useLogSet();
   const updateLoggedSetMutation = useUpdateLoggedSet();
   const addWorkoutSetMutation = useAddWorkoutSet();
@@ -106,6 +108,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
   const promptedCustomExerciseSessionId = useRef<string | null>(null);
   const [showMissingFeedbackHighlights, setShowMissingFeedbackHighlights] = useState(false);
   const activeWorkout = currentWorkoutQuery.data?.activeWorkoutSession ?? null;
+  const unitSystem = trainingSettingsQuery.data?.unitSystem ?? "imperial";
   const exercisesQuery = useExercises(isExercisePickerOpen);
   const customWorkoutBuilderMode: CustomWorkoutBuilderMode = route.params?.mode ?? "start";
   const isProgramDayCustomWorkoutBuilder = customWorkoutBuilderMode === "assignToProgramDay";
@@ -312,7 +315,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
       return;
     }
 
-    const request = buildLogSetRequestFromDraft(draft);
+    const request = buildLogSetRequestFromDraft(draft, { unitSystem });
     if (!request) {
       return;
     }
@@ -397,7 +400,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
       return;
     }
 
-    const request = buildLogSetRequestFromDraft(draft);
+    const request = buildLogSetRequestFromDraft(draft, { unitSystem });
     if (!request) {
       return;
     }
@@ -686,6 +689,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
             <WorkoutExerciseCard
               key={exercise.id}
               exercise={exercise}
+              unitSystem={unitSystem}
               highlightMissingFeedback={showMissingFeedbackHighlights && missingFeedbackExerciseEntryIds.has(exercise.id)}
               {...(feedbackByEntryId[exercise.id]
                 ? { selectedFeedback: feedbackByEntryId[exercise.id] }
@@ -861,6 +865,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
         exercises={availableCustomExercises}
         loadingExercises={exercisesQuery.isLoading}
         mode={customWorkoutBuilderMode}
+        unitSystem={unitSystem}
         programDayNumber={programDayNumber}
         workoutName={programDayWorkoutName}
         submitting={

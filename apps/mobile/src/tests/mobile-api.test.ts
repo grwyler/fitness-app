@@ -16,6 +16,7 @@ import {
   updateLoggedSet,
   completeWorkoutSession
 } from "../api/workouts.js";
+import { buildLogSetRequestFromDraft } from "../features/workout/utils/set-logging.shared.js";
 import { resetUserData } from "../api/admin.js";
 import { MobileApiError } from "../api/errors.js";
 import { setLastKnownAuthToken } from "../core/auth/auth-bridge.js";
@@ -515,6 +516,40 @@ export const mobileApiTestCases: MobileTestCase[] = [
           }
         ]
       });
+    }
+  },
+  {
+    name: "Metric set logging sends canonical pounds to the API",
+    run: async () => {
+      let requestBody: string | undefined;
+
+      setLastKnownAuthToken("test-token", "test_case");
+
+      setMockFetch(async (_input, init) => {
+        requestBody = init?.body as string | undefined;
+
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            data: {},
+            meta: { replayed: false }
+          })
+        };
+      });
+
+      const request = buildLogSetRequestFromDraft({ repsText: "8", weightText: "60" }, { unitSystem: "metric" });
+      assert.ok(request);
+
+      await logSet({
+        setId: "set-1",
+        request,
+        idempotencyKey: "metric-log-set-key"
+      });
+
+      const payload = JSON.parse(requestBody ?? "{}") as any;
+      assert.equal(payload.actualWeight.unit, "lb");
+      assert.equal(payload.actualWeight.value, 132.28);
     }
   },
   {

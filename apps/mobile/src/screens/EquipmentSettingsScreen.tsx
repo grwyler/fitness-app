@@ -5,6 +5,7 @@ import { PrimaryButton } from "../components/PrimaryButton";
 import { colors, spacing } from "../theme/tokens";
 import { useTrainingSettings } from "../features/workout/hooks/useTrainingSettings";
 import { useUpdateTrainingSettings } from "../features/workout/hooks/useUpdateTrainingSettings";
+import { formatWeightForUser, parseWeightInputForUser, type UnitSystem } from "@fitness/shared";
 
 function NumberRow(props: {
   label: string;
@@ -29,17 +30,19 @@ function NumberRow(props: {
   );
 }
 
-function parsePositiveNumberOrNull(value: string): number | null {
+function parsePositiveUserWeightLbsOrNull(value: string, unitSystem: UnitSystem): number | null {
   const trimmed = value.trim();
   if (!trimmed) return null;
-  const parsed = Number(trimmed);
-  if (!Number.isFinite(parsed) || parsed <= 0) return null;
-  return parsed;
+  const parsedLbs = parseWeightInputForUser({ weightText: trimmed, unitSystem });
+  if (parsedLbs === null || !Number.isFinite(parsedLbs) || parsedLbs <= 0) return null;
+  return parsedLbs;
 }
 
 export function EquipmentSettingsScreen() {
   const settingsQuery = useTrainingSettings();
   const updateMutation = useUpdateTrainingSettings();
+  const unitSystem = settingsQuery.data?.unitSystem ?? "imperial";
+  const unitLabel = unitSystem === "metric" ? "kg" : "lb";
 
   const [barbell, setBarbell] = useState("5");
   const [dumbbell, setDumbbell] = useState("5");
@@ -48,20 +51,48 @@ export function EquipmentSettingsScreen() {
 
   useEffect(() => {
     if (!settingsQuery.data) return;
-    setBarbell(String(settingsQuery.data.defaultBarbellIncrement));
-    setDumbbell(String(settingsQuery.data.defaultDumbbellIncrement));
-    setMachine(String(settingsQuery.data.defaultMachineIncrement));
-    setCable(String(settingsQuery.data.defaultCableIncrement));
-  }, [settingsQuery.data]);
+    setBarbell(
+      formatWeightForUser({
+        weightLbs: settingsQuery.data.defaultBarbellIncrement,
+        unitSystem,
+        includeUnit: false,
+        maximumFractionDigits: unitSystem === "metric" ? 1 : 2
+      }).text
+    );
+    setDumbbell(
+      formatWeightForUser({
+        weightLbs: settingsQuery.data.defaultDumbbellIncrement,
+        unitSystem,
+        includeUnit: false,
+        maximumFractionDigits: unitSystem === "metric" ? 1 : 2
+      }).text
+    );
+    setMachine(
+      formatWeightForUser({
+        weightLbs: settingsQuery.data.defaultMachineIncrement,
+        unitSystem,
+        includeUnit: false,
+        maximumFractionDigits: unitSystem === "metric" ? 1 : 2
+      }).text
+    );
+    setCable(
+      formatWeightForUser({
+        weightLbs: settingsQuery.data.defaultCableIncrement,
+        unitSystem,
+        includeUnit: false,
+        maximumFractionDigits: unitSystem === "metric" ? 1 : 2
+      }).text
+    );
+  }, [settingsQuery.data, unitSystem]);
 
   const parsed = useMemo(() => {
     return {
-      barbell: parsePositiveNumberOrNull(barbell),
-      dumbbell: parsePositiveNumberOrNull(dumbbell),
-      machine: parsePositiveNumberOrNull(machine),
-      cable: parsePositiveNumberOrNull(cable)
+      barbell: parsePositiveUserWeightLbsOrNull(barbell, unitSystem),
+      dumbbell: parsePositiveUserWeightLbsOrNull(dumbbell, unitSystem),
+      machine: parsePositiveUserWeightLbsOrNull(machine, unitSystem),
+      cable: parsePositiveUserWeightLbsOrNull(cable, unitSystem)
     };
-  }, [barbell, dumbbell, machine, cable]);
+  }, [barbell, dumbbell, machine, cable, unitSystem]);
 
   const isValid = Boolean(parsed.barbell && parsed.dumbbell && parsed.machine && parsed.cable);
 
@@ -93,10 +124,10 @@ export function EquipmentSettingsScreen() {
       {settingsQuery.isError ? <Text style={styles.errorText}>Unable to load training settings.</Text> : null}
 
       <View style={styles.card}>
-        <NumberRow label="Barbell increment (lb)" value={barbell} onChange={setBarbell} />
-        <NumberRow label="Dumbbell increment (lb)" value={dumbbell} onChange={setDumbbell} />
-        <NumberRow label="Machine increment (lb)" value={machine} onChange={setMachine} />
-        <NumberRow label="Cable increment (lb)" value={cable} onChange={setCable} />
+        <NumberRow label={`Barbell increment (${unitLabel})`} value={barbell} onChange={setBarbell} />
+        <NumberRow label={`Dumbbell increment (${unitLabel})`} value={dumbbell} onChange={setDumbbell} />
+        <NumberRow label={`Machine increment (${unitLabel})`} value={machine} onChange={setMachine} />
+        <NumberRow label={`Cable increment (${unitLabel})`} value={cable} onChange={setCable} />
         {!isValid ? <Text style={styles.rowHelper}>All increments must be positive numbers.</Text> : null}
       </View>
     </Screen>

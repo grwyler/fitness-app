@@ -1,4 +1,12 @@
-import { MATERIAL_OVERPERFORMANCE_MULTIPLIER, type LogSetRequest, type SetDto, type WeightValueDto } from "@fitness/shared";
+import {
+  MATERIAL_OVERPERFORMANCE_MULTIPLIER,
+  formatWeightForUser,
+  parseWeightInputForUser,
+  type LogSetRequest,
+  type SetDto,
+  type UnitSystem,
+  type WeightValueDto
+} from "@fitness/shared";
 
 export type SetLogDraft = {
   repsText: string;
@@ -38,6 +46,7 @@ export function getPreviousLoggedSet(input: {
 export function getSetLogDefaultDraft(input: {
   set: SetDto;
   previousSet?: SetDto | null;
+  unitSystem?: UnitSystem;
 }): SetLogDraft {
   const previousSet = input.previousSet;
   const sourceReps =
@@ -46,10 +55,16 @@ export function getSetLogDefaultDraft(input: {
       : input.set.actualReps ?? input.set.targetReps;
   const sourceWeight =
     previousSet?.actualWeight?.value ?? input.set.actualWeight?.value ?? input.set.targetWeight.value;
+  const unitSystem = input.unitSystem ?? "imperial";
 
   return {
     repsText: sourceReps.toString(),
-    weightText: formatSetWeightValue(sourceWeight)
+    weightText: formatWeightForUser({
+      weightLbs: sourceWeight,
+      unitSystem,
+      includeUnit: false,
+      maximumFractionDigits: unitSystem === "metric" ? 1 : 2
+    }).text
   };
 }
 
@@ -69,11 +84,13 @@ export function normalizeWeightInput(value: string) {
   return `${whole.replace(/^0+(?=\d)/, "") || "0"}.${fraction}`;
 }
 
-export function validateSetLogDraft(draft: SetLogDraft): SetLogValidation {
+export function validateSetLogDraft(draft: SetLogDraft, input?: { unitSystem?: UnitSystem }): SetLogValidation {
   const trimmedReps = draft.repsText.trim();
   const trimmedWeight = draft.weightText.trim();
   const actualReps = trimmedReps.length > 0 ? Number(trimmedReps) : null;
-  const weightValue = trimmedWeight.length > 0 ? Number(trimmedWeight) : null;
+  const unitSystem = input?.unitSystem ?? "imperial";
+  const weightValueLbs =
+    trimmedWeight.length > 0 ? parseWeightInputForUser({ weightText: trimmedWeight, unitSystem }) : null;
 
   if (actualReps === null || !Number.isInteger(actualReps) || actualReps < 0) {
     return {
@@ -83,7 +100,7 @@ export function validateSetLogDraft(draft: SetLogDraft): SetLogValidation {
     };
   }
 
-  if (weightValue === null || !Number.isFinite(weightValue) || weightValue < 0) {
+  if (weightValueLbs === null || !Number.isFinite(weightValueLbs) || weightValueLbs < 0) {
     return {
       actualReps,
       actualWeight: null,
@@ -94,15 +111,18 @@ export function validateSetLogDraft(draft: SetLogDraft): SetLogValidation {
   return {
     actualReps,
     actualWeight: {
-      value: weightValue,
+      value: weightValueLbs,
       unit: "lb"
     },
     error: null
   };
 }
 
-export function buildLogSetRequestFromDraft(draft: SetLogDraft): LogSetRequest | null {
-  const validation = validateSetLogDraft(draft);
+export function buildLogSetRequestFromDraft(
+  draft: SetLogDraft,
+  input?: { unitSystem?: UnitSystem }
+): LogSetRequest | null {
+  const validation = validateSetLogDraft(draft, input);
   if (validation.error || validation.actualReps === null || validation.actualWeight === null) {
     return null;
   }

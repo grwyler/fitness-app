@@ -12,6 +12,8 @@ import { colors, spacing } from "../theme/tokens";
 import { useExercises } from "../features/workout/hooks/useExercises";
 import { useExerciseProgressionSettings } from "../features/workout/hooks/useExerciseProgressionSettings";
 import { useUpdateExerciseProgressionSettings } from "../features/workout/hooks/useUpdateExerciseProgressionSettings";
+import { formatWeightForUser, parseWeightInputForUser, type UnitSystem } from "@fitness/shared";
+import { useTrainingSettings } from "../features/workout/hooks/useTrainingSettings";
 
 function parseNullableInt(value: string): number | null {
   const trimmed = value.trim();
@@ -28,6 +30,14 @@ function parseNullablePositive(value: string): number | null {
   const parsed = Number(trimmed);
   if (!Number.isFinite(parsed) || parsed <= 0) return null;
   return parsed;
+}
+
+function parseNullablePositiveUserWeightLbs(value: string, unitSystem: UnitSystem): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const parsedLbs = parseWeightInputForUser({ weightText: trimmed, unitSystem });
+  if (parsedLbs === null || !Number.isFinite(parsedLbs) || parsedLbs <= 0) return null;
+  return parsedLbs;
 }
 
 function ChipSelect<T extends string>(props: {
@@ -83,6 +93,9 @@ function NumberInputRow(props: { label: string; value: string; onChange: (next: 
 
 export function ExerciseProgressionSettingsScreen() {
   const exercisesQuery = useExercises(true);
+  const trainingSettingsQuery = useTrainingSettings();
+  const unitSystem = trainingSettingsQuery.data?.unitSystem ?? "imperial";
+  const unitLabel = unitSystem === "metric" ? "kg" : "lb";
 
   const [search, setSearch] = useState("");
   const [selectedExerciseId, setSelectedExerciseId] = useState<string | null>(null);
@@ -103,10 +116,28 @@ export function ExerciseProgressionSettingsScreen() {
     setProgressionStrategy(settingsQuery.data.progressionStrategy);
     setRepRangeMin(settingsQuery.data.repRangeMin ? String(settingsQuery.data.repRangeMin) : "");
     setRepRangeMax(settingsQuery.data.repRangeMax ? String(settingsQuery.data.repRangeMax) : "");
-    setIncrementOverride(settingsQuery.data.incrementOverride ? String(settingsQuery.data.incrementOverride) : "");
-    setMaxJumpPerSession(settingsQuery.data.maxJumpPerSession ? String(settingsQuery.data.maxJumpPerSession) : "");
+    setIncrementOverride(
+      settingsQuery.data.incrementOverride
+        ? formatWeightForUser({
+            weightLbs: settingsQuery.data.incrementOverride,
+            unitSystem,
+            includeUnit: false,
+            maximumFractionDigits: unitSystem === "metric" ? 1 : 2
+          }).text
+        : ""
+    );
+    setMaxJumpPerSession(
+      settingsQuery.data.maxJumpPerSession
+        ? formatWeightForUser({
+            weightLbs: settingsQuery.data.maxJumpPerSession,
+            unitSystem,
+            includeUnit: false,
+            maximumFractionDigits: unitSystem === "metric" ? 1 : 2
+          }).text
+        : ""
+    );
     setBodyweightProgressionMode(settingsQuery.data.bodyweightProgressionMode);
-  }, [settingsQuery.data]);
+  }, [settingsQuery.data, unitSystem]);
 
   const filteredExercises = useMemo(() => {
     const list = exercisesQuery.data ?? [];
@@ -121,10 +152,10 @@ export function ExerciseProgressionSettingsScreen() {
     return {
       repRangeMin: parseNullableInt(repRangeMin),
       repRangeMax: parseNullableInt(repRangeMax),
-      incrementOverride: parseNullablePositive(incrementOverride),
-      maxJumpPerSession: parseNullablePositive(maxJumpPerSession)
+      incrementOverride: parseNullablePositiveUserWeightLbs(incrementOverride, unitSystem),
+      maxJumpPerSession: parseNullablePositiveUserWeightLbs(maxJumpPerSession, unitSystem)
     };
-  }, [repRangeMin, repRangeMax, incrementOverride, maxJumpPerSession]);
+  }, [repRangeMin, repRangeMax, incrementOverride, maxJumpPerSession, unitSystem]);
 
   const canSave = Boolean(selectedExerciseId);
 
@@ -200,7 +231,7 @@ export function ExerciseProgressionSettingsScreen() {
           />
           <NumberInputRow label="Rep range min" value={repRangeMin} onChange={setRepRangeMin} />
           <NumberInputRow label="Rep range max" value={repRangeMax} onChange={setRepRangeMax} />
-          <NumberInputRow label="Increment override (lb)" value={incrementOverride} onChange={setIncrementOverride} />
+          <NumberInputRow label={`Increment override (${unitLabel})`} value={incrementOverride} onChange={setIncrementOverride} />
 
           <Pressable onPress={() => setShowAdvanced((prev) => !prev)} style={styles.advancedToggle}>
             <Text style={styles.advancedToggleLabel}>{showAdvanced ? "Hide advanced" : "Show advanced"}</Text>
@@ -210,7 +241,7 @@ export function ExerciseProgressionSettingsScreen() {
             <>
               <Text style={styles.sectionTitle}>Advanced</Text>
               <NumberInputRow
-                label="Max jump per session (lb)"
+                label={`Max jump per session (${unitLabel})`}
                 value={maxJumpPerSession}
                 onChange={setMaxJumpPerSession}
                 helper="Caps the size of a single weight increase."

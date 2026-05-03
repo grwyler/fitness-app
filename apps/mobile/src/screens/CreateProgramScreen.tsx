@@ -17,6 +17,7 @@ import type { RootStackParamList } from "../core/navigation/navigation-types";
 import { useCreateCustomProgram } from "../features/workout/hooks/useCreateCustomProgram";
 import { useDashboard } from "../features/workout/hooks/useDashboard";
 import { useFollowProgram } from "../features/workout/hooks/useFollowProgram";
+import { useTrainingSettings } from "../features/workout/hooks/useTrainingSettings";
 import { useUpdateCustomProgram } from "../features/workout/hooks/useUpdateCustomProgram";
 import { useExercises } from "../features/workout/hooks/useExercises";
 import { usePrograms } from "../features/workout/hooks/usePrograms";
@@ -69,11 +70,13 @@ export function CreateProgramScreen({ navigation, route }: Props) {
   const [autoFollowPending, setAutoFollowPending] = useState(false);
   const [loadedSourceProgramId, setLoadedSourceProgramId] = useState<string | null>(null);
   const dashboardQuery = useDashboard();
+  const trainingSettingsQuery = useTrainingSettings();
   const programsQuery = usePrograms();
   const exercisesQuery = useExercises(customWorkoutDayNumber !== null);
   const createProgramMutation = useCreateCustomProgram();
   const updateProgramMutation = useUpdateCustomProgram();
   const followProgramMutation = useFollowProgram();
+  const unitSystem = trainingSettingsQuery.data?.unitSystem ?? "imperial";
   const sourceProgramId = editProgramId ?? cloneProgramId ?? null;
   const editProgram = useMemo(
     () =>
@@ -492,6 +495,7 @@ export function CreateProgramScreen({ navigation, route }: Props) {
         initialRequests={customWorkoutInitialRequests}
         initializationKey={customWorkoutInitKey}
         mode="assignToProgramDay"
+        unitSystem={unitSystem}
         {...(customWorkoutDayNumber !== null ? { programDayNumber: customWorkoutDayNumber } : {})}
         workoutName={customWorkoutName}
         submitting={false}

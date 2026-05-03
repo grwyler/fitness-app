@@ -1,4 +1,4 @@
-import type { CompleteWorkoutSessionResponse, WorkoutSessionDto } from "@fitness/shared";
+import { formatWeightForUser, type CompleteWorkoutSessionResponse, type UnitSystem, type WorkoutSessionDto } from "@fitness/shared";
 
 export type WorkoutSummaryStats = {
   completedExerciseCount: number;
@@ -16,16 +16,34 @@ export type WorkoutSummaryOutcome = {
   detail: string;
 };
 
-function formatDelta(value: number) {
-  return Number.isInteger(value) ? value.toString() : value.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+function resolveUnitSystem(unitSystem: UnitSystem | undefined) {
+  return unitSystem ?? "imperial";
 }
 
-function formatNumber(value: number) {
-  return Math.round(value).toLocaleString();
+function formatWeightText(
+  weightLbs: number,
+  unitSystem: UnitSystem | undefined,
+  options?: { maximumFractionDigits?: number; useGrouping?: boolean }
+) {
+  return formatWeightForUser({
+    weightLbs,
+    unitSystem: resolveUnitSystem(unitSystem),
+    maximumFractionDigits: options?.maximumFractionDigits,
+    useGrouping: options?.useGrouping
+  }).text;
 }
 
-function formatWeight(value: number) {
-  return `${formatDelta(value)} lb`;
+function formatDeltaWeightText(deltaLbs: number, unitSystem: UnitSystem | undefined) {
+  const resolved = resolveUnitSystem(unitSystem);
+  const unit = resolved === "metric" ? "kg" : "lb";
+  const numeric = formatWeightForUser({
+    weightLbs: Math.abs(deltaLbs),
+    unitSystem: resolved,
+    includeUnit: false,
+    maximumFractionDigits: resolved === "metric" ? 1 : 2
+  }).text;
+  const sign = deltaLbs > 0 ? "+" : deltaLbs < 0 ? "-" : "";
+  return `${sign}${numeric} ${unit}`;
 }
 
 function lowerCaseFirstLetter(value: string) {
@@ -81,21 +99,21 @@ export function getWorkoutSummaryHeadline(summary: CompleteWorkoutSessionRespons
   return "Nice work. Workout saved.";
 }
 
-export function getWorkoutSummaryEncouragement(summary: CompleteWorkoutSessionResponse) {
+export function getWorkoutSummaryEncouragement(summary: CompleteWorkoutSessionResponse, unitSystem?: UnitSystem) {
   const recalibratedUpdates = summary.progressionUpdates.filter((update) => update.result === "recalibrated");
   const increasedUpdates = summary.progressionUpdates.filter((update) => update.result === "increased");
 
   if (recalibratedUpdates.length > 0) {
     const firstUpdate = recalibratedUpdates[0];
     if (firstUpdate) {
-      return `Adjusted ${firstUpdate.exerciseName} to ${firstUpdate.nextWeight.value} lb based on your performance.`;
+      return `Adjusted ${firstUpdate.exerciseName} to ${formatWeightText(firstUpdate.nextWeight.value, unitSystem)} based on your performance.`;
     }
   }
 
   if (increasedUpdates.length > 0) {
     const firstUpdate = increasedUpdates[0];
     if (firstUpdate) {
-      return `${firstUpdate.exerciseName} moves to ${firstUpdate.nextWeight.value} lb next time.`;
+      return `${firstUpdate.exerciseName} moves to ${formatWeightText(firstUpdate.nextWeight.value, unitSystem)} next time.`;
     }
   }
 
@@ -111,7 +129,10 @@ export function getWorkoutSummaryEncouragement(summary: CompleteWorkoutSessionRe
   return "That one is in the books.";
 }
 
-export function getProgressionUpdateSummaryText(update: CompleteWorkoutSessionResponse["progressionUpdates"][number]) {
+export function getProgressionUpdateSummaryText(
+  update: CompleteWorkoutSessionResponse["progressionUpdates"][number],
+  unitSystem?: UnitSystem
+) {
   if (update.result === "skipped") {
     return "No progression update";
   }
@@ -125,11 +146,11 @@ export function getProgressionUpdateSummaryText(update: CompleteWorkoutSessionRe
   }
 
   if (update.result === "increased" && delta > 0) {
-    return `+${formatDelta(delta)} lb next time`;
+    return `${formatDeltaWeightText(delta, unitSystem)} next time`;
   }
 
   if (update.result === "recalibrated" && delta > 0) {
-    return `Adjusted to ${formatDelta(nextWeight)} lb next time`;
+    return `Adjusted to ${formatWeightText(nextWeight, unitSystem)} next time`;
   }
 
   if (delta === 0 && update.nextRepGoal != null && update.previousRepGoal != null && update.nextRepGoal > update.previousRepGoal) {
@@ -140,7 +161,7 @@ export function getProgressionUpdateSummaryText(update: CompleteWorkoutSessionRe
     return "Repeat same weight and reps";
   }
 
-  return `Stays at ${formatDelta(nextWeight)} lb next time`;
+  return `Stays at ${formatWeightText(nextWeight, unitSystem)} next time`;
 }
 
 export function getProgressionUpdateResultLabel(result: CompleteWorkoutSessionResponse["progressionUpdates"][number]["result"]) {
@@ -162,8 +183,14 @@ export function getProgressionUpdateResultLabel(result: CompleteWorkoutSessionRe
   }
 }
 
-export function getProgressionUpdateWeightChangeText(update: CompleteWorkoutSessionResponse["progressionUpdates"][number]) {
-  return `${formatWeight(update.previousWeight.value)} → ${formatWeight(update.nextWeight.value)}`;
+export function getProgressionUpdateWeightChangeText(
+  update: CompleteWorkoutSessionResponse["progressionUpdates"][number],
+  unitSystem?: UnitSystem
+) {
+  return `${formatWeightText(update.previousWeight.value, unitSystem)} → ${formatWeightText(
+    update.nextWeight.value,
+    unitSystem
+  )}`;
 }
 
 export function getProgressionUpdateRepGoalChangeText(update: CompleteWorkoutSessionResponse["progressionUpdates"][number]) {
@@ -217,7 +244,10 @@ export function getProgressionUpdateEvidence(update: CompleteWorkoutSessionRespo
   return update.evidence ?? [];
 }
 
-export function getWorkoutSummaryOutcomes(summary: CompleteWorkoutSessionResponse): WorkoutSummaryOutcome[] {
+export function getWorkoutSummaryOutcomes(
+  summary: CompleteWorkoutSessionResponse,
+  unitSystem?: UnitSystem
+): WorkoutSummaryOutcome[] {
   const stats = getWorkoutSummaryStats(summary.workoutSession);
   const recalibratedUpdates = summary.progressionUpdates.filter((update) => update.result === "recalibrated");
   const increasedUpdates = summary.progressionUpdates.filter((update) => update.result === "increased");
@@ -234,7 +264,7 @@ export function getWorkoutSummaryOutcomes(summary: CompleteWorkoutSessionRespons
     },
     {
       label: "Volume",
-      value: `${formatNumber(stats.totalVolume)} lb`,
+      value: formatWeightText(stats.totalVolume, unitSystem, { maximumFractionDigits: 0, useGrouping: true }),
       detail: "total work"
     }
   ];

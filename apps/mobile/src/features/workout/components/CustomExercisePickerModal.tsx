@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { AddCustomWorkoutExerciseRequest, ExerciseCatalogItemDto, ProgressionStrategy } from "@fitness/shared";
-import { progressionStrategies } from "@fitness/shared";
+import {
+  formatWeightForUser,
+  parseWeightInputForUser,
+  progressionStrategies,
+  type AddCustomWorkoutExerciseRequest,
+  type ExerciseCatalogItemDto,
+  type ProgressionStrategy,
+  type UnitSystem
+} from "@fitness/shared";
 import {
   FlatList,
   Keyboard,
@@ -97,7 +104,7 @@ function parseRepGoalDraft(value: string) {
   return { repGoal: min, repRangeMin: min, repRangeMax: max };
 }
 
-function buildDefaultConfig(exercise: ExerciseCatalogItemDto): ExerciseConfigDraft {
+function buildDefaultConfig(exercise: ExerciseCatalogItemDto, unitSystem: UnitSystem): ExerciseConfigDraft {
   const sets = exercise.defaultTargetSets ?? CUSTOM_WORKOUT_DEFAULT_TARGET_SETS;
   const reps = exercise.defaultTargetReps ?? CUSTOM_WORKOUT_DEFAULT_TARGET_REPS;
   const weight = exercise.defaultStartingWeight.value;
@@ -116,7 +123,15 @@ function buildDefaultConfig(exercise: ExerciseCatalogItemDto): ExerciseConfigDra
   return {
     targetSetsText: String(sets),
     targetRepsText: String(reps),
-    targetWeightText: exercise.isWeightOptional && weight === 0 ? "" : String(weight),
+    targetWeightText:
+      exercise.isWeightOptional && weight === 0
+        ? ""
+        : formatWeightForUser({
+            weightLbs: weight,
+            unitSystem,
+            includeUnit: false,
+            maximumFractionDigits: unitSystem === "metric" ? 1 : 2
+          }).text,
     progressionStrategy
   };
 }
@@ -174,6 +189,7 @@ export function CustomExercisePickerModal(props: {
   initialRequests?: CustomExercisePickerRequest[] | null;
   initializationKey?: string | number;
   mode: CustomWorkoutBuilderMode;
+  unitSystem: UnitSystem;
   programDayNumber?: number | null;
   workoutName?: string;
   submitting: boolean;
@@ -196,6 +212,7 @@ export function CustomExercisePickerModal(props: {
   const [configByExerciseId, setConfigByExerciseId] = useState<Record<string, ExerciseConfigDraft>>({});
   const pendingInitialRequestsRef = useRef<CustomExercisePickerRequest[] | null>(null);
   const templateEntryIdByExerciseIdRef = useRef<Record<string, string>>({});
+  const unitLabel = props.unitSystem === "metric" ? "kg" : "lb";
 
   useEffect(() => {
     if (!props.visible) {
@@ -254,7 +271,7 @@ export function CustomExercisePickerModal(props: {
           continue;
         }
 
-        const defaults = buildDefaultConfig(exercise);
+        const defaults = buildDefaultConfig(exercise, props.unitSystem);
         next[exercise.id] = {
           ...defaults,
           targetSetsText: String(request.targetSets),
@@ -266,7 +283,16 @@ export function CustomExercisePickerModal(props: {
           (progressionStrategies as readonly string[]).includes(request.progressionStrategy)
             ? { progressionStrategy: request.progressionStrategy }
             : {}),
-          ...(request.targetWeight ? { targetWeightText: String(request.targetWeight.value) } : {})
+          ...(request.targetWeight
+            ? {
+                targetWeightText: formatWeightForUser({
+                  weightLbs: request.targetWeight.value,
+                  unitSystem: props.unitSystem,
+                  includeUnit: false,
+                  maximumFractionDigits: props.unitSystem === "metric" ? 1 : 2
+                }).text
+              }
+            : {})
         };
         didChange = true;
       }
@@ -274,7 +300,7 @@ export function CustomExercisePickerModal(props: {
       pendingInitialRequestsRef.current = remaining.length > 0 ? remaining : null;
       return didChange ? next : current;
     });
-  }, [props.exercises, props.visible]);
+  }, [props.exercises, props.visible, props.unitSystem]);
 
   const selectedExerciseIdSet = useMemo(() => new Set(selectedExerciseIds), [selectedExerciseIds]);
   const selectedExercises = useMemo(
@@ -386,7 +412,7 @@ export function CustomExercisePickerModal(props: {
       const next = { ...current };
       for (const exercise of selected) {
         if (!next[exercise.id]) {
-          next[exercise.id] = buildDefaultConfig(exercise);
+          next[exercise.id] = buildDefaultConfig(exercise, props.unitSystem);
         }
       }
       return next;
@@ -428,12 +454,15 @@ export function CustomExercisePickerModal(props: {
       }
     }
 
-    const weight = parseFloatDraft(activeExerciseConfig.targetWeightText);
-    if (weight !== null && (weight < 0 || weight > 2000)) {
+    const weightLbs =
+      activeExerciseConfig.targetWeightText.trim().length > 0
+        ? parseWeightInputForUser({ weightText: activeExerciseConfig.targetWeightText, unitSystem: props.unitSystem })
+        : null;
+    if (weightLbs !== null && (weightLbs < 0 || weightLbs > 2000)) {
       return { ok: false, message: "Weight must be between 0 and 2000." };
     }
 
-    if (!activeExercise.isWeightOptional && (weight === null || weight === undefined)) {
+    if (!activeExercise.isWeightOptional && (weightLbs === null || weightLbs === undefined)) {
       return { ok: false, message: "Weight is required for this exercise." };
     }
 
@@ -442,7 +471,7 @@ export function CustomExercisePickerModal(props: {
       return { ok: false, message: "Choose a valid progression strategy." };
     }
 
-    return { ok: true as const, sets, reps, repRangeMin, repRangeMax, weight, strategy };
+    return { ok: true as const, sets, reps, repRangeMin, repRangeMax, weightLbs, strategy };
   }
 
   function updateActiveConfig(patch: Partial<ExerciseConfigDraft>) {
@@ -454,7 +483,7 @@ export function CustomExercisePickerModal(props: {
     setConfigByExerciseId((current) => ({
       ...current,
       [activeExercise.id]: {
-        ...(current[activeExercise.id] ?? buildDefaultConfig(activeExercise)),
+        ...(current[activeExercise.id] ?? buildDefaultConfig(activeExercise, props.unitSystem)),
         ...patch
       }
     }));
@@ -475,13 +504,16 @@ export function CustomExercisePickerModal(props: {
     }
 
     const requests: CustomExercisePickerRequest[] = selectedExercises.map((exercise) => {
-      const config = configByExerciseId[exercise.id] ?? buildDefaultConfig(exercise);
+      const config = configByExerciseId[exercise.id] ?? buildDefaultConfig(exercise, props.unitSystem);
       const sets = parseIntDraft(config.targetSetsText) ?? CUSTOM_WORKOUT_DEFAULT_TARGET_SETS;
       const repDraft = parseRepGoalDraft(config.targetRepsText);
       const reps = repDraft?.repGoal ?? CUSTOM_WORKOUT_DEFAULT_TARGET_REPS;
       const repRangeMin = repDraft?.repRangeMin ?? null;
       const repRangeMax = repDraft?.repRangeMax ?? null;
-      const weight = parseFloatDraft(config.targetWeightText);
+      const weightLbs =
+        config.targetWeightText.trim().length > 0
+          ? parseWeightInputForUser({ weightText: config.targetWeightText, unitSystem: props.unitSystem })
+          : null;
       const workoutTemplateExerciseEntryId = templateEntryIdByExerciseIdRef.current[exercise.id] ?? null;
 
       return {
@@ -492,7 +524,7 @@ export function CustomExercisePickerModal(props: {
         ...(repRangeMin !== null && repRangeMax !== null && repRangeMax > repRangeMin
           ? { repRangeMin, repRangeMax }
           : {}),
-        ...(weight !== null ? { targetWeight: { value: weight, unit: "lb" } } : {}),
+        ...(weightLbs !== null ? { targetWeight: { value: weightLbs, unit: "lb" } } : {}),
         progressionStrategy: config.progressionStrategy
       };
     });
@@ -724,11 +756,13 @@ export function CustomExercisePickerModal(props: {
                     placeholder="8"
                   />
                   <Input
-                    label={activeExercise.isWeightOptional ? "Weight (lb, optional)" : "Weight (lb)"}
+                    label={activeExercise.isWeightOptional ? `Weight (${unitLabel}, optional)` : `Weight (${unitLabel})`}
                     keyboardType="decimal-pad"
                     value={activeExerciseConfig.targetWeightText}
                     onChangeText={(value) => updateActiveConfig({ targetWeightText: value })}
-                    placeholder={activeExercise.isWeightOptional ? "Optional" : "135"}
+                    placeholder={
+                      activeExercise.isWeightOptional ? "Optional" : props.unitSystem === "metric" ? "60" : "135"
+                    }
                   />
                   <View style={styles.inlineInputGroup}>
                     <AppText variant="sectionLabel" tone="secondary">

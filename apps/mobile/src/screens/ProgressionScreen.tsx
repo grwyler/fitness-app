@@ -4,6 +4,7 @@ import { LoadingState } from "../components/LoadingState";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { Screen } from "../components/Screen";
 import { useProgression } from "../features/workout/hooks/useProgression";
+import { useTrainingSettings } from "../features/workout/hooks/useTrainingSettings";
 import {
   formatProgressionVolume,
   formatProgressionWeight,
@@ -20,6 +21,8 @@ function formatDate(value: string) {
 
 export function ProgressionScreen() {
   const progressionQuery = useProgression();
+  const trainingSettingsQuery = useTrainingSettings();
+  const unitSystem = trainingSettingsQuery.data?.unitSystem ?? "imperial";
 
   if (progressionQuery.isLoading) {
     return (
@@ -90,7 +93,7 @@ export function ProgressionScreen() {
                     <Text style={styles.rowTitle}>{point.workoutName}</Text>
                     <Text style={styles.cardBody}>{formatDate(point.completedAt)}</Text>
                   </View>
-                  <Text style={styles.valueText}>{formatProgressionVolume(point.totalVolume.value)}</Text>
+                  <Text style={styles.valueText}>{formatProgressionVolume(point.totalVolume.value, unitSystem)}</Text>
                 </View>
               ))
             )}
@@ -112,7 +115,7 @@ export function ProgressionScreen() {
                       </Text>
                     </View>
                     <Text style={styles.valueText}>
-                      {formatProgressionWeight(exercise.recentBestWeight?.value)}
+                      {formatProgressionWeight(exercise.recentBestWeight?.value, unitSystem)}
                     </Text>
                   </View>
                   <Text style={styles.metaLine}>

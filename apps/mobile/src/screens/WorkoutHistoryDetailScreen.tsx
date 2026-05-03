@@ -1,10 +1,12 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { formatWeightForUser } from "@fitness/shared";
 import { StyleSheet, Text, View } from "react-native";
 import { ErrorState } from "../components/ErrorState";
 import { LoadingState } from "../components/LoadingState";
 import { Screen } from "../components/Screen";
 import type { RootStackParamList } from "../core/navigation/navigation-types";
 import { useProgression } from "../features/workout/hooks/useProgression";
+import { useTrainingSettings } from "../features/workout/hooks/useTrainingSettings";
 import { useWorkoutHistoryDetail } from "../features/workout/hooks/useWorkoutHistoryDetail";
 import {
   buildWorkoutDetailProgressHighlights,
@@ -57,6 +59,8 @@ function formatSetStatus(status: string) {
 export function WorkoutHistoryDetailScreen({ route, navigation }: Props) {
   const detailQuery = useWorkoutHistoryDetail(route.params.sessionId);
   const progressionQuery = useProgression();
+  const trainingSettingsQuery = useTrainingSettings();
+  const unitSystem = trainingSettingsQuery.data?.unitSystem ?? "imperial";
 
   if (detailQuery.isLoading) {
     return (
@@ -82,7 +86,8 @@ export function WorkoutHistoryDetailScreen({ route, navigation }: Props) {
   const workout = detailQuery.data;
   const progressHighlights = buildWorkoutDetailProgressHighlights({
     workout,
-    progression: progressionQuery.data
+    progression: progressionQuery.data,
+    unitSystem
   });
   const progressHighlightsByEntryId = progressHighlights.reduce<Record<string, string>>((accumulator, item) => {
     accumulator[item.exerciseEntryId] = item.text;
@@ -112,7 +117,14 @@ export function WorkoutHistoryDetailScreen({ route, navigation }: Props) {
         <View style={styles.summaryGrid}>
           <View style={styles.summaryStat}>
             <Text style={styles.cardLabel}>Volume</Text>
-            <Text style={styles.summaryValue}>{Math.round(stats.totalVolume).toLocaleString()} lb</Text>
+            <Text style={styles.summaryValue}>
+              {formatWeightForUser({
+                weightLbs: stats.totalVolume,
+                unitSystem,
+                maximumFractionDigits: 0,
+                useGrouping: true
+              }).text}
+            </Text>
           </View>
           <View style={styles.summaryStat}>
             <Text style={styles.cardLabel}>Outcome</Text>
@@ -144,10 +156,17 @@ export function WorkoutHistoryDetailScreen({ route, navigation }: Props) {
                 {highlight ? <Text style={styles.exerciseHighlight}>{highlight}</Text> : null}
               </View>
               <Text style={styles.exerciseMeta}>
-                {exercise.targetSets} x {exercise.targetReps} at {exercise.targetWeight.value} lb
+                {exercise.targetSets} x {exercise.targetReps} at{" "}
+                {formatWeightForUser({ weightLbs: exercise.targetWeight.value, unitSystem }).text}
               </Text>
               <Text style={styles.exerciseMeta}>
-                {Math.round(exerciseVolume).toLocaleString()} lb volume
+                {formatWeightForUser({
+                  weightLbs: exerciseVolume,
+                  unitSystem,
+                  maximumFractionDigits: 0,
+                  useGrouping: true
+                }).text}{" "}
+                volume
               </Text>
             </View>
 
@@ -156,8 +175,14 @@ export function WorkoutHistoryDetailScreen({ route, navigation }: Props) {
                 <Text style={styles.setTitle}>Set {set.setNumber}</Text>
                 <Text style={styles.setMeta}>
                   {set.status === "pending"
-                    ? `Not logged - planned ${set.targetReps} reps at ${set.targetWeight.value} lb`
-                    : `${set.actualReps ?? 0} reps at ${set.actualWeight?.value ?? set.targetWeight.value} lb`}
+                    ? `Not logged - planned ${set.targetReps} reps at ${formatWeightForUser({
+                        weightLbs: set.targetWeight.value,
+                        unitSystem
+                      }).text}`
+                    : `${set.actualReps ?? 0} reps at ${formatWeightForUser({
+                        weightLbs: set.actualWeight?.value ?? set.targetWeight.value,
+                        unitSystem
+                      }).text}`}
                 </Text>
                 <Text
                   style={[

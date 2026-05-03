@@ -1,4 +1,4 @@
-import type { ProgressionSummaryDto, WorkoutSessionDto } from "@fitness/shared";
+import { formatWeightForUser, type ProgressionSummaryDto, type UnitSystem, type WorkoutSessionDto } from "@fitness/shared";
 
 export type ExerciseProgressHighlight = {
   exerciseEntryId: string;
@@ -12,8 +12,20 @@ export type WorkoutDetailStats = {
   totalVolume: number;
 };
 
-function formatDelta(value: number) {
-  return Number.isInteger(value) ? value.toString() : value.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+function resolveUnitSystem(unitSystem: UnitSystem | undefined) {
+  return unitSystem ?? "imperial";
+}
+
+function formatDeltaWeightText(deltaLbs: number, unitSystem: UnitSystem | undefined) {
+  const resolved = resolveUnitSystem(unitSystem);
+  const unit = resolved === "metric" ? "kg" : "lb";
+  const numeric = formatWeightForUser({
+    weightLbs: Math.abs(deltaLbs),
+    unitSystem: resolved,
+    includeUnit: false,
+    maximumFractionDigits: resolved === "metric" ? 1 : 2
+  }).text;
+  return `+${numeric} ${unit}`;
 }
 
 export function getCompletedSetVolume(input: {
@@ -43,6 +55,7 @@ export function getWorkoutDetailStats(workout: WorkoutSessionDto): WorkoutDetail
 export function buildWorkoutDetailProgressHighlights(input: {
   workout: WorkoutSessionDto;
   progression: ProgressionSummaryDto | null | undefined;
+  unitSystem?: UnitSystem;
 }): ExerciseProgressHighlight[] {
   if (!input.progression) {
     return [];
@@ -77,7 +90,7 @@ export function buildWorkoutDetailProgressHighlights(input: {
     return [
       {
         exerciseEntryId: exercise.id,
-        text: `+${formatDelta(delta)} lb from last time`
+        text: `${formatDeltaWeightText(delta, input.unitSystem)} from last time`
       }
     ];
   });

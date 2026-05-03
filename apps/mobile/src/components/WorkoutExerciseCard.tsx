@@ -1,4 +1,4 @@
-import type { EffortFeedback, ExerciseEntryDto, SetDto } from "@fitness/shared";
+import { formatWeightForUser, type EffortFeedback, type ExerciseEntryDto, type SetDto, type UnitSystem } from "@fitness/shared";
 import { Pressable, StyleSheet, View } from "react-native";
 import {
   adjustWeightText,
@@ -12,6 +12,7 @@ import {
   validateSetLogDraft,
   type SetLogDraft
 } from "../features/workout/utils/set-logging.shared";
+import { formatExerciseTargetSummary } from "../features/workout/utils/weight-display.shared";
 import { colors, radius, spacing } from "../theme/tokens";
 import { AppText } from "./AppText";
 import { PrimaryButton } from "./PrimaryButton";
@@ -20,7 +21,6 @@ import { Chip } from "./Chip";
 import { SetMetricInput } from "./SetMetricInput";
 
 const effortOptions: EffortFeedback[] = ["too_easy", "just_right", "too_hard"];
-const weightAdjustments = [-5, -2.5, 2.5, 5];
 
 function formatFeedbackLabel(feedback: EffortFeedback) {
   switch (feedback) {
@@ -35,6 +35,7 @@ function formatFeedbackLabel(feedback: EffortFeedback) {
 
 export function WorkoutExerciseCard(props: {
   exercise: ExerciseEntryDto;
+  unitSystem: UnitSystem;
   selectedFeedback?: EffortFeedback;
   highlightMissingFeedback?: boolean;
   loggingSetId?: string | null;
@@ -58,26 +59,27 @@ export function WorkoutExerciseCard(props: {
     0
   );
 
-  const repRangeText =
-    props.exercise.repRangeMin != null &&
-    props.exercise.repRangeMax != null &&
-    props.exercise.repRangeMax > props.exercise.repRangeMin
-      ? `${props.exercise.repRangeMin}-${props.exercise.repRangeMax}`
-      : null;
-
   const pendingSets = props.exercise.sets
     .filter((set) => set.status === "pending")
     .sort((left, right) => left.setNumber - right.setNumber);
   const currentPendingSetId = pendingSets[0]?.id ?? null;
   const nextUpPendingSetId = pendingSets[1]?.id ?? null;
+  const unitLabel = props.unitSystem === "metric" ? "kg" : "lb";
+  const weightAdjustments = props.unitSystem === "metric" ? [-2.5, -1, 1, 2.5] : [-5, -2.5, 2.5, 5];
 
   return (
     <Card variant="default" style={[styles.card, props.highlightMissingFeedback && styles.cardNeedsFeedback]}>
       <View style={styles.header}>
         <AppText variant="cardTitle">{props.exercise.exerciseName}</AppText>
         <AppText tone="secondary">
-          {props.exercise.targetSets} x {props.exercise.targetReps}
-          {repRangeText ? ` (range ${repRangeText})` : ""} at {props.exercise.targetWeight.value} lb
+          {formatExerciseTargetSummary({
+            targetSets: props.exercise.targetSets,
+            targetReps: props.exercise.targetReps,
+            repRangeMin: props.exercise.repRangeMin,
+            repRangeMax: props.exercise.repRangeMax,
+            targetWeightLbs: props.exercise.targetWeight.value,
+            unitSystem: props.unitSystem
+          })}
         </AppText>
         <AppText variant="caption" tone="secondary">
           Rest {props.exercise.restSeconds ?? 0}s between sets
@@ -99,9 +101,10 @@ export function WorkoutExerciseCard(props: {
             sets: props.exercise.sets,
             setNumber: set.setNumber
           });
-          const draft = props.setLogDraftsBySetId[set.id] ?? getSetLogDefaultDraft({ set, previousSet });
-          const validation = validateSetLogDraft(draft);
-          const request = buildLogSetRequestFromDraft(draft);
+          const draft =
+            props.setLogDraftsBySetId[set.id] ?? getSetLogDefaultDraft({ set, previousSet, unitSystem: props.unitSystem });
+          const validation = validateSetLogDraft(draft, { unitSystem: props.unitSystem });
+          const request = buildLogSetRequestFromDraft(draft, { unitSystem: props.unitSystem });
           const outcomeText = getSetOutcomeText({
             actualReps: validation.actualReps,
             targetReps: set.targetReps,
@@ -176,7 +179,8 @@ export function WorkoutExerciseCard(props: {
                   </View>
                 </View>
                 <AppText variant="caption" tone="secondary">
-                  Target {set.targetReps} reps at {set.targetWeight.value} lb
+                  Target {set.targetReps} reps at{" "}
+                  {formatWeightForUser({ weightLbs: set.targetWeight.value, unitSystem: props.unitSystem }).text}
                 </AppText>
               </View>
 
@@ -227,14 +231,14 @@ export function WorkoutExerciseCard(props: {
                       value={draft.repsText}
                     />
                     <SetMetricInput
-                      label="Load"
+                      label={`Load (${unitLabel})`}
                       accessibilityLabel={`Set ${set.setNumber} load`}
                       disabled={isLogging}
                       error={Boolean(validation.error)}
                       helperRight={
                         previousWeight !== null ? (
                           <AppText variant="caption" tone="secondary" style={styles.previousValue}>
-                            Previous {previousWeight} lb
+                            Previous {formatWeightForUser({ weightLbs: previousWeight, unitSystem: props.unitSystem }).text}
                           </AppText>
                         ) : null
                       }
@@ -298,8 +302,14 @@ export function WorkoutExerciseCard(props: {
                         ? "Saving..."
                         : request
                           ? isPending
-                            ? `Log ${request.actualReps} @ ${request.actualWeight?.value ?? set.targetWeight.value} lb`
-                            : `Update ${request.actualReps} @ ${request.actualWeight?.value ?? set.targetWeight.value} lb`
+                            ? `Log ${request.actualReps} @ ${formatWeightForUser({
+                                weightLbs: request.actualWeight?.value ?? set.targetWeight.value,
+                                unitSystem: props.unitSystem
+                              }).text}`
+                            : `Update ${request.actualReps} @ ${formatWeightForUser({
+                                weightLbs: request.actualWeight?.value ?? set.targetWeight.value,
+                                unitSystem: props.unitSystem
+                              }).text}`
                           : isPending
                             ? "Log set"
                             : "Update set"
@@ -316,7 +326,11 @@ export function WorkoutExerciseCard(props: {
               ) : (
                 <View style={styles.loggedSummaryRow}>
                   <AppText variant="caption" tone="secondary" style={styles.loggedSummary}>
-                    Logged {set.actualReps ?? 0} reps at {set.actualWeight?.value ?? set.targetWeight.value} lb
+                    Logged {set.actualReps ?? 0} reps at{" "}
+                    {formatWeightForUser({
+                      weightLbs: set.actualWeight?.value ?? set.targetWeight.value,
+                      unitSystem: props.unitSystem
+                    }).text}
                   </AppText>
                   {outcomeTone && loggedOutcomeText && loggedOutcomeText !== "Ready" ? (
                     <AppText variant="caption" tone={outcomeTone}>
