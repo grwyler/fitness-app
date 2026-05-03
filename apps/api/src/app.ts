@@ -30,6 +30,7 @@ type DatabaseLike = {
 };
 
 const productionAllowedOrigins = ["https://setwisefit.vercel.app"];
+const stagingAllowedOrigins = ["https://setwisefit-test.vercel.app"];
 const developmentAllowedOrigins = [
   "http://localhost:3000",
   "http://127.0.0.1:3000",
@@ -73,12 +74,22 @@ function isPrivateNetworkOrigin(origin: string) {
 }
 
 function resolveAllowedOrigins(env: AppEnv) {
+  const stage = detectDeploymentStage({
+    nodeEnv: env.NODE_ENV,
+    vercel: env.VERCEL,
+    vercelEnv: env.VERCEL_ENV,
+    vercelGitCommitRef: env.VERCEL_GIT_COMMIT_REF
+  });
+
   const defaultAllowedOrigins =
-    env.NODE_ENV === "production"
+    stage === "production"
       ? productionAllowedOrigins
-      : [...developmentAllowedOrigins, ...productionAllowedOrigins];
+      : stage === "staging"
+        ? [...developmentAllowedOrigins, ...stagingAllowedOrigins, ...productionAllowedOrigins]
+        : [...developmentAllowedOrigins, ...productionAllowedOrigins];
+
   const configuredOrigins =
-    env.CORS_ALLOWED_ORIGINS?.split(",")
+    env.CORS_ALLOWED_ORIGINS?.split(/[\s,]+/)
       .map((origin) => origin.trim())
       .filter(Boolean) ?? [];
 

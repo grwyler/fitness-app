@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
-import { createApp } from "../../app.js";
+import { createApp, createCorsOptions } from "../../app.js";
 import type { HttpTestCase } from "../workout/http/test-helpers/http-test-case.js";
 
 async function startHttpServer() {
@@ -44,6 +44,58 @@ export const healthHttpTestCases: HttpTestCase[] = [
       } finally {
         await server.close();
       }
+    }
+  },
+  {
+    name: "CORS allows staging web origin by default on Vercel develop preview",
+    run: async () => {
+      const corsOptions = createCorsOptions({
+        CORS_ALLOWED_ORIGINS: undefined,
+        NODE_ENV: "production",
+        VERCEL: "1",
+        VERCEL_ENV: "preview",
+        VERCEL_GIT_COMMIT_REF: "develop"
+      } as any);
+
+      const isAllowed = await new Promise<boolean>((resolve, reject) => {
+        const originResolver = corsOptions.origin as (origin: string | undefined, callback: any) => void;
+        originResolver("https://setwisefit-test.vercel.app", (error: unknown, result: boolean) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+
+          resolve(result);
+        });
+      });
+
+      assert.equal(isAllowed, true);
+    }
+  },
+  {
+    name: "CORS parses CORS_ALLOWED_ORIGINS with commas and newlines",
+    run: async () => {
+      const corsOptions = createCorsOptions({
+        CORS_ALLOWED_ORIGINS: "https://example.com\nhttps://another.com, https://third.com",
+        NODE_ENV: "production",
+        VERCEL: "1",
+        VERCEL_ENV: "preview",
+        VERCEL_GIT_COMMIT_REF: "develop"
+      } as any);
+
+      const isAllowed = await new Promise<boolean>((resolve, reject) => {
+        const originResolver = corsOptions.origin as (origin: string | undefined, callback: any) => void;
+        originResolver("https://another.com", (error: unknown, result: boolean) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+
+          resolve(result);
+        });
+      });
+
+      assert.equal(isAllowed, true);
     }
   },
   {
