@@ -134,7 +134,7 @@ export async function apiRequest<TData, TMeta extends Record<string, unknown> = 
   });
 
   if (!response.ok) {
-    if (response.status === 401) {
+    if (response.status === 401 && token) {
       const debugMessage = isApiErrorEnvelope(payload)
         ? `Authenticated API request failed with 401 on ${path}. Token present: ${token ? "yes" : "no"}. Backend code: ${payload.error.code}. Message: ${payload.error.message}.`
         : `Authenticated API request failed with 401 on ${path}. Token present: ${token ? "yes" : "no"}.`;
