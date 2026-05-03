@@ -12,14 +12,6 @@ type SoftRateLimitOptions = {
 };
 
 function getClientIp(request: Request) {
-  const forwarded = request.header("x-forwarded-for");
-  if (forwarded) {
-    const first = forwarded.split(",")[0]?.trim();
-    if (first) {
-      return first;
-    }
-  }
-
   return request.ip || request.socket.remoteAddress || "unknown";
 }
 
@@ -63,4 +55,3 @@ export function createSoftRateLimiter(options: SoftRateLimitOptions) {
     }
   };
 }
-

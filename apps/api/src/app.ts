@@ -124,6 +124,8 @@ export function createApp(options?: {
 
   initApiObservability();
 
+  app.set("trust proxy", env.VERCEL === "1" ? 1 : false);
+
   app.use(cors(corsOptions));
   app.use(createRequestIdMiddleware());
   app.use((request, response, next) => {
