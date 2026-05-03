@@ -83,6 +83,14 @@ function failConfig(message) {
   throw new Error(errorMessage);
 }
 
+function inferDefaultApiBaseUrl() {
+  if (process.env.VERCEL_ENV) {
+    return "https://setwiseapi.vercel.app/api/v1";
+  }
+
+  return undefined;
+}
+
 function assertProductionApiBaseUrl(apiBaseUrl, source) {
   const sourceLabel = source ? ` Source: ${source}.` : "";
 
@@ -122,13 +130,13 @@ function assertProductionApiBaseUrl(apiBaseUrl, source) {
 
 module.exports = () => {
   const expoConfig = baseConfig.expo ?? {};
+  const isVercelBuild = Boolean(process.env.VERCEL_ENV);
   const isProductionBuild = process.env.VERCEL_ENV === "production";
-  const resolveOptions = { skipEnvFiles: isProductionBuild };
-  const apiBaseUrlResult = resolveEnvValue("EXPO_PUBLIC_API_BASE_URL", resolveOptions);
-  const apiBaseUrl = apiBaseUrlResult.value;
+  const apiBaseUrlResult = resolveEnvValue("EXPO_PUBLIC_API_BASE_URL", { skipEnvFiles: isVercelBuild });
+  const apiBaseUrl = apiBaseUrlResult.value ?? inferDefaultApiBaseUrl();
 
   if (isProductionBuild) {
-    assertProductionApiBaseUrl(apiBaseUrl, apiBaseUrlResult.source);
+    assertProductionApiBaseUrl(apiBaseUrl, apiBaseUrlResult.source ?? "default");
   }
 
   if (apiBaseUrl) {

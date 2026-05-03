@@ -11,8 +11,10 @@ import { completionCacheTestCases } from "./completion-cache.test.js";
 import { dashboardProgramTestCases } from "./dashboard-program.test.js";
 import { programCreatorTestCases } from "./program-creator.test.js";
 import { unitSystemMetricTestCases } from "./unit-system-metric.test.js";
+import { mobileConfigTestCases } from "./mobile-config.test.js";
 
 runMobileTestCases([
+  ...mobileConfigTestCases,
   ...mobileApiTestCases,
   ...authBehaviorTestCases,
   ...feedbackTestCases,

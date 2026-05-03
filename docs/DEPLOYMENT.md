@@ -21,9 +21,9 @@ Optional GitHub variable:
 
 - `VERCEL_PRODUCTION_URL`
 
-Required Vercel environment variable for the UI project:
+Optional Vercel environment variable for the UI project:
 
-- `EXPO_PUBLIC_API_BASE_URL`
+- `EXPO_PUBLIC_API_BASE_URL` (defaults to the production API URL for Vercel builds)
 
 ## API Deployment
 

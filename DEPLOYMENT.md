@@ -72,9 +72,9 @@ Create or update the production web Vercel project with:
 - `Build Command`: leave unset or use the checked-in `vercel.json`
 - `Output Directory`: leave unset or use the checked-in `vercel.json`
 
-Set these environment variables on the production web Vercel project:
+Optional override (usually not needed):
 
-- `EXPO_PUBLIC_API_BASE_URL`: `https://setwiseapi.vercel.app/api/v1`
+- `EXPO_PUBLIC_API_BASE_URL`: defaults to `https://setwiseapi.vercel.app/api/v1` for Vercel builds
 
 Do not point the production web app at localhost or at a preview-only API.
 The web app stores the MVP bearer token in browser `localStorage` and sends it to the API on protected requests.
@@ -407,9 +407,9 @@ The checked-in mobile Vercel config:
 - exports the Expo app as a static web build
 - writes output to `dist`
 - rewrites all routes back to `/` for SPA navigation
-- reads `EXPO_PUBLIC_API_BASE_URL` from the Vercel project environment during the web build
+- uses `EXPO_PUBLIC_API_BASE_URL` if provided, otherwise defaults to the production API for Vercel builds
 
-Set these environment variables on the tester web Vercel project:
+Optional override:
 
 - `EXPO_PUBLIC_API_BASE_URL`
 

@@ -16,6 +16,11 @@ const requiredByProject = {
     "EMAIL_FROM",
     "PASSWORD_RESET_LINK_BASE_URL"
   ],
+  web: []
+};
+
+const optionalByProject = {
+  api: [],
   web: ["EXPO_PUBLIC_API_BASE_URL"]
 };
 
@@ -100,6 +105,16 @@ function main() {
       console.error(`- ${key}`);
     }
     process.exit(1);
+  }
+
+  const optional = optionalByProject[project] ?? [];
+  const missingOptional = optional.filter((key) => !keys.has(key));
+  if (missingOptional.length > 0) {
+    console.warn(`Warning: optional env var(s) missing for ${project} (${environment}/${branch}):`);
+    for (const key of missingOptional) {
+      console.warn(`- ${key}`);
+    }
+    console.warn("Web deployments default the API base URL when EXPO_PUBLIC_API_BASE_URL is not set.");
   }
 
   console.log(`OK: required env vars present for ${project} (${environment}/${branch}).`);
