@@ -44,7 +44,14 @@ jobs:
         run: npx vercel pull --yes --environment=preview --git-branch=develop --token=${{ secrets.VERCEL_TOKEN }}
 
       - name: Run staging database migrations
-        run: npm run db:migrate
+        env:
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL || secrets.DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "DATABASE_URL is not set. Add STAGING_DATABASE_URL (recommended) or DATABASE_URL as a GitHub Actions secret."
+            exit 1
+          fi
+          npm run db:migrate
 
       - name: Build API Vercel output (preview)
         run: npx vercel build --local-config vercel.api.json --token=${{ secrets.VERCEL_TOKEN }}
