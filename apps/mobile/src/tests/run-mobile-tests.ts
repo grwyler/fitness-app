@@ -12,7 +12,7 @@ import { dashboardProgramTestCases } from "./dashboard-program.test.js";
 import { programCreatorTestCases } from "./program-creator.test.js";
 import { unitSystemMetricTestCases } from "./unit-system-metric.test.js";
 
-void runMobileTestCases([
+runMobileTestCases([
   ...mobileApiTestCases,
   ...authBehaviorTestCases,
   ...feedbackTestCases,
@@ -25,4 +25,7 @@ void runMobileTestCases([
   ...dashboardProgramTestCases,
   ...programCreatorTestCases,
   ...historyDetailTestCases
-]);
+]).catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});

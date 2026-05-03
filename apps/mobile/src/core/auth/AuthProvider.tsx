@@ -1,12 +1,12 @@
 import type { PropsWithChildren } from "react";
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { AuthUser } from "../../api/auth";
 import { fetchCurrentUser } from "../../api/auth";
 import { registerAuthBridge, setLastKnownAuthToken } from "./auth-bridge";
 import { clearStoredAuthToken, readStoredAuthToken, writeStoredAuthToken } from "./token-storage";
 import { restoreSession } from "./restore-session";
-import { queryClient } from "../providers/query-client";
-import { useActiveWorkoutStore } from "../../features/workout/store/active-workout-store";
+import { resetClientState } from "./reset-client-state";
+import { resetToSignInIfNeeded } from "../navigation/navigation-bridge";
 
 type AuthContextValue = {
   authDebug: {
@@ -23,18 +23,11 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-function resetClientState() {
-  queryClient.clear();
-
-  const workoutStore = useActiveWorkoutStore.getState();
-  workoutStore.resetForCompletedWorkout();
-  workoutStore.setLatestSummary(null);
-}
-
 export function AuthProvider({ children }: PropsWithChildren) {
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<AuthUser | null>(null);
   const [status, setStatus] = useState<AuthContextValue["status"]>("checking_session");
+  const unauthorizedInFlightRef = useRef<Promise<void> | null>(null);
 
   const completeSignIn = useCallback(async (input: { token: string; user: AuthUser }) => {
     await writeStoredAuthToken(input.token);
@@ -45,13 +38,32 @@ export function AuthProvider({ children }: PropsWithChildren) {
   }, []);
 
   const signOut = useCallback(async () => {
-    await clearStoredAuthToken();
     setLastKnownAuthToken(null, "app_sign_out");
     setToken(null);
     setUser(null);
     setStatus("unauthenticated");
     resetClientState();
+    try {
+      await clearStoredAuthToken();
+    } catch {
+      // Best effort: the UI state is already reset.
+    }
   }, []);
+
+  const handleUnauthorized = useCallback(async () => {
+    if (!unauthorizedInFlightRef.current) {
+      unauthorizedInFlightRef.current = (async () => {
+        try {
+          await signOut();
+          resetToSignInIfNeeded();
+        } finally {
+          unauthorizedInFlightRef.current = null;
+        }
+      })();
+    }
+
+    await unauthorizedInFlightRef.current;
+  }, [signOut]);
 
   useEffect(() => {
     let cancelled = false;
@@ -83,11 +95,11 @@ export function AuthProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     const unregister = registerAuthBridge({
       getToken: async () => token,
-      handleUnauthorized: async () => {}
+      handleUnauthorized
     });
 
     return unregister;
-  }, [token]);
+  }, [handleUnauthorized, token]);
 
   const value = useMemo<AuthContextValue>(() => {
     return {

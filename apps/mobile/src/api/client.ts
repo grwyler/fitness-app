@@ -1,7 +1,12 @@
 import type { ApiErrorEnvelope, ApiSuccessEnvelope } from "@fitness/shared";
 import { apiConfig } from "./config";
 import { MobileApiError } from "./errors";
-import { getAuthToken, getLastKnownAuthTokenSource } from "../core/auth/auth-bridge";
+import {
+  getAuthToken,
+  getLastKnownAuthTokenSource,
+  handleUnauthorizedResponse,
+  setLastKnownAuthToken
+} from "../core/auth/auth-bridge";
 import { appendAuthDebugTimeline, logSafeAuthDiagnostic, setLastAuthDebugMessage } from "../core/auth/auth-debug";
 
 type RequestOptions = {
@@ -110,10 +115,13 @@ export async function apiRequest<TData, TMeta extends Record<string, unknown> = 
         : `Authenticated API request failed with 401 on ${path}. Token present: ${token ? "yes" : "no"}.`;
       appendAuthDebugTimeline("api_request_401", debugMessage);
       setLastAuthDebugMessage(debugMessage);
-      if (token) {
-        appendAuthDebugTimeline("api_request_401_preserved_app_session", `path=${path}`);
-      } else {
-        appendAuthDebugTimeline("api_request_401_without_token_skipped_sign_out", `path=${path}`);
+      appendAuthDebugTimeline("api_request_401_triggered_global_sign_out", `path=${path}`);
+      setLastKnownAuthToken(null, "api_401");
+      try {
+        await handleUnauthorizedResponse();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        appendAuthDebugTimeline("api_request_401_unauthorized_handler_failed", `path=${path}; message=${message}`);
       }
     }
 

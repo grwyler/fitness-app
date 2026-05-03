@@ -1,10 +1,12 @@
 import type { PropsWithChildren } from "react";
+import { useEffect } from "react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { NavigationContainer, useNavigationContainerRef } from "@react-navigation/native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { queryClient } from "./query-client";
 import { AuthProvider } from "../auth/AuthProvider";
 import type { RootStackParamList } from "../navigation/navigation-types";
+import { registerNavigationBridge } from "../navigation/navigation-bridge";
 
 function getWebUrl() {
   const href = (globalThis as any)?.location?.href;
@@ -54,6 +56,25 @@ function applyWebInitialRoute(navigationRef: ReturnType<typeof useNavigationCont
 
 export function AppProviders({ children }: PropsWithChildren) {
   const navigationRef = useNavigationContainerRef<RootStackParamList>();
+
+  useEffect(() => {
+    const unregister = registerNavigationBridge({
+      getCurrentRouteName: () => navigationRef.getCurrentRoute()?.name ?? null,
+      isReady: () => navigationRef.isReady(),
+      resetToSignIn: () => {
+        if (!navigationRef.isReady()) {
+          return;
+        }
+
+        navigationRef.reset({
+          index: 0,
+          routes: [{ name: "SignIn" }]
+        });
+      }
+    });
+
+    return unregister;
+  }, [navigationRef]);
 
   return (
     <SafeAreaProvider>

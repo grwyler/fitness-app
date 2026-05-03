@@ -11,6 +11,7 @@ const defaultBridge: AuthBridge = {
 let authBridge: AuthBridge = defaultBridge;
 let lastKnownToken: string | null = null;
 let lastKnownTokenSource: string | null = null;
+let unauthorizedInFlight: Promise<void> | null = null;
 
 export function registerAuthBridge(nextBridge: AuthBridge) {
   authBridge = nextBridge;
@@ -28,7 +29,17 @@ export async function getAuthToken() {
 }
 
 export async function handleUnauthorizedResponse() {
-  await authBridge.handleUnauthorized();
+  if (!unauthorizedInFlight) {
+    unauthorizedInFlight = (async () => {
+      try {
+        await authBridge.handleUnauthorized();
+      } finally {
+        unauthorizedInFlight = null;
+      }
+    })();
+  }
+
+  await unauthorizedInFlight;
 }
 
 export function setLastKnownAuthToken(token: string | null, source: string) {
