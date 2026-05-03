@@ -6,6 +6,7 @@ dist/
 .vercel
 **/.vercel/
 **/.vercel/.env.*
+**/.vercel-preview-*.local
 .npm-cache/
 .DS_Store
 coverage/
@@ -17,4 +18,3 @@ coverage/
 .env.api.staging
 .env.web.staging
 .env.vercel.local
-
