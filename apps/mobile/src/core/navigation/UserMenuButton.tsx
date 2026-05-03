@@ -5,6 +5,9 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { colors, spacing } from "../../theme/tokens";
 import { useAppAuth } from "../auth/AuthProvider";
 import type { RootStackParamList } from "./navigation-types";
+import { resolveAppVersion } from "../version/app-version";
+import { ReleaseNotesSheet } from "../../components/ReleaseNotesSheet";
+import { ReleaseNotesMenuItem } from "../../components/ReleaseNotesMenuItem";
 
 function getInitials(input: string | null) {
   const trimmed = (input ?? "").trim();
@@ -25,6 +28,7 @@ export function UserMenuButton() {
   const auth = useAppAuth();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [releaseNotesOpen, setReleaseNotesOpen] = useState(false);
 
   const label = useMemo(() => {
     const email = auth.userEmail;
@@ -34,6 +38,7 @@ export function UserMenuButton() {
   }, [auth.userEmail]);
 
   const initials = useMemo(() => getInitials(auth.userEmail), [auth.userEmail]);
+  const version = resolveAppVersion() ?? "0.0.0";
 
   return (
     <View>
@@ -103,9 +108,23 @@ export function UserMenuButton() {
             >
               <Text style={[styles.menuItemText, styles.dangerText]}>Sign out</Text>
             </Pressable>
+            <View style={styles.separator} />
+            <ReleaseNotesMenuItem
+              version={version}
+              onPress={() => {
+                setMenuOpen(false);
+                setReleaseNotesOpen(true);
+              }}
+            />
           </Pressable>
         </Pressable>
       </Modal>
+
+      <ReleaseNotesSheet
+        visible={releaseNotesOpen}
+        currentVersion={version}
+        onClose={() => setReleaseNotesOpen(false)}
+      />
     </View>
   );
 }

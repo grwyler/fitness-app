@@ -2,6 +2,7 @@ const fs = require("fs");
 const path = require("path");
 
 const baseConfig = require("./app.json");
+const rootPackageJson = require(path.resolve(__dirname, "..", "..", "package.json"));
 
 function parseEnvFile(filePath) {
   if (!fs.existsSync(filePath)) {
@@ -122,6 +123,11 @@ function assertProductionApiBaseUrl(apiBaseUrl, source) {
 
 module.exports = () => {
   const expoConfig = baseConfig.expo ?? {};
+  const appVersion = typeof rootPackageJson.version === "string" ? rootPackageJson.version.trim() : "";
+  if (!appVersion) {
+    failConfig("Unable to resolve app version from the repo root package.json.");
+  }
+
   const isProductionBuild = process.env.VERCEL_ENV === "production";
   const resolveOptions = { skipEnvFiles: isProductionBuild };
   const apiBaseUrlResult = resolveEnvValue("EXPO_PUBLIC_API_BASE_URL", resolveOptions);
@@ -151,11 +157,15 @@ module.exports = () => {
     process.env.EXPO_PUBLIC_OBSERVABILITY_ENABLED = observabilityEnabledResult.value;
   }
 
+  process.env.EXPO_PUBLIC_APP_VERSION = appVersion;
+
   return {
     ...expoConfig,
+    version: appVersion,
     extra: {
       ...expoConfig.extra,
-      apiBaseUrl
+      apiBaseUrl,
+      appVersion
     }
   };
 };

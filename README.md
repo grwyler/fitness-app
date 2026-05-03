@@ -31,6 +31,7 @@ Backend foundation and the first backend workout vertical slice are implemented:
 
 See [BACKEND.md](C:\Users\Grwyl\repos\fitness-app\BACKEND.md) for backend run, test, env, and auth details.
 See [DEPLOYMENT.md](C:\Users\Grwyl\repos\fitness-app\DEPLOYMENT.md) for Vercel + hosted Postgres deployment steps.
+See [docs/RELEASING.md](docs/RELEASING.md) for the versioning + release notes process.
 The production mobile web app is served by the repo-root Vercel project, and the browser-based tester app is live at [https://mobile-ruddy-phi.vercel.app](https://mobile-ruddy-phi.vercel.app).
 
 For a full local run, use:

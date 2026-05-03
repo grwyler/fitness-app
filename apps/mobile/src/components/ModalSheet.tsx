@@ -27,7 +27,12 @@ export function ModalSheet({
 }: Props) {
   return (
     <Modal animationType="fade" transparent visible={visible} onRequestClose={onClose}>
-      <Pressable accessibilityRole="button" onPress={onClose} style={styles.backdrop}>
+      <Pressable
+        accessibilityElementsHidden
+        accessible={false}
+        onPress={onClose}
+        style={styles.backdrop}
+      >
         <Pressable
           accessibilityRole="none"
           onPress={() => null}
