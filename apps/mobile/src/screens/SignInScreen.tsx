@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { StyleSheet, Text, TextInput, View } from "react-native";
 import { signInWithPassword } from "../api/auth";
@@ -14,12 +14,33 @@ function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Unable to sign in.";
 }
 
-export function SignInScreen({ navigation }: Props) {
+function getWebQueryParam(name: string) {
+  const href = (globalThis as any)?.location?.href;
+  if (typeof href !== "string" || !href) {
+    return null;
+  }
+
+  try {
+    const url = new URL(href);
+    return url.searchParams.get(name);
+  } catch {
+    return null;
+  }
+}
+
+export function SignInScreen({ navigation, route }: Props) {
   const auth = useAppAuth();
   const [emailAddress, setEmailAddress] = useState("");
   const [password, setPassword] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    const tokenFromLink = (route.params as any)?.token ?? getWebQueryParam("token");
+    if (typeof tokenFromLink === "string" && tokenFromLink.trim()) {
+      navigation.replace("ResetPassword", { token: tokenFromLink.trim() });
+    }
+  }, [navigation, route.params]);
 
   const handleSubmit = async () => {
     if (isSubmitting) {

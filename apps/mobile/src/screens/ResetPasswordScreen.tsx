@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { StyleSheet, Text, TextInput, View } from "react-native";
 import { confirmPasswordReset } from "../api/auth";
@@ -13,13 +13,40 @@ function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Unable to reset password.";
 }
 
+function getWebQueryParam(name: string) {
+  const href = (globalThis as any)?.location?.href;
+  if (typeof href !== "string" || !href) {
+    return null;
+  }
+
+  try {
+    const url = new URL(href);
+    return url.searchParams.get(name);
+  } catch {
+    return null;
+  }
+}
+
 export function ResetPasswordScreen({ navigation, route }: Props) {
-  const [token, setToken] = useState("");
+  const [token, setToken] = useState(() => {
+    const initial = route.params?.token ?? getWebQueryParam("token") ?? "";
+    return typeof initial === "string" ? initial : "";
+  });
   const [password, setPassword] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const email = route.params?.email;
+
+  useEffect(() => {
+    const tokenFromParams = route.params?.token;
+    const tokenFromUrl = getWebQueryParam("token");
+    const nextToken = tokenFromParams ?? tokenFromUrl;
+
+    if (typeof nextToken === "string" && nextToken.trim() && !token.trim()) {
+      setToken(nextToken.trim());
+    }
+  }, [route.params?.token, token]);
 
   const handleSubmit = async () => {
     if (isSubmitting) {
@@ -136,4 +163,3 @@ const styles = StyleSheet.create({
     lineHeight: 20
   }
 });
-

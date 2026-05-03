@@ -140,6 +140,16 @@ export function AppNavigator() {
             component={ExerciseProgressionSettingsScreen}
             options={{ title: "Exercise Progression Settings", headerRight: () => <UserMenuButton /> }}
           />
+          <Stack.Screen
+            name="ForgotPassword"
+            component={ForgotPasswordScreen}
+            options={{ title: "Forgot Password" }}
+          />
+          <Stack.Screen
+            name="ResetPassword"
+            component={ResetPasswordScreen}
+            options={{ title: "Reset Password" }}
+          />
         </>
       )}
     </Stack.Navigator>

@@ -2,12 +2,17 @@ import type { CompleteWorkoutSessionResponse, ProgramWorkoutTemplateDto } from "
 import type { CustomWorkoutBuilderMode } from "../../features/workout/utils/custom-workout-builder.shared";
 
 export type RootStackParamList = {
-  SignIn: undefined;
+  SignIn:
+    | {
+        token?: string;
+      }
+    | undefined;
   SignUp: undefined;
   ForgotPassword: undefined;
   ResetPassword:
     | {
         email?: string;
+        token?: string;
       }
     | undefined;
   Dashboard: undefined;
