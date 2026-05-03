@@ -12,6 +12,8 @@ import { hashPassword, verifyPassword } from "./password.js";
 import { buildPasswordResetLink, generatePasswordResetToken, hashPasswordResetToken } from "./password-reset.js";
 import { issueAuthToken } from "./token.js";
 import type { UserRole } from "../../modules/workout/application/types/request-context.js";
+import { getEnv } from "../../config/env.js";
+import { resolveRoleForEmail } from "./admin-email-allowlist.js";
 
 type DatabaseLike = {
   select: (...args: any[]) => any;
@@ -106,6 +108,7 @@ async function findUserById(database: DatabaseLike, userId: string) {
 
 export function createPublicAuthRouter(database: DatabaseLike) {
   const router = Router();
+  const env = getEnv();
 
   const signUpRateLimit = createRateLimitMiddleware({
     key: (request) => `auth_signup|email=${normalizeEmailFromBody((request.body as any)?.email) ?? "none"}`,
@@ -140,6 +143,7 @@ export function createPublicAuthRouter(database: DatabaseLike) {
 
       const userId = randomUUID();
       const passwordHash = await hashPassword(parsedCredentials.data.password);
+      const role = resolveRoleForEmail({ email: parsedCredentials.data.email, adminEmails: env.ADMIN_EMAILS });
       try {
         await database.insert(users).values({
           id: userId,
@@ -147,7 +151,7 @@ export function createPublicAuthRouter(database: DatabaseLike) {
           email: parsedCredentials.data.email,
           displayName: parsedCredentials.data.email.split("@")[0] ?? null,
           passwordHash,
-          role: "user"
+          role
         });
       } catch (error) {
         if (isUniqueConstraintViolation(error)) {
@@ -168,7 +172,7 @@ export function createPublicAuthRouter(database: DatabaseLike) {
         user: publicUser({
           email: parsedCredentials.data.email,
           id: userId,
-          role: "user"
+          role
         })
       }));
     } catch (error) {
@@ -189,6 +193,15 @@ export function createPublicAuthRouter(database: DatabaseLike) {
       if (!existingUser || !passwordMatches) {
         response.status(401).json(failure("UNAUTHENTICATED", "Email or password is incorrect."));
         return;
+      }
+
+      const desiredRole = resolveRoleForEmail({ email: existingUser.email, adminEmails: env.ADMIN_EMAILS });
+      if (desiredRole === "admin" && existingUser.role !== "admin") {
+        await database
+          .update(users)
+          .set({ role: "admin", updatedAt: new Date() })
+          .where(eq(users.id, existingUser.id));
+        existingUser.role = "admin";
       }
 
       const token = issueAuthToken({

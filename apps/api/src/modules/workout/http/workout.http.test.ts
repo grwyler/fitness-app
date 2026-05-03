@@ -18,7 +18,7 @@ import {
 } from "@fitness/db";
 import type { Request } from "express";
 import { createApp } from "../../../app.js";
-import { getEnv } from "../../../config/env.js";
+import { getEnv, resetEnvForTests } from "../../../config/env.js";
 import { createAuthenticateRequestMiddleware } from "../../../lib/auth/auth.middleware.js";
 import { hashPassword } from "../../../lib/auth/password.js";
 import { issueAuthToken } from "../../../lib/auth/token.js";
@@ -320,6 +320,38 @@ async function seedResettableTestUserData(context: Awaited<ReturnType<typeof cre
 }
 
 export const workoutHttpTestCases: HttpTestCase[] = [
+  {
+    name: "POST /api/v1/auth/signup assigns admin role for allowlisted email",
+    run: async () => {
+      const previous = process.env.ADMIN_EMAILS;
+      process.env.ADMIN_EMAILS = "admin@example.com";
+      resetEnvForTests();
+
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        const server = await startHttpServer(context.db, null);
+
+        try {
+          const signupResponse = await fetch(`${server.baseUrl}/api/v1/auth/signup`, {
+            body: JSON.stringify({ email: "admin@example.com", password: "password123" }),
+            headers: { "Content-Type": "application/json" },
+            method: "POST"
+          });
+          const payload = await readJson(signupResponse);
+
+          assert.equal(signupResponse.status, 201);
+          assert.equal(payload.data.user.role, "admin");
+        } finally {
+          await server.close();
+        }
+      } finally {
+        process.env.ADMIN_EMAILS = previous;
+        resetEnvForTests();
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
   {
     name: "Auth middleware accepts a valid app token",
     run: async () => {

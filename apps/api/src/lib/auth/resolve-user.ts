@@ -4,6 +4,8 @@ import { eq } from "drizzle-orm";
 import type { UnitSystem } from "@fitness/shared";
 import type { AppAuthState } from "./auth.types.js";
 import type { UserRole } from "../../modules/workout/application/types/request-context.js";
+import { getEnv } from "../../config/env.js";
+import { resolveRoleForEmail } from "./admin-email-allowlist.js";
 
 type DatabaseLike = {
   select: (...args: any[]) => any;
@@ -42,6 +44,9 @@ export async function resolveUser(input: {
     return existingUser;
   }
 
+  const env = getEnv();
+  const role = resolveRoleForEmail({ email: input.authUser.email, adminEmails: env.ADMIN_EMAILS });
+
   await input.database
     .insert(users)
     .values({
@@ -49,7 +54,7 @@ export async function resolveUser(input: {
       authProviderId: input.authUser.userId,
       email: input.authUser.email,
       displayName: input.authUser.email.split("@")[0] ?? null,
-      role: "user"
+      role
     })
     .onConflictDoNothing({
       target: users.id

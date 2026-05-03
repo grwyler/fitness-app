@@ -5,6 +5,7 @@ import { detectDeploymentStage } from "./deployment-stage.js";
 
 function baseProductionEnv(overrides?: Record<string, string | undefined>) {
   return {
+    ADMIN_EMAILS: "admin@example.com",
     NODE_ENV: "production",
     DATABASE_URL: "postgresql://user:pass@host/db?sslmode=require",
     JWT_SECRET: "x".repeat(32),

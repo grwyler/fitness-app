@@ -69,7 +69,9 @@ function main() {
     const value = requireNonEmpty(key, envVars[key]);
     const sensitiveArgs = looksSensitiveKey(key) ? ["--sensitive"] : [];
 
-    const updateArgs = ["env", "update", key, environment, branch, "--yes", ...sensitiveArgs, ...globalArgs];
+    // `vercel env update --sensitive` attempts to *change* sensitivity, and can fail for already-sensitive vars.
+    // Updating the value should preserve existing sensitivity, so avoid `--sensitive` here.
+    const updateArgs = ["env", "update", key, environment, branch, "--yes", ...globalArgs];
     const addArgs = ["env", "add", key, environment, branch, ...sensitiveArgs, ...globalArgs];
 
     const updateResult = spawnVercelSync(updateArgs, {
@@ -92,7 +94,32 @@ function main() {
       env: { ...process.env }
     });
 
-    if (addResult.status !== 0) {
+    if (addResult.status === 0) {
+      continue;
+    }
+
+    // Some Vercel env vars (notably sensitive vars like DATABASE_URL) can fail to update in-place with an API error.
+    // When that happens and the var already exists, do a safe replace: remove then add.
+    const rmArgs = ["env", "rm", key, environment, branch, "--yes", ...globalArgs];
+    const rmResult = spawnVercelSync(rmArgs, {
+      stdio: ["ignore", "inherit", "inherit"],
+      cwd: projectConfig.cwd,
+      env: { ...process.env }
+    });
+
+    if (rmResult.status !== 0) {
+      throw new Error(`Failed to add/update ${key} for ${project} (${environment}/${branch}).`);
+    }
+
+    const addAgainResult = spawnVercelSync(addArgs, {
+      input: `${value}\n`,
+      encoding: "utf8",
+      stdio: ["pipe", "inherit", "inherit"],
+      cwd: projectConfig.cwd,
+      env: { ...process.env }
+    });
+
+    if (addAgainResult.status !== 0) {
       throw new Error(`Failed to add/update ${key} for ${project} (${environment}/${branch}).`);
     }
   }

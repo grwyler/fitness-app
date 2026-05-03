@@ -46,6 +46,7 @@ const emailProviderSchema = z.preprocess(
 );
 
 const envSchema = z.object({
+  ADMIN_EMAILS: trimmedOptionalString,
   CORS_ALLOWED_ORIGINS: trimmedOptionalString,
   DATABASE_URL: trimmedOptionalString.pipe(z.string().min(1, "DATABASE_URL is required").optional()),
   EMAIL_FROM: trimmedOptionalString,
@@ -224,6 +225,7 @@ export function parseEnvFrom(values: Record<string, string | undefined>): AppEnv
 export function parseEnvFromProcess(): AppEnv {
   loadDotEnvOnce();
   return parseEnvFrom({
+    ADMIN_EMAILS: process.env.ADMIN_EMAILS,
     CORS_ALLOWED_ORIGINS: process.env.CORS_ALLOWED_ORIGINS,
     DATABASE_URL: process.env.DATABASE_URL,
     EMAIL_FROM: process.env.EMAIL_FROM,
