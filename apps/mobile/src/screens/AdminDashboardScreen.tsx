@@ -98,6 +98,15 @@ export function AdminDashboardScreen({ navigation }: Props) {
 
       <Card variant="default" style={styles.card}>
         <AppText variant="caption" tone="accent">
+          Users
+        </AppText>
+        <AppText variant="title2">User directory</AppText>
+        <AppText tone="secondary">View all registered users and basic account details.</AppText>
+        <PrimaryButton label="Browse users" onPress={() => navigation.navigate("AdminUsers")} />
+      </Card>
+
+      <Card variant="default" style={styles.card}>
+        <AppText variant="caption" tone="accent">
           Test tools
         </AppText>
         <AppText variant="title2">Seed / reset test accounts</AppText>
@@ -154,4 +163,3 @@ const styles = StyleSheet.create({
     color: colors.accentStrong
   }
 });
-
