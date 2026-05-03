@@ -10,6 +10,7 @@ import type { ProgressionStateV2Repository } from "../../repositories/interfaces
 import type { ProgressionRecommendationEventRepository } from "../../repositories/interfaces/progression-recommendation-event.repository.js";
 import type { WorkoutSessionRepository } from "../../repositories/interfaces/workout-session.repository.js";
 import type { IdempotencyRecord } from "../../repositories/models/idempotency.persistence.js";
+import { IdempotencyScopeConflictError } from "../../repositories/models/idempotency.persistence.js";
 import type { ProgressionStateV2Record } from "../../repositories/models/progression-state-v2.persistence.js";
 import type { WorkoutSessionGraph } from "../../repositories/models/workout-session.persistence.js";
 import {
@@ -122,6 +123,10 @@ function createMockIdempotencyRepository() {
     },
     async createPending(input) {
       const key = `${input.scope.userId}:${input.scope.routeFamily}:${input.scope.targetResourceId ?? "none"}:${input.scope.key}`;
+      if (records.has(key)) {
+        throw new IdempotencyScopeConflictError(input.scope);
+      }
+
       const record: IdempotencyRecord = {
         id: `idempotency-${records.size + 1}`,
         userId: input.scope.userId,

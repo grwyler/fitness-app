@@ -8,6 +8,7 @@ import type {
   IdempotencyRecord,
   IdempotencyScope
 } from "../../repositories/models/idempotency.persistence.js";
+import { IdempotencyScopeConflictError } from "../../repositories/models/idempotency.persistence.js";
 import { and, eq, resolveExecutor } from "../db/drizzle-helpers.js";
 
 function toStoredTargetResourceId(targetResourceId: string | null) {
@@ -56,7 +57,7 @@ export class DrizzleIdempotencyRepository implements IdempotencyRepository {
     options?: RepositoryOptions
   ): Promise<IdempotencyRecord> {
     const executor = resolveExecutor(this.db, options);
-    const [row] = await executor
+    const rows = await executor
       .insert(idempotencyRecords)
       .values({
         id: randomUUID(),
@@ -67,7 +68,13 @@ export class DrizzleIdempotencyRepository implements IdempotencyRepository {
         requestFingerprint: input.requestFingerprint,
         status: "pending"
       })
+      .onConflictDoNothing()
       .returning();
+
+    const row = rows[0];
+    if (!row) {
+      throw new IdempotencyScopeConflictError(input.scope);
+    }
 
     return mapIdempotencyRecord(row);
   }

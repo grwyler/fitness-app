@@ -2477,6 +2477,46 @@ export const workoutHttpTestCases: HttpTestCase[] = [
         await disposeWorkoutInfrastructureTestContext(context);
       }
     }
+  },
+  {
+    name: "Concurrent identical idempotency requests replay safely",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        const server = await startHttpServer(context.db);
+
+        try {
+          const makeRequest = () =>
+            fetch(`${server.baseUrl}/api/v1/workout-sessions/start`, {
+              method: "POST",
+              headers: createAuthHeaders({
+                "content-type": "application/json",
+                "Idempotency-Key": "concurrent-start-http-key"
+              }),
+              body: JSON.stringify({})
+            });
+
+          const [firstResponse, secondResponse] = await Promise.all([makeRequest(), makeRequest()]);
+          const [firstPayload, secondPayload] = await Promise.all([
+            readJson(firstResponse),
+            readJson(secondResponse)
+          ]);
+
+          assert.equal(firstResponse.status, 201);
+          assert.equal(secondResponse.status, 201);
+          assert.deepEqual(secondPayload.data, firstPayload.data);
+          assert.equal(typeof firstPayload.meta.replayed, "boolean");
+          assert.equal(typeof secondPayload.meta.replayed, "boolean");
+          assert.equal(Number(firstPayload.meta.replayed) + Number(secondPayload.meta.replayed), 1);
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
   }
 ];
 

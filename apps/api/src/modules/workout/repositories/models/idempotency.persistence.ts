@@ -44,3 +44,13 @@ export type CompleteIdempotencyRecordInput = {
   responseBody: string;
   completedAt: Date;
 };
+
+export class IdempotencyScopeConflictError extends Error {
+  public readonly scope: IdempotencyScope;
+
+  public constructor(scope: IdempotencyScope) {
+    super("An idempotency record already exists for this scope.");
+    this.name = "IdempotencyScopeConflictError";
+    this.scope = scope;
+  }
+}

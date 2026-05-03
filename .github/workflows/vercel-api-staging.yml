@@ -43,6 +43,9 @@ jobs:
       - name: Pull API Vercel environment (preview/develop)
         run: npx vercel pull --yes --environment=preview --git-branch=develop --token=${{ secrets.VERCEL_TOKEN }}
 
+      - name: Run staging database migrations
+        run: npm run db:migrate
+
       - name: Build API Vercel output (preview)
         run: npx vercel build --local-config vercel.api.json --token=${{ secrets.VERCEL_TOKEN }}
 

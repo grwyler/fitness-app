@@ -256,6 +256,7 @@ Pushes to `develop` deploy staging via:
 Both use:
 
 - `vercel pull --environment=preview --git-branch=develop`
+- `npm run db:migrate` (applies `packages/db/migrations` to staging/preview DB)
 - `vercel build`
 - `vercel deploy --prebuilt` (Preview)
 
