@@ -69,30 +69,36 @@ export function initMobileObservability(): InitResult {
       return;
     }
 
-    Sentry.init({
-      dsn,
-      enabled: true,
-      environment: environment || undefined,
-      release: release || undefined,
-      tracesSampleRate: 0,
-      beforeSend(event) {
-        if (event.extra) {
-          event.extra = redactForObservability(event.extra as any) as any;
-        }
+    try {
+      Sentry.init({
+        dsn,
+        enabled: true,
+        environment: environment || undefined,
+        release: release || undefined,
+        tracesSampleRate: 0,
+        beforeSend(event) {
+          if (event.extra) {
+            event.extra = redactForObservability(event.extra as any) as any;
+          }
 
-        if (event.request) {
-          delete (event.request as any).cookies;
-          delete (event.request as any).headers;
-          delete (event.request as any).data;
-        }
+          if (event.request) {
+            delete (event.request as any).cookies;
+            delete (event.request as any).headers;
+            delete (event.request as any).data;
+          }
 
-        if (event.user && typeof event.user === "object") {
-          event.user = { id: (event.user as any).id } as any;
-        }
+          if (event.user && typeof event.user === "object") {
+            event.user = { id: (event.user as any).id } as any;
+          }
 
-        return event;
-      }
-    });
+          return event;
+        }
+      });
+    } catch {
+      // Best effort: observability must never crash app startup (especially on web bundles).
+      enabled = false;
+      return;
+    }
 
     void import("expo-constants")
       .then((module) => {
