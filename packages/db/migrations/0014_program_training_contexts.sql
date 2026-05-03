@@ -4,6 +4,12 @@ exception
   when duplicate_object then null;
 end $$;
 
+do $$ begin
+  create type difficulty_level as enum ('beginner', 'intermediate', 'advanced');
+exception
+  when duplicate_object then null;
+end $$;
+
 create table if not exists program_training_contexts (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references users(id),
@@ -25,4 +31,3 @@ create index if not exists idx_program_training_contexts_user_id on program_trai
 create index if not exists idx_program_training_contexts_program_id on program_training_contexts(program_id);
 create index if not exists idx_program_training_contexts_enrollment_id on program_training_contexts(enrollment_id);
 create index if not exists idx_program_training_contexts_user_program on program_training_contexts(user_id, program_id);
-
