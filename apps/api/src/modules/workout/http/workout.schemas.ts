@@ -11,7 +11,14 @@ import {
   experienceLevels,
   guidedEquipmentAccessLevels,
   guidedGoalTypes,
-  guidedRecoveryPreferences
+  guidedRecoveryPreferences,
+  guidedScheduleFlexibilities,
+  guidedSessionDurationFlexibilities,
+  guidedTrainingStylePreferences,
+  guidedFocusAreas,
+  guidedBusyWeekPreferences,
+  guidedRecoveryTolerances,
+  guidedEquipmentTypes
 } from "@fitness/shared";
 
 const weightValueSchema = z.object({
@@ -39,16 +46,46 @@ export const programParamsSchema = z.object({
   programId: z.string().min(1)
 });
 
-export const recommendGuidedProgramBodySchema = z.object({
-  answers: z.object({
-    goal: z.enum(guidedGoalTypes),
-    experienceLevel: z.enum(experienceLevels),
+const guidedProgramAnswersV1Schema = z.object({
+  goal: z.enum(guidedGoalTypes),
+  experienceLevel: z.enum(experienceLevels),
+  daysPerWeek: z.union([z.literal(2), z.literal(3), z.literal(4), z.literal(5), z.literal(6)]),
+  sessionDurationMinutes: z.union([z.literal(30), z.literal(45), z.literal(60), z.literal(75)]),
+  equipmentAccess: z.enum(guidedEquipmentAccessLevels),
+  progressionAggressiveness: z.enum(progressionAggressivenessLevels),
+  recoveryPreference: z.enum(guidedRecoveryPreferences)
+});
+
+const guidedProgramAnswersV2Schema = z.object({
+  version: z.literal(2),
+  intakeDepth: z.enum(["core", "refined"]),
+  goal: z.enum(guidedGoalTypes),
+  experienceLevel: z.enum(experienceLevels),
+  schedule: z.object({
     daysPerWeek: z.union([z.literal(2), z.literal(3), z.literal(4), z.literal(5), z.literal(6)]),
-    sessionDurationMinutes: z.union([z.literal(30), z.literal(45), z.literal(60), z.literal(75)]),
-    equipmentAccess: z.enum(guidedEquipmentAccessLevels),
+    flexibility: z.enum(guidedScheduleFlexibilities)
+  }),
+  sessions: z.object({
+    durationMinutes: z.union([z.literal(30), z.literal(45), z.literal(60), z.literal(75)]),
+    flexibility: z.enum(guidedSessionDurationFlexibilities)
+  }),
+  equipment: z.object({
+    access: z.enum(guidedEquipmentAccessLevels),
+    avoid: z.array(z.enum(guidedEquipmentTypes)).max(5).optional()
+  }),
+  preferences: z.object({
     progressionAggressiveness: z.enum(progressionAggressivenessLevels),
-    recoveryPreference: z.enum(guidedRecoveryPreferences)
+    recoveryPreference: z.enum(guidedRecoveryPreferences),
+    trainingStylePreference: z.enum(guidedTrainingStylePreferences).optional(),
+    focusAreas: z.array(z.enum(guidedFocusAreas)).max(3).optional(),
+    busyWeekPreference: z.enum(guidedBusyWeekPreferences).optional(),
+    recoveryTolerance: z.enum(guidedRecoveryTolerances).optional(),
+    exerciseExclusions: z.string().max(400).nullable().optional()
   })
+});
+
+export const recommendGuidedProgramBodySchema = z.object({
+  answers: z.union([guidedProgramAnswersV1Schema, guidedProgramAnswersV2Schema])
 });
 
 export const followProgramBodySchema = z

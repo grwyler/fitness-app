@@ -581,5 +581,13 @@ export const mobileApiTestCases: MobileTestCase[] = [
       assert.equal(first.key, second.key);
       assert.notEqual(second.key, third.key);
     }
+  },
+  {
+    name: "Stable idempotency keys do not throw when called with missing input",
+    run: () => {
+      const result = (resolveStableIdempotencyKey as unknown as () => { key: unknown; fingerprint: unknown })();
+      assert.equal(typeof result.key, "string");
+      assert.equal(typeof result.fingerprint, "string");
+    }
   }
 ];

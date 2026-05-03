@@ -1,4 +1,4 @@
-import type { FollowProgramRequest, FollowProgramResponse } from "@fitness/shared";
+import type { FollowProgramRequest, FollowProgramResponse, GuidedProgramAnswers, GuidedProgramAnswersV2 } from "@fitness/shared";
 import type { EnrollmentRepository } from "../../repositories/interfaces/enrollment.repository.js";
 import type { ExerciseRepository } from "../../repositories/interfaces/exercise.repository.js";
 import type { ExerciseProgressionSettingsRepository } from "../../repositories/interfaces/exercise-progression-settings.repository.js";
@@ -119,20 +119,33 @@ export class FollowProgramUseCase {
       const guidedAnswers = input.request?.activationSource === "guided" ? input.request.guidedAnswers : undefined;
       const isGuided = Boolean(guidedAnswers);
 
+      function isGuidedAnswersV2(input: GuidedProgramAnswers): input is GuidedProgramAnswersV2 {
+        return typeof (input as GuidedProgramAnswersV2).version === "number" && (input as GuidedProgramAnswersV2).version === 2;
+      }
+
       const goalType = guidedAnswers
         ? mapGuidedAnswersToTrainingGoal(guidedAnswers.goal)
         : trainingSettings.trainingGoal;
       const experienceLevel = guidedAnswers ? guidedAnswers.experienceLevel : trainingSettings.experienceLevel;
-      const progressionAggressiveness = guidedAnswers
-        ? guidedAnswers.progressionAggressiveness
-        : trainingSettings.progressionAggressiveness;
+      const guidedProgressionAggressiveness = guidedAnswers
+        ? isGuidedAnswersV2(guidedAnswers)
+          ? guidedAnswers.preferences.progressionAggressiveness
+          : guidedAnswers.progressionAggressiveness
+        : null;
+      const progressionAggressiveness = guidedProgressionAggressiveness ?? trainingSettings.progressionAggressiveness;
+
+      const guidedRecoveryPreference = guidedAnswers
+        ? isGuidedAnswersV2(guidedAnswers)
+          ? guidedAnswers.preferences.recoveryPreference
+          : guidedAnswers.recoveryPreference
+        : null;
 
       const recoveryOverrides = guidedAnswers
-        ? guidedAnswers.recoveryPreference === "keep_fixed"
+        ? guidedRecoveryPreference === "keep_fixed"
           ? { useRecoveryAdjustments: false, allowAutoDeload: false }
-          : guidedAnswers.recoveryPreference === "small_adjustments_only"
-            ? { useRecoveryAdjustments: true, allowAutoDeload: false }
-            : { useRecoveryAdjustments: true, allowAutoDeload: true }
+          : guidedRecoveryPreference === "small_adjustments_only"
+             ? { useRecoveryAdjustments: true, allowAutoDeload: false }
+             : { useRecoveryAdjustments: true, allowAutoDeload: true }
         : null;
 
       await this.programTrainingContextRepository.create(

@@ -11,6 +11,7 @@ import { completionCacheTestCases } from "./completion-cache.test.js";
 import { dashboardProgramTestCases } from "./dashboard-program.test.js";
 import { programCreatorTestCases } from "./program-creator.test.js";
 import { unitSystemMetricTestCases } from "./unit-system-metric.test.js";
+import { guidedProgramIntakeTestCases } from "./guided-program-intake.test.js";
 
 runMobileTestCases([
   ...mobileApiTestCases,
@@ -24,7 +25,8 @@ runMobileTestCases([
   ...completionCacheTestCases,
   ...dashboardProgramTestCases,
   ...programCreatorTestCases,
-  ...historyDetailTestCases
+  ...historyDetailTestCases,
+  ...guidedProgramIntakeTestCases
 ]).catch((error) => {
   console.error(error);
   process.exitCode = 1;

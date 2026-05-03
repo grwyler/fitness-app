@@ -109,5 +109,26 @@ export const guidedRecoveryPreferences = [
 ] as const;
 export type GuidedRecoveryPreference = (typeof guidedRecoveryPreferences)[number];
 
+export const guidedScheduleFlexibilities = ["strict", "some_flex", "very_flex"] as const;
+export type GuidedScheduleFlexibility = (typeof guidedScheduleFlexibilities)[number];
+
+export const guidedSessionDurationFlexibilities = ["strict", "some_flex", "very_flex"] as const;
+export type GuidedSessionDurationFlexibility = (typeof guidedSessionDurationFlexibilities)[number];
+
+export const guidedTrainingStylePreferences = ["no_preference", "full_body", "split"] as const;
+export type GuidedTrainingStylePreference = (typeof guidedTrainingStylePreferences)[number];
+
+export const guidedFocusAreas = ["balanced", "upper_body", "lower_body", "arms", "back", "glutes", "core"] as const;
+export type GuidedFocusArea = (typeof guidedFocusAreas)[number];
+
+export const guidedBusyWeekPreferences = ["shorter_sessions", "fewer_days", "either"] as const;
+export type GuidedBusyWeekPreference = (typeof guidedBusyWeekPreferences)[number];
+
+export const guidedRecoveryTolerances = ["low", "normal", "high"] as const;
+export type GuidedRecoveryTolerance = (typeof guidedRecoveryTolerances)[number];
+
+export const guidedEquipmentTypes = ["barbell", "dumbbell", "machine", "cable", "bodyweight"] as const;
+export type GuidedEquipmentType = (typeof guidedEquipmentTypes)[number];
+
 export const recoveryStates = ["fresh", "normal", "fatigued", "exhausted"] as const;
 export type RecoveryState = (typeof recoveryStates)[number];

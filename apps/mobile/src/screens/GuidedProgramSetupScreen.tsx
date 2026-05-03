@@ -1,5 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
-import type { GuidedEquipmentAccessLevel, GuidedGoalType, GuidedRecoveryPreference, ProgressionAggressiveness } from "@fitness/shared";
+import type {
+  GuidedBusyWeekPreference,
+  GuidedEquipmentAccessLevel,
+  GuidedEquipmentType,
+  GuidedFocusArea,
+  GuidedGoalType,
+  GuidedProgramAnswersV2,
+  GuidedRecoveryPreference,
+  GuidedRecoveryTolerance,
+  GuidedScheduleFlexibility,
+  GuidedSessionDurationFlexibility,
+  GuidedTrainingStylePreference,
+  ProgressionAggressiveness
+} from "@fitness/shared";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { AppText } from "../components/AppText";
@@ -7,12 +20,17 @@ import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { Chip } from "../components/Chip";
 import { ErrorState } from "../components/ErrorState";
+import { Input } from "../components/Input";
 import { LoadingState } from "../components/LoadingState";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { Screen } from "../components/Screen";
 import type { RootStackParamList } from "../core/navigation/navigation-types";
 import { useFollowProgram } from "../features/workout/hooks/useFollowProgram";
 import { useTrainingSettings } from "../features/workout/hooks/useTrainingSettings";
+import {
+  buildGuidedProgramAnswersV2,
+  getGuidedProgramSavedForLaterPreferences
+} from "../features/workout/utils/guided-program-intake.shared";
 import { recommendGuidedProgram } from "../api/workouts";
 import { colors, radius, spacing } from "../theme/tokens";
 
@@ -21,14 +39,18 @@ type Props = NativeStackScreenProps<RootStackParamList, "GuidedProgramSetup">;
 type StepId =
   | "goal"
   | "experience"
-  | "days"
+  | "schedule"
   | "duration"
   | "equipment"
-  | "progression"
-  | "recovery"
+  | "quickReview"
+  | "style"
+  | "preferences"
+  | "constraints"
   | "review";
 
-const steps: StepId[] = ["goal", "experience", "days", "duration", "equipment", "progression", "recovery", "review"];
+function toggleSelection<T extends string>(current: T[], value: T) {
+  return current.includes(value) ? current.filter((item) => item !== value) : [...current, value];
+}
 
 function mapTrainingGoalToGuidedGoal(goal: string | null | undefined): GuidedGoalType {
   switch (goal) {
@@ -61,7 +83,20 @@ export function GuidedProgramSetupScreen({ navigation }: Props) {
   const [defaultsInitialized, setDefaultsInitialized] = useState(false);
 
   const [stepIndex, setStepIndex] = useState(0);
-  const step = steps[Math.min(steps.length - 1, Math.max(0, stepIndex))] ?? "goal";
+  const [includeRefinement, setIncludeRefinement] = useState(false);
+
+  const steps = useMemo<StepId[]>(() => {
+    const core: StepId[] = ["goal", "experience", "schedule", "duration", "equipment", "quickReview"];
+    const refinement: StepId[] = includeRefinement ? ["style", "preferences", "constraints"] : [];
+    return [...core, ...refinement, "review"];
+  }, [includeRefinement]);
+
+  const safeStepIndex = Math.min(steps.length - 1, Math.max(0, stepIndex));
+  const step = steps[safeStepIndex] ?? "goal";
+
+  useEffect(() => {
+    setStepIndex((current) => Math.min(current, steps.length - 1));
+  }, [steps.length]);
 
   const defaults = useMemo(() => {
     const settings = trainingSettingsQuery.data ?? null;
@@ -83,11 +118,19 @@ export function GuidedProgramSetupScreen({ navigation }: Props) {
   const [experienceLevel, setExperienceLevel] = useState<"beginner" | "intermediate" | "advanced">(defaults.experienceLevel);
   const [daysPerWeek, setDaysPerWeek] = useState<2 | 3 | 4 | 5 | 6>(defaults.daysPerWeek);
   const [sessionDurationMinutes, setSessionDurationMinutes] = useState<30 | 45 | 60 | 75>(defaults.sessionDurationMinutes);
+  const [scheduleFlexibility, setScheduleFlexibility] = useState<GuidedScheduleFlexibility>("some_flex");
+  const [sessionDurationFlexibility, setSessionDurationFlexibility] = useState<GuidedSessionDurationFlexibility>("some_flex");
   const [equipmentAccess, setEquipmentAccess] = useState<GuidedEquipmentAccessLevel>(defaults.equipmentAccess);
+  const [avoidEquipment, setAvoidEquipment] = useState<GuidedEquipmentType[]>([]);
   const [progressionAggressiveness, setProgressionAggressiveness] = useState<ProgressionAggressiveness>(
     defaults.progressionAggressiveness
   );
   const [recoveryPreference, setRecoveryPreference] = useState<GuidedRecoveryPreference>(defaults.recoveryPreference);
+  const [recoveryTolerance, setRecoveryTolerance] = useState<GuidedRecoveryTolerance | null>(null);
+  const [busyWeekPreference, setBusyWeekPreference] = useState<GuidedBusyWeekPreference | null>(null);
+  const [trainingStylePreference, setTrainingStylePreference] = useState<GuidedTrainingStylePreference | null>(null);
+  const [focusAreas, setFocusAreas] = useState<GuidedFocusArea[]>([]);
+  const [exerciseExclusions, setExerciseExclusions] = useState("");
 
   const [recommendation, setRecommendation] = useState<Awaited<ReturnType<typeof recommendGuidedProgram>>["data"] | null>(
     null
@@ -114,26 +157,45 @@ export function GuidedProgramSetupScreen({ navigation }: Props) {
     setDefaultsInitialized(true);
   }, [defaults, defaultsInitialized, trainingSettingsQuery.data]);
 
-  const answers = useMemo(
-    () => ({
+  const answers: GuidedProgramAnswersV2 = useMemo(() => {
+    return buildGuidedProgramAnswersV2({
+      includeRefinement,
       goal,
       experienceLevel,
       daysPerWeek,
+      scheduleFlexibility,
       sessionDurationMinutes,
+      sessionDurationFlexibility,
       equipmentAccess,
-      progressionAggressiveness,
-      recoveryPreference
-    }),
-    [
-      daysPerWeek,
-      equipmentAccess,
-      experienceLevel,
-      goal,
+      avoidEquipment,
       progressionAggressiveness,
       recoveryPreference,
-      sessionDurationMinutes
-    ]
-  );
+      trainingStylePreference,
+      focusAreas,
+      busyWeekPreference,
+      recoveryTolerance,
+      exerciseExclusions
+    });
+  }, [
+    avoidEquipment,
+    busyWeekPreference,
+    daysPerWeek,
+    equipmentAccess,
+    exerciseExclusions,
+    experienceLevel,
+    focusAreas,
+    goal,
+    includeRefinement,
+    progressionAggressiveness,
+    recoveryPreference,
+    recoveryTolerance,
+    scheduleFlexibility,
+    sessionDurationFlexibility,
+    sessionDurationMinutes,
+    trainingStylePreference
+  ]);
+
+  const savedForLaterPreferences = useMemo(() => getGuidedProgramSavedForLaterPreferences(answers), [answers]);
 
   async function ensureRecommendation() {
     if (loadingRecommendation) {
@@ -177,7 +239,7 @@ export function GuidedProgramSetupScreen({ navigation }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
 
-  const stepLabel = `Step ${stepIndex + 1} of ${steps.length}`;
+  const stepLabel = `Step ${safeStepIndex + 1} of ${steps.length}`;
 
   if (trainingSettingsQuery.isLoading && !trainingSettingsQuery.data) {
     return (
@@ -207,7 +269,7 @@ export function GuidedProgramSetupScreen({ navigation }: Props) {
           <AppText variant="overline" tone="accent">
             Recommended plan
           </AppText>
-          <AppText variant="title2">Answer a few quick questions</AppText>
+          <AppText variant="title2">Let’s find a plan that fits</AppText>
           <AppText variant="meta" tone="secondary">
             {stepLabel}
           </AppText>
@@ -217,7 +279,7 @@ export function GuidedProgramSetupScreen({ navigation }: Props) {
           <Card variant="default" style={styles.card}>
             {step === "goal" ? (
               <>
-                <AppText variant="headline">What’s your main goal?</AppText>
+                <AppText variant="headline">What are you training for right now?</AppText>
                 <View style={styles.choiceGrid}>
                   {[
                     { id: "hypertrophy", label: "Build muscle" },
@@ -240,12 +302,12 @@ export function GuidedProgramSetupScreen({ navigation }: Props) {
 
             {step === "experience" ? (
               <>
-                <AppText variant="headline">Training experience</AppText>
+                <AppText variant="headline">How experienced are you with strength training?</AppText>
                 <View style={styles.choiceGrid}>
                   {[
-                    { id: "beginner", label: "Beginner" },
-                    { id: "intermediate", label: "Intermediate" },
-                    { id: "advanced", label: "Advanced" }
+                    { id: "beginner", label: "New / returning" },
+                    { id: "intermediate", label: "Some experience" },
+                    { id: "advanced", label: "Very experienced" }
                   ].map((option) => (
                     <Chip
                       key={option.id}
@@ -258,9 +320,9 @@ export function GuidedProgramSetupScreen({ navigation }: Props) {
               </>
             ) : null}
 
-            {step === "days" ? (
+            {step === "schedule" ? (
               <>
-                <AppText variant="headline">Days per week</AppText>
+                <AppText variant="headline">How many days can you realistically train most weeks?</AppText>
                 <View style={styles.choiceGrid}>
                   {[2, 3, 4, 5, 6].map((count) => (
                     <Chip
@@ -271,12 +333,31 @@ export function GuidedProgramSetupScreen({ navigation }: Props) {
                     />
                   ))}
                 </View>
+
+                <AppText variant="label" tone="accent" style={styles.subLabel}>
+                  How strict is that schedule?
+                </AppText>
+                <View style={styles.choiceGrid}>
+                  {[
+                    { id: "strict", label: "Pretty strict" },
+                    { id: "some_flex", label: "Some wiggle room" },
+                    { id: "very_flex", label: "Very flexible" }
+                  ].map((option) => (
+                    <Chip
+                      key={option.id}
+                      label={option.label}
+                      selected={scheduleFlexibility === option.id}
+                      onPress={() => setScheduleFlexibility(option.id as GuidedScheduleFlexibility)}
+                      variant="muted"
+                    />
+                  ))}
+                </View>
               </>
             ) : null}
 
             {step === "duration" ? (
               <>
-                <AppText variant="headline">Session duration</AppText>
+                <AppText variant="headline">How long do you want each workout to take?</AppText>
                 <View style={styles.choiceGrid}>
                   {[
                     { value: 30, label: "30 min" },
@@ -289,6 +370,25 @@ export function GuidedProgramSetupScreen({ navigation }: Props) {
                       label={option.label}
                       selected={sessionDurationMinutes === option.value}
                       onPress={() => setSessionDurationMinutes(option.value as 30 | 45 | 60 | 75)}
+                    />
+                  ))}
+                </View>
+
+                <AppText variant="label" tone="accent" style={styles.subLabel}>
+                  How flexible is that?
+                </AppText>
+                <View style={styles.choiceGrid}>
+                  {[
+                    { id: "strict", label: "Need it tight" },
+                    { id: "some_flex", label: "Can stretch a bit" },
+                    { id: "very_flex", label: "Flexible" }
+                  ].map((option) => (
+                    <Chip
+                      key={option.id}
+                      label={option.label}
+                      selected={sessionDurationFlexibility === option.id}
+                      onPress={() => setSessionDurationFlexibility(option.id as GuidedSessionDurationFlexibility)}
+                      variant="muted"
                     />
                   ))}
                 </View>
@@ -315,20 +415,133 @@ export function GuidedProgramSetupScreen({ navigation }: Props) {
                     />
                   ))}
                 </View>
-              </>
-            ) : null}
 
-            {step === "progression" ? (
-              <>
-                <AppText variant="headline">Progression style</AppText>
-                <AppText tone="secondary">
-                  This sets the tone for how quickly the plan tries to increase loads.
+                <AppText variant="label" tone="accent" style={styles.subLabel}>
+                  Anything you want to avoid? (optional)
                 </AppText>
                 <View style={styles.choiceGrid}>
                   {[
-                    { id: "conservative", label: "Conservative" },
+                    { id: "barbell", label: "Barbell" },
+                    { id: "machine", label: "Machines" },
+                    { id: "cable", label: "Cables" },
+                    { id: "dumbbell", label: "Dumbbells" }
+                  ].map((option) => (
+                    <Chip
+                      key={option.id}
+                      label={option.label}
+                      selected={avoidEquipment.includes(option.id as GuidedEquipmentType)}
+                      onPress={() => setAvoidEquipment((current) => toggleSelection(current, option.id as GuidedEquipmentType))}
+                      variant="muted"
+                    />
+                  ))}
+                </View>
+              </>
+            ) : null}
+
+            {step === "quickReview" ? (
+              <>
+                <AppText variant="headline">Quick check</AppText>
+                <AppText tone="secondary">
+                  Get a recommendation now, or answer a few extra questions for a tighter match.
+                </AppText>
+
+                <View style={styles.reviewSection}>
+                  <AppText variant="label" tone="accent">
+                    What I’m using
+                  </AppText>
+                  <View style={styles.planMetaRow}>
+                    <Chip label={`${daysPerWeek} days/week`} variant="muted" />
+                    <Chip label={`~${sessionDurationMinutes} min`} variant="muted" />
+                    <Chip label={equipmentAccess.replaceAll("_", " ")} variant="muted" />
+                  </View>
+                  <AppText variant="meta" tone="secondary">
+                    Goal: {goal.replaceAll("_", " ")}
+                  </AppText>
+                  <AppText variant="meta" tone="secondary">
+                    Experience: {experienceLevel.replaceAll("_", " ")}
+                  </AppText>
+                </View>
+
+                <PrimaryButton
+                  label="Get my recommendation"
+                  onPress={() => {
+                    const reviewIndex = steps.indexOf("review");
+                    setStepIndex(reviewIndex === -1 ? stepIndex + 1 : reviewIndex);
+                  }}
+                />
+
+                <Button
+                  label="Answer a few more (optional)"
+                  variant="ghost"
+                  onPress={() => {
+                    setIncludeRefinement(true);
+                    setStepIndex((current) => current + 1);
+                  }}
+                />
+              </>
+            ) : null}
+
+            {step === "style" ? (
+              <>
+                <AppText variant="headline">How do you like to train?</AppText>
+                <View style={styles.choiceGrid}>
+                  {[
+                    { id: "no_preference", label: "No preference" },
+                    { id: "full_body", label: "Full body" },
+                    { id: "split", label: "Split days" }
+                  ].map((option) => (
+                    <Chip
+                      key={option.id}
+                      label={option.label}
+                      selected={(trainingStylePreference ?? "no_preference") === option.id}
+                      onPress={() => setTrainingStylePreference(option.id as GuidedTrainingStylePreference)}
+                    />
+                  ))}
+                </View>
+
+                <AppText variant="label" tone="accent" style={styles.subLabel}>
+                  Any areas you want to emphasize? (optional)
+                </AppText>
+                <View style={styles.choiceGrid}>
+                  {[
                     { id: "balanced", label: "Balanced" },
-                    { id: "aggressive", label: "Aggressive" }
+                    { id: "upper_body", label: "Upper body" },
+                    { id: "lower_body", label: "Lower body" },
+                    { id: "arms", label: "Arms" },
+                    { id: "back", label: "Back" },
+                    { id: "glutes", label: "Glutes" },
+                    { id: "core", label: "Core" }
+                  ].map((option) => (
+                    <Chip
+                      key={option.id}
+                      label={option.label}
+                      selected={focusAreas.includes(option.id as GuidedFocusArea)}
+                      onPress={() => setFocusAreas((current) => toggleSelection(current, option.id as GuidedFocusArea))}
+                      variant="muted"
+                    />
+                  ))}
+                </View>
+
+                <Button
+                  label="Skip the extra questions"
+                  variant="ghost"
+                  onPress={() => {
+                    setIncludeRefinement(false);
+                    const reviewIndex = steps.indexOf("review");
+                    setStepIndex(reviewIndex === -1 ? stepIndex + 1 : reviewIndex);
+                  }}
+                />
+              </>
+            ) : null}
+
+            {step === "preferences" ? (
+              <>
+                <AppText variant="headline">How hard should this push you?</AppText>
+                <View style={styles.choiceGrid}>
+                  {[
+                    { id: "conservative", label: "Ease in" },
+                    { id: "balanced", label: "Balanced" },
+                    { id: "aggressive", label: "Push it" }
                   ].map((option) => (
                     <Chip
                       key={option.id}
@@ -338,27 +551,101 @@ export function GuidedProgramSetupScreen({ navigation }: Props) {
                     />
                   ))}
                 </View>
-              </>
-            ) : null}
 
-            {step === "recovery" ? (
-              <>
-                <AppText variant="headline">Recovery adjustments</AppText>
-                <AppText tone="secondary">Choose how much the plan should adjust when recovery is low.</AppText>
+                <AppText variant="label" tone="accent" style={styles.subLabel}>
+                  When you’re run down, should the plan back off?
+                </AppText>
                 <View style={styles.choiceGrid}>
                   {[
-                    { id: "adjust_when_needed", label: "Adjust when needed" },
-                    { id: "small_adjustments_only", label: "Small adjustments only" },
-                    { id: "keep_fixed", label: "Keep fixed" }
+                    { id: "adjust_when_needed", label: "Yes, adjust" },
+                    { id: "small_adjustments_only", label: "Small adjustments" },
+                    { id: "keep_fixed", label: "Keep it fixed" }
                   ].map((option) => (
                     <Chip
                       key={option.id}
                       label={option.label}
                       selected={recoveryPreference === option.id}
                       onPress={() => setRecoveryPreference(option.id as GuidedRecoveryPreference)}
+                      variant="muted"
                     />
                   ))}
                 </View>
+
+                <AppText variant="label" tone="accent" style={styles.subLabel}>
+                  Recovery tolerance (optional)
+                </AppText>
+                <View style={styles.choiceGrid}>
+                  {[
+                    { id: "low", label: "Low" },
+                    { id: "normal", label: "Normal" },
+                    { id: "high", label: "High" }
+                  ].map((option) => (
+                    <Chip
+                      key={option.id}
+                      label={option.label}
+                      selected={(recoveryTolerance ?? "normal") === option.id}
+                      onPress={() => setRecoveryTolerance(option.id as GuidedRecoveryTolerance)}
+                      variant="muted"
+                    />
+                  ))}
+                </View>
+
+                <AppText variant="label" tone="accent" style={styles.subLabel}>
+                  If you have a busy week… (optional)
+                </AppText>
+                <View style={styles.choiceGrid}>
+                  {[
+                    { id: "shorter_sessions", label: "Shorter sessions" },
+                    { id: "fewer_days", label: "Fewer days" },
+                    { id: "either", label: "Either is fine" }
+                  ].map((option) => (
+                    <Chip
+                      key={option.id}
+                      label={option.label}
+                      selected={(busyWeekPreference ?? "either") === option.id}
+                      onPress={() => setBusyWeekPreference(option.id as GuidedBusyWeekPreference)}
+                      variant="muted"
+                    />
+                  ))}
+                </View>
+
+                <Button
+                  label="Skip the extra questions"
+                  variant="ghost"
+                  onPress={() => {
+                    setIncludeRefinement(false);
+                    const reviewIndex = steps.indexOf("review");
+                    setStepIndex(reviewIndex === -1 ? stepIndex + 1 : reviewIndex);
+                  }}
+                />
+              </>
+            ) : null}
+
+            {step === "constraints" ? (
+              <>
+                <AppText variant="headline">Any constraints I should know about?</AppText>
+                <AppText tone="secondary">
+                  Optional. For example: no overhead pressing, avoid deep squats, no running.
+                </AppText>
+                <Input
+                  label="Exercises to avoid"
+                  placeholder="Type anything you want to avoid (optional)"
+                  value={exerciseExclusions}
+                  onChangeText={setExerciseExclusions}
+                  multiline
+                  textAlignVertical="top"
+                  style={styles.textArea}
+                />
+
+                <Button
+                  label="Skip the extra questions"
+                  variant="ghost"
+                  onPress={() => {
+                    setIncludeRefinement(false);
+                    const reviewIndex = steps.indexOf("review");
+                    setStepIndex(reviewIndex === -1 ? stepIndex + 1 : reviewIndex);
+                  }}
+                />
               </>
             ) : null}
           </Card>
@@ -381,7 +668,7 @@ export function GuidedProgramSetupScreen({ navigation }: Props) {
                 <View style={styles.recommendationHeader}>
                   <AppText variant="title2">{recommendation.program.name}</AppText>
                   <View style={styles.planMetaRow}>
-                    <Chip label={`${answers.daysPerWeek} days/week`} variant="muted" />
+                    <Chip label={`${answers.schedule.daysPerWeek} days/week`} variant="muted" />
                     <Chip label={`~${recommendation.program.sessionDurationMinutes} min`} variant="muted" />
                   </View>
                 </View>
@@ -394,14 +681,53 @@ export function GuidedProgramSetupScreen({ navigation }: Props) {
                     Goal: {answers.goal.replaceAll("_", " ")}
                   </AppText>
                   <AppText variant="meta" tone="secondary">
-                    Experience: {answers.experienceLevel}
+                    Experience: {answers.experienceLevel.replaceAll("_", " ")}
                   </AppText>
                   <AppText variant="meta" tone="secondary">
-                    Progression style: {answers.progressionAggressiveness}
+                    Schedule: {answers.schedule.daysPerWeek} days/week ({answers.schedule.flexibility.replaceAll("_", " ")})
                   </AppText>
                   <AppText variant="meta" tone="secondary">
-                    Recovery adjustments: {answers.recoveryPreference.replaceAll("_", " ")}
+                    Session length: ~{answers.sessions.durationMinutes} min ({answers.sessions.flexibility.replaceAll("_", " ")})
                   </AppText>
+                  <AppText variant="meta" tone="secondary">
+                    Equipment: {answers.equipment.access.replaceAll("_", " ")}
+                    {answers.equipment.avoid?.length ? ` (avoid: ${answers.equipment.avoid.join(", ")})` : ""}
+                  </AppText>
+                  <AppText variant="meta" tone="secondary">
+                    Progression: {answers.preferences.progressionAggressiveness}
+                  </AppText>
+                  <AppText variant="meta" tone="secondary">
+                    Recovery adjustments: {answers.preferences.recoveryPreference.replaceAll("_", " ")}
+                  </AppText>
+
+                  {answers.intakeDepth === "refined" ? (
+                    <>
+                      <AppText variant="meta" tone="secondary">
+                        Plan style: {(answers.preferences.trainingStylePreference ?? "no_preference").replaceAll("_", " ")}
+                      </AppText>
+                      {answers.preferences.focusAreas?.length ? (
+                        <AppText variant="meta" tone="secondary">
+                          Focus areas: {answers.preferences.focusAreas.map((item) => item.replaceAll("_", " ")).join(", ")}
+                        </AppText>
+                      ) : null}
+                      {answers.preferences.exerciseExclusions ? (
+                        <AppText variant="meta" tone="secondary">
+                          Avoid: {answers.preferences.exerciseExclusions}
+                        </AppText>
+                      ) : null}
+                    </>
+                  ) : (
+                    <AppText variant="meta" tone="secondary">
+                      Extra preferences: skipped (you can customize next)
+                    </AppText>
+                  )}
+
+                  {savedForLaterPreferences.length > 0 ? (
+                    <AppText variant="meta" tone="secondary">
+                      Saved for later: {savedForLaterPreferences.join(", ")}. Most plans aren’t fully tagged for these
+                      yet — you can customize before starting.
+                    </AppText>
+                  ) : null}
                 </View>
 
                 <View style={styles.reviewSection}>
@@ -433,10 +759,25 @@ export function GuidedProgramSetupScreen({ navigation }: Props) {
 
                 <View style={styles.reviewSection}>
                   <AppText variant="label" tone="accent">
-                    What we’ll monitor (preview)
+                    Workout preview
                   </AppText>
+                  {recommendation.program.workouts.slice(0, 2).map((workout) => {
+                    const shownExercises = workout.exercises.slice(0, 4);
+                    const hiddenCount = Math.max(0, workout.exercises.length - shownExercises.length);
+                    return (
+                      <View key={workout.id} style={styles.previewWorkout}>
+                        <AppText variant="meta" tone="secondary">
+                          {workout.name}
+                        </AppText>
+                        <AppText variant="meta" tone="secondary">
+                          {shownExercises.map((exercise) => exercise.exerciseName).join(" • ")}
+                          {hiddenCount > 0 ? ` • +${hiddenCount} more` : ""}
+                        </AppText>
+                      </View>
+                    );
+                  })}
                   <AppText variant="meta" tone="secondary">
-                    Workout consistency, performance trends, missed reps, and recovery signals.
+                    You can customize exercises and days before starting.
                   </AppText>
                 </View>
 
@@ -477,8 +818,10 @@ export function GuidedProgramSetupScreen({ navigation }: Props) {
         )}
 
         <View style={styles.footer}>
-          <Button label={stepIndex === 0 ? "Close" : "Back"} onPress={goBack} variant="ghost" />
-          {step !== "review" ? <PrimaryButton label="Continue" onPress={goNext} /> : null}
+          <Button label={safeStepIndex === 0 ? "Close" : "Back"} onPress={goBack} variant="ghost" />
+          {step !== "review" && step !== "quickReview" ? (
+            <PrimaryButton label={step === "constraints" ? "See my recommendation" : "Continue"} onPress={goNext} />
+          ) : null}
         </View>
       </ScrollView>
     </Screen>
@@ -515,8 +858,14 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: spacing.xs
   },
+  subLabel: {
+    marginTop: spacing.sm
+  },
   reviewSection: {
     gap: 4
+  },
+  previewWorkout: {
+    gap: 2
   },
   warningRow: {
     flexDirection: "row",
@@ -532,5 +881,8 @@ const styles = StyleSheet.create({
   },
   warningText: {
     flex: 1
+  },
+  textArea: {
+    minHeight: 96
   }
 });

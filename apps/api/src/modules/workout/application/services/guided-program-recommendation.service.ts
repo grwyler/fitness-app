@@ -2,6 +2,10 @@ import type {
   GuidedEquipmentAccessLevel,
   GuidedGoalType,
   GuidedProgramAnswers,
+  GuidedProgramAnswersV2,
+  GuidedScheduleFlexibility,
+  GuidedSessionDurationFlexibility,
+  GuidedTrainingStylePreference,
   TrainingGoal
 } from "@fitness/shared";
 import type { ProgramDefinition } from "../../repositories/models/program.persistence.js";
@@ -58,6 +62,64 @@ function buildAllowedEquipment(access: GuidedEquipmentAccessLevel) {
   }
 }
 
+type NormalizedGuidedProgramProfile = {
+  intakeDepth: "core" | "refined";
+  goal: GuidedGoalType;
+  experienceLevel: string;
+  daysPerWeek: 2 | 3 | 4 | 5 | 6;
+  scheduleFlexibility: GuidedScheduleFlexibility;
+  sessionDurationMinutes: 30 | 45 | 60 | 75;
+  sessionDurationFlexibility: GuidedSessionDurationFlexibility;
+  equipmentAccess: GuidedEquipmentAccessLevel;
+  avoidEquipment: Set<string>;
+  progressionAggressiveness: string;
+  recoveryPreference: string;
+  trainingStylePreference: GuidedTrainingStylePreference | null;
+  hasRefinement: boolean;
+};
+
+function isGuidedAnswersV2(input: GuidedProgramAnswers): input is GuidedProgramAnswersV2 {
+  return typeof (input as GuidedProgramAnswersV2).version === "number" && (input as GuidedProgramAnswersV2).version === 2;
+}
+
+function normalizeGuidedProgramAnswers(input: GuidedProgramAnswers): NormalizedGuidedProgramProfile {
+  if (!isGuidedAnswersV2(input)) {
+    return {
+      intakeDepth: "core",
+      goal: input.goal,
+      experienceLevel: input.experienceLevel,
+      daysPerWeek: input.daysPerWeek,
+      scheduleFlexibility: "some_flex",
+      sessionDurationMinutes: input.sessionDurationMinutes,
+      sessionDurationFlexibility: "some_flex",
+      equipmentAccess: input.equipmentAccess,
+      avoidEquipment: new Set(),
+      progressionAggressiveness: input.progressionAggressiveness,
+      recoveryPreference: input.recoveryPreference,
+      trainingStylePreference: null,
+      hasRefinement: false
+    };
+  }
+
+  const avoid = new Set<string>((input.equipment.avoid ?? []) as string[]);
+
+  return {
+    intakeDepth: input.intakeDepth,
+    goal: input.goal,
+    experienceLevel: input.experienceLevel,
+    daysPerWeek: input.schedule.daysPerWeek,
+    scheduleFlexibility: input.schedule.flexibility,
+    sessionDurationMinutes: input.sessions.durationMinutes,
+    sessionDurationFlexibility: input.sessions.flexibility,
+    equipmentAccess: input.equipment.access,
+    avoidEquipment: avoid,
+    progressionAggressiveness: input.preferences.progressionAggressiveness,
+    recoveryPreference: input.preferences.recoveryPreference,
+    trainingStylePreference: input.preferences.trainingStylePreference ?? null,
+    hasRefinement: input.intakeDepth === "refined"
+  };
+}
+
 function getProgramEquipmentTypes(definition: ProgramDefinition) {
   const types = new Set<string>();
   let hasUnknown = false;
@@ -76,6 +138,47 @@ function getProgramEquipmentTypes(definition: ProgramDefinition) {
   return { types, hasUnknown };
 }
 
+function getProgramStyle(definition: ProgramDefinition): "full_body" | "split" | "unknown" {
+  const categories = definition.templates
+    .map((template) => template.category ?? null)
+    .filter(
+      (value): value is NonNullable<ProgramDefinition["templates"][number]["category"]> =>
+        value !== null
+    );
+
+  if (categories.length === 0) {
+    return "unknown";
+  }
+
+  if (categories.every((category) => category === "Full Body")) {
+    return "full_body";
+  }
+
+  return "split";
+}
+
+function getDaysWarningThreshold(flexibility: GuidedScheduleFlexibility) {
+  switch (flexibility) {
+    case "strict":
+      return 1;
+    case "some_flex":
+      return 2;
+    case "very_flex":
+      return 3;
+  }
+}
+
+function getDurationWarningThresholdMinutes(flexibility: GuidedSessionDurationFlexibility) {
+  switch (flexibility) {
+    case "strict":
+      return 10;
+    case "some_flex":
+      return 20;
+    case "very_flex":
+      return 30;
+  }
+}
+
 export function recommendGuidedProgram(input: {
   answers: GuidedProgramAnswers;
   candidatePrograms: ProgramDefinition[];
@@ -87,10 +190,16 @@ export function recommendGuidedProgram(input: {
     throw new Error("No predefined programs are available for recommendations.");
   }
 
-  const desiredGoal = mapGuidedGoalToTrainingGoal(input.answers.goal);
-  const desiredDifficultyRank = toDifficultyRank(input.answers.experienceLevel);
-  const allowedEquipment = buildAllowedEquipment(input.answers.equipmentAccess);
-  const desiredDuration = input.answers.sessionDurationMinutes;
+  const profile = normalizeGuidedProgramAnswers(input.answers);
+  const desiredGoal = mapGuidedGoalToTrainingGoal(profile.goal);
+  const desiredDifficultyRank = toDifficultyRank(profile.experienceLevel);
+  const allowedEquipment = buildAllowedEquipment(profile.equipmentAccess);
+  for (const avoid of profile.avoidEquipment) {
+    allowedEquipment.delete(avoid);
+  }
+  const desiredDuration = profile.sessionDurationMinutes;
+  const dayWarningThreshold = getDaysWarningThreshold(profile.scheduleFlexibility);
+  const durationWarningThreshold = getDurationWarningThresholdMinutes(profile.sessionDurationFlexibility);
 
   let best: { definition: ProgramDefinition; score: number; warnings: string[]; reasons: string[] } | null = null;
 
@@ -99,15 +208,21 @@ export function recommendGuidedProgram(input: {
     const reasons: string[] = [];
     let score = 0;
 
-    const dayDiff = Math.abs(definition.program.daysPerWeek - input.answers.daysPerWeek);
+    const dayDiff = Math.abs(definition.program.daysPerWeek - profile.daysPerWeek);
     if (dayDiff === 0) {
       score += 120;
-      reasons.push(`Matches your ${input.answers.daysPerWeek} days/week schedule.`);
+      reasons.push(`Matches your ${profile.daysPerWeek} days/week schedule.`);
     } else {
       score += Math.max(0, 80 - dayDiff * 25);
-      warnings.push(
-        `Recommended plan is ${definition.program.daysPerWeek} days/week (you selected ${input.answers.daysPerWeek}).`
-      );
+      if (dayDiff >= dayWarningThreshold) {
+        warnings.push(
+          `Recommended plan is ${definition.program.daysPerWeek} days/week (you selected ${profile.daysPerWeek}).`
+        );
+      } else {
+        reasons.push(
+          `Close to your schedule (${definition.program.daysPerWeek} days/week; you selected ${profile.daysPerWeek}).`
+        );
+      }
     }
 
     const durationDiff = Math.abs(definition.program.sessionDurationMinutes - desiredDuration);
@@ -116,9 +231,15 @@ export function recommendGuidedProgram(input: {
       reasons.push(`Fits your ~${desiredDuration} minute session preference.`);
     } else {
       score += Math.max(0, 40 - Math.floor(durationDiff / 5) * 5);
-      warnings.push(
-        `Plan sessions are about ${definition.program.sessionDurationMinutes} minutes (you selected ${desiredDuration}).`
-      );
+      if (durationDiff > durationWarningThreshold) {
+        warnings.push(
+          `Plan sessions are about ${definition.program.sessionDurationMinutes} minutes (you selected ${desiredDuration}).`
+        );
+      } else {
+        reasons.push(
+          `Close to your preferred session length (${definition.program.sessionDurationMinutes} min; you selected ${desiredDuration}).`
+        );
+      }
     }
 
     const programDifficultyRank = toDifficultyRank(definition.program.difficultyLevel);
@@ -129,7 +250,7 @@ export function recommendGuidedProgram(input: {
     } else {
       score += Math.max(0, 40 - difficultyDiff * 25);
       warnings.push(
-        `Plan difficulty is ${definition.program.difficultyLevel} (you selected ${input.answers.experienceLevel}).`
+        `Plan difficulty is ${definition.program.difficultyLevel} (you selected ${profile.experienceLevel}).`
       );
     }
 
@@ -160,6 +281,19 @@ export function recommendGuidedProgram(input: {
       warnings.push(`May require equipment you didn't select: ${unsupported.join(", ")}.`);
     }
 
+    if (profile.trainingStylePreference && profile.trainingStylePreference !== "no_preference") {
+      const programStyle = getProgramStyle(definition);
+      if (programStyle === "unknown") {
+        warnings.push("We couldn't detect this plan's style yet, so we matched on other factors.");
+      } else if (programStyle === profile.trainingStylePreference) {
+        score += 25;
+        reasons.push("Matches your preferred plan style.");
+      } else {
+        score -= 10;
+        warnings.push("Plan style doesn't match your preference, but it was the closest overall fit.");
+      }
+    }
+
     if (!best || score > best.score) {
       best = { definition, score, warnings, reasons };
     }
@@ -182,4 +316,3 @@ export function recommendGuidedProgram(input: {
 export function mapGuidedAnswersToTrainingGoal(goal: GuidedGoalType): TrainingGoal | null {
   return mapGuidedGoalToTrainingGoal(goal);
 }
-

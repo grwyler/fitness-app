@@ -233,6 +233,15 @@ export function DashboardScreen({ navigation }: Props) {
             }}
           />
           <PrimaryButton
+            label="Get a Recommended Plan"
+            tone="secondary"
+            disabled={Boolean(activeWorkout)}
+            onPress={() => {
+              setLastAction("guided_recommendation");
+              navigation.navigate("GuidedProgramSetup");
+            }}
+          />
+          <PrimaryButton
             label="Edit Program"
             tone="secondary"
             disabled={Boolean(activeWorkout)}

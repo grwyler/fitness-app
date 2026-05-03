@@ -24,6 +24,7 @@ import { WorkoutApplicationError } from "../errors/workout-application.error.js"
 import { recommendGuidedProgram } from "../services/guided-program-recommendation.service.js";
 import { MockTransactionManager } from "../test-helpers/mock-transaction-manager.js";
 import type { ApplicationTestCase } from "../test-helpers/application-test-case.js";
+import type { ProgramDefinition } from "../../repositories/models/program.persistence.js";
 import { CompleteWorkoutSessionUseCase } from "./complete-workout-session.use-case.js";
 import { CreateCustomProgramUseCase } from "./create-custom-program.use-case.js";
 import { FollowProgramUseCase } from "./follow-program.use-case.js";
@@ -203,7 +204,7 @@ function createMockProgressionStateV2Repository(input?: {
 
 const defaultProgressionStateV2Repository = createMockProgressionStateV2Repository();
 
-function createProgramDefinition() {
+function createProgramDefinition(): ProgramDefinition {
   return {
     program: {
       id: "program-1",
@@ -224,6 +225,7 @@ function createProgramDefinition() {
         id: "template-1",
         programId: "program-1",
         name: "Workout A",
+        category: "Full Body",
         sequenceOrder: 1,
         estimatedDurationMinutes: 60,
         exercises: [
@@ -295,6 +297,82 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
       });
 
       assert.equal(result.programId, "program-1");
+    }
+  },
+  {
+    name: "Guided recommendation supports richer V2 profiles (style preference + flexibility)",
+    run: () => {
+      const fullBody = createProgramDefinition();
+      const fullBodyTemplate = fullBody.templates[0]!;
+      const split: ProgramDefinition = {
+        ...createProgramDefinition(),
+        program: {
+          ...createProgramDefinition().program,
+          id: "program-2",
+          name: "3-Day Split Beginner"
+        },
+        templates: [
+          {
+            ...fullBodyTemplate,
+            id: "template-2",
+            programId: "program-2",
+            category: "Push"
+          }
+        ]
+      };
+
+      const answersV2 = {
+        version: 2 as const,
+        intakeDepth: "refined" as const,
+        goal: "general_fitness" as const,
+        experienceLevel: "beginner" as const,
+        schedule: { daysPerWeek: 3 as const, flexibility: "very_flex" as const },
+        sessions: { durationMinutes: 60 as const, flexibility: "strict" as const },
+        equipment: { access: "full_gym" as const },
+        preferences: {
+          progressionAggressiveness: "balanced" as const,
+          recoveryPreference: "adjust_when_needed" as const,
+          trainingStylePreference: "full_body" as const
+        }
+      };
+
+      const result = recommendGuidedProgram({
+        answers: answersV2,
+        candidatePrograms: [split, fullBody]
+      });
+
+      assert.equal(result.programId, "program-1");
+
+      const flexResult = recommendGuidedProgram({
+        answers: {
+          ...answersV2,
+          preferences: {
+            ...answersV2.preferences,
+            trainingStylePreference: "no_preference" as const
+          },
+          schedule: { ...answersV2.schedule, daysPerWeek: 3 as const, flexibility: "very_flex" as const }
+        },
+        candidatePrograms: [
+          {
+            ...fullBody,
+            program: {
+              ...fullBody.program,
+              id: "program-3",
+              name: "4-Day Full Body Beginner",
+              daysPerWeek: 4
+            }
+          }
+        ]
+      });
+
+      assert.equal(
+        flexResult.warnings.some((warning) => warning.includes("days/week")),
+        false
+      );
+      assert.equal(
+        flexResult.reasons.some((reason) => reason.includes("Close to your schedule")),
+        true
+      );
     }
   },
   {

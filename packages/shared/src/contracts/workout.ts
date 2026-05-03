@@ -15,6 +15,13 @@ import type {
   GuidedGoalType,
   GuidedEquipmentAccessLevel,
   GuidedRecoveryPreference,
+  GuidedScheduleFlexibility,
+  GuidedSessionDurationFlexibility,
+  GuidedTrainingStylePreference,
+  GuidedFocusArea,
+  GuidedBusyWeekPreference,
+  GuidedRecoveryTolerance,
+  GuidedEquipmentType,
   EnrollmentStatus,
   SetStatus,
   UnitSystem,
@@ -151,7 +158,7 @@ export type ProgramDto = {
   workouts: ProgramWorkoutTemplateDto[];
 };
 
-export type GuidedProgramAnswers = {
+export type GuidedProgramAnswersV1 = {
   goal: GuidedGoalType;
   experienceLevel: ExperienceLevel;
   daysPerWeek: 2 | 3 | 4 | 5 | 6;
@@ -160,6 +167,36 @@ export type GuidedProgramAnswers = {
   progressionAggressiveness: ProgressionAggressiveness;
   recoveryPreference: GuidedRecoveryPreference;
 };
+
+export type GuidedProgramAnswersV2 = {
+  version: 2;
+  intakeDepth: "core" | "refined";
+  goal: GuidedGoalType;
+  experienceLevel: ExperienceLevel;
+  schedule: {
+    daysPerWeek: 2 | 3 | 4 | 5 | 6;
+    flexibility: GuidedScheduleFlexibility;
+  };
+  sessions: {
+    durationMinutes: 30 | 45 | 60 | 75;
+    flexibility: GuidedSessionDurationFlexibility;
+  };
+  equipment: {
+    access: GuidedEquipmentAccessLevel;
+    avoid?: GuidedEquipmentType[] | undefined;
+  };
+  preferences: {
+    progressionAggressiveness: ProgressionAggressiveness;
+    recoveryPreference: GuidedRecoveryPreference;
+    trainingStylePreference?: GuidedTrainingStylePreference | undefined;
+    focusAreas?: GuidedFocusArea[] | undefined;
+    busyWeekPreference?: GuidedBusyWeekPreference | undefined;
+    recoveryTolerance?: GuidedRecoveryTolerance | undefined;
+    exerciseExclusions?: string | null | undefined;
+  };
+};
+
+export type GuidedProgramAnswers = GuidedProgramAnswersV1 | GuidedProgramAnswersV2;
 
 export type RecommendGuidedProgramRequest = {
   answers: GuidedProgramAnswers;
