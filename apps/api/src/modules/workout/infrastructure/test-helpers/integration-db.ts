@@ -41,6 +41,7 @@ create table users (
   auth_provider_id text not null unique,
   email text not null unique,
   password_hash text,
+  tokens_invalid_before timestamptz,
   display_name text,
   role text not null default 'user',
   timezone text not null default 'America/New_York',

@@ -62,6 +62,7 @@ export const users = pgTable(
     authProviderId: text("auth_provider_id").notNull(),
     email: text("email").notNull(),
     passwordHash: text("password_hash"),
+    tokensInvalidBefore: timestamp("tokens_invalid_before", { withTimezone: true }),
     displayName: text("display_name"),
     role: userRoleEnum("role").notNull().default("user"),
     timezone: text("timezone").notNull().default("America/New_York"),

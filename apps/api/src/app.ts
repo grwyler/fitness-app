@@ -149,7 +149,9 @@ export function createApp(options?: {
 
   if (hasApiRouters) {
     if (resolvedOptions.database) {
-      const authenticateRequest = resolvedOptions.auth?.authenticateRequest ?? createAuthenticateRequestMiddleware();
+      const authenticateRequest =
+        resolvedOptions.auth?.authenticateRequest ??
+        createAuthenticateRequestMiddleware({ database: resolvedOptions.database });
 
       app.use("/api/v1", createPublicAuthRouter(resolvedOptions.database));
       app.use("/api/v1", authenticateRequest);
