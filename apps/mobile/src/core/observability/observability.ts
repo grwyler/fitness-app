@@ -2,6 +2,10 @@ import { redactForObservability } from "@fitness/shared";
 import { getCurrentRouteName } from "../navigation/navigation-bridge";
 
 const isDevEnvironment = typeof __DEV__ !== "undefined" && __DEV__;
+const isWebRuntime =
+  typeof globalThis !== "undefined" &&
+  typeof (globalThis as any).window !== "undefined" &&
+  typeof (globalThis as any).document !== "undefined";
 
 type InitResult = {
   enabled: boolean;
@@ -32,6 +36,12 @@ async function loadSentryModule() {
 function computeEnabled() {
   const dsn = process.env.EXPO_PUBLIC_SENTRY_DSN;
   const explicit = process.env.EXPO_PUBLIC_OBSERVABILITY_ENABLED;
+
+  // Expo web bundles + Sentry (react-native) have proven fragile in preview builds.
+  // Keep web observability opt-in so startup can't be taken down by third-party init.
+  if (isWebRuntime && explicit !== "true") {
+    return false;
+  }
 
   if (explicit === "true") {
     return Boolean(dsn);
