@@ -2853,5 +2853,57 @@ workoutHttpTestCases.push(
         await disposeWorkoutInfrastructureTestContext(context);
       }
     }
+  },
+  {
+    name: "PUT /api/v1/sets/:setId rejects edits after workout completion",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        await seedInProgressWorkout(context, {
+          setStatuses: ["completed", "completed", "completed"]
+        });
+        const server = await startHttpServer(context.db);
+
+        try {
+          const completeResponse = await fetch(`${server.baseUrl}/api/v1/workout-sessions/session-1/complete`, {
+            method: "POST",
+            headers: createAuthHeaders({
+              "content-type": "application/json",
+              "Idempotency-Key": "complete-before-set-edit-1"
+            }),
+            body: JSON.stringify({
+              completedAt: "2026-04-24T10:25:00.000Z",
+              exerciseFeedback: [{ exerciseEntryId: "entry-1", effortFeedback: "just_right" }]
+            })
+          });
+
+          assert.equal(completeResponse.status, 200);
+
+          const updateResponse = await fetch(`${server.baseUrl}/api/v1/sets/set-1`, {
+            method: "PUT",
+            headers: createAuthHeaders({
+              "content-type": "application/json",
+              "Idempotency-Key": "update-completed-set-http-1"
+            }),
+            body: JSON.stringify({
+              actualReps: 7,
+              actualWeight: { value: 135, unit: "lb" },
+              completedAt: "2026-04-24T10:50:00.000Z"
+            })
+          });
+          const updatePayload = await readJson(updateResponse);
+
+          assert.equal(updateResponse.status, 409);
+          assert.equal(updatePayload.error.code, "COMPLETED_WORKOUT_READ_ONLY");
+          assert.equal(updatePayload.error.message, "Completed workouts are read-only for now.");
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
   }
 );

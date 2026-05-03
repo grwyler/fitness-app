@@ -6,6 +6,7 @@ import { CompleteWorkoutSessionUseCase } from "../../application/use-cases/compl
 import { CreateCustomProgramUseCase } from "../../application/use-cases/create-custom-program.use-case.js";
 import { LogSetUseCase } from "../../application/use-cases/log-set.use-case.js";
 import { StartWorkoutSessionUseCase } from "../../application/use-cases/start-workout-session.use-case.js";
+import { UpdateLoggedSetUseCase } from "../../application/use-cases/update-logged-set.use-case.js";
 import { UpdateCustomProgramUseCase } from "../../application/use-cases/update-custom-program.use-case.js";
 import type { InfrastructureTestCase } from "../test-helpers/infrastructure-test-case.js";
 import { eq } from "../db/drizzle-helpers.js";
@@ -1660,6 +1661,240 @@ export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[]
 
         assert.equal(history[0]?.id, "session-completed-later");
         assert.equal(history[1]?.id, "session-started-later");
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "Can update a logged set while the workout session is in_progress",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        await seedInProgressWorkout(context, {
+          setStatuses: ["completed", "completed", "completed"],
+          actualReps: [8, 8, 8]
+        });
+
+        const useCase = new UpdateLoggedSetUseCase(
+          context.repositories.workoutSessionRepository,
+          context.transactionManager,
+          context.repositories.idempotencyRepository
+        );
+
+        await useCase.execute({
+          context: { userId: "user-1", unitSystem: "imperial" },
+          setId: "set-1",
+          request: {
+            actualReps: 7,
+            actualWeight: { value: 135, unit: "lb" },
+            completedAt: "2026-04-24T10:12:00.000Z"
+          },
+          idempotencyKey: "update-in-progress-set-1"
+        });
+
+        const [updatedSet] = await context.db.select().from(sets).where(eq(sets.id, "set-1"));
+        assert.equal(updatedSet?.actualReps, 7);
+        assert.equal(updatedSet?.actualWeightLbs, "135.00");
+        assert.equal(updatedSet?.status, "failed");
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "Cannot update a logged set when the parent workout session is completed",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+
+        const completed = await startAndCompleteWorkout({
+          context,
+          userId: "user-1",
+          templateId: "template-1",
+          idempotencyKey: "complete-before-edit"
+        });
+
+        const setId = completed.started.exercises[0]?.sets[0]?.id;
+        assert.ok(setId);
+
+        const useCase = new UpdateLoggedSetUseCase(
+          context.repositories.workoutSessionRepository,
+          context.transactionManager,
+          context.repositories.idempotencyRepository
+        );
+
+        await assert.rejects(
+          () =>
+            useCase.execute({
+              context: { userId: "user-1", unitSystem: "imperial" },
+              setId,
+              request: {
+                actualReps: 7,
+                actualWeight: { value: 135, unit: "lb" },
+                completedAt: "2026-04-24T10:50:00.000Z"
+              },
+              idempotencyKey: "update-completed-set-1"
+            }),
+          (error: unknown) =>
+            error instanceof WorkoutApplicationError && error.code === "COMPLETED_WORKOUT_READ_ONLY"
+        );
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "Rejected completed-session set update does not change set data",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+
+        const completed = await startAndCompleteWorkout({
+          context,
+          userId: "user-1",
+          templateId: "template-1",
+          idempotencyKey: "complete-before-edit-no-set-change"
+        });
+
+        const setId = completed.started.exercises[0]?.sets[0]?.id;
+        assert.ok(setId);
+
+        const [beforeSet] = await context.db.select().from(sets).where(eq(sets.id, setId));
+        assert.ok(beforeSet);
+
+        const useCase = new UpdateLoggedSetUseCase(
+          context.repositories.workoutSessionRepository,
+          context.transactionManager,
+          context.repositories.idempotencyRepository
+        );
+
+        await assert.rejects(
+          () =>
+            useCase.execute({
+              context: { userId: "user-1", unitSystem: "imperial" },
+              setId,
+              request: {
+                actualReps: 1,
+                actualWeight: { value: 45, unit: "lb" },
+                completedAt: "2026-04-24T10:55:00.000Z"
+              },
+              idempotencyKey: "update-completed-set-no-set-change"
+            }),
+          (error: unknown) =>
+            error instanceof WorkoutApplicationError && error.code === "COMPLETED_WORKOUT_READ_ONLY"
+        );
+
+        const [afterSet] = await context.db.select().from(sets).where(eq(sets.id, setId));
+        assert.deepEqual(afterSet, beforeSet);
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "Rejected completed-session set update does not change progression state",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+
+        const completed = await startAndCompleteWorkout({
+          context,
+          userId: "user-1",
+          templateId: "template-1",
+          idempotencyKey: "complete-before-edit-no-progression-change"
+        });
+
+        const setId = completed.started.exercises[0]?.sets[0]?.id;
+        assert.ok(setId);
+
+        const progressionBefore = await context.db.select().from(progressionStates);
+        const progressionV2Before = await context.db.select().from(progressionStatesV2);
+
+        const useCase = new UpdateLoggedSetUseCase(
+          context.repositories.workoutSessionRepository,
+          context.transactionManager,
+          context.repositories.idempotencyRepository
+        );
+
+        await assert.rejects(
+          () =>
+            useCase.execute({
+              context: { userId: "user-1", unitSystem: "imperial" },
+              setId,
+              request: {
+                actualReps: 1,
+                actualWeight: { value: 45, unit: "lb" },
+                completedAt: "2026-04-24T10:56:00.000Z"
+              },
+              idempotencyKey: "update-completed-set-no-progression-change"
+            }),
+          (error: unknown) =>
+            error instanceof WorkoutApplicationError && error.code === "COMPLETED_WORKOUT_READ_ONLY"
+        );
+
+        const progressionAfter = await context.db.select().from(progressionStates);
+        const progressionV2After = await context.db.select().from(progressionStatesV2);
+
+        assert.deepEqual(progressionAfter, progressionBefore);
+        assert.deepEqual(progressionV2After, progressionV2Before);
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "Rejected completed-session set update does not create recommendation events",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+
+        const completed = await startAndCompleteWorkout({
+          context,
+          userId: "user-1",
+          templateId: "template-1",
+          idempotencyKey: "complete-before-edit-no-rec-event"
+        });
+
+        const setId = completed.started.exercises[0]?.sets[0]?.id;
+        assert.ok(setId);
+
+        const recommendationEventsBefore = await context.db.select().from(progressionRecommendationEvents);
+
+        const useCase = new UpdateLoggedSetUseCase(
+          context.repositories.workoutSessionRepository,
+          context.transactionManager,
+          context.repositories.idempotencyRepository
+        );
+
+        await assert.rejects(
+          () =>
+            useCase.execute({
+              context: { userId: "user-1", unitSystem: "imperial" },
+              setId,
+              request: {
+                actualReps: 1,
+                actualWeight: { value: 45, unit: "lb" },
+                completedAt: "2026-04-24T10:57:00.000Z"
+              },
+              idempotencyKey: "update-completed-set-no-rec-event"
+            }),
+          (error: unknown) =>
+            error instanceof WorkoutApplicationError && error.code === "COMPLETED_WORKOUT_READ_ONLY"
+        );
+
+        const recommendationEventsAfter = await context.db.select().from(progressionRecommendationEvents);
+        assert.equal(recommendationEventsAfter.length, recommendationEventsBefore.length);
       } finally {
         await disposeWorkoutInfrastructureTestContext(context);
       }

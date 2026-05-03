@@ -103,3 +103,16 @@ export function getWorkoutDiscardErrorMessage(error: unknown) {
 
   return "Workout not discarded. Check your connection and try again.";
 }
+
+export function getLoggedSetUpdateErrorMessage(error: unknown) {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: unknown }).code === "COMPLETED_WORKOUT_READ_ONLY"
+  ) {
+    return "Completed workouts are read-only for now.";
+  }
+
+  return "Set not updated. Check the values and try again.";
+}
