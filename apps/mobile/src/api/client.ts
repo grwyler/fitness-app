@@ -8,6 +8,7 @@ import {
   setLastKnownAuthToken
 } from "../core/auth/auth-bridge";
 import { appendAuthDebugTimeline, logSafeAuthDiagnostic, setLastAuthDebugMessage } from "../core/auth/auth-debug";
+import { captureApiFailure, captureMobileException } from "../core/observability/observability";
 
 type RequestOptions = {
   method?: "GET" | "POST" | "PUT" | "DELETE";
@@ -43,6 +44,7 @@ export async function apiRequest<TData, TMeta extends Record<string, unknown> = 
   path: string,
   options?: RequestOptions
 ): Promise<ApiSuccessEnvelope<TData, TMeta>> {
+  const method = options?.method ?? "GET";
   const token = await getAuthToken();
   const tokenSource = token ? getLastKnownAuthTokenSource() ?? "live_bridge" : "none";
   const requestUrl = buildApiUrl(apiConfig.baseUrl, path);
@@ -69,7 +71,7 @@ export async function apiRequest<TData, TMeta extends Record<string, unknown> = 
   let response: Response;
   try {
     response = await fetch(requestUrl, {
-      method: options?.method ?? "GET",
+      method,
       headers: {
         Accept: "application/json",
         "Content-Type": "application/json",
@@ -86,6 +88,15 @@ export async function apiRequest<TData, TMeta extends Record<string, unknown> = 
     if (isDevEnvironment) {
       console.warn("[mobile-api] network_error", { path, url: requestUrl, message });
     }
+    captureApiFailure({
+      method,
+      path
+    });
+    captureMobileException(error, {
+      kind: "api_network_error",
+      method,
+      path
+    });
     throw error;
   }
 
@@ -100,6 +111,20 @@ export async function apiRequest<TData, TMeta extends Record<string, unknown> = 
     if (isDevEnvironment) {
       console.warn("[mobile-api] response_parse_error", { path, url: requestUrl, status: response.status, message });
     }
+
+    if (response.status >= 500) {
+      captureApiFailure({
+        method,
+        path,
+        status: response.status
+      });
+    }
+    captureMobileException(error, {
+      kind: "api_response_parse_error",
+      method,
+      path,
+      status: response.status
+    });
   }
   logSafeAuthDiagnostic("api_response_received", {
     authorizationHeaderSet: Boolean(token),
@@ -140,7 +165,24 @@ export async function apiRequest<TData, TMeta extends Record<string, unknown> = 
               details: payload.error.details
             };
 
+      if (response.status >= 500) {
+        captureApiFailure({
+          method,
+          path,
+          status: response.status,
+          code: payload.error.code
+        });
+      }
+
       throw new MobileApiError(errorInput);
+    }
+
+    if (response.status >= 500) {
+      captureApiFailure({
+        method,
+        path,
+        status: response.status
+      });
     }
 
     throw new MobileApiError({
@@ -151,6 +193,12 @@ export async function apiRequest<TData, TMeta extends Record<string, unknown> = 
   }
 
   if (!isApiSuccessEnvelope<TData, TMeta>(payload)) {
+    captureApiFailure({
+      method,
+      path,
+      status: response.status,
+      code: "UNEXPECTED_RESPONSE"
+    });
     throw new MobileApiError({
       code: "INTERNAL_ERROR",
       message: "Unexpected API response.",

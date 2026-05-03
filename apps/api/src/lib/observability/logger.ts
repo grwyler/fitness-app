@@ -1,3 +1,5 @@
+import { redactForObservability } from "@fitness/shared";
+
 export type LogLevel = "info" | "warn" | "error";
 
 export type LogContext = Record<string, unknown>;
@@ -10,7 +12,7 @@ export interface Logger {
 
 function writeLog(level: LogLevel, message: string, context?: LogContext) {
   const payload = context ? { level, message, ...context } : { level, message };
-  const serialized = JSON.stringify(payload);
+  const serialized = JSON.stringify(redactForObservability(payload));
 
   if (level === "error") {
     console.error(serialized);

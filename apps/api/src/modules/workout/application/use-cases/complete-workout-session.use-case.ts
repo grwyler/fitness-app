@@ -10,6 +10,7 @@ import type {
   ProgressionConfidence
 } from "@fitness/shared";
 import { progressionStrategies } from "@fitness/shared";
+import { randomUUID } from "node:crypto";
 import { isCustomWorkoutProgramId } from "../../domain/models/custom-workout.js";
 import { ProgramAdvancementPolicy } from "../../domain/services/program-advancement-policy.js";
 import { ProgressionEngine } from "../../domain/services/progression-engine.js";
@@ -38,6 +39,8 @@ import type { RequestContext } from "../types/request-context.js";
 import type { UseCaseResult } from "../types/use-case-result.js";
 import type { ProgressionRecommendationEventRepository } from "../../repositories/interfaces/progression-recommendation-event.repository.js";
 import type { CreateProgressionRecommendationEventInput } from "../../repositories/models/progression-recommendation-event.persistence.js";
+import { errorReporter } from "../../../../lib/observability/error-reporter.js";
+import { logger } from "../../../../lib/observability/logger.js";
 
 function daysSince(previous: Date, current: Date) {
   const ms = current.getTime() - previous.getTime();
@@ -315,6 +318,7 @@ function buildRecommendationEventInput(input: {
   inputSnapshot: Record<string, unknown>;
 }): CreateProgressionRecommendationEventInput {
   return {
+    id: randomUUID(),
     userId: input.userId,
     exerciseId: input.exerciseId,
     workoutTemplateExerciseEntryId: input.workoutTemplateExerciseEntryId,
@@ -1809,7 +1813,31 @@ export class CompleteWorkoutSessionUseCase {
         }
 
         if (recommendationEventInputs.length > 0) {
-          await this.progressionRecommendationEventRepository.createMany(recommendationEventInputs, { tx });
+          try {
+            await this.progressionRecommendationEventRepository.createMany(recommendationEventInputs, { tx });
+          } catch (error) {
+            const eventIds = recommendationEventInputs
+              .map((entry) => entry.id)
+              .filter((entryId): entryId is string => typeof entryId === "string" && entryId.length > 0);
+            const primaryEventId = eventIds[0];
+
+            logger.error("Progression recommendation event persistence failed", {
+              userId: input.context.userId,
+              workoutSessionId: workoutSessionGraph.session.id,
+              progressionRecommendationEventId: primaryEventId,
+              progressionRecommendationEventIds: eventIds.slice(0, 25),
+              errorMessage: error instanceof Error ? error.message : String(error),
+              errorName: error instanceof Error ? error.name : "NonErrorThrown",
+              errorStack: error instanceof Error ? error.stack : undefined
+            });
+            errorReporter.captureException(error, {
+              userId: input.context.userId,
+              workoutSessionId: workoutSessionGraph.session.id,
+              progressionRecommendationEventId: primaryEventId,
+              progressionRecommendationEventIds: eventIds.slice(0, 25)
+            });
+            throw error;
+          }
         }
 
         return {

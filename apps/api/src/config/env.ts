@@ -55,6 +55,12 @@ const envSchema = z.object({
   NODE_ENV: z
     .preprocess((value) => (typeof value === "string" ? value.trim() : value), z.enum(["development", "test", "production"]))
     .default("development"),
+  OBSERVABILITY_ENABLED: z
+    .preprocess(
+      (value) => (typeof value === "string" ? value.trim() : value),
+      z.enum(["true", "false"]).optional()
+    )
+    .transform((value) => (value === undefined ? undefined : value === "true")),
   PORT: z.coerce.number().int().positive().default(4000),
   PASSWORD_RESET_LINK_BASE_URL: trimmedOptionalString,
   PASSWORD_RESET_TOKEN_SECRET: trimmedOptionalString,
@@ -62,6 +68,9 @@ const envSchema = z.object({
     .pipe(z.number().int().positive().optional())
     .transform((value) => value ?? 30),
   RESEND_API_KEY: trimmedOptionalString,
+  SENTRY_DSN: trimmedOptionalString,
+  SENTRY_ENVIRONMENT: trimmedOptionalString,
+  SENTRY_RELEASE: trimmedOptionalString,
   VERCEL: trimmedOptionalString,
   VERCEL_ENV: trimmedOptionalString,
   VERCEL_GIT_COMMIT_REF: trimmedOptionalString,
@@ -232,11 +241,15 @@ export function parseEnvFromProcess(): AppEnv {
     EMAIL_PROVIDER: process.env.EMAIL_PROVIDER,
     JWT_SECRET: process.env.JWT_SECRET,
     NODE_ENV: process.env.NODE_ENV,
+    OBSERVABILITY_ENABLED: process.env.OBSERVABILITY_ENABLED,
     PORT: process.env.PORT,
     PASSWORD_RESET_LINK_BASE_URL: process.env.PASSWORD_RESET_LINK_BASE_URL,
     PASSWORD_RESET_TOKEN_SECRET: process.env.PASSWORD_RESET_TOKEN_SECRET,
     PASSWORD_RESET_TOKEN_TTL_MINUTES: process.env.PASSWORD_RESET_TOKEN_TTL_MINUTES,
     RESEND_API_KEY: process.env.RESEND_API_KEY,
+    SENTRY_DSN: process.env.SENTRY_DSN,
+    SENTRY_ENVIRONMENT: process.env.SENTRY_ENVIRONMENT,
+    SENTRY_RELEASE: process.env.SENTRY_RELEASE,
     VERCEL: process.env.VERCEL,
     VERCEL_ENV: process.env.VERCEL_ENV,
     VERCEL_GIT_COMMIT_REF: process.env.VERCEL_GIT_COMMIT_REF,

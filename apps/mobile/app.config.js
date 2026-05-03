@@ -126,6 +126,10 @@ module.exports = () => {
   const resolveOptions = { skipEnvFiles: isProductionBuild };
   const apiBaseUrlResult = resolveEnvValue("EXPO_PUBLIC_API_BASE_URL", resolveOptions);
   const apiBaseUrl = apiBaseUrlResult.value;
+  const sentryDsnResult = resolveEnvValue("EXPO_PUBLIC_SENTRY_DSN", resolveOptions);
+  const sentryEnvironmentResult = resolveEnvValue("EXPO_PUBLIC_SENTRY_ENVIRONMENT", resolveOptions);
+  const sentryReleaseResult = resolveEnvValue("EXPO_PUBLIC_SENTRY_RELEASE", resolveOptions);
+  const observabilityEnabledResult = resolveEnvValue("EXPO_PUBLIC_OBSERVABILITY_ENABLED", resolveOptions);
 
   if (isProductionBuild) {
     assertProductionApiBaseUrl(apiBaseUrl, apiBaseUrlResult.source);
@@ -133,6 +137,18 @@ module.exports = () => {
 
   if (apiBaseUrl) {
     process.env.EXPO_PUBLIC_API_BASE_URL = apiBaseUrl;
+  }
+  if (sentryDsnResult.value) {
+    process.env.EXPO_PUBLIC_SENTRY_DSN = sentryDsnResult.value;
+  }
+  if (sentryEnvironmentResult.value) {
+    process.env.EXPO_PUBLIC_SENTRY_ENVIRONMENT = sentryEnvironmentResult.value;
+  }
+  if (sentryReleaseResult.value) {
+    process.env.EXPO_PUBLIC_SENTRY_RELEASE = sentryReleaseResult.value;
+  }
+  if (observabilityEnabledResult.value) {
+    process.env.EXPO_PUBLIC_OBSERVABILITY_ENABLED = observabilityEnabledResult.value;
   }
 
   return {

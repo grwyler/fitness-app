@@ -12,6 +12,7 @@ import { isAppError } from "./lib/http/errors.js";
 import { errorReporter } from "./lib/observability/error-reporter.js";
 import { logger } from "./lib/observability/logger.js";
 import { describeErrorForLogs } from "./lib/observability/describe-error.js";
+import { initApiObservability } from "./lib/observability/init.js";
 import { toAppError } from "./modules/workout/http/workout.http-errors.js";
 import { createAuthenticateRequestMiddleware } from "./lib/auth/auth.middleware.js";
 import { createRequestContextMiddleware } from "./lib/auth/request-context.middleware.js";
@@ -121,6 +122,8 @@ export function createApp(options?: {
   const env = getEnv();
   const corsOptions = createCorsOptions(env);
 
+  initApiObservability();
+
   app.use(cors(corsOptions));
   app.use(createRequestIdMiddleware());
   app.use((request, response, next) => {
@@ -188,9 +191,11 @@ export function createApp(options?: {
     }
 
     const appError = isAppError(error) ? error : toAppError(error);
+    const requestContext = request.context as { userId?: string } | undefined;
+    const requestId = (request as Request & { requestId?: string }).requestId;
+    const route = request.originalUrl.split("?")[0] ?? request.originalUrl;
     if (isAppError(appError)) {
       if (appError.statusCode >= 500) {
-        const requestContext = request.context as { userId?: string } | undefined;
         const describedError = describeErrorForLogs(error);
         const errorContext = {
           errorMessage: describedError.message,
@@ -209,20 +214,19 @@ export function createApp(options?: {
         };
         const routeContext = {
           method: request.method,
-          path: request.originalUrl,
+          route,
           userId: requestContext?.userId,
-          requestId: (request as Request & { requestId?: string }).requestId
+          requestId,
+          statusCode: appError.statusCode
         };
         errorReporter.captureException(error, {
           code: appError.code,
-          statusCode: appError.statusCode,
           details: appError.details,
           ...errorContext,
           ...routeContext
         });
         logger.error("Unhandled API error", {
           code: appError.code,
-          statusCode: appError.statusCode,
           details: appError.details,
           ...errorContext,
           ...routeContext
@@ -233,12 +237,19 @@ export function createApp(options?: {
       return;
     }
 
-    errorReporter.captureException(error);
+    errorReporter.captureException(error, {
+      method: request.method,
+      route,
+      userId: requestContext?.userId,
+      requestId,
+      statusCode: 500
+    });
     logger.error("Unexpected API error", {
       method: request.method,
-      path: request.originalUrl,
-      userId: (request.context as { userId?: string } | undefined)?.userId,
-      requestId: (request as Request & { requestId?: string }).requestId,
+      route,
+      userId: requestContext?.userId,
+      requestId,
+      statusCode: 500,
       errorMessage: error instanceof Error ? error.message : String(error),
       errorName: error instanceof Error ? error.name : "NonErrorThrown",
       errorStack: error instanceof Error ? error.stack : undefined

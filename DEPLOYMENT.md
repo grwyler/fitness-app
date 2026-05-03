@@ -76,6 +76,13 @@ Set these environment variables on the production web Vercel project:
 
 - `EXPO_PUBLIC_API_BASE_URL`: `https://setwiseapi.vercel.app/api/v1`
 
+Optional (recommended) observability for mobile/web builds:
+
+- `EXPO_PUBLIC_SENTRY_DSN`: Sentry DSN for the Expo app (web + native)
+- `EXPO_PUBLIC_SENTRY_ENVIRONMENT`: optional override (defaults to unset)
+- `EXPO_PUBLIC_SENTRY_RELEASE`: optional (set to your app version/build identifier)
+- `EXPO_PUBLIC_OBSERVABILITY_ENABLED`: set to `true` to enable Sentry in local dev; set to `false` to force-disable
+
 Do not point the production web app at localhost or at a preview-only API.
 The web app stores the MVP bearer token in browser `localStorage` and sends it to the API on protected requests.
 
@@ -107,6 +114,13 @@ Optional:
 - `USE_PGLITE_DEV` should be left unset in production
 - `PASSWORD_RESET_TOKEN_TTL_MINUTES`: token lifetime in minutes (default `30`)
 - `PASSWORD_RESET_TOKEN_SECRET`: optional; defaults to `JWT_SECRET`
+
+Optional (recommended) API observability:
+
+- `SENTRY_DSN`: enables Sentry error reporting when set in production
+- `SENTRY_ENVIRONMENT`: optional override (defaults to deployment stage like `production` / `staging`)
+- `SENTRY_RELEASE`: optional (set to your git SHA or build identifier)
+- `OBSERVABILITY_ENABLED`: set to `true` to enable Sentry in local dev; set to `false` to force-disable
 
 ## Deploy the API
 

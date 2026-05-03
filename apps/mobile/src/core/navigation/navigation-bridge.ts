@@ -22,6 +22,10 @@ export function registerNavigationBridge(nextBridge: NavigationBridge) {
   };
 }
 
+export function getCurrentRouteName() {
+  return navigationBridge.getCurrentRouteName();
+}
+
 export function resetToSignInIfNeeded() {
   if (!navigationBridge.isReady()) {
     return;

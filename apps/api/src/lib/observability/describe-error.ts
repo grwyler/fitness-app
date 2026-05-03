@@ -50,9 +50,7 @@ function describeKnownFields(error: ErrorLike): Omit<ErrorDetails, "name" | "mes
     dataType: pickIfPresent(error, "dataType"),
     position: pickIfPresent(error, "position"),
     internalQuery: pickIfPresent(error, "internalQuery"),
-    routine: pickIfPresent(error, "routine"),
-    query: pickIfPresent(error, "query"),
-    params: pickIfPresent(error, "params")
+    routine: pickIfPresent(error, "routine")
   };
 }
 
