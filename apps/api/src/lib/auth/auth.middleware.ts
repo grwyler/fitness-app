@@ -10,14 +10,19 @@ function extractBearerToken(authorizationHeader: string | undefined) {
   return match?.[1] ?? null;
 }
 
-function setAuthDiagnosticHeaders(response: { setHeader: (name: string, value: string) => void }, input: {
+function setAuthDiagnosticHeaders(response: unknown, input: {
   authorizationHeaderPresent: boolean;
   bearerTokenPresent: boolean;
   reason: "missing_bearer" | "invalid_bearer" | "invalidated";
 }) {
-  response.setHeader("X-Auth-Diagnostic", input.reason);
-  response.setHeader("X-Auth-Header-Present", input.authorizationHeaderPresent ? "1" : "0");
-  response.setHeader("X-Auth-Bearer-Present", input.bearerTokenPresent ? "1" : "0");
+  const res = response as { setHeader?: (name: string, value: string) => void } | null;
+  if (!res || typeof res.setHeader !== "function") {
+    return;
+  }
+
+  res.setHeader("X-Auth-Diagnostic", input.reason);
+  res.setHeader("X-Auth-Header-Present", input.authorizationHeaderPresent ? "1" : "0");
+  res.setHeader("X-Auth-Bearer-Present", input.bearerTokenPresent ? "1" : "0");
 }
 
 export function createAuthenticateRequestMiddleware(dependencies?: {

@@ -6,6 +6,7 @@ import express, {
   type Response,
   type Router
 } from "express";
+import { createHash } from "node:crypto";
 import { healthRouter } from "./modules/health/health.routes.js";
 import { failure } from "./lib/http/envelope.js";
 import { isAppError } from "./lib/http/errors.js";
@@ -19,6 +20,7 @@ import { createRequestContextMiddleware } from "./lib/auth/request-context.middl
 import { createProtectedAuthRouter, createPublicAuthRouter } from "./lib/auth/auth.routes.js";
 import { getEnv, type AppEnv } from "./config/env.js";
 import { createRequestIdMiddleware } from "./lib/http/request-id.middleware.js";
+import { detectDeploymentStage } from "./config/deployment-stage.js";
 
 type DatabaseLike = {
   select: (...args: any[]) => any;
@@ -128,6 +130,34 @@ export function createApp(options?: {
 
   app.use(cors(corsOptions));
   app.use(createRequestIdMiddleware());
+  app.use((request, response, next) => {
+    const stage = detectDeploymentStage({
+      nodeEnv: env.NODE_ENV,
+      vercel: env.VERCEL,
+      vercelEnv: env.VERCEL_ENV,
+      vercelGitCommitRef: env.VERCEL_GIT_COMMIT_REF
+    });
+
+    response.setHeader("X-App-Stage", stage);
+    if (env.VERCEL_ENV) response.setHeader("X-Vercel-Env", env.VERCEL_ENV);
+    if (env.VERCEL_GIT_COMMIT_REF) response.setHeader("X-Vercel-Branch", env.VERCEL_GIT_COMMIT_REF);
+
+    // Debug only: help diagnose "API issues a token it can't validate" by exposing a short fingerprint
+    // of the secret used for signing/verifying. Safe-ish because it's a one-way hash and truncated.
+    // Enabled by default on non-production Vercel deployments.
+    const isProduction = stage === "production";
+    const debugHeadersExplicit = process.env.AUTH_DEBUG_HEADERS === "1";
+    if (!isProduction || debugHeadersExplicit) {
+      try {
+        const fingerprint = createHash("sha256").update(env.JWT_SECRET).digest("hex").slice(0, 12);
+        response.setHeader("X-Auth-Jwt-Fingerprint", fingerprint);
+      } catch {
+        // ignore
+      }
+    }
+
+    next();
+  });
   app.use((request, response, next) => {
     if (request.method === "OPTIONS") {
       response.status(200).end();
