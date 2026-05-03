@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import type { PredefinedWorkoutCategory } from "@fitness/shared";
+import type { ExperienceLevel, PredefinedWorkoutCategory } from "@fitness/shared";
 import {
   boolean,
   check,
@@ -20,6 +20,7 @@ import {
   enrollmentStatuses,
   exerciseCategories,
   programSources,
+  programTrainingContextSources,
   progressMetricTypes,
   progressionStrategies,
   progressionAggressivenessLevels,
@@ -43,6 +44,10 @@ const progressMetricTypeEnum = pgEnum("progress_metric_type", progressMetricType
 const progressionStrategyEnum = pgEnum("progression_strategy", progressionStrategies);
 const progressionAggressivenessEnum = pgEnum("progression_aggressiveness", progressionAggressivenessLevels);
 const programSourceEnum = pgEnum("program_source", programSources);
+const programTrainingContextSourceEnum = pgEnum(
+  "program_training_context_source",
+  programTrainingContextSources
+);
 const trainingGoalEnum = pgEnum("training_goal", trainingGoals);
 const recoveryStateEnum = pgEnum("recovery_state", recoveryStates);
 const idempotencyStatusEnum = pgEnum("idempotency_status", ["pending", "completed"]);
@@ -274,6 +279,33 @@ export const userProgramEnrollments = pgTable(
     oneActiveEnrollmentPerUser: uniqueIndex("idx_one_active_program_per_user")
       .on(table.userId)
       .where(sql`${table.status} = 'active'`)
+  })
+);
+
+export const programTrainingContexts = pgTable(
+  "program_training_contexts",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").notNull().references(() => users.id),
+    programId: uuid("program_id").notNull().references(() => programs.id),
+    enrollmentId: uuid("enrollment_id").references(() => userProgramEnrollments.id),
+    source: programTrainingContextSourceEnum("source").notNull(),
+    goalType: trainingGoalEnum("goal_type"),
+    experienceLevel: difficultyLevelEnum("experience_level").$type<ExperienceLevel>(),
+    progressionPreferencesSnapshot: jsonb("progression_preferences_snapshot").notNull(),
+    recoveryPreferencesSnapshot: jsonb("recovery_preferences_snapshot").notNull(),
+    equipmentSettingsSnapshot: jsonb("equipment_settings_snapshot").notNull(),
+    exerciseProgressionSettingsSnapshot: jsonb("exercise_progression_settings_snapshot").notNull(),
+    guidedAnswersSnapshot: jsonb("guided_answers_snapshot"),
+    guidedRecommendationSnapshot: jsonb("guided_recommendation_snapshot"),
+    coachingEnabled: boolean("coaching_enabled").notNull().default(false),
+    ...timestamps
+  },
+  (table) => ({
+    userIndex: index("idx_program_training_contexts_user_id").on(table.userId),
+    programIndex: index("idx_program_training_contexts_program_id").on(table.programId),
+    enrollmentIndex: index("idx_program_training_contexts_enrollment_id").on(table.enrollmentId),
+    userProgramIndex: index("idx_program_training_contexts_user_program").on(table.userId, table.programId)
   })
 );
 

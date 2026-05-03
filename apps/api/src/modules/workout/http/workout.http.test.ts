@@ -6,6 +6,7 @@ import {
   idempotencyRecords,
   progressMetrics,
   progressionStates,
+  programTrainingContexts,
   programs,
   sets,
   userExerciseProgressionSettings,
@@ -1021,6 +1022,20 @@ export const workoutHttpTestCases: HttpTestCase[] = [
           assert.equal(response.status, 201);
           assert.equal(payload.data.activeProgram.program.id, "program-1");
           assert.equal(payload.data.activeProgram.nextWorkoutTemplate.id, "template-1");
+
+          const createdUser =
+            (await context.db.select().from(users)).find((row) => row.authProviderId === "auth-user-new") ??
+            null;
+          assert.ok(createdUser);
+
+          const trainingContexts = await context.db.select().from(programTrainingContexts);
+          const contextRow =
+            trainingContexts.find(
+              (row) => row.userId === createdUser?.id && row.programId === "program-1"
+            ) ?? null;
+          assert.ok(contextRow);
+          assert.equal(contextRow?.source, "predefined");
+          assert.equal(contextRow?.coachingEnabled, false);
         } finally {
           await server.close();
         }
@@ -1374,6 +1389,156 @@ export const workoutHttpTestCases: HttpTestCase[] = [
 
           assert.equal(response.status, 400);
           assert.equal(payload.error.code, "VALIDATION_ERROR");
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "POST /api/v1/programs creates a custom program and snapshots training context",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        const server = await startHttpServer(context.db);
+
+        try {
+          const response = await fetch(`${server.baseUrl}/api/v1/programs`, {
+            method: "POST",
+            headers: createAuthHeaders({
+              "content-type": "application/json",
+              "Idempotency-Key": "create-program-with-context-key"
+            }),
+            body: JSON.stringify({
+              name: "My Custom Program",
+              workouts: [
+                {
+                  name: "Day 1",
+                  exercises: [
+                    {
+                      exerciseId: "exercise-1",
+                      targetSets: 3,
+                      targetReps: 8
+                    }
+                  ]
+                }
+              ]
+            })
+          });
+          const payload = await readJson(response);
+
+          assert.equal(response.status, 201);
+          const createdProgramId = payload.data.program.id as string;
+          assert.ok(createdProgramId);
+
+          const trainingContexts = await context.db.select().from(programTrainingContexts);
+          const contextRow =
+            trainingContexts.find((row) => row.userId === "user-1" && row.programId === createdProgramId) ??
+            null;
+          assert.ok(contextRow);
+          assert.equal(contextRow?.source, "manual");
+          assert.equal(contextRow?.coachingEnabled, false);
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "POST /api/v1/guided-program/recommend returns a recommended predefined plan",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        const server = await startHttpServer(context.db);
+
+        try {
+          const response = await fetch(`${server.baseUrl}/api/v1/guided-program/recommend`, {
+            method: "POST",
+            headers: createAuthHeaders({
+              "content-type": "application/json"
+            }),
+            body: JSON.stringify({
+              answers: {
+                goal: "general_fitness",
+                experienceLevel: "beginner",
+                daysPerWeek: 3,
+                sessionDurationMinutes: 60,
+                equipmentAccess: "full_gym",
+                progressionAggressiveness: "balanced",
+                recoveryPreference: "adjust_when_needed"
+              }
+            })
+          });
+          const payload = await readJson(response);
+
+          assert.equal(response.status, 200);
+          assert.equal(payload.data.program.id, "program-1");
+          assert.ok(Array.isArray(payload.data.reasons));
+          assert.ok(Array.isArray(payload.data.warnings));
+          assert.equal(typeof payload.data.isExactMatch, "boolean");
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "POST /api/v1/programs/:programId/follow with guided activation stores guided context snapshots",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        const server = await startHttpServer(context.db);
+
+        try {
+          const response = await fetch(`${server.baseUrl}/api/v1/programs/program-1/follow`, {
+            method: "POST",
+            headers: {
+              Authorization: "Bearer valid-new-user-token",
+              "content-type": "application/json"
+            },
+            body: JSON.stringify({
+              activationSource: "guided",
+              guidedAnswers: {
+                goal: "strength",
+                experienceLevel: "beginner",
+                daysPerWeek: 3,
+                sessionDurationMinutes: 60,
+                equipmentAccess: "full_gym",
+                progressionAggressiveness: "balanced",
+                recoveryPreference: "adjust_when_needed"
+              },
+              guidedRecommendation: {
+                reasons: ["Matches your schedule."],
+                warnings: [],
+                isExactMatch: true
+              }
+            })
+          });
+          const payload = await readJson(response);
+
+          assert.equal(response.status, 201);
+          assert.equal(payload.data.activeProgram.program.id, "program-1");
+
+          const trainingContexts = await context.db.select().from(programTrainingContexts);
+          const contextRow =
+            trainingContexts.find((row) => row.programId === "program-1" && row.source === "guided") ??
+            null;
+          assert.ok(contextRow);
+          assert.equal(contextRow?.source, "guided");
+          assert.ok(contextRow?.guidedAnswersSnapshot);
+          assert.ok(contextRow?.guidedRecommendationSnapshot);
         } finally {
           await server.close();
         }

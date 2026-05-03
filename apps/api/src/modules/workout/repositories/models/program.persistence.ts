@@ -29,6 +29,8 @@ export type ProgramTemplateExerciseRecord = {
   category: ExerciseCategory;
   movementPattern: string | null;
   primaryMuscleGroup: string | null;
+  equipmentType: string | null;
+  isBodyweight: boolean;
   sequenceOrder: number;
   targetSets: number;
   targetReps: number;

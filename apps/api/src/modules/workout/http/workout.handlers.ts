@@ -24,7 +24,9 @@ import {
   addCustomWorkoutExerciseBodySchema,
   completeWorkoutSessionBodySchema,
   createCustomProgramBodySchema,
+  followProgramBodySchema,
   getExerciseProgressionSettingsQuerySchema,
+  recommendGuidedProgramBodySchema,
   logSetBodySchema,
   programParamsSchema,
   setParamsSchema,
@@ -42,6 +44,7 @@ import type { CancelWorkoutSessionUseCase } from "../application/use-cases/cance
 import type { DeleteWorkoutSetUseCase } from "../application/use-cases/delete-workout-set.use-case.js";
 import type { FollowProgramUseCase } from "../application/use-cases/follow-program.use-case.js";
 import type { CreateCustomProgramUseCase } from "../application/use-cases/create-custom-program.use-case.js";
+import type { RecommendGuidedProgramUseCase } from "../application/use-cases/recommend-guided-program.use-case.js";
 import type { GetCurrentWorkoutSessionUseCase } from "../application/use-cases/get-current-workout-session.use-case.js";
 import type { GetDashboardUseCase } from "../application/use-cases/get-dashboard.use-case.js";
 import type { GetProgramUseCase } from "../application/use-cases/get-program.use-case.js";
@@ -65,6 +68,7 @@ export type WorkoutHttpHandlers = {
   createCustomProgram: RequestHandler;
   updateCustomProgram: RequestHandler;
   listExercises: RequestHandler;
+  recommendGuidedProgram: RequestHandler;
   followProgram: RequestHandler;
   getDashboard: RequestHandler;
   getProgression: RequestHandler;
@@ -91,6 +95,7 @@ export function createWorkoutHandlers(dependencies: {
   createCustomProgramUseCase: CreateCustomProgramUseCase;
   updateCustomProgramUseCase: UpdateCustomProgramUseCase;
   listExercisesUseCase: ListExercisesUseCase;
+  recommendGuidedProgramUseCase: RecommendGuidedProgramUseCase;
   followProgramUseCase: FollowProgramUseCase;
   getDashboardUseCase: GetDashboardUseCase;
   getProgressionUseCase: GetProgressionUseCase;
@@ -191,12 +196,24 @@ export function createWorkoutHandlers(dependencies: {
       response.json(success(result.data, result.meta));
     }),
 
+    recommendGuidedProgram: asyncHandler(async (request, response) => {
+      const context = getRequestContext(request);
+      const body = validateBody(recommendGuidedProgramBodySchema, request);
+      const result = await dependencies.recommendGuidedProgramUseCase.execute({
+        context,
+        request: body
+      });
+      response.json(success(result.data, result.meta));
+    }),
+
     followProgram: asyncHandler(async (request, response) => {
       const context = getRequestContext(request);
       const params = validateParams(programParamsSchema, request);
+      const body = validateBody(followProgramBodySchema, request) ?? undefined;
       const result = await dependencies.followProgramUseCase.execute({
         context,
-        programId: params.programId
+        programId: params.programId,
+        request: body
       });
       response.status(201).json(success(result.data, result.meta));
     }),

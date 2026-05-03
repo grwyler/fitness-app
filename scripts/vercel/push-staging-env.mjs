@@ -75,7 +75,7 @@ function main() {
     const addArgs = ["env", "add", key, environment, branch, ...sensitiveArgs, ...globalArgs];
 
     const updateResult = spawnVercelSync(updateArgs, {
-      input: `${value}\n`,
+      input: value,
       encoding: "utf8",
       stdio: ["pipe", "inherit", "inherit"],
       cwd: projectConfig.cwd,
@@ -87,7 +87,7 @@ function main() {
     }
 
     const addResult = spawnVercelSync(addArgs, {
-      input: `${value}\n`,
+      input: value,
       encoding: "utf8",
       stdio: ["pipe", "inherit", "inherit"],
       cwd: projectConfig.cwd,
@@ -112,7 +112,7 @@ function main() {
     }
 
     const addAgainResult = spawnVercelSync(addArgs, {
-      input: `${value}\n`,
+      input: value,
       encoding: "utf8",
       stdio: ["pipe", "inherit", "inherit"],
       cwd: projectConfig.cwd,

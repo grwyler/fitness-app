@@ -245,6 +245,13 @@ alter table workout_templates add column if not exists category text not null de
 create unique index if not exists idx_workout_templates_program_sequence on workout_templates(program_id, sequence_order);
 create table if not exists user_program_enrollments (id uuid primary key, user_id uuid not null references users(id), program_id uuid not null references programs(id), status text not null, started_at timestamptz not null, completed_at timestamptz, current_workout_template_id uuid references workout_templates(id), created_at timestamptz not null default now(), updated_at timestamptz not null default now());
 create unique index if not exists idx_one_active_program_per_user on user_program_enrollments(user_id) where status = 'active';
+create table if not exists program_training_contexts (id uuid primary key default gen_random_uuid(), user_id uuid not null references users(id), program_id uuid not null references programs(id), enrollment_id uuid references user_program_enrollments(id), source text not null, goal_type text, experience_level text, progression_preferences_snapshot jsonb not null, recovery_preferences_snapshot jsonb not null, equipment_settings_snapshot jsonb not null, exercise_progression_settings_snapshot jsonb not null, coaching_enabled boolean not null default false, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
+alter table program_training_contexts add column if not exists guided_answers_snapshot jsonb;
+alter table program_training_contexts add column if not exists guided_recommendation_snapshot jsonb;
+create index if not exists idx_program_training_contexts_user_id on program_training_contexts(user_id);
+create index if not exists idx_program_training_contexts_program_id on program_training_contexts(program_id);
+create index if not exists idx_program_training_contexts_enrollment_id on program_training_contexts(enrollment_id);
+create index if not exists idx_program_training_contexts_user_program on program_training_contexts(user_id, program_id);
 create table if not exists workout_template_exercise_entries (id uuid primary key, workout_template_id uuid not null references workout_templates(id), exercise_id uuid not null references exercises(id), sequence_order integer not null, target_sets integer not null, target_reps integer not null, rep_range_min integer, rep_range_max integer, rest_seconds integer, progression_strategy text, deleted_at timestamptz, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
 alter table workout_template_exercise_entries add column if not exists progression_strategy text;
 alter table workout_template_exercise_entries add column if not exists deleted_at timestamptz;

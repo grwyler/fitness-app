@@ -144,6 +144,7 @@ export function mapProgramDto(definition: ProgramDefinition): ProgramDto {
   return {
     id: definition.program.id,
     source: definition.program.source,
+    trainingGoal: definition.program.trainingGoal,
     name: definition.program.name,
     description,
     daysPerWeek: definition.program.daysPerWeek,

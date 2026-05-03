@@ -1,6 +1,9 @@
 import type { CreateCustomProgramRequest, CreateCustomProgramResponse } from "@fitness/shared";
 import type { ProgramRepository } from "../../repositories/interfaces/program.repository.js";
 import type { IdempotencyRepository } from "../../repositories/interfaces/idempotency.repository.js";
+import type { ExerciseProgressionSettingsRepository } from "../../repositories/interfaces/exercise-progression-settings.repository.js";
+import type { ProgramTrainingContextRepository } from "../../repositories/interfaces/program-training-context.repository.js";
+import type { TrainingSettingsRepository } from "../../repositories/interfaces/training-settings.repository.js";
 import { WorkoutApplicationError } from "../errors/workout-application.error.js";
 import { mapProgramDto } from "../mappers/workout-dto.mapper.js";
 import { IdempotencyService } from "../services/idempotency.service.js";
@@ -125,6 +128,9 @@ export class CreateCustomProgramUseCase {
 
   public constructor(
     private readonly programRepository: ProgramRepository,
+    private readonly trainingSettingsRepository: TrainingSettingsRepository,
+    private readonly exerciseProgressionSettingsRepository: ExerciseProgressionSettingsRepository,
+    private readonly programTrainingContextRepository: ProgramTrainingContextRepository,
     private readonly transactionManager: TransactionManager,
     idempotencyRepository: IdempotencyRepository
   ) {
@@ -157,6 +163,50 @@ export class CreateCustomProgramUseCase {
             description: validatedRequest.description,
             workouts: validatedRequest.workouts,
             createdAt: new Date()
+          },
+          { tx }
+        );
+
+        const trainingSettings = await this.trainingSettingsRepository.findOrCreateByUserId(
+          input.context.userId,
+          { tx }
+        );
+        const exerciseProgressionSettings =
+          await this.exerciseProgressionSettingsRepository.listByUserId(input.context.userId, { tx });
+
+        await this.programTrainingContextRepository.create(
+          {
+            userId: input.context.userId,
+            programId: programDefinition.program.id,
+            source: "manual",
+            goalType: trainingSettings.trainingGoal,
+            experienceLevel: trainingSettings.experienceLevel,
+            progressionPreferencesSnapshot: {
+              progressionAggressiveness: trainingSettings.progressionAggressiveness,
+              preferRepProgressionBeforeWeight: trainingSettings.preferRepProgressionBeforeWeight,
+              allowRecalibration: trainingSettings.allowRecalibration,
+              minimumConfidenceForIncrease: trainingSettings.minimumConfidenceForIncrease
+            },
+            recoveryPreferencesSnapshot: {
+              useRecoveryAdjustments: trainingSettings.useRecoveryAdjustments,
+              defaultRecoveryState: trainingSettings.defaultRecoveryState,
+              allowAutoDeload: trainingSettings.allowAutoDeload
+            },
+            equipmentSettingsSnapshot: {
+              defaultBarbellIncrementLbs: trainingSettings.defaultBarbellIncrementLbs,
+              defaultDumbbellIncrementLbs: trainingSettings.defaultDumbbellIncrementLbs,
+              defaultMachineIncrementLbs: trainingSettings.defaultMachineIncrementLbs,
+              defaultCableIncrementLbs: trainingSettings.defaultCableIncrementLbs
+            },
+            exerciseProgressionSettingsSnapshot: exerciseProgressionSettings.map((record) => ({
+              exerciseId: record.exerciseId,
+              progressionStrategy: record.progressionStrategy,
+              repRangeMin: record.repRangeMin,
+              repRangeMax: record.repRangeMax,
+              incrementOverrideLbs: record.incrementOverrideLbs,
+              maxJumpPerSessionLbs: record.maxJumpPerSessionLbs,
+              bodyweightProgressionMode: record.bodyweightProgressionMode
+            }))
           },
           { tx }
         );

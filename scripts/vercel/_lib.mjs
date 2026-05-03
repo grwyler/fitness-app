@@ -1,9 +1,44 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
+
+function findRepoNpmCacheDir(startDir) {
+  let current = resolve(startDir);
+  for (let i = 0; i < 6; i += 1) {
+    const candidate = resolve(current, ".npm-cache");
+    if (existsSync(candidate)) {
+      return candidate;
+    }
+    const parent = dirname(current);
+    if (parent === current) {
+      break;
+    }
+    current = parent;
+  }
+  return null;
+}
 
 export function isWindows() {
   return process.platform === "win32";
+}
+
+function resolveCmdExe() {
+  const comspec = process.env.ComSpec;
+  if (typeof comspec === "string" && comspec.trim()) {
+    return comspec.trim();
+  }
+
+  const system32 = "C:\\\\Windows\\\\System32\\\\cmd.exe";
+  if (existsSync(system32)) {
+    return system32;
+  }
+
+  const system32Upper = "C:\\\\WINDOWS\\\\system32\\\\cmd.exe";
+  if (existsSync(system32Upper)) {
+    return system32Upper;
+  }
+
+  return "cmd.exe";
 }
 
 export function commandExists(command) {
@@ -31,7 +66,7 @@ export function resolveVercelCli() {
     if (first) {
       const resolved = first.trim();
       // .cmd is not directly executable via CreateProcess; use cmd.exe wrapper.
-      cachedVercelCli = { command: "cmd.exe", argsPrefix: ["/d", "/s", "/c", resolved] };
+      cachedVercelCli = { command: resolveCmdExe(), argsPrefix: ["/d", "/s", "/c", resolved] };
       return cachedVercelCli;
     }
   }
@@ -50,7 +85,7 @@ export function resolveVercelCli() {
         return cachedVercelCli;
       }
       if (/\.cmd$/i.test(resolved) || /\.bat$/i.test(resolved)) {
-        cachedVercelCli = { command: "cmd.exe", argsPrefix: ["/d", "/s", "/c", resolved] };
+        cachedVercelCli = { command: resolveCmdExe(), argsPrefix: ["/d", "/s", "/c", resolved] };
         return cachedVercelCli;
       }
       cachedVercelCli = { command: resolved, argsPrefix: [] };
@@ -59,12 +94,35 @@ export function resolveVercelCli() {
   }
 
   cachedVercelCli = { command: "vercel", argsPrefix: [] };
+
+  // Final fallback: use `npx vercel` when Vercel CLI isn't installed globally.
+  // This keeps local scripts aligned with the GitHub Actions workflows that also use npx.
+  if (isWindows()) {
+    const npxLookup = spawnSync("where", ["npx.cmd"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+    if (npxLookup.status === 0) {
+      const first = (npxLookup.stdout ?? "").split(/\r?\n/).find(Boolean);
+      if (first) {
+        const resolvedNpx = first.trim();
+        cachedVercelCli = { command: resolveCmdExe(), argsPrefix: ["/d", "/s", "/c", resolvedNpx, "vercel"] };
+        return cachedVercelCli;
+      }
+    }
+  }
+
   return cachedVercelCli;
 }
 
 export function spawnVercelSync(args, options = {}) {
   const { command, argsPrefix } = resolveVercelCli();
-  return spawnSync(command, [...argsPrefix, ...args], options);
+
+  const cwd = options.cwd ?? process.cwd();
+  const npmCacheDir = findRepoNpmCacheDir(cwd);
+  const envWithCache =
+    npmCacheDir && !process.env.npm_config_cache
+      ? { ...process.env, ...(options.env ?? {}), npm_config_cache: npmCacheDir }
+      : { ...process.env, ...(options.env ?? {}) };
+
+  return spawnSync(command, [...argsPrefix, ...args], { ...options, env: envWithCache });
 }
 
 export function run(command, args, options = {}) {
@@ -181,7 +239,9 @@ export function resolveProjectConfig({ repoRoot, project }) {
     return {
       label: "api",
       cwd: resolve(repoRoot, "apps", "api"),
-      localConfig: resolve(repoRoot, "apps", "api", "vercel.json"),
+      // Use the repository-level config so `vercel build --local-config` produces a correct
+      // prebuilt serverless output (builds + routes) with bundled dependencies.
+      localConfig: resolve(repoRoot, "vercel.api.json"),
       envFile: resolve(repoRoot, ".env.api.staging")
     };
   }

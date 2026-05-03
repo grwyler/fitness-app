@@ -140,11 +140,11 @@ export const dashboardProgramTestCases: MobileTestCase[] = [
     }
   },
   {
-    name: "Dashboard keeps Create Program in the program section",
+    name: "Dashboard program section labels switch and build actions",
     run: () => {
       assert.deepEqual(getProgramSectionActionLabels({ hasActiveProgram: true }), [
-        "Change Program",
-        "Create Program"
+        "Switch Program",
+        "Build My Own Program"
       ]);
     }
   },

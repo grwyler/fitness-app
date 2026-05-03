@@ -45,8 +45,8 @@ export function getDashboardPrimarySectionOrder(input: {
 
 export function getProgramSectionActionLabels(input: { hasActiveProgram: boolean }) {
   return input.hasActiveProgram
-    ? ["Change Program", "Create Program"]
-    : ["Choose Program", "Create Program"];
+    ? ["Switch Program", "Build My Own Program"]
+    : ["Choose Ready-Made Plan", "Build My Own Program"];
 }
 
 export function getNextProgramPositionLabel(activeProgram: ActiveProgramDto | null | undefined) {

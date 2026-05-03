@@ -12,6 +12,9 @@ import type {
   ProgressionStrategy,
   BodyweightProgressionMode,
   TrainingGoal,
+  GuidedGoalType,
+  GuidedEquipmentAccessLevel,
+  GuidedRecoveryPreference,
   EnrollmentStatus,
   SetStatus,
   UnitSystem,
@@ -139,12 +142,44 @@ export type ProgramWorkoutTemplateDto = {
 export type ProgramDto = {
   id: UUID;
   source: ProgramSource;
+  trainingGoal?: TrainingGoal | null;
   name: string;
   description: string | null;
   daysPerWeek: number;
   sessionDurationMinutes: number;
   difficultyLevel: DifficultyLevel;
   workouts: ProgramWorkoutTemplateDto[];
+};
+
+export type GuidedProgramAnswers = {
+  goal: GuidedGoalType;
+  experienceLevel: ExperienceLevel;
+  daysPerWeek: 2 | 3 | 4 | 5 | 6;
+  sessionDurationMinutes: 30 | 45 | 60 | 75;
+  equipmentAccess: GuidedEquipmentAccessLevel;
+  progressionAggressiveness: ProgressionAggressiveness;
+  recoveryPreference: GuidedRecoveryPreference;
+};
+
+export type RecommendGuidedProgramRequest = {
+  answers: GuidedProgramAnswers;
+};
+
+export type RecommendGuidedProgramResponse = {
+  program: ProgramDto;
+  reasons: string[];
+  warnings: string[];
+  isExactMatch: boolean;
+};
+
+export type FollowProgramRequest = {
+  activationSource?: "guided" | undefined;
+  guidedAnswers?: GuidedProgramAnswers | undefined;
+  guidedRecommendation?: {
+    reasons: string[];
+    warnings: string[];
+    isExactMatch: boolean;
+  } | undefined;
 };
 
 export type CreateCustomProgramExerciseRequest = {

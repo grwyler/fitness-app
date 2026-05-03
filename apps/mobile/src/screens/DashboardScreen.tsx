@@ -224,11 +224,11 @@ export function DashboardScreen({ navigation }: Props) {
             </AppText>
           ) : null}
           <PrimaryButton
-            label={programSectionActionLabels[0] ?? "Change Program"}
+            label={programSectionActionLabels[0] ?? "Switch Program"}
             tone="secondary"
             disabled={Boolean(activeWorkout)}
             onPress={() => {
-              setLastAction("change_program");
+              setLastAction("switch_program");
               setIsProgramPickerOpen(true);
             }}
           />
@@ -258,18 +258,23 @@ export function DashboardScreen({ navigation }: Props) {
             Pick a predefined program or build a simple weekly plan from existing workouts.
           </AppText>
           <PrimaryButton
-            label={programSectionActionLabels[1] ?? "Create Program"}
+            label="Get a Recommended Plan"
             variant="primary"
-            onPress={() => navigation.navigate("CreateProgram")}
+            onPress={() => navigation.navigate("GuidedProgramSetup")}
           />
           <PrimaryButton
-            label={programSectionActionLabels[0] ?? "Choose Program"}
+            label={programSectionActionLabels[0] ?? "Choose Ready-Made Plan"}
             variant="secondary"
             disabled={Boolean(activeWorkout || programsQuery.isLoading)}
             onPress={() => {
               setLastAction("choose_program");
               setIsProgramPickerOpen(true);
             }}
+          />
+          <PrimaryButton
+            label={programSectionActionLabels[1] ?? "Build My Own Program"}
+            variant="secondary"
+            onPress={() => navigation.navigate("CreateProgram")}
           />
         </Card>
       ) : null}
@@ -328,6 +333,7 @@ export function DashboardScreen({ navigation }: Props) {
         loadingPrograms={programsQuery.isLoading}
         programs={availablePrograms}
         selectingProgram={followProgramMutation.isPending}
+        title={activeProgram ? "Switch program" : "Choose a plan"}
         visible={isProgramPickerOpen}
         onClose={() => setIsProgramPickerOpen(false)}
         onCreateProgram={() => {
@@ -458,6 +464,7 @@ function ProgramPickerModal(props: {
   loadingPrograms: boolean;
   programs: ProgramDto[];
   selectingProgram: boolean;
+  title: string;
   visible: boolean;
   onClose: () => void;
   onCreateProgram: () => void;
@@ -554,7 +561,7 @@ function ProgramPickerModal(props: {
       }
       onClose={props.onClose}
       subtitle="Programs"
-      title="Change program"
+      title={props.title}
       visible={props.visible}
     >
           <ScrollView contentContainerStyle={styles.programChoiceList}>
@@ -719,7 +726,7 @@ function ProgramPickerModal(props: {
           {props.errorMessage}
         </AppText>
       ) : null}
-      <PrimaryButton label="Create Program" tone="secondary" onPress={props.onCreateProgram} />
+      <PrimaryButton label="Build My Own Program" tone="secondary" onPress={props.onCreateProgram} />
     </ModalSheet>
   );
 }

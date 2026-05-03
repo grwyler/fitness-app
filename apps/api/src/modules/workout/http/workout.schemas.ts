@@ -8,7 +8,10 @@ import {
   recoveryStates,
   trainingGoals,
   unitSystems,
-  experienceLevels
+  experienceLevels,
+  guidedEquipmentAccessLevels,
+  guidedGoalTypes,
+  guidedRecoveryPreferences
 } from "@fitness/shared";
 
 const weightValueSchema = z.object({
@@ -35,6 +38,44 @@ export const workoutSessionExerciseParamsSchema = z.object({
 export const programParamsSchema = z.object({
   programId: z.string().min(1)
 });
+
+export const recommendGuidedProgramBodySchema = z.object({
+  answers: z.object({
+    goal: z.enum(guidedGoalTypes),
+    experienceLevel: z.enum(experienceLevels),
+    daysPerWeek: z.union([z.literal(2), z.literal(3), z.literal(4), z.literal(5), z.literal(6)]),
+    sessionDurationMinutes: z.union([z.literal(30), z.literal(45), z.literal(60), z.literal(75)]),
+    equipmentAccess: z.enum(guidedEquipmentAccessLevels),
+    progressionAggressiveness: z.enum(progressionAggressivenessLevels),
+    recoveryPreference: z.enum(guidedRecoveryPreferences)
+  })
+});
+
+export const followProgramBodySchema = z
+  .object({
+    activationSource: z.literal("guided").optional(),
+    guidedAnswers: recommendGuidedProgramBodySchema.shape.answers.optional(),
+    guidedRecommendation: z
+      .object({
+        reasons: z.array(z.string().min(1)).default([]),
+        warnings: z.array(z.string()).default([]),
+        isExactMatch: z.boolean()
+      })
+      .optional()
+  })
+  .superRefine((value, ctx) => {
+    if (!value) {
+      return;
+    }
+
+    if (value.activationSource === "guided" && !value.guidedAnswers) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "guidedAnswers is required when activationSource is guided."
+      });
+    }
+  })
+  .optional();
 
 const createCustomProgramExerciseSchema = z.object({
   exerciseId: z.string().min(1),
@@ -166,6 +207,8 @@ export type WorkoutHeaders = z.infer<typeof workoutHeadersSchema>;
 export type WorkoutSessionParams = z.infer<typeof workoutSessionParamsSchema>;
 export type WorkoutSessionExerciseParams = z.infer<typeof workoutSessionExerciseParamsSchema>;
 export type ProgramParams = z.infer<typeof programParamsSchema>;
+export type RecommendGuidedProgramBody = z.infer<typeof recommendGuidedProgramBodySchema>;
+export type FollowProgramBody = z.infer<typeof followProgramBodySchema>;
 export type CreateCustomProgramBody = z.infer<typeof createCustomProgramBodySchema>;
 export type WorkoutHistoryQuery = z.infer<typeof workoutHistoryQuerySchema>;
 export type SetParams = z.infer<typeof setParamsSchema>;

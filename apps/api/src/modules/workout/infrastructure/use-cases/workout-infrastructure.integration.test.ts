@@ -57,6 +57,9 @@ async function createAndEnrollCustomProgram(input: {
 }) {
   const createUseCase = new CreateCustomProgramUseCase(
     input.context.repositories.programRepository,
+    input.context.repositories.trainingSettingsRepository,
+    input.context.repositories.exerciseProgressionSettingsRepository,
+    input.context.repositories.programTrainingContextRepository,
     input.context.transactionManager,
     input.context.repositories.idempotencyRepository
   );

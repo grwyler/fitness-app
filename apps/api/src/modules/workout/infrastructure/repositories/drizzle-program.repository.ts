@@ -564,6 +564,8 @@ export class DrizzleProgramRepository implements ProgramRepository {
         category: row.exercise.category,
         movementPattern: row.exercise.movementPattern ?? null,
         primaryMuscleGroup: row.exercise.primaryMuscleGroup ?? null,
+        equipmentType: row.exercise.equipmentType ?? null,
+        isBodyweight: Boolean(row.exercise.isBodyweight),
         sequenceOrder: row.templateExercise.sequenceOrder,
         targetSets: row.templateExercise.targetSets,
         targetReps: row.templateExercise.targetReps,

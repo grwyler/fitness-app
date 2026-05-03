@@ -16,6 +16,7 @@ export type RootStackParamList = {
       }
     | undefined;
   Dashboard: undefined;
+  GuidedProgramSetup: undefined;
   CreateProgram:
     | {
         editProgramId?: string;

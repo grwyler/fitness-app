@@ -27,6 +27,9 @@ export type DifficultyLevel = (typeof difficultyLevels)[number];
 export const programSources = ["predefined", "custom"] as const;
 export type ProgramSource = (typeof programSources)[number];
 
+export const programTrainingContextSources = ["manual", "predefined", "guided"] as const;
+export type ProgramTrainingContextSource = (typeof programTrainingContextSources)[number];
+
 export const enrollmentStatuses = ["active", "paused", "completed", "cancelled"] as const;
 export type EnrollmentStatus = (typeof enrollmentStatuses)[number];
 
@@ -78,6 +81,33 @@ export const trainingGoals = [
   "maintenance"
 ] as const;
 export type TrainingGoal = (typeof trainingGoals)[number];
+
+export const guidedGoalTypes = [
+  "hypertrophy",
+  "strength",
+  "general_fitness",
+  "consistency",
+  "sport_support",
+  "custom"
+] as const;
+export type GuidedGoalType = (typeof guidedGoalTypes)[number];
+
+export const guidedEquipmentAccessLevels = [
+  "full_gym",
+  "barbell_rack",
+  "dumbbells",
+  "machines_cables",
+  "bodyweight_only",
+  "home_gym"
+] as const;
+export type GuidedEquipmentAccessLevel = (typeof guidedEquipmentAccessLevels)[number];
+
+export const guidedRecoveryPreferences = [
+  "adjust_when_needed",
+  "small_adjustments_only",
+  "keep_fixed"
+] as const;
+export type GuidedRecoveryPreference = (typeof guidedRecoveryPreferences)[number];
 
 export const recoveryStates = ["fresh", "normal", "fatigued", "exhausted"] as const;
 export type RecoveryState = (typeof recoveryStates)[number];

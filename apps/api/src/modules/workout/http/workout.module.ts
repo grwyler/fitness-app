@@ -10,6 +10,7 @@ import { DrizzleProgressionStateV2Repository } from "../infrastructure/repositor
 import { DrizzleProgressionRecommendationEventRepository } from "../infrastructure/repositories/drizzle-progression-recommendation-event.repository.js";
 import { DrizzleTrainingSettingsRepository } from "../infrastructure/repositories/drizzle-training-settings.repository.js";
 import { DrizzleExerciseProgressionSettingsRepository } from "../infrastructure/repositories/drizzle-exercise-progression-settings.repository.js";
+import { DrizzleProgramTrainingContextRepository } from "../infrastructure/repositories/drizzle-program-training-context.repository.js";
 import { DrizzleUserRepository } from "../infrastructure/repositories/drizzle-user.repository.js";
 import { DrizzleWorkoutSessionRepository } from "../infrastructure/repositories/drizzle-workout-session.repository.js";
 import { CompleteWorkoutSessionUseCase } from "../application/use-cases/complete-workout-session.use-case.js";
@@ -31,6 +32,7 @@ import { LogSetUseCase } from "../application/use-cases/log-set.use-case.js";
 import { StartWorkoutSessionUseCase } from "../application/use-cases/start-workout-session.use-case.js";
 import { UpdateLoggedSetUseCase } from "../application/use-cases/update-logged-set.use-case.js";
 import { UpdateCustomProgramUseCase } from "../application/use-cases/update-custom-program.use-case.js";
+import { RecommendGuidedProgramUseCase } from "../application/use-cases/recommend-guided-program.use-case.js";
 import { GetTrainingSettingsUseCase } from "../application/use-cases/get-training-settings.use-case.js";
 import { UpdateTrainingSettingsUseCase } from "../application/use-cases/update-training-settings.use-case.js";
 import { GetExerciseProgressionSettingsUseCase } from "../application/use-cases/get-exercise-progression-settings.use-case.js";
@@ -51,6 +53,7 @@ export function createWorkoutHttpRouter(database: WorkoutDatabase) {
   const userRepository = new DrizzleUserRepository(database);
   const trainingSettingsRepository = new DrizzleTrainingSettingsRepository(database);
   const exerciseProgressionSettingsRepository = new DrizzleExerciseProgressionSettingsRepository(database);
+  const programTrainingContextRepository = new DrizzleProgramTrainingContextRepository(database);
   const idempotencyRepository = new DrizzleIdempotencyRepository(database);
   const transactionManager = new DrizzleTransactionManager(database);
 
@@ -126,6 +129,7 @@ export function createWorkoutHttpRouter(database: WorkoutDatabase) {
   const getProgressionUseCase = new GetProgressionUseCase(workoutSessionRepository);
   const listProgramsUseCase = new ListProgramsUseCase(programRepository);
   const getProgramUseCase = new GetProgramUseCase(programRepository);
+  const recommendGuidedProgramUseCase = new RecommendGuidedProgramUseCase(programRepository);
   const getTrainingSettingsUseCase = new GetTrainingSettingsUseCase(trainingSettingsRepository);
   const updateTrainingSettingsUseCase = new UpdateTrainingSettingsUseCase(trainingSettingsRepository);
   const getExerciseProgressionSettingsUseCase = new GetExerciseProgressionSettingsUseCase(
@@ -136,6 +140,9 @@ export function createWorkoutHttpRouter(database: WorkoutDatabase) {
   );
   const createCustomProgramUseCase = new CreateCustomProgramUseCase(
     programRepository,
+    trainingSettingsRepository,
+    exerciseProgressionSettingsRepository,
+    programTrainingContextRepository,
     transactionManager,
     idempotencyRepository
   );
@@ -149,6 +156,9 @@ export function createWorkoutHttpRouter(database: WorkoutDatabase) {
     enrollmentRepository,
     exerciseRepository,
     workoutSessionRepository,
+    trainingSettingsRepository,
+    exerciseProgressionSettingsRepository,
+    programTrainingContextRepository,
     transactionManager
   );
   const getDashboardUseCase = new GetDashboardUseCase(
@@ -165,6 +175,7 @@ export function createWorkoutHttpRouter(database: WorkoutDatabase) {
     createCustomProgramUseCase,
     updateCustomProgramUseCase,
     listExercisesUseCase,
+    recommendGuidedProgramUseCase,
     followProgramUseCase,
     getDashboardUseCase,
     getProgressionUseCase,
