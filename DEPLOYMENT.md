@@ -361,6 +361,10 @@ The actual payload also includes service metadata and seeded program info.
 
 The mobile client reads its API base URL from `EXPO_PUBLIC_API_BASE_URL`.
 
+For EAS internal distribution (TestFlight / Play internal testing), follow:
+
+- [docs/MOBILE_RELEASE.md](docs/MOBILE_RELEASE.md)
+
 For testers, set:
 
 ```text
