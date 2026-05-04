@@ -704,14 +704,22 @@ export function GuidedProgramSetupScreen({ navigation }: Props) {
               />
             ) : null}
 
-            {recommendation ? (
+            {recommendation && activeRecommendation ? (
               <>
                 <View style={styles.recommendationHeader}>
-                  <AppText variant="title2">{recommendation.program.name}</AppText>
+                  <AppText variant="title2">{activeRecommendation.program.name}</AppText>
                   <View style={styles.planMetaRow}>
                     <Chip label={`${answers.schedule.daysPerWeek} days/week`} variant="muted" />
-                    <Chip label={`~${recommendation.program.sessionDurationMinutes} min`} variant="muted" />
+                    <Chip label={`~${activeRecommendation.program.sessionDurationMinutes} min`} variant="muted" />
+                    {activeRecommendation.matchStrength ? (
+                      <Chip label={`${activeRecommendation.matchStrength} match`} variant="muted" />
+                    ) : null}
                   </View>
+                  {activeRecommendation.selectionSource === "alternative" ? (
+                    <AppText variant="meta" tone="secondary">
+                      Selected from other suggestions. Your guided answers will still be saved when you start it.
+                    </AppText>
+                  ) : null}
                 </View>
 
                 <View style={styles.reviewSection}>
@@ -765,8 +773,8 @@ export function GuidedProgramSetupScreen({ navigation }: Props) {
 
                   {savedForLaterPreferences.length > 0 ? (
                     <AppText variant="meta" tone="secondary">
-                      Saved for later: {savedForLaterPreferences.join(", ")}. Most plans aren’t fully tagged for these
-                      yet — you can customize before starting.
+                      Saved for later: {savedForLaterPreferences.join(", ")}. Most plans aren't fully tagged for these yet - you can
+                      customize before starting.
                     </AppText>
                   ) : null}
                 </View>
@@ -775,19 +783,19 @@ export function GuidedProgramSetupScreen({ navigation }: Props) {
                   <AppText variant="label" tone="accent">
                     Why this plan
                   </AppText>
-                  {recommendation.reasons.map((reason) => (
+                  {activeRecommendation.reasons.map((reason) => (
                     <AppText key={reason} variant="meta" tone="secondary">
                       • {reason}
                     </AppText>
                   ))}
                 </View>
 
-                {recommendation.warnings.length > 0 ? (
+                {activeRecommendation.warnings.length > 0 ? (
                   <View style={styles.reviewSection}>
                     <AppText variant="label" tone="accent">
                       Assumptions
                     </AppText>
-                    {recommendation.warnings.map((warning) => (
+                    {activeRecommendation.warnings.map((warning) => (
                       <View key={warning} style={styles.warningRow}>
                         <View style={styles.warningDot} />
                         <AppText variant="meta" tone="secondary" style={styles.warningText}>
@@ -800,9 +808,74 @@ export function GuidedProgramSetupScreen({ navigation }: Props) {
 
                 <View style={styles.reviewSection}>
                   <AppText variant="label" tone="accent">
+                    Other good options
+                  </AppText>
+
+                  {recommendation.alternatives?.length ? (
+                    <>
+                      {recommendation.alternatives.map((alternative) => {
+                        const isSelected = activeRecommendation.program.id === alternative.program.id;
+                        return (
+                          <View key={alternative.program.id} style={styles.alternativeRow}>
+                            <View style={styles.alternativeInfo}>
+                              <AppText variant="meta" tone="secondary" style={styles.alternativeTitle}>
+                                {alternative.program.name}
+                              </AppText>
+                              <AppText variant="meta" tone="secondary">
+                                {alternative.program.daysPerWeek} days • ~{alternative.program.sessionDurationMinutes} min •{" "}
+                                {alternative.matchStrength} match
+                              </AppText>
+                              {alternative.reasons.slice(0, 1).map((reason) => (
+                                <AppText key={reason} variant="meta" tone="secondary">
+                                  {reason}
+                                </AppText>
+                              ))}
+                            </View>
+                            <Button
+                              label={isSelected ? "Selected" : "Use this"}
+                              disabled={isSelected || followProgramMutation.isPending}
+                              variant={isSelected ? "ghost" : "secondary"}
+                              fullWidth={false}
+                              size="sm"
+                              onPress={() => {
+                                setSelectedRecommendation({
+                                  program: alternative.program,
+                                  matchScore: alternative.matchScore,
+                                  matchStrength: alternative.matchStrength,
+                                  reasons: alternative.reasons,
+                                  warnings: alternative.warnings,
+                                  isExactMatch: alternative.warnings.length === 0,
+                                  selectionSource: "alternative"
+                                });
+                              }}
+                            />
+                          </View>
+                        );
+                      })}
+                    </>
+                  ) : (
+                    <AppText variant="meta" tone="secondary">
+                      No close alternatives yet.
+                    </AppText>
+                  )}
+
+                  <Button
+                    label="Browse the full catalog"
+                    variant="ghost"
+                    onPress={() =>
+                      navigation.navigate("Dashboard", {
+                        openProgramPicker: true,
+                        guidedAnswers: answers
+                      })
+                    }
+                  />
+                </View>
+
+                <View style={styles.reviewSection}>
+                  <AppText variant="label" tone="accent">
                     Workout preview
                   </AppText>
-                  {recommendation.program.workouts.slice(0, 2).map((workout) => {
+                  {activeRecommendation.program.workouts.slice(0, 2).map((workout) => {
                     const shownExercises = workout.exercises.slice(0, 4);
                     const hiddenCount = Math.max(0, workout.exercises.length - shownExercises.length);
                     return (
@@ -829,14 +902,14 @@ export function GuidedProgramSetupScreen({ navigation }: Props) {
                   onPress={() => {
                     followProgramMutation.mutate(
                       {
-                        programId: recommendation.program.id,
+                        programId: activeRecommendation.program.id,
                         request: {
                           activationSource: "guided",
                           guidedAnswers: answers,
                           guidedRecommendation: {
-                            reasons: recommendation.reasons,
-                            warnings: recommendation.warnings,
-                            isExactMatch: recommendation.isExactMatch
+                            reasons: activeRecommendation.reasons,
+                            warnings: activeRecommendation.warnings,
+                            isExactMatch: activeRecommendation.isExactMatch
                           }
                         }
                       },
@@ -851,7 +924,7 @@ export function GuidedProgramSetupScreen({ navigation }: Props) {
                   label="Customize before starting"
                   tone="secondary"
                   disabled={followProgramMutation.isPending}
-                  onPress={() => navigation.navigate("CreateProgram", { cloneProgramId: recommendation.program.id })}
+                  onPress={() => navigation.navigate("CreateProgram", { cloneProgramId: activeRecommendation.program.id })}
                 />
               </>
             ) : null}
@@ -907,6 +980,19 @@ const styles = StyleSheet.create({
   },
   previewWorkout: {
     gap: 2
+  },
+  alternativeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm
+  },
+  alternativeInfo: {
+    flex: 1,
+    gap: 2
+  },
+  alternativeTitle: {
+    color: colors.textPrimary
   },
   warningRow: {
     flexDirection: "row",

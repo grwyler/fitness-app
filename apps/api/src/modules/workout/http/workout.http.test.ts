@@ -1457,6 +1457,7 @@ export const workoutHttpTestCases: HttpTestCase[] = [
 
       try {
         await seedBaseWorkoutProgram(context);
+        await seedUpperLowerArmsProgram(context);
         const server = await startHttpServer(context.db);
 
         try {
@@ -1481,6 +1482,11 @@ export const workoutHttpTestCases: HttpTestCase[] = [
 
           assert.equal(response.status, 200);
           assert.equal(payload.data.program.id, "program-1");
+          assert.ok(Array.isArray(payload.data.alternatives));
+          assert.ok(payload.data.alternatives.length >= 1);
+          assert.equal(payload.data.alternatives[0]?.program?.id, "program-2");
+          assert.ok(Array.isArray(payload.data.alternatives[0]?.reasons));
+          assert.ok(Array.isArray(payload.data.alternatives[0]?.warnings));
           assert.ok(Array.isArray(payload.data.reasons));
           assert.ok(Array.isArray(payload.data.warnings));
           assert.equal(typeof payload.data.isExactMatch, "boolean");
