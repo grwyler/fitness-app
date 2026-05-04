@@ -17,6 +17,8 @@
     "smoke:mobile:web": "node scripts/smoke-mobile-web-build.mjs",
     "smoke:url": "node scripts/smoke-url.mjs",
     "release": "node scripts/release.mjs",
+    "generate:changelog": "node scripts/generate-changelog.mjs",
+    "validate:changelog": "node scripts/generate-changelog.mjs --check",
     "validate:release-notes": "node scripts/validate-release-notes.mjs",
     "vercel:staging:setup": "node scripts/vercel/setup-staging.mjs",
     "vercel:staging:env:push:api": "node scripts/vercel/push-staging-env.mjs --project api",

@@ -35,20 +35,22 @@ export function ReleaseNotesSheet(props: { visible: boolean; onClose: () => void
                 ) : null}
               </View>
 
-              {entry.sections.map((section) => (
-                <View key={`${entry.version}:${section.title}`} style={styles.section}>
-                  <AppText variant="meta" tone="secondary">
-                    {section.title}
-                  </AppText>
-                  <View style={styles.bullets}>
-                    {section.items.map((item, index) => (
-                      <AppText key={`${entry.version}:${section.title}:${index}`} style={styles.bullet}>
-                        {"\u2022"} {item}
-                      </AppText>
-                    ))}
+              {entry.sections
+                .filter((section) => (section.items ?? []).length > 0)
+                .map((section) => (
+                  <View key={`${entry.version}:${section.title}`} style={styles.section}>
+                    <AppText variant="meta" tone="secondary">
+                      {section.title}
+                    </AppText>
+                    <View style={styles.bullets}>
+                      {section.items.map((item, index) => (
+                        <AppText key={`${entry.version}:${section.title}:${index}`} style={styles.bullet}>
+                          {"\u2022"} {item}
+                        </AppText>
+                      ))}
+                    </View>
                   </View>
-                </View>
-              ))}
+                ))}
             </Card>
           ))
         )}
@@ -88,4 +90,3 @@ const styles = StyleSheet.create({
     height: 8
   }
 });
-

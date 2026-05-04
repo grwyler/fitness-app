@@ -34,6 +34,9 @@ jobs:
       - name: Validate release notes
         run: npm run validate:release-notes
 
+      - name: Validate changelog
+        run: npm run validate:changelog
+
       - name: Build API
         run: npm run build:api
 

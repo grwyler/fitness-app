@@ -34,6 +34,9 @@ jobs:
       - name: Validate release notes
         run: npm run validate:release-notes
 
+      - name: Validate changelog
+        run: npm run validate:changelog
+
       - name: Pull Vercel environment
         run: npx vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
 

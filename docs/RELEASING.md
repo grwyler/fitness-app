@@ -19,10 +19,11 @@ This repo supports a repeatable application version + release notes workflow.
    ```
 
    Notes:
-   - This updates `package.json` and prepends a new entry to `apps/mobile/src/core/release-notes/release-notes.json`.
+   - This updates `package.json`, prepends a new entry to `apps/mobile/src/core/release-notes/release-notes.json`, auto-drafts "What's New" entries from git history when possible, and regenerates `CHANGELOG.md`.
+   - Use `npm run release -- patch --no-draft` to create an entry without auto-drafting.
    - If you prefer tags to be created automatically, you can still use `npm version patch/minor/major` instead of `npm run release`.
 
-2. Fill in release notes for the new version:
+2. Review and refine release notes for the new version:
 
    - Edit `apps/mobile/src/core/release-notes/release-notes.json`
    - Add at least one item under Added/Changed/Fixed (or adjust sections as needed)
