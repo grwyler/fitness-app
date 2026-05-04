@@ -11,6 +11,7 @@ import { useWorkoutHistoryDetail } from "../features/workout/hooks/useWorkoutHis
 import {
   buildWorkoutDetailProgressHighlights,
   getCompletedSetVolume,
+  getUnusualWorkoutPerformanceItems,
   getWorkoutDetailStats
 } from "../features/workout/utils/history-detail.shared";
 import { colors, spacing } from "../theme/tokens";
@@ -89,6 +90,7 @@ export function WorkoutHistoryDetailScreen({ route, navigation }: Props) {
     progression: progressionQuery.data,
     unitSystem
   });
+  const unusualPerformanceItems = getUnusualWorkoutPerformanceItems({ workout, unitSystem });
   const progressHighlightsByEntryId = progressHighlights.reduce<Record<string, string>>((accumulator, item) => {
     accumulator[item.exerciseEntryId] = item.text;
     return accumulator;
@@ -143,6 +145,30 @@ export function WorkoutHistoryDetailScreen({ route, navigation }: Props) {
           </View>
         ) : null}
       </View>
+
+      {unusualPerformanceItems.length > 0 ? (
+        <View style={styles.reviewCard}>
+          <Text style={styles.reviewLabel}>Review</Text>
+          <Text style={styles.reviewTitle}>Unusual performance detected</Text>
+          <Text style={styles.reviewBody}>
+            This workout included a large mismatch between prescribed targets and what was logged. This can affect future progression.
+          </Text>
+
+          {unusualPerformanceItems.slice(0, 2).map((item) => (
+            <View key={item.exerciseEntryId} style={styles.reviewItem}>
+              <Text style={styles.reviewItemTitle}>{item.exerciseName}</Text>
+              <Text style={styles.reviewBody}>{item.message}</Text>
+              <View style={styles.reviewEvidenceList}>
+                {item.evidence.slice(0, 3).map((line, index) => (
+                  <Text key={`${item.exerciseEntryId}:review:${index}`} style={styles.reviewEvidenceItem}>
+                    {"\u2022"} {line}
+                  </Text>
+                ))}
+              </View>
+            </View>
+          ))}
+        </View>
+      ) : null}
 
       {workout.exercises.map((exercise) => {
         const highlight = progressHighlightsByEntryId[exercise.id];
@@ -255,6 +281,48 @@ const styles = StyleSheet.create({
     color: colors.accentStrong,
     fontSize: 14,
     fontWeight: "600"
+  },
+  reviewCard: {
+    backgroundColor: colors.accentMuted,
+    borderColor: colors.warning,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: spacing.sm,
+    padding: spacing.lg
+  },
+  reviewLabel: {
+    color: colors.warning,
+    fontSize: 13,
+    fontWeight: "700",
+    textTransform: "uppercase"
+  },
+  reviewTitle: {
+    color: colors.textPrimary,
+    fontSize: 20,
+    fontWeight: "700"
+  },
+  reviewBody: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    lineHeight: 20
+  },
+  reviewItem: {
+    gap: spacing.xs,
+    paddingTop: spacing.xs
+  },
+  reviewItemTitle: {
+    color: colors.textPrimary,
+    fontSize: 16,
+    fontWeight: "700"
+  },
+  reviewEvidenceList: {
+    gap: 4
+  },
+  reviewEvidenceItem: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    fontWeight: "600",
+    lineHeight: 18
   },
   summaryGrid: {
     flexDirection: "row",

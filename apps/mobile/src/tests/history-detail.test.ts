@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import type { ProgressionSummaryDto, WorkoutSessionDto } from "@fitness/shared";
 import {
   buildWorkoutDetailProgressHighlights,
+  getUnusualWorkoutPerformanceItems,
   getWorkoutDetailStats
 } from "../features/workout/utils/history-detail.shared.js";
 import type { MobileTestCase } from "./mobile-test-case.js";
@@ -126,6 +127,69 @@ export const historyDetailTestCases: MobileTestCase[] = [
         plannedSetCount: 3,
         totalVolume: 2030
       });
+    }
+  },
+  {
+    name: "History detail flags extreme rep-overperformance at the prescribed weight as unusual performance",
+    run: () => {
+      const unusualWorkout: WorkoutSessionDto = {
+        ...workout,
+        exercises: [
+          {
+            ...workout.exercises[0]!,
+            targetReps: 8,
+            targetWeight: { value: 135, unit: "lb" },
+            sets: [
+              {
+                id: "set-1",
+                exerciseEntryId: "entry-1",
+                setNumber: 1,
+                targetReps: 8,
+                actualReps: 40,
+                targetWeight: { value: 135, unit: "lb" },
+                actualWeight: { value: 135, unit: "lb" },
+                status: "completed",
+                completedAt: "2026-04-24T10:10:00.000Z"
+              }
+            ]
+          }
+        ]
+      };
+
+      const items = getUnusualWorkoutPerformanceItems({ workout: unusualWorkout });
+      assert.equal(items.length, 1);
+      assert.match(items[0]?.message ?? "", /far more reps than prescribed/i);
+      assert.ok(items[0]?.evidence.some((line) => /Logged best: 40 reps/i.test(line)));
+    }
+  },
+  {
+    name: "History detail unusual-performance helper ignores rep spikes when actual weight is missing",
+    run: () => {
+      const unusualWorkout: WorkoutSessionDto = {
+        ...workout,
+        exercises: [
+          {
+            ...workout.exercises[0]!,
+            targetReps: 8,
+            targetWeight: { value: 135, unit: "lb" },
+            sets: [
+              {
+                id: "set-1",
+                exerciseEntryId: "entry-1",
+                setNumber: 1,
+                targetReps: 8,
+                actualReps: 40,
+                targetWeight: { value: 135, unit: "lb" },
+                actualWeight: null,
+                status: "completed",
+                completedAt: "2026-04-24T10:10:00.000Z"
+              }
+            ]
+          }
+        ]
+      };
+
+      assert.equal(getUnusualWorkoutPerformanceItems({ workout: unusualWorkout }).length, 0);
     }
   }
 ];

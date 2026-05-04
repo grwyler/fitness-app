@@ -23,6 +23,11 @@ const MAX_RECALIBRATION_JUMP_MULTIPLIER = 1.75;
 const RECENT_TRAINING_REPEAT_THRESHOLD_DAYS = 14;
 const RECENT_TRAINING_REDUCTION_THRESHOLD_DAYS = 30;
 const DEFAULT_TRAINING_GOAL: TrainingGoal = "general_fitness";
+const MATERIAL_REP_OVERPERFORMANCE_MIN_REPS_DELTA = 5;
+const MATERIAL_REP_OVERPERFORMANCE_MULTIPLIER = 2;
+const EXTREME_REP_OVERPERFORMANCE_MIN_REPS_DELTA = 20;
+const EXTREME_REP_OVERPERFORMANCE_MULTIPLIER = 5;
+const TARGET_WEIGHT_TOLERANCE_RELATIVE = 0.02;
 
 function roundToTwoDecimals(value: number) {
   return Math.round(value * 100) / 100;
@@ -159,6 +164,55 @@ export function isMaterialOverperformanceSet(set: ExerciseWorkoutSetOutcome) {
   );
 }
 
+function materialRepOverperformanceThreshold(targetReps: number) {
+  return Math.max(
+    targetReps + MATERIAL_REP_OVERPERFORMANCE_MIN_REPS_DELTA,
+    Math.ceil(targetReps * MATERIAL_REP_OVERPERFORMANCE_MULTIPLIER)
+  );
+}
+
+function extremeRepOverperformanceThreshold(targetReps: number) {
+  return Math.max(
+    targetReps + EXTREME_REP_OVERPERFORMANCE_MIN_REPS_DELTA,
+    Math.ceil(targetReps * EXTREME_REP_OVERPERFORMANCE_MULTIPLIER)
+  );
+}
+
+function isWeightCloseToTarget(input: { actualWeightLbs: number; targetWeightLbs: number; incrementLbs: number }) {
+  if (input.targetWeightLbs <= 0) {
+    return false;
+  }
+
+  const absoluteTolerance = Math.max(0, input.incrementLbs / 2);
+  const relativeTolerance = Math.max(0, input.targetWeightLbs * TARGET_WEIGHT_TOLERANCE_RELATIVE);
+  const tolerance = Math.max(absoluteTolerance, relativeTolerance);
+  return Math.abs(input.actualWeightLbs - input.targetWeightLbs) <= tolerance;
+}
+
+export function isMaterialRepOverperformanceSet(set: ExerciseWorkoutSetOutcome, incrementLbs: number) {
+  if (set.actualReps === null || set.actualWeightLbs === null) {
+    return false;
+  }
+
+  if (set.actualReps <= 0 || set.targetReps <= 0) {
+    return false;
+  }
+
+  if (!isWeightCloseToTarget({ actualWeightLbs: set.actualWeightLbs, targetWeightLbs: set.targetWeightLbs, incrementLbs })) {
+    return false;
+  }
+
+  return set.actualReps >= materialRepOverperformanceThreshold(set.targetReps);
+}
+
+function isExtremeRepOverperformanceSet(set: ExerciseWorkoutSetOutcome) {
+  if (set.actualReps === null) {
+    return false;
+  }
+
+  return set.targetReps > 0 && set.actualReps >= extremeRepOverperformanceThreshold(set.targetReps);
+}
+
 function hasEffectiveFailure(outcome: ExerciseWorkoutOutcome) {
   if (!outcome.sets) {
     return outcome.hasFailure ?? false;
@@ -172,9 +226,18 @@ function hasEffectiveFailure(outcome: ExerciseWorkoutOutcome) {
   );
 }
 
-function hasExceptionalOverperformance(outcome: ExerciseWorkoutOutcome) {
-  const qualifyingSets = outcome.sets?.filter(isMaterialOverperformanceSet) ?? [];
-  return qualifyingSets.length >= MIN_RECALIBRATION_SET_COUNT;
+function hasExceptionalOverperformance(input: { outcome: ExerciseWorkoutOutcome; incrementLbs: number }) {
+  const weightQualifyingSets = input.outcome.sets?.filter(isMaterialOverperformanceSet) ?? [];
+  if (weightQualifyingSets.length >= MIN_RECALIBRATION_SET_COUNT) {
+    return true;
+  }
+
+  const repQualifyingSets = input.outcome.sets?.filter((set) => isMaterialRepOverperformanceSet(set, input.incrementLbs)) ?? [];
+  if (repQualifyingSets.length >= MIN_RECALIBRATION_SET_COUNT) {
+    return true;
+  }
+
+  return repQualifyingSets.some(isExtremeRepOverperformanceSet);
 }
 
 export class ProgressionEngine {
@@ -605,7 +668,7 @@ export class ProgressionEngine {
       };
     }
 
-    if (recoveryState === "exhausted" && !hasExceptionalOverperformance(outcome)) {
+    if (recoveryState === "exhausted" && !hasExceptionalOverperformance({ outcome, incrementLbs: exercise.incrementLbs })) {
       const nextState: ProgressionStateSnapshotV2 = {
         currentWeightLbs: previousWeightLbs,
         lastCompletedWeightLbs: previousWeightLbs,
@@ -1066,7 +1129,7 @@ export class ProgressionEngine {
       };
     }
 
-    if (recoveryState === "exhausted" && !hasExceptionalOverperformance(outcome)) {
+    if (recoveryState === "exhausted" && !hasExceptionalOverperformance({ outcome, incrementLbs: exercise.incrementLbs })) {
       const nextState: ProgressionStateSnapshotV2 = {
         currentWeightLbs: previousWeightLbs,
         lastCompletedWeightLbs: previousWeightLbs,
@@ -1093,7 +1156,7 @@ export class ProgressionEngine {
       };
     }
 
-    if (recoveryState === "fatigued" && !hasExceptionalOverperformance(outcome)) {
+    if (recoveryState === "fatigued" && !hasExceptionalOverperformance({ outcome, incrementLbs: exercise.incrementLbs })) {
       const nextState: ProgressionStateSnapshotV2 = {
         currentWeightLbs: previousWeightLbs,
         lastCompletedWeightLbs: previousWeightLbs,
@@ -1350,7 +1413,7 @@ export class ProgressionEngine {
       };
     }
 
-    if (recoveryState === "exhausted" && !hasExceptionalOverperformance(outcome)) {
+    if (recoveryState === "exhausted" && !hasExceptionalOverperformance({ outcome, incrementLbs: exercise.incrementLbs })) {
       const nextState: ProgressionStateSnapshot = {
         currentWeightLbs: previousWeightLbs,
         lastCompletedWeightLbs: previousWeightLbs,
@@ -1371,7 +1434,7 @@ export class ProgressionEngine {
       };
     }
 
-    if (recoveryState === "fatigued" && !hasExceptionalOverperformance(outcome)) {
+    if (recoveryState === "fatigued" && !hasExceptionalOverperformance({ outcome, incrementLbs: exercise.incrementLbs })) {
       const nextState: ProgressionStateSnapshot = {
         currentWeightLbs: previousWeightLbs,
         lastCompletedWeightLbs: previousWeightLbs,
@@ -1432,11 +1495,20 @@ export class ProgressionEngine {
     previousWeightLbs: number
   ): ProgressionComputationResult | null {
     const { exercise, outcome } = input;
-    const qualifyingSets = outcome.sets?.filter(isMaterialOverperformanceSet) ?? [];
+    const weightQualifyingSets = outcome.sets?.filter(isMaterialOverperformanceSet) ?? [];
+    const repQualifyingSets =
+      outcome.sets?.filter((set) => isMaterialRepOverperformanceSet(set, exercise.incrementLbs)) ?? [];
 
-    if (qualifyingSets.length < MIN_RECALIBRATION_SET_COUNT) {
+    const useWeightSignal = weightQualifyingSets.length >= MIN_RECALIBRATION_SET_COUNT;
+    const useRepSignal =
+      !useWeightSignal &&
+      (repQualifyingSets.length >= MIN_RECALIBRATION_SET_COUNT || repQualifyingSets.some(isExtremeRepOverperformanceSet));
+
+    if (!useWeightSignal && !useRepSignal) {
       return null;
     }
+
+    const qualifyingSets = useWeightSignal ? weightQualifyingSets : repQualifyingSets;
 
     const estimatedOneRepMaxes = qualifyingSets.map((set) =>
       estimateOneRepMaxEpley(set.actualWeightLbs!, set.actualReps!)
@@ -1470,7 +1542,9 @@ export class ProgressionEngine {
       previousWeightLbs,
       nextWeightLbs,
       result: "recalibrated",
-      reason: `Recalibrated from ${previousWeightLbs} lb to ${nextWeightLbs} lb based on materially heavier sets logged.`,
+      reason: useWeightSignal
+        ? `Recalibrated from ${previousWeightLbs} lb to ${nextWeightLbs} lb based on materially heavier sets logged.`
+        : `Recalibrated from ${previousWeightLbs} lb to ${nextWeightLbs} lb because reps greatly exceeded the target at the prescribed weight.`,
       nextState
     };
   }
@@ -1480,11 +1554,20 @@ export class ProgressionEngine {
     previousWeightLbs: number
   ): ProgressionComputationResultV2 | null {
     const { exercise, outcome, state } = input;
-    const qualifyingSets = outcome.sets?.filter(isMaterialOverperformanceSet) ?? [];
+    const weightQualifyingSets = outcome.sets?.filter(isMaterialOverperformanceSet) ?? [];
+    const repQualifyingSets =
+      outcome.sets?.filter((set) => isMaterialRepOverperformanceSet(set, exercise.incrementLbs)) ?? [];
 
-    if (qualifyingSets.length < MIN_RECALIBRATION_SET_COUNT) {
+    const useWeightSignal = weightQualifyingSets.length >= MIN_RECALIBRATION_SET_COUNT;
+    const useRepSignal =
+      !useWeightSignal &&
+      (repQualifyingSets.length >= MIN_RECALIBRATION_SET_COUNT || repQualifyingSets.some(isExtremeRepOverperformanceSet));
+
+    if (!useWeightSignal && !useRepSignal) {
       return null;
     }
+
+    const qualifyingSets = useWeightSignal ? weightQualifyingSets : repQualifyingSets;
 
     const estimatedOneRepMaxes = qualifyingSets.map((set) =>
       estimateOneRepMaxEpley(set.actualWeightLbs!, set.actualReps!)
@@ -1528,7 +1611,9 @@ export class ProgressionEngine {
       previousRepGoal,
       nextRepGoal,
       result: "recalibrated",
-      reason: `Recalibrated from ${previousWeightLbs} lb to ${nextWeightLbs} lb based on materially heavier sets logged.`,
+      reason: useWeightSignal
+        ? `Recalibrated from ${previousWeightLbs} lb to ${nextWeightLbs} lb based on materially heavier sets logged.`
+        : `Recalibrated from ${previousWeightLbs} lb to ${nextWeightLbs} lb because reps greatly exceeded the target at the prescribed weight.`,
       nextState
     };
   }

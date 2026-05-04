@@ -5,6 +5,8 @@ import {
   getWorkoutSummaryHeadline,
   getWorkoutSummaryOutcomes,
   getWorkoutSummaryStats,
+  getUnusualProgressionReviewItems,
+  getProgressionUpdateConfidenceDisplay,
   getProgressionUpdateReasonText,
   getProgressionUpdateResultLabel,
   getProgressionUpdateSummaryText
@@ -274,6 +276,112 @@ export const workoutSummaryTestCases: MobileTestCase[] = [
       );
       assert.equal(getProgressionUpdateSummaryText(summary.progressionUpdates[0]!), "Adjusted to 215 lb next time");
       assert.equal(getWorkoutSummaryOutcomes(summary)[3]?.detail, "lift recalibrated");
+    }
+  }
+  ,
+  {
+    name: "Workout summary builds a review item for rep-overperformance recalibration updates",
+    run: () => {
+      const summary: CompleteWorkoutSessionResponse = {
+        workoutSession: {
+          ...createWorkout(),
+          exercises: [
+            {
+              ...createWorkout().exercises[0]!,
+              targetReps: 8,
+              targetWeight: { value: 135, unit: "lb" },
+              sets: [
+                {
+                  id: "set-1",
+                  exerciseEntryId: "entry-1",
+                  setNumber: 1,
+                  targetReps: 8,
+                  actualReps: 40,
+                  targetWeight: { value: 135, unit: "lb" },
+                  actualWeight: { value: 135, unit: "lb" },
+                  status: "completed",
+                  completedAt: "2026-04-24T10:10:00.000Z"
+                }
+              ]
+            }
+          ]
+        },
+        progressionUpdates: [
+          {
+            exerciseId: "exercise-1",
+            exerciseName: "Bench Press",
+            previousWeight: { value: 135, unit: "lb" },
+            nextWeight: { value: 235, unit: "lb" },
+            previousRepGoal: 8,
+            nextRepGoal: 8,
+            result: "recalibrated",
+            reason: "Recalibrated because reps greatly exceeded the target at the prescribed weight.",
+            confidence: "medium",
+            reasonCodes: ["RECALIBRATED", "REPS_GREATLY_EXCEEDED_TARGET"],
+            evidence: ["Reps greatly exceeded target"]
+          }
+        ],
+        progressMetrics: [],
+        nextWorkoutTemplate: null
+      };
+
+      const items = getUnusualProgressionReviewItems(summary);
+      assert.equal(items.length, 1);
+      assert.equal(items[0]?.exerciseName, "Bench Press");
+      assert.match(items[0]?.message ?? "", /far more reps than prescribed/i);
+      assert.ok(items[0]?.evidence.some((line) => /Logged best: 40 reps/i.test(line)));
+    }
+  },
+  {
+    name: "Workout summary shows cautious label for medium-confidence rep-overperformance recalibration",
+    run: () => {
+      assert.equal(
+        getProgressionUpdateConfidenceDisplay({
+          update: {
+            exerciseId: "exercise-1",
+            exerciseName: "Bench Press",
+            previousWeight: { value: 135, unit: "lb" },
+            nextWeight: { value: 235, unit: "lb" },
+            previousRepGoal: 8,
+            nextRepGoal: 8,
+            result: "recalibrated",
+            reason: "Recalibrated because reps greatly exceeded the target at the prescribed weight.",
+            confidence: "medium",
+            reasonCodes: ["RECALIBRATED", "REPS_GREATLY_EXCEEDED_TARGET"],
+            evidence: []
+          }
+        }),
+        "Cautious"
+      );
+    }
+  },
+  {
+    name: "Workout summary does not crash when rep-overperformance evidence fields are missing",
+    run: () => {
+      const summary: CompleteWorkoutSessionResponse = {
+        workoutSession: createWorkout(),
+        progressionUpdates: [
+          {
+            exerciseId: "exercise-1",
+            exerciseName: "Bench Press",
+            previousWeight: { value: 135, unit: "lb" },
+            nextWeight: { value: 235, unit: "lb" },
+            previousRepGoal: 8,
+            nextRepGoal: 8,
+            result: "recalibrated",
+            reason: "Recalibrated because reps greatly exceeded the target at the prescribed weight.",
+            confidence: "medium",
+            reasonCodes: ["RECALIBRATED", "REPS_GREATLY_EXCEEDED_TARGET"],
+            evidence: null as any
+          }
+        ],
+        progressMetrics: [],
+        nextWorkoutTemplate: null
+      };
+
+      const items = getUnusualProgressionReviewItems(summary);
+      assert.equal(items.length, 1);
+      assert.ok(Array.isArray(items[0]?.evidence));
     }
   }
 ];

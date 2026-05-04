@@ -173,6 +173,10 @@ function buildProgressionExplanation(input: {
     case "recalibrated": {
       reasonCodes.push("RECALIBRATED");
       evidence.push(`Recalibrated weight to ${input.nextWeightLbs}`);
+      if (/reps greatly exceeded/i.test(input.reason)) {
+        reasonCodes.push("REPS_GREATLY_EXCEEDED_TARGET");
+        evidence.push("Reps greatly exceeded target");
+      }
       break;
     }
     case "skipped": {
@@ -193,6 +197,9 @@ function buildProgressionExplanation(input: {
     }
     if (input.missingActualWeight) {
       return "low";
+    }
+    if (/reps greatly exceeded/i.test(input.reason)) {
+      return "medium";
     }
     if (!input.lastPerformedAt || !input.performedAt) {
       return "medium";

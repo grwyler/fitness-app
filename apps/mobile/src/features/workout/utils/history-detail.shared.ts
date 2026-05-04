@@ -5,6 +5,14 @@ export type ExerciseProgressHighlight = {
   text: string;
 };
 
+export type UnusualWorkoutPerformanceItem = {
+  exerciseEntryId: string;
+  exerciseName: string;
+  title: string;
+  message: string;
+  evidence: string[];
+};
+
 export type WorkoutDetailStats = {
   completedSetCount: number;
   failedSetCount: number;
@@ -26,6 +34,35 @@ function formatDeltaWeightText(deltaLbs: number, unitSystem: UnitSystem | undefi
     maximumFractionDigits: resolved === "metric" ? 1 : 2
   }).text;
   return `+${numeric} ${unit}`;
+}
+
+function formatWeightText(weightLbs: number, unitSystem: UnitSystem | undefined, options?: { maximumFractionDigits?: number }) {
+  return formatWeightForUser({
+    weightLbs,
+    unitSystem: resolveUnitSystem(unitSystem),
+    maximumFractionDigits: options?.maximumFractionDigits ?? 1
+  }).text;
+}
+
+function formatRatio(value: number) {
+  if (!Number.isFinite(value) || value <= 0) {
+    return null;
+  }
+
+  if (value >= 10) {
+    return `${Math.round(value)}×`;
+  }
+
+  return `${Math.round(value * 10) / 10}×`;
+}
+
+function isWeightCloseToTarget(actualWeightLbs: number, targetWeightLbs: number) {
+  if (targetWeightLbs <= 0) {
+    return false;
+  }
+
+  const tolerance = Math.max(targetWeightLbs * 0.02, 0.5);
+  return Math.abs(actualWeightLbs - targetWeightLbs) <= tolerance;
 }
 
 export function getCompletedSetVolume(input: {
@@ -50,6 +87,49 @@ export function getWorkoutDetailStats(workout: WorkoutSessionDto): WorkoutDetail
     plannedSetCount: sets.length,
     totalVolume: sets.reduce((sum, set) => sum + getCompletedSetVolume(set), 0)
   };
+}
+
+export function getUnusualWorkoutPerformanceItems(input: { workout: WorkoutSessionDto; unitSystem?: UnitSystem }): UnusualWorkoutPerformanceItem[] {
+  return input.workout.exercises.flatMap((exercise) => {
+    const completedSets = exercise.sets.filter((set) => set.status === "completed" || set.status === "failed");
+    const bestSet = [...completedSets].sort((left, right) => (right.actualReps ?? 0) - (left.actualReps ?? 0))[0] ?? null;
+    const bestReps = bestSet?.actualReps ?? null;
+    const targetReps = exercise.targetReps;
+
+    if (!bestReps || targetReps <= 0) {
+      return [];
+    }
+
+    const ratio = bestReps / targetReps;
+    const isExtreme = bestReps >= Math.max(targetReps * 5, targetReps + 20);
+    if (!isExtreme) {
+      return [];
+    }
+
+    const bestWeight = bestSet?.actualWeight?.value ?? null;
+    const targetWeight = exercise.targetWeight.value;
+    if (bestWeight == null || !isWeightCloseToTarget(bestWeight, targetWeight)) {
+      return [];
+    }
+
+    const ratioText = formatRatio(ratio);
+    const evidence = [
+      `Prescribed: ${targetReps} reps at ${formatWeightText(targetWeight, input.unitSystem)}`,
+      `Logged best: ${bestReps} reps at ${formatWeightText(bestWeight, input.unitSystem)}`,
+      ratioText ? `That's ${ratioText} the target reps` : null
+    ].filter((line): line is string => Boolean(line));
+
+    return [
+      {
+        exerciseEntryId: exercise.id,
+        exerciseName: exercise.exerciseName,
+        title: "Unusual performance detected",
+        message:
+          "You completed far more reps than prescribed. This usually means the weight is too light, the starting point needs recalibration, or the log may need review.",
+        evidence
+      }
+    ];
+  });
 }
 
 export function buildWorkoutDetailProgressHighlights(input: {

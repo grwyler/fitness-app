@@ -6,12 +6,15 @@ import { Screen } from "../components/Screen";
 import { PrimaryButton } from "../components/PrimaryButton";
 import type { RootStackParamList } from "../core/navigation/navigation-types";
 import { FeedbackButton } from "../features/feedback/components/FeedbackButton";
+import { UnusualProgressionReviewCard } from "../features/workout/components/UnusualProgressionReviewCard";
 import { useTrainingSettings } from "../features/workout/hooks/useTrainingSettings";
 import {
   getWorkoutSummaryEncouragement,
   getWorkoutSummaryHeadline,
   getWorkoutSummaryOutcomes,
-  getProgressionUpdateConfidenceLabel,
+  getUnusualProgressionReviewItems,
+  isRepOverperformanceProgressionUpdate,
+  getProgressionUpdateConfidenceDisplay,
   getProgressionUpdateEvidence,
   getProgressionUpdateReasonText,
   getProgressionUpdateRepGoalChangeText,
@@ -30,6 +33,7 @@ export function WorkoutSummaryScreen({ navigation, route }: Props) {
   const headline = getWorkoutSummaryHeadline(summary);
   const encouragement = getWorkoutSummaryEncouragement(summary, unitSystem);
   const outcomes = getWorkoutSummaryOutcomes(summary, unitSystem);
+  const unusualReviewItems = getUnusualProgressionReviewItems(summary, unitSystem);
 
   return (
     <Screen>
@@ -56,6 +60,14 @@ export function WorkoutSummaryScreen({ navigation, route }: Props) {
           Next workout: {summary.nextWorkoutTemplate?.name ?? "No next workout queued"}
         </Text>
       </View>
+
+      <UnusualProgressionReviewCard
+        items={unusualReviewItems}
+        onReviewWorkoutDetail={() => {
+          setLastAction("review_unusual_progression");
+          navigation.navigate("WorkoutHistoryDetail", { sessionId: summary.workoutSession.id });
+        }}
+      />
 
       <View style={styles.card}>
         <Text style={styles.cardLabel}>Progression updates</Text>
@@ -91,16 +103,19 @@ export function WorkoutSummaryScreen({ navigation, route }: Props) {
                         ? styles.confidenceBadgeHigh
                         : update.confidence === "low"
                           ? styles.confidenceBadgeLow
-                          : styles.confidenceBadgeMedium
+                          : isRepOverperformanceProgressionUpdate(update)
+                            ? styles.confidenceBadgeCautious
+                            : styles.confidenceBadgeMedium
                     ]}
                   >
                     <Text
                       style={[
                         styles.confidenceBadgeText,
-                        (update.confidence === "high" || update.confidence === "low") && styles.confidenceBadgeTextOnStrong
+                        (update.confidence === "high" || update.confidence === "low" || isRepOverperformanceProgressionUpdate(update)) &&
+                          styles.confidenceBadgeTextOnStrong
                       ]}
                     >
-                      {getProgressionUpdateConfidenceLabel(update.confidence)}
+                      {getProgressionUpdateConfidenceDisplay({ update })}
                     </Text>
                   </View>
                 </View>
@@ -308,6 +323,9 @@ const styles = StyleSheet.create({
   },
   confidenceBadgeLow: {
     backgroundColor: colors.danger
+  },
+  confidenceBadgeCautious: {
+    backgroundColor: colors.warning
   },
   confidenceBadgeText: {
     color: colors.textPrimary,

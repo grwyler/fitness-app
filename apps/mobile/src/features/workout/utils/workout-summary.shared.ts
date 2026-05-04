@@ -16,6 +16,14 @@ export type WorkoutSummaryOutcome = {
   detail: string;
 };
 
+export type UnusualProgressionReviewItem = {
+  exerciseId: string;
+  exerciseName: string;
+  title: string;
+  message: string;
+  evidence: string[];
+};
+
 function resolveUnitSystem(unitSystem: UnitSystem | undefined) {
   return unitSystem ?? "imperial";
 }
@@ -51,6 +59,83 @@ function lowerCaseFirstLetter(value: string) {
     return value;
   }
   return value.slice(0, 1).toLowerCase() + value.slice(1);
+}
+
+function safeIncludes(list: string[] | null | undefined, value: string) {
+  return Array.isArray(list) && list.includes(value);
+}
+
+export function isRepOverperformanceProgressionUpdate(update: CompleteWorkoutSessionResponse["progressionUpdates"][number]) {
+  return safeIncludes(update.reasonCodes, "REPS_GREATLY_EXCEEDED_TARGET");
+}
+
+function formatRatio(value: number) {
+  if (!Number.isFinite(value) || value <= 0) {
+    return null;
+  }
+
+  if (value >= 10) {
+    return `${Math.round(value)}×`;
+  }
+
+  return `${Math.round(value * 10) / 10}×`;
+}
+
+function buildRepOverperformanceEvidenceLines(input: {
+  workout: WorkoutSessionDto;
+  update: CompleteWorkoutSessionResponse["progressionUpdates"][number];
+  unitSystem?: UnitSystem;
+}) {
+  const exercise = input.workout.exercises.find((candidate) => candidate.exerciseId === input.update.exerciseId) ?? null;
+  if (!exercise) {
+    return [];
+  }
+
+  const targetReps = exercise.targetReps;
+  const targetWeightText = formatWeightText(exercise.targetWeight.value, input.unitSystem, { maximumFractionDigits: 1 });
+  const completedSets = exercise.sets.filter((set) => set.status === "completed" || set.status === "failed");
+  const bestSet = [...completedSets].sort((left, right) => (right.actualReps ?? 0) - (left.actualReps ?? 0))[0] ?? null;
+
+  const bestReps = bestSet?.actualReps ?? null;
+  const bestWeight = bestSet?.actualWeight?.value ?? bestSet?.targetWeight.value ?? null;
+  const bestWeightText = bestWeight == null ? null : formatWeightText(bestWeight, input.unitSystem, { maximumFractionDigits: 1 });
+
+  const ratio = bestReps && targetReps > 0 ? bestReps / targetReps : null;
+  const ratioText = ratio ? formatRatio(ratio) : null;
+
+  const lines: string[] = [];
+  lines.push(`Prescribed: ${targetReps} reps at ${targetWeightText}`);
+  if (bestReps != null && bestWeightText) {
+    lines.push(`Logged best: ${bestReps} reps at ${bestWeightText}`);
+  } else if (bestReps != null) {
+    lines.push(`Logged best: ${bestReps} reps`);
+  }
+  if (ratioText) {
+    lines.push(`That's ${ratioText} the target reps`);
+  }
+
+  const nextWeightText = formatWeightText(input.update.nextWeight.value, input.unitSystem, { maximumFractionDigits: 1 });
+  lines.push(`Next time: ${nextWeightText}`);
+
+  return lines.filter(Boolean);
+}
+
+export function getUnusualProgressionReviewItems(
+  summary: CompleteWorkoutSessionResponse,
+  unitSystem?: UnitSystem
+): UnusualProgressionReviewItem[] {
+  const repOverperformanceItems = summary.progressionUpdates
+    .filter(isRepOverperformanceProgressionUpdate)
+    .map((update) => ({
+      exerciseId: update.exerciseId,
+      exerciseName: update.exerciseName,
+      title: "Unusual performance detected",
+      message:
+        "You completed far more reps than prescribed. This usually means the weight is too light, the starting point needs recalibration, or the log may need review. The recommendation is cautious because this is a large mismatch.",
+      evidence: buildRepOverperformanceEvidenceLines({ workout: summary.workoutSession, update, unitSystem })
+    }));
+
+  return repOverperformanceItems;
 }
 
 export function getWorkoutSummaryStats(workout: WorkoutSessionDto): WorkoutSummaryStats {
@@ -238,6 +323,16 @@ export function getProgressionUpdateConfidenceLabel(
       return exhaustiveCheck;
     }
   }
+}
+
+export function getProgressionUpdateConfidenceDisplay(input: {
+  update: CompleteWorkoutSessionResponse["progressionUpdates"][number];
+}) {
+  if (isRepOverperformanceProgressionUpdate(input.update) && input.update.confidence === "medium") {
+    return "Cautious";
+  }
+
+  return getProgressionUpdateConfidenceLabel(input.update.confidence);
 }
 
 export function getProgressionUpdateEvidence(update: CompleteWorkoutSessionResponse["progressionUpdates"][number]) {

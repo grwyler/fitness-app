@@ -1700,6 +1700,7 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         context: { userId: "user-1", unitSystem: "imperial" },
         sessionId: "session-1",
         request: {
+          completedAt: "2026-04-24T10:45:00.000Z",
           exerciseFeedback: [
             {
               exerciseEntryId: "entry-1",
@@ -2492,6 +2493,7 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         context: { userId: "user-1", unitSystem: "imperial" },
         sessionId: "session-1",
         request: {
+          completedAt: "2026-04-24T10:45:00.000Z",
           exerciseFeedback: [{ exerciseEntryId: "entry-1", effortFeedback: "just_right" }],
           userEffortFeedback: "just_right"
         },

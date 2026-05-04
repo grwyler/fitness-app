@@ -535,6 +535,67 @@ export const progressionEngineTestCases: DomainTestCase[] = [
     }
   },
   {
+    name: "ProgressionEngine recalibrates when multiple sets greatly exceed the target reps at the prescribed weight",
+    run: () => {
+      const result = engine.calculate({
+        state: {
+          currentWeightLbs: 135,
+          lastCompletedWeightLbs: 130,
+          consecutiveFailures: 0,
+          lastEffortFeedback: "just_right"
+        },
+        exercise: {
+          exerciseName: "Bench Press",
+          exerciseCategory: "compound",
+          incrementLbs: 5,
+          isBodyweight: false,
+          isWeightOptional: false
+        },
+        outcome: {
+          effortFeedback: "just_right",
+          hasFailure: false,
+          sets: [
+            { targetReps: 8, actualReps: 16, targetWeightLbs: 135, actualWeightLbs: 135 },
+            { targetReps: 8, actualReps: 16, targetWeightLbs: 135, actualWeightLbs: 135 }
+          ]
+        }
+      });
+
+      assert.equal(result.result, "recalibrated");
+      assert.equal(result.nextWeightLbs, 160);
+      assert.match(result.reason, /reps greatly exceeded/i);
+    }
+  },
+  {
+    name: "ProgressionEngine recalibrates from a single extreme rep overperformance set (capped)",
+    run: () => {
+      const result = engine.calculate({
+        state: {
+          currentWeightLbs: 135,
+          lastCompletedWeightLbs: 130,
+          consecutiveFailures: 0,
+          lastEffortFeedback: "just_right"
+        },
+        exercise: {
+          exerciseName: "Bench Press",
+          exerciseCategory: "compound",
+          incrementLbs: 5,
+          isBodyweight: false,
+          isWeightOptional: false
+        },
+        outcome: {
+          effortFeedback: "just_right",
+          hasFailure: false,
+          sets: [{ targetReps: 8, actualReps: 40, targetWeightLbs: 135, actualWeightLbs: 135 }]
+        }
+      });
+
+      assert.equal(result.result, "recalibrated");
+      assert.equal(result.nextWeightLbs, 235);
+      assert.match(result.reason, /reps greatly exceeded/i);
+    }
+  },
+  {
     name: "ProgressionEngine does not recalibrate when allowRecalibration is false",
     run: () => {
       const result = engine.calculate({
@@ -756,6 +817,77 @@ export const progressionEngineTestCases: DomainTestCase[] = [
       assert.equal(result.nextState.consecutiveFailures, 0);
       assert.equal(result.nextState.repGoal, 9);
       assert.match(result.reason, /Increased reps from 8 to 9/);
+    }
+  },
+  {
+    name: "ProgressionEngine (double) recalibrates when multiple sets greatly exceed the target reps at the prescribed weight",
+    run: () => {
+      const result = engine.calculateDoubleProgression({
+        performedAt: new Date("2026-05-01T10:00:00.000Z"),
+        state: {
+          currentWeightLbs: 135,
+          lastCompletedWeightLbs: 130,
+          consecutiveFailures: 0,
+          lastEffortFeedback: "just_right",
+          lastPerformedAt: new Date("2026-04-28T10:00:00.000Z"),
+          repGoal: 8,
+          repRangeMin: 6,
+          repRangeMax: 10
+        },
+        exercise: {
+          exerciseName: "Bench Press",
+          exerciseCategory: "compound",
+          incrementLbs: 5,
+          isBodyweight: false,
+          isWeightOptional: false
+        },
+        outcome: {
+          effortFeedback: "just_right",
+          sets: [
+            { targetReps: 8, actualReps: 16, targetWeightLbs: 135, actualWeightLbs: 135 },
+            { targetReps: 8, actualReps: 16, targetWeightLbs: 135, actualWeightLbs: 135 }
+          ]
+        }
+      });
+
+      assert.equal(result.result, "recalibrated");
+      assert.equal(result.nextWeightLbs, 160);
+      assert.equal(result.nextRepGoal, 8);
+      assert.match(result.reason, /reps greatly exceeded/i);
+    }
+  },
+  {
+    name: "ProgressionEngine (double) recalibrates from a single extreme rep overperformance set (capped)",
+    run: () => {
+      const result = engine.calculateDoubleProgression({
+        performedAt: new Date("2026-05-01T10:00:00.000Z"),
+        state: {
+          currentWeightLbs: 135,
+          lastCompletedWeightLbs: 130,
+          consecutiveFailures: 0,
+          lastEffortFeedback: "just_right",
+          lastPerformedAt: new Date("2026-04-28T10:00:00.000Z"),
+          repGoal: 8,
+          repRangeMin: 6,
+          repRangeMax: 10
+        },
+        exercise: {
+          exerciseName: "Bench Press",
+          exerciseCategory: "compound",
+          incrementLbs: 5,
+          isBodyweight: false,
+          isWeightOptional: false
+        },
+        outcome: {
+          effortFeedback: "just_right",
+          sets: [{ targetReps: 8, actualReps: 40, targetWeightLbs: 135, actualWeightLbs: 135 }]
+        }
+      });
+
+      assert.equal(result.result, "recalibrated");
+      assert.equal(result.nextWeightLbs, 235);
+      assert.equal(result.nextRepGoal, 8);
+      assert.match(result.reason, /reps greatly exceeded/i);
     }
   },
   {
