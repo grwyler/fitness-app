@@ -1,0 +1,36 @@
+{
+  "releases": [
+    {
+      "version": "0.1.0",
+      "date": "2026-05-03",
+      "sections": [
+        {
+          "title": "Added",
+          "items": [
+            "In-app version display and release notes viewer.",
+            "Version validation during CI builds."
+          ]
+        },
+        {
+          "title": "Changed",
+          "items": [
+            "Application version is now sourced from the repo root version."
+          ]
+        }
+      ]
+    },
+    {
+      "version": "0.0.9",
+      "date": "2026-04-20",
+      "sections": [
+        {
+          "title": "Added",
+          "items": [
+            "Initial preview build for internal testing."
+          ]
+        }
+      ]
+    }
+  ]
+}
+

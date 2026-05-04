@@ -31,6 +31,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Validate release notes
+        run: npm run validate:release-notes
+
+      - name: Validate changelog
+        run: npm run validate:changelog
+
       - name: Build API
         run: npm run build:api
 
@@ -41,10 +47,31 @@ jobs:
         run: npm run test --workspace @fitness/api
 
       - name: Pull API Vercel environment
+        shell: bash
+        run: |
+          if [ -z "$VERCEL_ORG_ID" ] || [ -z "$VERCEL_PROJECT_ID" ]; then
+            echo "Missing Vercel project configuration."
+            echo "Expected GitHub secrets:"
+            echo "- VERCEL_ORG_ID"
+            echo "- VERCEL_API_PROJECT_ID (mapped to env var VERCEL_PROJECT_ID)"
+            echo ""
+            echo "Hint: this repo's linked API project is:"
+            echo "  orgId: team_bp5GXtRky8HeY5HfFBhrjxL5"
+            echo "  projectId: prj_92QxggggUr2anFDyzzR0gnzM2vcF"
+            exit 1
+          fi
+      - name: Pull API Vercel environment (Vercel CLI)
         run: npx vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
 
       - name: Run production database migrations
-        run: npm run db:migrate
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL || secrets.DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "DATABASE_URL is not set. Add PRODUCTION_DATABASE_URL (recommended) or DATABASE_URL as a GitHub Actions secret."
+            exit 1
+          fi
+          npm run db:migrate
 
       - name: Build API Vercel output
         run: npx vercel build --prod --local-config vercel.api.json --token=${{ secrets.VERCEL_TOKEN }}

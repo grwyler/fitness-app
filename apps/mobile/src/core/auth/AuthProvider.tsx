@@ -7,6 +7,7 @@ import { clearStoredAuthToken, readStoredAuthToken, writeStoredAuthToken } from 
 import { restoreSession } from "./restore-session";
 import { resetClientState } from "./reset-client-state";
 import { resetToSignInIfNeeded } from "../navigation/navigation-bridge";
+import { setObservabilityUser } from "../observability/observability";
 
 type AuthContextValue = {
   authDebug: {
@@ -16,6 +17,7 @@ type AuthContextValue = {
   completeSignIn: (input: { token: string; user: AuthUser }) => Promise<void>;
   signOut: () => Promise<void>;
   status: "checking_session" | "authenticated" | "unauthenticated";
+  userId: string | null;
   userEmail: string | null;
   userRole: AuthUser["role"] | null;
   isAdmin: boolean;
@@ -93,6 +95,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
   }, []);
 
   useEffect(() => {
+    setObservabilityUser(user ? { id: user.id } : null);
+  }, [user]);
+
+  useEffect(() => {
     const unregister = registerAuthBridge({
       getToken: async () => token,
       handleUnauthorized
@@ -110,11 +116,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
       completeSignIn,
       signOut,
       status,
+      userId: user?.id ?? null,
       userEmail: user?.email ?? null,
       userRole: user?.role ?? null,
       isAdmin: user?.role === "admin"
     };
-  }, [completeSignIn, signOut, status, token, user?.email, user?.role]);
+  }, [completeSignIn, signOut, status, token, user?.email, user?.id, user?.role]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

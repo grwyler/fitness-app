@@ -19,6 +19,9 @@ import type {
   ListProgramsResponse,
   LogSetRequest,
   LogSetResponse,
+  FollowProgramRequest,
+  RecommendGuidedProgramResponse,
+  GuidedProgramAnswers,
   StartWorkoutSessionRequest,
   UpdateCustomProgramRequest,
   UpdateCustomProgramResponse,
@@ -85,10 +88,22 @@ export async function updateExerciseProgressionSettings(request: UpdateExerciseP
   });
 }
 
-export async function followProgram(programId: string) {
+export async function followProgram(input: string | { programId: string; request?: FollowProgramRequest }) {
+  const programId = typeof input === "string" ? input : input.programId;
+  const request = typeof input === "string" ? {} : (input.request ?? {});
+
   return apiRequest<FollowProgramResponse>(`/programs/${programId}/follow`, {
     method: "POST",
-    body: {}
+    body: request
+  });
+}
+
+export async function recommendGuidedProgram(answers: GuidedProgramAnswers) {
+  return apiRequest<RecommendGuidedProgramResponse>("/guided-program/recommend", {
+    method: "POST",
+    body: {
+      answers
+    }
   });
 }
 

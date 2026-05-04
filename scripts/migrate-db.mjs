@@ -13,28 +13,55 @@ const MIGRATIONS_DIR = path.resolve(
   "migrations"
 );
 
-const repoRootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const envCandidatePaths = [
-  path.resolve(repoRootDir, ".vercel", ".env.production.local"),
-  path.resolve(repoRootDir, ".vercel", ".env.preview.local"),
-  path.resolve(repoRootDir, ".vercel", ".env.development.local"),
-  path.resolve(repoRootDir, ".vercel", ".env.local"),
-  path.resolve(repoRootDir, ".env.local"),
-  path.resolve(repoRootDir, ".env")
-];
-
-for (const candidatePath of envCandidatePaths) {
-  if (existsSync(candidatePath)) {
-    loadDotEnv({ path: candidatePath, override: false });
-  }
-}
-
 function parseArgs(argv) {
-  const args = { dryRun: false };
-  for (const arg of argv) {
-    if (arg === "--dry-run") args.dryRun = true;
+  const args = { dryRun: false, envFile: null };
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
+    if (arg === "--dry-run") {
+      args.dryRun = true;
+      continue;
+    }
+
+    if (arg === "--env-file") {
+      const next = argv[i + 1];
+      if (typeof next !== "string" || next.startsWith("--")) {
+        throw new Error("--env-file requires a path");
+      }
+      args.envFile = next;
+      i += 1;
+      continue;
+    }
   }
   return args;
+}
+
+function loadEnv({ envFile }) {
+  const repoRootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
+  if (envFile) {
+    const resolved = path.isAbsolute(envFile) ? envFile : path.resolve(repoRootDir, envFile);
+    if (!existsSync(resolved)) {
+      throw new Error(`Env file not found: ${resolved}`);
+    }
+    // Explicit env file should always win.
+    loadDotEnv({ path: resolved, override: true });
+    return;
+  }
+
+  const envCandidatePaths = [
+    path.resolve(repoRootDir, ".vercel", ".env.production.local"),
+    path.resolve(repoRootDir, ".vercel", ".env.preview.local"),
+    path.resolve(repoRootDir, ".vercel", ".env.development.local"),
+    path.resolve(repoRootDir, ".vercel", ".env.local"),
+    path.resolve(repoRootDir, ".env.local"),
+    path.resolve(repoRootDir, ".env")
+  ];
+
+  for (const candidatePath of envCandidatePaths) {
+    if (existsSync(candidatePath)) {
+      loadDotEnv({ path: candidatePath, override: false });
+    }
+  }
 }
 
 function requireDatabaseUrl() {
@@ -109,6 +136,7 @@ async function applyMigration(client, filename, { dryRun }) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
+  loadEnv(args);
   const databaseUrl = requireDatabaseUrl();
 
   const { Pool } = pg;

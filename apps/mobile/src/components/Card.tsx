@@ -57,6 +57,8 @@ export function Card({
     style
   ];
 
+  const content = contentStyle ? <View style={contentStyle}>{children}</View> : children;
+
   if (onPress) {
     return (
       <Pressable
@@ -69,15 +71,13 @@ export function Card({
           pressed ? styles.pressed : null
         ]}
       >
-        <View style={contentStyle}>{children}</View>
+        {content}
       </Pressable>
     );
   }
 
   return (
-    <View style={baseStyle}>
-      <View style={contentStyle}>{children}</View>
-    </View>
+    <View style={baseStyle}>{content}</View>
   );
 }
 

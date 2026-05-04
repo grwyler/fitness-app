@@ -6,8 +6,53 @@ import { sql } from "drizzle-orm";
 
 export const healthRouter = Router();
 
+function hasExpressRoute(router: unknown, input: { method: string; path: string }): boolean | null {
+  if (!router || typeof router !== "object") {
+    return null;
+  }
+
+  const routerAny = router as { stack?: unknown[] };
+  if (!Array.isArray(routerAny.stack)) {
+    return null;
+  }
+
+  const wantedMethod = input.method.toLowerCase();
+  const wantedPath = input.path;
+
+  const queue: unknown[] = [...routerAny.stack];
+  while (queue.length > 0) {
+    const layer = queue.shift();
+    if (!layer || typeof layer !== "object") {
+      continue;
+    }
+
+    const layerAny = layer as {
+      route?: { path?: unknown; methods?: Record<string, boolean> };
+      handle?: { stack?: unknown[] };
+    };
+
+    const route = layerAny.route;
+    if (route && route.path === wantedPath && route.methods?.[wantedMethod]) {
+      return true;
+    }
+
+    const nestedStack = layerAny.handle?.stack;
+    if (Array.isArray(nestedStack)) {
+      queue.push(...nestedStack);
+    }
+  }
+
+  return false;
+}
+
 healthRouter.get("/health", async (request, response) => {
   const database = (request.app.locals as { database?: any } | undefined)?.database;
+  const appAny = request.app as unknown as { _router?: unknown; router?: unknown };
+  const expressRouter = appAny._router ?? appAny.router ?? null;
+  const hasGuidedProgramRecommend = hasExpressRoute(expressRouter, {
+    method: "post",
+    path: "/guided-program/recommend"
+  });
 
   let databaseStatus: "ok" | "error" | "skipped" = "skipped";
   let databaseError: unknown = undefined;
@@ -61,6 +106,9 @@ healthRouter.get("/health", async (request, response) => {
       fingerprint: databaseFingerprint,
       hasProgramsTrainingGoal,
       error: databaseError
+    },
+    routes: {
+      guidedProgramRecommend: hasGuidedProgramRecommend
     },
     seededPrograms: seedPrograms.map((program) => ({
       name: program.name,

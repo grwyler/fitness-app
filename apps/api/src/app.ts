@@ -6,18 +6,21 @@ import express, {
   type Response,
   type Router
 } from "express";
+import { createHash } from "node:crypto";
 import { healthRouter } from "./modules/health/health.routes.js";
 import { failure } from "./lib/http/envelope.js";
 import { isAppError } from "./lib/http/errors.js";
 import { errorReporter } from "./lib/observability/error-reporter.js";
 import { logger } from "./lib/observability/logger.js";
 import { describeErrorForLogs } from "./lib/observability/describe-error.js";
+import { initApiObservability } from "./lib/observability/init.js";
 import { toAppError } from "./modules/workout/http/workout.http-errors.js";
 import { createAuthenticateRequestMiddleware } from "./lib/auth/auth.middleware.js";
 import { createRequestContextMiddleware } from "./lib/auth/request-context.middleware.js";
 import { createProtectedAuthRouter, createPublicAuthRouter } from "./lib/auth/auth.routes.js";
 import { getEnv, type AppEnv } from "./config/env.js";
 import { createRequestIdMiddleware } from "./lib/http/request-id.middleware.js";
+import { detectDeploymentStage } from "./config/deployment-stage.js";
 
 type DatabaseLike = {
   select: (...args: any[]) => any;
@@ -27,6 +30,7 @@ type DatabaseLike = {
 };
 
 const productionAllowedOrigins = ["https://setwisefit.vercel.app"];
+const stagingAllowedOrigins = ["https://setwisefit-test.vercel.app"];
 const developmentAllowedOrigins = [
   "http://localhost:3000",
   "http://127.0.0.1:3000",
@@ -70,12 +74,22 @@ function isPrivateNetworkOrigin(origin: string) {
 }
 
 function resolveAllowedOrigins(env: AppEnv) {
+  const stage = detectDeploymentStage({
+    nodeEnv: env.NODE_ENV,
+    vercel: env.VERCEL,
+    vercelEnv: env.VERCEL_ENV,
+    vercelGitCommitRef: env.VERCEL_GIT_COMMIT_REF
+  });
+
   const defaultAllowedOrigins =
-    env.NODE_ENV === "production"
+    stage === "production"
       ? productionAllowedOrigins
-      : [...developmentAllowedOrigins, ...productionAllowedOrigins];
+      : stage === "staging" || stage === "preview"
+        ? [...developmentAllowedOrigins, ...stagingAllowedOrigins, ...productionAllowedOrigins]
+        : [...developmentAllowedOrigins, ...productionAllowedOrigins];
+
   const configuredOrigins =
-    env.CORS_ALLOWED_ORIGINS?.split(",")
+    env.CORS_ALLOWED_ORIGINS?.split(/[\s,]+/)
       .map((origin) => origin.trim())
       .filter(Boolean) ?? [];
 
@@ -121,8 +135,40 @@ export function createApp(options?: {
   const env = getEnv();
   const corsOptions = createCorsOptions(env);
 
+  initApiObservability();
+
+  app.set("trust proxy", env.VERCEL === "1" ? 1 : false);
+
   app.use(cors(corsOptions));
   app.use(createRequestIdMiddleware());
+  app.use((request, response, next) => {
+    const stage = detectDeploymentStage({
+      nodeEnv: env.NODE_ENV,
+      vercel: env.VERCEL,
+      vercelEnv: env.VERCEL_ENV,
+      vercelGitCommitRef: env.VERCEL_GIT_COMMIT_REF
+    });
+
+    response.setHeader("X-App-Stage", stage);
+    if (env.VERCEL_ENV) response.setHeader("X-Vercel-Env", env.VERCEL_ENV);
+    if (env.VERCEL_GIT_COMMIT_REF) response.setHeader("X-Vercel-Branch", env.VERCEL_GIT_COMMIT_REF);
+
+    // Debug only: help diagnose "API issues a token it can't validate" by exposing a short fingerprint
+    // of the secret used for signing/verifying. Safe-ish because it's a one-way hash and truncated.
+    // Enabled by default on non-production Vercel deployments.
+    const isProduction = stage === "production";
+    const debugHeadersExplicit = process.env.AUTH_DEBUG_HEADERS === "1";
+    if (!isProduction || debugHeadersExplicit) {
+      try {
+        const fingerprint = createHash("sha256").update(env.JWT_SECRET).digest("hex").slice(0, 12);
+        response.setHeader("X-Auth-Jwt-Fingerprint", fingerprint);
+      } catch {
+        // ignore
+      }
+    }
+
+    next();
+  });
   app.use((request, response, next) => {
     if (request.method === "OPTIONS") {
       response.status(200).end();
@@ -146,7 +192,9 @@ export function createApp(options?: {
 
   if (hasApiRouters) {
     if (resolvedOptions.database) {
-      const authenticateRequest = resolvedOptions.auth?.authenticateRequest ?? createAuthenticateRequestMiddleware();
+      const authenticateRequest =
+        resolvedOptions.auth?.authenticateRequest ??
+        createAuthenticateRequestMiddleware({ database: resolvedOptions.database });
 
       app.use("/api/v1", createPublicAuthRouter(resolvedOptions.database));
       app.use("/api/v1", authenticateRequest);
@@ -188,9 +236,11 @@ export function createApp(options?: {
     }
 
     const appError = isAppError(error) ? error : toAppError(error);
+    const requestContext = request.context as { userId?: string } | undefined;
+    const requestId = (request as Request & { requestId?: string }).requestId;
+    const route = request.originalUrl.split("?")[0] ?? request.originalUrl;
     if (isAppError(appError)) {
       if (appError.statusCode >= 500) {
-        const requestContext = request.context as { userId?: string } | undefined;
         const describedError = describeErrorForLogs(error);
         const errorContext = {
           errorMessage: describedError.message,
@@ -209,20 +259,19 @@ export function createApp(options?: {
         };
         const routeContext = {
           method: request.method,
-          path: request.originalUrl,
+          route,
           userId: requestContext?.userId,
-          requestId: (request as Request & { requestId?: string }).requestId
+          requestId,
+          statusCode: appError.statusCode
         };
         errorReporter.captureException(error, {
           code: appError.code,
-          statusCode: appError.statusCode,
           details: appError.details,
           ...errorContext,
           ...routeContext
         });
         logger.error("Unhandled API error", {
           code: appError.code,
-          statusCode: appError.statusCode,
           details: appError.details,
           ...errorContext,
           ...routeContext
@@ -233,12 +282,19 @@ export function createApp(options?: {
       return;
     }
 
-    errorReporter.captureException(error);
+    errorReporter.captureException(error, {
+      method: request.method,
+      route,
+      userId: requestContext?.userId,
+      requestId,
+      statusCode: 500
+    });
     logger.error("Unexpected API error", {
       method: request.method,
-      path: request.originalUrl,
-      userId: (request.context as { userId?: string } | undefined)?.userId,
-      requestId: (request as Request & { requestId?: string }).requestId,
+      route,
+      userId: requestContext?.userId,
+      requestId,
+      statusCode: 500,
       errorMessage: error instanceof Error ? error.message : String(error),
       errorName: error instanceof Error ? error.name : "NonErrorThrown",
       errorStack: error instanceof Error ? error.stack : undefined

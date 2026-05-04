@@ -298,7 +298,7 @@ export function CreateProgramScreen({ navigation, route }: Props) {
     <Screen>
       <View style={styles.header}>
         <AppText variant="overline" tone="accent" style={styles.eyebrow}>
-          {isEditing ? "Edit Program" : isCloning ? "Customize Program" : "Create Program"}
+          {isEditing ? "Edit Program" : isCloning ? "Customize Program" : "Build My Own Program"}
         </AppText>
         <AppText variant="title2" style={styles.title}>
           {isEditing

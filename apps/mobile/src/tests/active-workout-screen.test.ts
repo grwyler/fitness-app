@@ -3,10 +3,12 @@ import type { WorkoutSessionDto } from "@fitness/shared";
 import {
   buildCompleteWorkoutRequest,
   getFinishWorkoutPressAction,
+  getLoggedSetUpdateErrorMessage,
   getWorkoutDiscardErrorMessage,
   getWorkoutCompletionErrorMessage,
   getWorkoutCompletionUiState
 } from "../features/workout/utils/active-workout-screen.shared.js";
+import { MobileApiError } from "../api/errors.js";
 import type { MobileTestCase } from "./mobile-test-case.js";
 
 function createWorkout(overrides?: {
@@ -220,6 +222,21 @@ export const activeWorkoutScreenTestCases: MobileTestCase[] = [
       assert.equal(
         getWorkoutDiscardErrorMessage(null),
         "Workout not discarded. Check your connection and try again."
+      );
+    }
+  },
+  {
+    name: "Completed-workout read-only edits surface a clear message",
+    run: () => {
+      assert.equal(
+        getLoggedSetUpdateErrorMessage(
+          new MobileApiError({
+            code: "COMPLETED_WORKOUT_READ_ONLY",
+            message: "Completed workouts are read-only for now.",
+            status: 409
+          })
+        ),
+        "Completed workouts are read-only for now."
       );
     }
   },

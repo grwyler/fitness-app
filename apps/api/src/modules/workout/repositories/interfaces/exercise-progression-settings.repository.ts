@@ -18,6 +18,10 @@ export type UpsertUserExerciseProgressionSettingsInput = Omit<
 > & { userId: string };
 
 export interface ExerciseProgressionSettingsRepository {
+  listByUserId(
+    userId: string,
+    options?: RepositoryOptions
+  ): Promise<UserExerciseProgressionSettingsRecord[]>;
   findByUserIdAndExerciseId(
     userId: string,
     exerciseId: string,
@@ -28,4 +32,3 @@ export interface ExerciseProgressionSettingsRepository {
     options?: RepositoryOptions
   ): Promise<UserExerciseProgressionSettingsRecord>;
 }
-

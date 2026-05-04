@@ -3,9 +3,11 @@ import {
   getRepoRootFromScriptUrl,
   parseArgs,
   readLocalVercelConfig,
+  run,
   spawnVercelSync,
   resolveProjectConfig
 } from "./_lib.mjs";
+import { fileURLToPath } from "node:url";
 
 function deployProject({ label, scope, token, localConfig, branch, environment, domain, cwd }) {
   const pull = spawnVercelSync(
@@ -95,6 +97,7 @@ function main() {
 
   const doWeb = Boolean(args.web) || Boolean(args.all) || (!args.api && !args.web);
   const doApi = Boolean(args.api) || Boolean(args.all) || (!args.api && !args.web);
+  const skipMigrate = Boolean(args["skip-migrate"]) || Boolean(args.skipMigrate);
 
   if (doWeb) {
     const domain = process.env.VERCEL_WEB_STAGING_DOMAIN ?? localVercel.VERCEL_WEB_STAGING_DOMAIN;
@@ -114,6 +117,16 @@ function main() {
   if (doApi) {
     const domain = process.env.VERCEL_API_STAGING_DOMAIN ?? localVercel.VERCEL_API_STAGING_DOMAIN;
     const cfg = resolveProjectConfig({ repoRoot, project: "api" });
+
+    if (!skipMigrate) {
+      console.log("[api] running database migrations...");
+      const migrateScript = fileURLToPath(new URL("../migrate-db.mjs", import.meta.url));
+      run(process.execPath, [migrateScript, "--env-file", cfg.envFile], {
+        cwd: repoRoot,
+        env: { ...process.env }
+      });
+    }
+
     deployProject({
       label: "api",
       scope,

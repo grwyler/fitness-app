@@ -30,6 +30,7 @@ import { buildProgramDayWorkoutFromCustomSession } from "../features/workout/uti
 import {
   buildCompleteWorkoutRequest,
   getFinishWorkoutPressAction,
+  getLoggedSetUpdateErrorMessage,
   getWorkoutDiscardErrorMessage,
   getWorkoutCompletionErrorMessage,
   getWorkoutCompletionUiState
@@ -272,6 +273,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
   const completionUiState = getWorkoutCompletionUiState(workout, feedbackByEntryId, {
     hasPendingSetSave
   });
+  const isReadOnlyWorkout = workout.status !== "in_progress";
   const showFinishEarlyFeedbackWarning = completionUiState.missingEffortFeedbackCompletedExerciseCount > 0;
 
   const missingFeedbackExerciseEntryIds = new Set(
@@ -690,6 +692,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
               key={exercise.id}
               exercise={exercise}
               unitSystem={unitSystem}
+              readOnly={isReadOnlyWorkout}
               highlightMissingFeedback={showMissingFeedbackHighlights && missingFeedbackExerciseEntryIds.has(exercise.id)}
               {...(feedbackByEntryId[exercise.id]
                 ? { selectedFeedback: feedbackByEntryId[exercise.id] }
@@ -725,7 +728,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
           <AppText variant="error">Set not saved. Check the values and try again.</AppText>
         ) : null}
         {updateLoggedSetMutation.isError ? (
-          <AppText variant="error">Set not updated. Check the values and try again.</AppText>
+          <AppText variant="error">{getLoggedSetUpdateErrorMessage(updateLoggedSetMutation.error)}</AppText>
         ) : null}
         {addWorkoutSetMutation.isError ? (
           <AppText variant="error">Set not added. Try again.</AppText>

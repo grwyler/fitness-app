@@ -6,6 +6,7 @@ import {
   idempotencyRecords,
   progressMetrics,
   progressionStates,
+  programTrainingContexts,
   programs,
   sets,
   userExerciseProgressionSettings,
@@ -972,17 +973,17 @@ export const workoutHttpTestCases: HttpTestCase[] = [
           const payload = await readJson(response);
 
           assert.equal(response.status, 200);
-          assert.deepEqual(
-            payload.data.programs.map((program: { name: string }) => program.name),
-            [
-              "3-Day Full Body Beginner",
-              "4-Day Upper/Lower",
-              "4-Day Upper/Lower + Arms",
-              "5-Day Push/Pull/Legs",
-              "3-Day Strength Focus",
-              "4-Day Hypertrophy Focus"
-            ]
-          );
+          const programNames = payload.data.programs.map((program: { name: string }) => program.name);
+          assert.ok(programNames.length >= 6);
+          assert.deepEqual(programNames.slice(0, 6), [
+            "3-Day Full Body Beginner",
+            "4-Day Upper/Lower",
+            "4-Day Upper/Lower + Arms",
+            "5-Day Push/Pull/Legs",
+            "3-Day Strength Focus",
+            "4-Day Hypertrophy Focus"
+          ]);
+          assert.ok(programNames.includes("2-Day Beginner Full Body"));
           assert.equal(payload.data.programs[1].workouts.length, 4);
           assert.deepEqual(
             Array.from(
@@ -1021,6 +1022,20 @@ export const workoutHttpTestCases: HttpTestCase[] = [
           assert.equal(response.status, 201);
           assert.equal(payload.data.activeProgram.program.id, "program-1");
           assert.equal(payload.data.activeProgram.nextWorkoutTemplate.id, "template-1");
+
+          const createdUser =
+            (await context.db.select().from(users)).find((row) => row.authProviderId === "auth-user-new") ??
+            null;
+          assert.ok(createdUser);
+
+          const trainingContexts = await context.db.select().from(programTrainingContexts);
+          const contextRow =
+            trainingContexts.find(
+              (row) => row.userId === createdUser?.id && row.programId === "program-1"
+            ) ?? null;
+          assert.ok(contextRow);
+          assert.equal(contextRow?.source, "predefined");
+          assert.equal(contextRow?.coachingEnabled, false);
         } finally {
           await server.close();
         }
@@ -1374,6 +1389,162 @@ export const workoutHttpTestCases: HttpTestCase[] = [
 
           assert.equal(response.status, 400);
           assert.equal(payload.error.code, "VALIDATION_ERROR");
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "POST /api/v1/programs creates a custom program and snapshots training context",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        const server = await startHttpServer(context.db);
+
+        try {
+          const response = await fetch(`${server.baseUrl}/api/v1/programs`, {
+            method: "POST",
+            headers: createAuthHeaders({
+              "content-type": "application/json",
+              "Idempotency-Key": "create-program-with-context-key"
+            }),
+            body: JSON.stringify({
+              name: "My Custom Program",
+              workouts: [
+                {
+                  name: "Day 1",
+                  exercises: [
+                    {
+                      exerciseId: "exercise-1",
+                      targetSets: 3,
+                      targetReps: 8
+                    }
+                  ]
+                }
+              ]
+            })
+          });
+          const payload = await readJson(response);
+
+          assert.equal(response.status, 201);
+          const createdProgramId = payload.data.program.id as string;
+          assert.ok(createdProgramId);
+
+          const trainingContexts = await context.db.select().from(programTrainingContexts);
+          const contextRow =
+            trainingContexts.find((row) => row.userId === "user-1" && row.programId === createdProgramId) ??
+            null;
+          assert.ok(contextRow);
+          assert.equal(contextRow?.source, "manual");
+          assert.equal(contextRow?.coachingEnabled, false);
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "POST /api/v1/guided-program/recommend returns a recommended predefined plan",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        await seedUpperLowerArmsProgram(context);
+        const server = await startHttpServer(context.db);
+
+        try {
+          const response = await fetch(`${server.baseUrl}/api/v1/guided-program/recommend`, {
+            method: "POST",
+            headers: createAuthHeaders({
+              "content-type": "application/json"
+            }),
+            body: JSON.stringify({
+              answers: {
+                goal: "general_fitness",
+                experienceLevel: "beginner",
+                daysPerWeek: 3,
+                sessionDurationMinutes: 60,
+                equipmentAccess: "full_gym",
+                progressionAggressiveness: "balanced",
+                recoveryPreference: "adjust_when_needed"
+              }
+            })
+          });
+          const payload = await readJson(response);
+
+          assert.equal(response.status, 200);
+          assert.equal(payload.data.program.id, "program-1");
+          assert.ok(Array.isArray(payload.data.alternatives));
+          assert.ok(payload.data.alternatives.length >= 1);
+          assert.equal(payload.data.alternatives[0]?.program?.id, "program-2");
+          assert.ok(Array.isArray(payload.data.alternatives[0]?.reasons));
+          assert.ok(Array.isArray(payload.data.alternatives[0]?.warnings));
+          assert.ok(Array.isArray(payload.data.reasons));
+          assert.ok(Array.isArray(payload.data.warnings));
+          assert.equal(typeof payload.data.isExactMatch, "boolean");
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "POST /api/v1/programs/:programId/follow with guided activation stores guided context snapshots",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        const server = await startHttpServer(context.db);
+
+        try {
+          const response = await fetch(`${server.baseUrl}/api/v1/programs/program-1/follow`, {
+            method: "POST",
+            headers: {
+              Authorization: "Bearer valid-new-user-token",
+              "content-type": "application/json"
+            },
+            body: JSON.stringify({
+              activationSource: "guided",
+              guidedAnswers: {
+                goal: "strength",
+                experienceLevel: "beginner",
+                daysPerWeek: 3,
+                sessionDurationMinutes: 60,
+                equipmentAccess: "full_gym",
+                progressionAggressiveness: "balanced",
+                recoveryPreference: "adjust_when_needed"
+              },
+              guidedRecommendation: {
+                reasons: ["Matches your schedule."],
+                warnings: [],
+                isExactMatch: true
+              }
+            })
+          });
+          const payload = await readJson(response);
+
+          assert.equal(response.status, 201);
+          assert.equal(payload.data.activeProgram.program.id, "program-1");
+
+          const trainingContexts = await context.db.select().from(programTrainingContexts);
+          const contextRow =
+            trainingContexts.find((row) => row.programId === "program-1" && row.source === "guided") ??
+            null;
+          assert.ok(contextRow);
+          assert.equal(contextRow?.source, "guided");
+          assert.ok(contextRow?.guidedAnswersSnapshot);
+          assert.ok(contextRow?.guidedRecommendationSnapshot);
         } finally {
           await server.close();
         }
@@ -2477,6 +2648,46 @@ export const workoutHttpTestCases: HttpTestCase[] = [
         await disposeWorkoutInfrastructureTestContext(context);
       }
     }
+  },
+  {
+    name: "Concurrent identical idempotency requests replay safely",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        const server = await startHttpServer(context.db);
+
+        try {
+          const makeRequest = () =>
+            fetch(`${server.baseUrl}/api/v1/workout-sessions/start`, {
+              method: "POST",
+              headers: createAuthHeaders({
+                "content-type": "application/json",
+                "Idempotency-Key": "concurrent-start-http-key"
+              }),
+              body: JSON.stringify({})
+            });
+
+          const [firstResponse, secondResponse] = await Promise.all([makeRequest(), makeRequest()]);
+          const [firstPayload, secondPayload] = await Promise.all([
+            readJson(firstResponse),
+            readJson(secondResponse)
+          ]);
+
+          assert.equal(firstResponse.status, 201);
+          assert.equal(secondResponse.status, 201);
+          assert.deepEqual(secondPayload.data, firstPayload.data);
+          assert.equal(typeof firstPayload.meta.replayed, "boolean");
+          assert.equal(typeof secondPayload.meta.replayed, "boolean");
+          assert.equal(Number(firstPayload.meta.replayed) + Number(secondPayload.meta.replayed), 1);
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
   }
 ];
 
@@ -2846,6 +3057,58 @@ workoutHttpTestCases.push(
           assert.equal(dbRowUpdate.result, "increased");
           assert.equal(dbRowUpdate.previousWeight.value, 50);
           assert.equal(dbRowUpdate.nextWeight.value, 70);
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "PUT /api/v1/sets/:setId rejects edits after workout completion",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        await seedInProgressWorkout(context, {
+          setStatuses: ["completed", "completed", "completed"]
+        });
+        const server = await startHttpServer(context.db);
+
+        try {
+          const completeResponse = await fetch(`${server.baseUrl}/api/v1/workout-sessions/session-1/complete`, {
+            method: "POST",
+            headers: createAuthHeaders({
+              "content-type": "application/json",
+              "Idempotency-Key": "complete-before-set-edit-1"
+            }),
+            body: JSON.stringify({
+              completedAt: "2026-04-24T10:25:00.000Z",
+              exerciseFeedback: [{ exerciseEntryId: "entry-1", effortFeedback: "just_right" }]
+            })
+          });
+
+          assert.equal(completeResponse.status, 200);
+
+          const updateResponse = await fetch(`${server.baseUrl}/api/v1/sets/set-1`, {
+            method: "PUT",
+            headers: createAuthHeaders({
+              "content-type": "application/json",
+              "Idempotency-Key": "update-completed-set-http-1"
+            }),
+            body: JSON.stringify({
+              actualReps: 7,
+              actualWeight: { value: 135, unit: "lb" },
+              completedAt: "2026-04-24T10:50:00.000Z"
+            })
+          });
+          const updatePayload = await readJson(updateResponse);
+
+          assert.equal(updateResponse.status, 409);
+          assert.equal(updatePayload.error.code, "COMPLETED_WORKOUT_READ_ONLY");
+          assert.equal(updatePayload.error.message, "Completed workouts are read-only for now.");
         } finally {
           await server.close();
         }

@@ -15,6 +15,7 @@ export type ApiErrorCode =
   | "NOT_FOUND"
   | "RATE_LIMITED"
   | "CONFLICT"
+  | "COMPLETED_WORKOUT_READ_ONLY"
   | "BUSINESS_RULE_VIOLATION"
   | "INTERNAL_ERROR";
 

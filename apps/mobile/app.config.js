@@ -2,6 +2,9 @@ const fs = require("fs");
 const path = require("path");
 
 const baseConfig = require("./app.json");
+const rootPackageJson = require(
+  path.resolve(__dirname, "..", "..", "package.json"),
+);
 
 function parseEnvFile(filePath) {
   if (!fs.existsSync(filePath)) {
@@ -43,20 +46,20 @@ function resolveEnvValue(name, options = {}) {
     path.resolve(__dirname, ".env.local"),
     path.resolve(__dirname, ".env"),
     path.resolve(__dirname, "..", "..", ".env.local"),
-    path.resolve(__dirname, "..", "..", ".env")
+    path.resolve(__dirname, "..", "..", ".env"),
   ];
 
   if (process.env[name]) {
     return {
       source: "process.env",
-      value: process.env[name]
+      value: process.env[name],
     };
   }
 
   if (options.skipEnvFiles) {
     return {
       source: null,
-      value: undefined
+      value: undefined,
     };
   }
 
@@ -66,14 +69,14 @@ function resolveEnvValue(name, options = {}) {
     if (parsed[name]) {
       return {
         source: filePath,
-        value: parsed[name]
+        value: parsed[name],
       };
     }
   }
 
   return {
     source: null,
-    value: undefined
+    value: undefined,
   };
 }
 
@@ -96,7 +99,7 @@ function assertProductionApiBaseUrl(apiBaseUrl, source) {
 
   if (!apiBaseUrl) {
     failConfig(
-      `Missing EXPO_PUBLIC_API_BASE_URL.${sourceLabel} Production web builds require https://setwiseapi.vercel.app/api/v1. Add it to the Vercel web project Production environment.`
+      `Missing EXPO_PUBLIC_API_BASE_URL.${sourceLabel} Production web builds require https://setwiseapi.vercel.app/api/v1. Add it to the Vercel web project Production environment.`,
     );
   }
 
@@ -105,49 +108,98 @@ function assertProductionApiBaseUrl(apiBaseUrl, source) {
     parsedUrl = new URL(apiBaseUrl);
   } catch {
     failConfig(
-      `Invalid EXPO_PUBLIC_API_BASE_URL.${sourceLabel} Expected https URL ending in /api/v1; received ${apiBaseUrl}.`
+      `Invalid EXPO_PUBLIC_API_BASE_URL.${sourceLabel} Expected https URL ending in /api/v1; received ${apiBaseUrl}.`,
     );
   }
 
   if (parsedUrl.protocol !== "https:") {
     failConfig(
-      `Invalid EXPO_PUBLIC_API_BASE_URL.${sourceLabel} Expected https URL ending in /api/v1; received ${apiBaseUrl}.`
+      `Invalid EXPO_PUBLIC_API_BASE_URL.${sourceLabel} Expected https URL ending in /api/v1; received ${apiBaseUrl}.`,
     );
   }
 
   if (["localhost", "127.0.0.1", "10.0.2.2"].includes(parsedUrl.hostname)) {
     failConfig(
-      `Invalid EXPO_PUBLIC_API_BASE_URL.${sourceLabel} Production web builds must not point to localhost; received ${apiBaseUrl}.`
+      `Invalid EXPO_PUBLIC_API_BASE_URL.${sourceLabel} Production web builds must not point to localhost; received ${apiBaseUrl}.`,
     );
   }
 
   if (!parsedUrl.pathname.replace(/\/+$/, "").endsWith("/api/v1")) {
     failConfig(
-      `Invalid EXPO_PUBLIC_API_BASE_URL.${sourceLabel} Expected URL path to end in /api/v1; received ${apiBaseUrl}.`
+      `Invalid EXPO_PUBLIC_API_BASE_URL.${sourceLabel} Expected URL path to end in /api/v1; received ${apiBaseUrl}.`,
     );
   }
 }
 
 module.exports = () => {
   const expoConfig = baseConfig.expo ?? {};
-  const isVercelBuild = Boolean(process.env.VERCEL_ENV);
+  const appVersion =
+    typeof rootPackageJson.version === "string"
+      ? rootPackageJson.version.trim()
+      : "";
+  if (!appVersion) {
+    failConfig(
+      "Unable to resolve app version from the repo root package.json.",
+    );
+  }
+
   const isProductionBuild = process.env.VERCEL_ENV === "production";
-  const apiBaseUrlResult = resolveEnvValue("EXPO_PUBLIC_API_BASE_URL", { skipEnvFiles: isVercelBuild });
-  const apiBaseUrl = apiBaseUrlResult.value ?? inferDefaultApiBaseUrl();
+  const resolveOptions = { skipEnvFiles: isProductionBuild };
+  const apiBaseUrlResult = resolveEnvValue(
+    "EXPO_PUBLIC_API_BASE_URL",
+    resolveOptions,
+  );
+  const apiBaseUrl = apiBaseUrlResult.value;
+  const sentryDsnResult = resolveEnvValue(
+    "EXPO_PUBLIC_SENTRY_DSN",
+    resolveOptions,
+  );
+  const sentryEnvironmentResult = resolveEnvValue(
+    "EXPO_PUBLIC_SENTRY_ENVIRONMENT",
+    resolveOptions,
+  );
+  const sentryReleaseResult = resolveEnvValue(
+    "EXPO_PUBLIC_SENTRY_RELEASE",
+    resolveOptions,
+  );
+  const observabilityEnabledResult = resolveEnvValue(
+    "EXPO_PUBLIC_OBSERVABILITY_ENABLED",
+    resolveOptions,
+  );
 
   if (isProductionBuild) {
-    assertProductionApiBaseUrl(apiBaseUrl, apiBaseUrlResult.source ?? "default");
+    assertProductionApiBaseUrl(
+      apiBaseUrl,
+      apiBaseUrlResult.source ?? "default",
+    );
   }
 
   if (apiBaseUrl) {
     process.env.EXPO_PUBLIC_API_BASE_URL = apiBaseUrl;
   }
+  if (sentryDsnResult.value) {
+    process.env.EXPO_PUBLIC_SENTRY_DSN = sentryDsnResult.value;
+  }
+  if (sentryEnvironmentResult.value) {
+    process.env.EXPO_PUBLIC_SENTRY_ENVIRONMENT = sentryEnvironmentResult.value;
+  }
+  if (sentryReleaseResult.value) {
+    process.env.EXPO_PUBLIC_SENTRY_RELEASE = sentryReleaseResult.value;
+  }
+  if (observabilityEnabledResult.value) {
+    process.env.EXPO_PUBLIC_OBSERVABILITY_ENABLED =
+      observabilityEnabledResult.value;
+  }
+
+  process.env.EXPO_PUBLIC_APP_VERSION = appVersion;
 
   return {
     ...expoConfig,
+    version: appVersion,
     extra: {
       ...expoConfig.extra,
-      apiBaseUrl
-    }
+      apiBaseUrl,
+      appVersion,
+    },
   };
 };

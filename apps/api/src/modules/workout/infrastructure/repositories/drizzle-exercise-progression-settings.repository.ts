@@ -1,5 +1,5 @@
 import { userExerciseProgressionSettings } from "@fitness/db";
-import { and, eq, normalizeNullableNumeric, resolveExecutor } from "../db/drizzle-helpers.js";
+import { and, asc, eq, normalizeNullableNumeric, resolveExecutor } from "../db/drizzle-helpers.js";
 import type {
   ExerciseProgressionSettingsRepository,
   UpsertUserExerciseProgressionSettingsInput,
@@ -22,6 +22,30 @@ function mapRow(row: any): UserExerciseProgressionSettingsRecord {
 
 export class DrizzleExerciseProgressionSettingsRepository implements ExerciseProgressionSettingsRepository {
   public constructor(private readonly db: any) {}
+
+  public async listByUserId(
+    userId: string,
+    options?: RepositoryOptions
+  ): Promise<UserExerciseProgressionSettingsRecord[]> {
+    const executor = resolveExecutor(this.db, options);
+
+    const rows = await executor
+      .select({
+        userId: userExerciseProgressionSettings.userId,
+        exerciseId: userExerciseProgressionSettings.exerciseId,
+        progressionStrategy: userExerciseProgressionSettings.progressionStrategy,
+        repRangeMin: userExerciseProgressionSettings.repRangeMin,
+        repRangeMax: userExerciseProgressionSettings.repRangeMax,
+        incrementOverrideLbs: userExerciseProgressionSettings.incrementOverrideLbs,
+        maxJumpPerSessionLbs: userExerciseProgressionSettings.maxJumpPerSessionLbs,
+        bodyweightProgressionMode: userExerciseProgressionSettings.bodyweightProgressionMode
+      })
+      .from(userExerciseProgressionSettings)
+      .where(eq(userExerciseProgressionSettings.userId, userId))
+      .orderBy(asc(userExerciseProgressionSettings.exerciseId));
+
+    return rows.map(mapRow);
+  }
 
   public async findByUserIdAndExerciseId(
     userId: string,
@@ -98,4 +122,3 @@ export class DrizzleExerciseProgressionSettingsRepository implements ExercisePro
     return created;
   }
 }
-

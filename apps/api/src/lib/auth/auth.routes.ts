@@ -282,6 +282,7 @@ export function createPublicAuthRouter(database: DatabaseLike) {
       }
 
       const now = new Date();
+      const tokensInvalidBefore = new Date(Math.floor(now.getTime() / 1000) * 1000);
       const tokenHash = hashPasswordResetToken(parsed.data.token);
       const passwordHash = await hashPassword(parsed.data.password);
 
@@ -310,6 +311,7 @@ export function createPublicAuthRouter(database: DatabaseLike) {
           .update(users)
           .set({
             passwordHash,
+            tokensInvalidBefore,
             updatedAt: now
           })
           .where(eq(users.id, tokenRow.userId));

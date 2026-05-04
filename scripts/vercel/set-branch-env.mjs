@@ -18,6 +18,7 @@ function usageAndExit() {
       "Examples:",
       "  node scripts/vercel/set-branch-env.mjs --project api --var EMAIL_PROVIDER=resend",
       "  node scripts/vercel/set-branch-env.mjs --project api --var JWT_SECRET --value-from-stdin",
+      "  node scripts/vercel/set-branch-env.mjs --project web --env production --var EXPO_PUBLIC_API_BASE_URL=https://...",
       "",
       "Notes:",
       "- Secrets: prefer `--var KEY` + `--value-from-stdin` and pipe the value via stdin, or use `push-staging-env.mjs` with a local ignored env file.",
@@ -39,7 +40,7 @@ function normalizeVarSpec(spec) {
 
 function spawnVercelWithInput({ args, value, extraEnv, cwd }) {
   const child = spawnVercelSync(args, {
-    input: `${value}\n`,
+    input: value,
     encoding: "utf8",
     stdio: ["pipe", "inherit", "inherit"],
     env: { ...process.env, ...(extraEnv ?? {}) },
@@ -115,8 +116,26 @@ function main() {
 
     const sensitiveArgs = looksSensitiveKey(key) ? ["--sensitive"] : [];
 
-    const updateArgs = ["env", "update", key, environment, branch, "--yes", ...sensitiveArgs, ...globalArgs];
-    const addArgs = ["env", "add", key, environment, branch, ...sensitiveArgs, ...globalArgs];
+    const includeBranch = environment === "preview";
+    const updateArgs = [
+      "env",
+      "update",
+      key,
+      environment,
+      ...(includeBranch ? [branch] : []),
+      "--yes",
+      ...sensitiveArgs,
+      ...globalArgs
+    ];
+    const addArgs = [
+      "env",
+      "add",
+      key,
+      environment,
+      ...(includeBranch ? [branch] : []),
+      ...sensitiveArgs,
+      ...globalArgs
+    ];
 
     const updateResult = spawnVercelWithInput({
       args: updateArgs,

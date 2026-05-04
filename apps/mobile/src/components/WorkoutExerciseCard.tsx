@@ -36,6 +36,7 @@ function formatFeedbackLabel(feedback: EffortFeedback) {
 export function WorkoutExerciseCard(props: {
   exercise: ExerciseEntryDto;
   unitSystem: UnitSystem;
+  readOnly?: boolean;
   selectedFeedback?: EffortFeedback;
   highlightMissingFeedback?: boolean;
   loggingSetId?: string | null;
@@ -54,6 +55,7 @@ export function WorkoutExerciseCard(props: {
   onUpdateLoggedSet: (exercise: ExerciseEntryDto, set: SetDto, draft: SetLogDraft) => void;
   onSelectFeedback: (feedback: EffortFeedback) => void;
 }) {
+  const readOnly = props.readOnly === true;
   const maxSetNumber = props.exercise.sets.reduce(
     (maxNumber, set) => Math.max(maxNumber, set.setNumber),
     0
@@ -111,7 +113,7 @@ export function WorkoutExerciseCard(props: {
             actualWeightValue: validation.actualWeight?.value ?? null,
             targetWeightValue: set.targetWeight.value
           });
-          const canSubmit = (isPending || isEditing) && request !== null && !isLogging;
+          const canSubmit = (isPending || isEditing) && request !== null && !isLogging && !readOnly;
           const previousWeight = previousSet?.actualWeight?.value ?? null;
           const loggedOutcomeText = !isPending
             ? getSetOutcomeText({
@@ -160,7 +162,7 @@ export function WorkoutExerciseCard(props: {
                         {getSetStatusLabel(set)}
                       </AppText>
                     ) : null}
-                    {canDeleteSet ? (
+                    {canDeleteSet && !readOnly ? (
                       <InlineTextButton
                         label={isDeleting ? "Removing..." : "Remove"}
                         disabled={isLogging || isDeleting}
@@ -168,7 +170,7 @@ export function WorkoutExerciseCard(props: {
                         tone="danger"
                       />
                     ) : null}
-                    {!isPending ? (
+                    {!isPending && !readOnly ? (
                       <InlineTextButton
                         label={isEditing ? "Cancel" : "Edit"}
                         disabled={isLogging || isDeleting}
@@ -190,7 +192,7 @@ export function WorkoutExerciseCard(props: {
                     <SetMetricInput
                       label="Reps"
                       accessibilityLabel={`Set ${set.setNumber} reps`}
-                      disabled={isLogging}
+                      disabled={isLogging || readOnly}
                       error={Boolean(validation.error)}
                       inputMode="numeric"
                       keyboardType="number-pad"
@@ -233,7 +235,7 @@ export function WorkoutExerciseCard(props: {
                     <SetMetricInput
                       label={`Load (${unitLabel})`}
                       accessibilityLabel={`Set ${set.setNumber} load`}
-                      disabled={isLogging}
+                      disabled={isLogging || readOnly}
                       error={Boolean(validation.error)}
                       helperRight={
                         previousWeight !== null ? (
@@ -270,7 +272,7 @@ export function WorkoutExerciseCard(props: {
                         <Pressable
                           key={delta}
                           accessibilityRole="button"
-                          disabled={isLogging}
+                          disabled={isLogging || readOnly}
                           onPress={() =>
                             props.onChangeSetLogDraft(set.id, {
                               ...draft,
@@ -282,8 +284,8 @@ export function WorkoutExerciseCard(props: {
                           }
                           style={({ pressed }) => [
                             styles.adjustButton,
-                            isLogging ? styles.disabled : null,
-                            pressed && !isLogging ? styles.adjustButtonPressed : null
+                            isLogging || readOnly ? styles.disabled : null,
+                            pressed && !(isLogging || readOnly) ? styles.adjustButtonPressed : null
                           ]}
                         >
                           <AppText variant="meta" tone="secondary" style={styles.adjustButtonLabel}>
@@ -348,7 +350,7 @@ export function WorkoutExerciseCard(props: {
         label={props.addingSet ? "Adding set..." : "Add set"}
         variant="secondary"
         onPress={() => props.onAddSet(props.exercise)}
-        disabled={props.addingSet}
+        disabled={props.addingSet || readOnly}
         loading={props.addingSet}
       />
 
@@ -370,6 +372,7 @@ export function WorkoutExerciseCard(props: {
                 onPress={() => props.onSelectFeedback(option)}
                 selected={selected}
                 variant={selected ? "selected" : "muted"}
+                disabled={readOnly}
               />
             );
           })}

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { seedPrograms } from "@fitness/db";
 import { bootstrapDevelopmentDatabase, DEV_USER_ID } from "../../../../lib/db/dev-bootstrap.js";
 import { createPgliteClient } from "../../../../lib/db/connection.js";
 import { WorkoutApplicationError } from "../../application/errors/workout-application.error.js";
@@ -6,6 +7,7 @@ import { CompleteWorkoutSessionUseCase } from "../../application/use-cases/compl
 import { CreateCustomProgramUseCase } from "../../application/use-cases/create-custom-program.use-case.js";
 import { LogSetUseCase } from "../../application/use-cases/log-set.use-case.js";
 import { StartWorkoutSessionUseCase } from "../../application/use-cases/start-workout-session.use-case.js";
+import { UpdateLoggedSetUseCase } from "../../application/use-cases/update-logged-set.use-case.js";
 import { UpdateCustomProgramUseCase } from "../../application/use-cases/update-custom-program.use-case.js";
 import type { InfrastructureTestCase } from "../test-helpers/infrastructure-test-case.js";
 import { eq } from "../db/drizzle-helpers.js";
@@ -56,6 +58,9 @@ async function createAndEnrollCustomProgram(input: {
 }) {
   const createUseCase = new CreateCustomProgramUseCase(
     input.context.repositories.programRepository,
+    input.context.repositories.trainingSettingsRepository,
+    input.context.repositories.exerciseProgressionSettingsRepository,
+    input.context.repositories.programTrainingContextRepository,
     input.context.transactionManager,
     input.context.repositories.idempotencyRepository
   );
@@ -177,17 +182,16 @@ export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[]
           "select name from programs where is_active = true and deleted_at is null order by created_at"
         )) as { rows: Array<{ name: string }> };
 
-        assert.deepEqual(
-          programRows.rows.map((row) => row.name),
-          [
-            "3-Day Full Body Beginner",
-            "4-Day Upper/Lower",
-            "4-Day Upper/Lower + Arms",
-            "5-Day Push/Pull/Legs",
-            "3-Day Strength Focus",
-            "4-Day Hypertrophy Focus"
-          ]
-        );
+        const bootstrappedNames = programRows.rows.map((row) => row.name);
+        assert.deepEqual(bootstrappedNames.slice(0, 6), [
+          "3-Day Full Body Beginner",
+          "4-Day Upper/Lower",
+          "4-Day Upper/Lower + Arms",
+          "5-Day Push/Pull/Legs",
+          "3-Day Strength Focus",
+          "4-Day Hypertrophy Focus"
+        ]);
+        assert.ok(bootstrappedNames.includes("2-Day Beginner Full Body"));
 
         await client.query(
           `update workout_template_exercise_entries
@@ -267,17 +271,11 @@ export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[]
           ["99999999-9999-9999-9999-999999999901"]
         )) as { rows: Array<{ program_id: string; template_id: string; entry_id: string }> };
 
+        const actualNames = programRows.rows.map((row) => row.name);
+        const expectedNames = [...seedPrograms.map((program) => program.name), "User Custom Program"];
         assert.deepEqual(
-          programRows.rows.map((row) => row.name),
-          [
-            "3-Day Full Body Beginner",
-            "4-Day Upper/Lower",
-            "4-Day Upper/Lower + Arms",
-            "5-Day Push/Pull/Legs",
-            "3-Day Strength Focus",
-            "4-Day Hypertrophy Focus",
-            "User Custom Program"
-          ]
+          [...actualNames].sort((a, b) => a.localeCompare(b)),
+          [...expectedNames].sort((a, b) => a.localeCompare(b))
         );
         assert.equal(activeEnrollmentRows.rows.length, 1);
         assert.equal(activeEnrollmentRows.rows[0]?.program_id, "22222222-2222-2222-2222-222222222223");
@@ -1660,6 +1658,240 @@ export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[]
 
         assert.equal(history[0]?.id, "session-completed-later");
         assert.equal(history[1]?.id, "session-started-later");
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "Can update a logged set while the workout session is in_progress",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        await seedInProgressWorkout(context, {
+          setStatuses: ["completed", "completed", "completed"],
+          actualReps: [8, 8, 8]
+        });
+
+        const useCase = new UpdateLoggedSetUseCase(
+          context.repositories.workoutSessionRepository,
+          context.transactionManager,
+          context.repositories.idempotencyRepository
+        );
+
+        await useCase.execute({
+          context: { userId: "user-1", unitSystem: "imperial" },
+          setId: "set-1",
+          request: {
+            actualReps: 7,
+            actualWeight: { value: 135, unit: "lb" },
+            completedAt: "2026-04-24T10:12:00.000Z"
+          },
+          idempotencyKey: "update-in-progress-set-1"
+        });
+
+        const [updatedSet] = await context.db.select().from(sets).where(eq(sets.id, "set-1"));
+        assert.equal(updatedSet?.actualReps, 7);
+        assert.equal(updatedSet?.actualWeightLbs, "135.00");
+        assert.equal(updatedSet?.status, "failed");
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "Cannot update a logged set when the parent workout session is completed",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+
+        const completed = await startAndCompleteWorkout({
+          context,
+          userId: "user-1",
+          templateId: "template-1",
+          idempotencyKey: "complete-before-edit"
+        });
+
+        const setId = completed.started.exercises[0]?.sets[0]?.id;
+        assert.ok(setId);
+
+        const useCase = new UpdateLoggedSetUseCase(
+          context.repositories.workoutSessionRepository,
+          context.transactionManager,
+          context.repositories.idempotencyRepository
+        );
+
+        await assert.rejects(
+          () =>
+            useCase.execute({
+              context: { userId: "user-1", unitSystem: "imperial" },
+              setId,
+              request: {
+                actualReps: 7,
+                actualWeight: { value: 135, unit: "lb" },
+                completedAt: "2026-04-24T10:50:00.000Z"
+              },
+              idempotencyKey: "update-completed-set-1"
+            }),
+          (error: unknown) =>
+            error instanceof WorkoutApplicationError && error.code === "COMPLETED_WORKOUT_READ_ONLY"
+        );
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "Rejected completed-session set update does not change set data",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+
+        const completed = await startAndCompleteWorkout({
+          context,
+          userId: "user-1",
+          templateId: "template-1",
+          idempotencyKey: "complete-before-edit-no-set-change"
+        });
+
+        const setId = completed.started.exercises[0]?.sets[0]?.id;
+        assert.ok(setId);
+
+        const [beforeSet] = await context.db.select().from(sets).where(eq(sets.id, setId));
+        assert.ok(beforeSet);
+
+        const useCase = new UpdateLoggedSetUseCase(
+          context.repositories.workoutSessionRepository,
+          context.transactionManager,
+          context.repositories.idempotencyRepository
+        );
+
+        await assert.rejects(
+          () =>
+            useCase.execute({
+              context: { userId: "user-1", unitSystem: "imperial" },
+              setId,
+              request: {
+                actualReps: 1,
+                actualWeight: { value: 45, unit: "lb" },
+                completedAt: "2026-04-24T10:55:00.000Z"
+              },
+              idempotencyKey: "update-completed-set-no-set-change"
+            }),
+          (error: unknown) =>
+            error instanceof WorkoutApplicationError && error.code === "COMPLETED_WORKOUT_READ_ONLY"
+        );
+
+        const [afterSet] = await context.db.select().from(sets).where(eq(sets.id, setId));
+        assert.deepEqual(afterSet, beforeSet);
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "Rejected completed-session set update does not change progression state",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+
+        const completed = await startAndCompleteWorkout({
+          context,
+          userId: "user-1",
+          templateId: "template-1",
+          idempotencyKey: "complete-before-edit-no-progression-change"
+        });
+
+        const setId = completed.started.exercises[0]?.sets[0]?.id;
+        assert.ok(setId);
+
+        const progressionBefore = await context.db.select().from(progressionStates);
+        const progressionV2Before = await context.db.select().from(progressionStatesV2);
+
+        const useCase = new UpdateLoggedSetUseCase(
+          context.repositories.workoutSessionRepository,
+          context.transactionManager,
+          context.repositories.idempotencyRepository
+        );
+
+        await assert.rejects(
+          () =>
+            useCase.execute({
+              context: { userId: "user-1", unitSystem: "imperial" },
+              setId,
+              request: {
+                actualReps: 1,
+                actualWeight: { value: 45, unit: "lb" },
+                completedAt: "2026-04-24T10:56:00.000Z"
+              },
+              idempotencyKey: "update-completed-set-no-progression-change"
+            }),
+          (error: unknown) =>
+            error instanceof WorkoutApplicationError && error.code === "COMPLETED_WORKOUT_READ_ONLY"
+        );
+
+        const progressionAfter = await context.db.select().from(progressionStates);
+        const progressionV2After = await context.db.select().from(progressionStatesV2);
+
+        assert.deepEqual(progressionAfter, progressionBefore);
+        assert.deepEqual(progressionV2After, progressionV2Before);
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "Rejected completed-session set update does not create recommendation events",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+
+        const completed = await startAndCompleteWorkout({
+          context,
+          userId: "user-1",
+          templateId: "template-1",
+          idempotencyKey: "complete-before-edit-no-rec-event"
+        });
+
+        const setId = completed.started.exercises[0]?.sets[0]?.id;
+        assert.ok(setId);
+
+        const recommendationEventsBefore = await context.db.select().from(progressionRecommendationEvents);
+
+        const useCase = new UpdateLoggedSetUseCase(
+          context.repositories.workoutSessionRepository,
+          context.transactionManager,
+          context.repositories.idempotencyRepository
+        );
+
+        await assert.rejects(
+          () =>
+            useCase.execute({
+              context: { userId: "user-1", unitSystem: "imperial" },
+              setId,
+              request: {
+                actualReps: 1,
+                actualWeight: { value: 45, unit: "lb" },
+                completedAt: "2026-04-24T10:57:00.000Z"
+              },
+              idempotencyKey: "update-completed-set-no-rec-event"
+            }),
+          (error: unknown) =>
+            error instanceof WorkoutApplicationError && error.code === "COMPLETED_WORKOUT_READ_ONLY"
+        );
+
+        const recommendationEventsAfter = await context.db.select().from(progressionRecommendationEvents);
+        assert.equal(recommendationEventsAfter.length, recommendationEventsBefore.length);
       } finally {
         await disposeWorkoutInfrastructureTestContext(context);
       }

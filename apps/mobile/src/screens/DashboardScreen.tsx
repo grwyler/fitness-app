@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import type { ProgramDto } from "@fitness/shared";
+import { useEffect, useMemo, useState } from "react";
+import type { GuidedProgramAnswers, ProgramDto } from "@fitness/shared";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Alert, Platform, ScrollView, StyleSheet, View } from "react-native";
 import { AppText } from "../components/AppText";
@@ -34,16 +34,31 @@ import { colors, radius, spacing } from "../theme/tokens";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Dashboard">;
 
-export function DashboardScreen({ navigation }: Props) {
+export function DashboardScreen({ navigation, route }: Props) {
   const [isProgramPickerOpen, setIsProgramPickerOpen] = useState(false);
   const [isCurrentProgramWorkoutPickerOpen, setIsCurrentProgramWorkoutPickerOpen] = useState(false);
   const [selectedStartingWorkoutId, setSelectedStartingWorkoutId] = useState<string | null>(null);
+  const [guidedCatalogAnswers, setGuidedCatalogAnswers] = useState<GuidedProgramAnswers | null>(null);
   const auth = useAppAuth();
   const dashboardQuery = useDashboard();
   const programsQuery = usePrograms(Boolean(dashboardQuery.data));
   const followProgramMutation = useFollowProgram();
   const startWorkoutMutation = useStartWorkout();
   const [lastAction, setLastAction] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!route.params?.openProgramPicker) {
+      return;
+    }
+
+    setGuidedCatalogAnswers(route.params.guidedAnswers ?? null);
+    setIsProgramPickerOpen(true);
+
+    navigation.setParams({
+      openProgramPicker: undefined,
+      guidedAnswers: undefined
+    });
+  }, [navigation, route.params?.guidedAnswers, route.params?.openProgramPicker]);
 
   if (dashboardQuery.isLoading) {
     return (
@@ -82,6 +97,12 @@ export function DashboardScreen({ navigation }: Props) {
   });
   const isStartingRecommendedWorkout =
     startWorkoutMutation.isPending && selectedStartingWorkoutId === nextWorkout?.id;
+
+  const programPickerTitle = guidedCatalogAnswers
+    ? "Browse programs"
+    : activeProgram
+      ? "Switch program"
+      : "Choose a plan";
 
   function startCurrentProgramWorkout(choice: CurrentProgramWorkoutChoice) {
     setLastAction(`start_current_program_workout:${choice.workout.id}`);
@@ -224,12 +245,21 @@ export function DashboardScreen({ navigation }: Props) {
             </AppText>
           ) : null}
           <PrimaryButton
-            label={programSectionActionLabels[0] ?? "Change Program"}
+            label={programSectionActionLabels[0] ?? "Switch Program"}
             tone="secondary"
             disabled={Boolean(activeWorkout)}
             onPress={() => {
-              setLastAction("change_program");
+              setLastAction("switch_program");
               setIsProgramPickerOpen(true);
+            }}
+          />
+          <PrimaryButton
+            label="Get a Recommended Plan"
+            tone="secondary"
+            disabled={Boolean(activeWorkout)}
+            onPress={() => {
+              setLastAction("guided_recommendation");
+              navigation.navigate("GuidedProgramSetup");
             }}
           />
           <PrimaryButton
@@ -258,18 +288,23 @@ export function DashboardScreen({ navigation }: Props) {
             Pick a predefined program or build a simple weekly plan from existing workouts.
           </AppText>
           <PrimaryButton
-            label={programSectionActionLabels[1] ?? "Create Program"}
+            label="Get a Recommended Plan"
             variant="primary"
-            onPress={() => navigation.navigate("CreateProgram")}
+            onPress={() => navigation.navigate("GuidedProgramSetup")}
           />
           <PrimaryButton
-            label={programSectionActionLabels[0] ?? "Choose Program"}
+            label={programSectionActionLabels[0] ?? "Choose Ready-Made Plan"}
             variant="secondary"
             disabled={Boolean(activeWorkout || programsQuery.isLoading)}
             onPress={() => {
               setLastAction("choose_program");
               setIsProgramPickerOpen(true);
             }}
+          />
+          <PrimaryButton
+            label={programSectionActionLabels[1] ?? "Build My Own Program"}
+            variant="secondary"
+            onPress={() => navigation.navigate("CreateProgram")}
           />
         </Card>
       ) : null}
@@ -328,14 +363,20 @@ export function DashboardScreen({ navigation }: Props) {
         loadingPrograms={programsQuery.isLoading}
         programs={availablePrograms}
         selectingProgram={followProgramMutation.isPending}
+        title={programPickerTitle}
         visible={isProgramPickerOpen}
-        onClose={() => setIsProgramPickerOpen(false)}
+        onClose={() => {
+          setIsProgramPickerOpen(false);
+          setGuidedCatalogAnswers(null);
+        }}
         onCreateProgram={() => {
           setIsProgramPickerOpen(false);
+          setGuidedCatalogAnswers(null);
           navigation.navigate("CreateProgram");
         }}
         onEditProgram={(programId) => {
           setIsProgramPickerOpen(false);
+          setGuidedCatalogAnswers(null);
           const program = availablePrograms.find((item) => item.id === programId) ?? null;
           if (program?.source === "custom") {
             navigation.navigate("CreateProgram", { editProgramId: programId });
@@ -346,8 +387,21 @@ export function DashboardScreen({ navigation }: Props) {
         }}
         onSelectProgram={(programId) => {
           setLastAction("switch_program");
-          followProgramMutation.mutate(programId, {
-            onSuccess: () => setIsProgramPickerOpen(false)
+          followProgramMutation.mutate(
+            guidedCatalogAnswers
+              ? {
+                  programId,
+                  request: {
+                    activationSource: "guided",
+                    guidedAnswers: guidedCatalogAnswers
+                  }
+                }
+              : programId,
+            {
+              onSuccess: () => {
+                setIsProgramPickerOpen(false);
+                setGuidedCatalogAnswers(null);
+              }
           });
         }}
       />
@@ -458,6 +512,7 @@ function ProgramPickerModal(props: {
   loadingPrograms: boolean;
   programs: ProgramDto[];
   selectingProgram: boolean;
+  title: string;
   visible: boolean;
   onClose: () => void;
   onCreateProgram: () => void;
@@ -554,7 +609,7 @@ function ProgramPickerModal(props: {
       }
       onClose={props.onClose}
       subtitle="Programs"
-      title="Change program"
+      title={props.title}
       visible={props.visible}
     >
           <ScrollView contentContainerStyle={styles.programChoiceList}>
@@ -719,7 +774,7 @@ function ProgramPickerModal(props: {
           {props.errorMessage}
         </AppText>
       ) : null}
-      <PrimaryButton label="Create Program" tone="secondary" onPress={props.onCreateProgram} />
+      <PrimaryButton label="Build My Own Program" tone="secondary" onPress={props.onCreateProgram} />
     </ModalSheet>
   );
 }

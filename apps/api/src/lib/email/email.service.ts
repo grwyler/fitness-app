@@ -43,9 +43,20 @@ function createEmailService(): EmailService {
         recordPasswordResetEmail(input);
 
         if (env.EMAIL_PROVIDER === "console") {
+          let redactedResetLink = "[REDACTED]";
+          try {
+            const url = new URL(input.resetLink);
+            if (url.searchParams.has("token")) {
+              url.searchParams.set("token", "[REDACTED]");
+            }
+            redactedResetLink = url.toString();
+          } catch {
+            // Ignore URL parsing failures; never log raw reset tokens.
+          }
+
           logger.info("password_reset_email", {
             to: input.to,
-            resetLink: input.resetLink
+            resetLink: redactedResetLink
           });
         }
       }

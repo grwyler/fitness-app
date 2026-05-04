@@ -8,8 +8,12 @@ import type { ProgressMetricRepository } from "../../repositories/interfaces/pro
 import type { ProgressionStateRepository } from "../../repositories/interfaces/progression-state.repository.js";
 import type { ProgressionStateV2Repository } from "../../repositories/interfaces/progression-state-v2.repository.js";
 import type { ProgressionRecommendationEventRepository } from "../../repositories/interfaces/progression-recommendation-event.repository.js";
+import type { ExerciseProgressionSettingsRepository } from "../../repositories/interfaces/exercise-progression-settings.repository.js";
+import type { ProgramTrainingContextRepository } from "../../repositories/interfaces/program-training-context.repository.js";
+import type { TrainingSettingsRepository } from "../../repositories/interfaces/training-settings.repository.js";
 import type { WorkoutSessionRepository } from "../../repositories/interfaces/workout-session.repository.js";
 import type { IdempotencyRecord } from "../../repositories/models/idempotency.persistence.js";
+import { IdempotencyScopeConflictError } from "../../repositories/models/idempotency.persistence.js";
 import type { ProgressionStateV2Record } from "../../repositories/models/progression-state-v2.persistence.js";
 import type { WorkoutSessionGraph } from "../../repositories/models/workout-session.persistence.js";
 import {
@@ -17,8 +21,10 @@ import {
   CUSTOM_WORKOUT_TEMPLATE_ID
 } from "../../domain/models/custom-workout.js";
 import { WorkoutApplicationError } from "../errors/workout-application.error.js";
+import { recommendGuidedProgram } from "../services/guided-program-recommendation.service.js";
 import { MockTransactionManager } from "../test-helpers/mock-transaction-manager.js";
 import type { ApplicationTestCase } from "../test-helpers/application-test-case.js";
+import type { ProgramDefinition } from "../../repositories/models/program.persistence.js";
 import { CompleteWorkoutSessionUseCase } from "./complete-workout-session.use-case.js";
 import { CreateCustomProgramUseCase } from "./create-custom-program.use-case.js";
 import { FollowProgramUseCase } from "./follow-program.use-case.js";
@@ -122,6 +128,10 @@ function createMockIdempotencyRepository() {
     },
     async createPending(input) {
       const key = `${input.scope.userId}:${input.scope.routeFamily}:${input.scope.targetResourceId ?? "none"}:${input.scope.key}`;
+      if (records.has(key)) {
+        throw new IdempotencyScopeConflictError(input.scope);
+      }
+
       const record: IdempotencyRecord = {
         id: `idempotency-${records.size + 1}`,
         userId: input.scope.userId,
@@ -194,7 +204,7 @@ function createMockProgressionStateV2Repository(input?: {
 
 const defaultProgressionStateV2Repository = createMockProgressionStateV2Repository();
 
-function createProgramDefinition() {
+function createProgramDefinition(): ProgramDefinition {
   return {
     program: {
       id: "program-1",
@@ -215,6 +225,7 @@ function createProgramDefinition() {
         id: "template-1",
         programId: "program-1",
         name: "Workout A",
+        category: "Full Body",
         sequenceOrder: 1,
         estimatedDurationMinutes: 60,
         exercises: [
@@ -225,6 +236,8 @@ function createProgramDefinition() {
             category: "compound" as const,
             movementPattern: null,
             primaryMuscleGroup: null,
+            equipmentType: "barbell",
+            isBodyweight: false,
             sequenceOrder: 1,
             targetSets: 3,
             targetReps: 8,
@@ -254,6 +267,114 @@ function createCustomWorkoutTemplateDefinition() {
 }
 
 export const applicationUseCaseTestCases: ApplicationTestCase[] = [
+  {
+    name: "Guided recommendation prefers the closest schedule and experience match",
+    run: () => {
+      const programA = createProgramDefinition();
+      const programB = {
+        ...createProgramDefinition(),
+        program: {
+          ...createProgramDefinition().program,
+          id: "program-2",
+          name: "4-Day Upper/Lower",
+          daysPerWeek: 4,
+          sessionDurationMinutes: 45,
+          difficultyLevel: "intermediate" as const
+        }
+      };
+
+      const result = recommendGuidedProgram({
+        answers: {
+          goal: "general_fitness",
+          experienceLevel: "beginner",
+          daysPerWeek: 3,
+          sessionDurationMinutes: 60,
+          equipmentAccess: "full_gym",
+          progressionAggressiveness: "balanced",
+          recoveryPreference: "adjust_when_needed"
+        },
+        candidatePrograms: [programB, programA]
+      });
+
+      assert.equal(result.programId, "program-1");
+    }
+  },
+  {
+    name: "Guided recommendation supports richer V2 profiles (style preference + flexibility)",
+    run: () => {
+      const fullBody = createProgramDefinition();
+      const fullBodyTemplate = fullBody.templates[0]!;
+      const split: ProgramDefinition = {
+        ...createProgramDefinition(),
+        program: {
+          ...createProgramDefinition().program,
+          id: "program-2",
+          name: "3-Day Split Beginner"
+        },
+        templates: [
+          {
+            ...fullBodyTemplate,
+            id: "template-2",
+            programId: "program-2",
+            category: "Push"
+          }
+        ]
+      };
+
+      const answersV2 = {
+        version: 2 as const,
+        intakeDepth: "refined" as const,
+        goal: "general_fitness" as const,
+        experienceLevel: "beginner" as const,
+        schedule: { daysPerWeek: 3 as const, flexibility: "very_flex" as const },
+        sessions: { durationMinutes: 60 as const, flexibility: "strict" as const },
+        equipment: { access: "full_gym" as const },
+        preferences: {
+          progressionAggressiveness: "balanced" as const,
+          recoveryPreference: "adjust_when_needed" as const,
+          trainingStylePreference: "full_body" as const
+        }
+      };
+
+      const result = recommendGuidedProgram({
+        answers: answersV2,
+        candidatePrograms: [split, fullBody]
+      });
+
+      assert.equal(result.programId, "program-1");
+
+      const flexResult = recommendGuidedProgram({
+        answers: {
+          ...answersV2,
+          preferences: {
+            ...answersV2.preferences,
+            trainingStylePreference: "no_preference" as const
+          },
+          schedule: { ...answersV2.schedule, daysPerWeek: 3 as const, flexibility: "very_flex" as const }
+        },
+        candidatePrograms: [
+          {
+            ...fullBody,
+            program: {
+              ...fullBody.program,
+              id: "program-3",
+              name: "4-Day Full Body Beginner",
+              daysPerWeek: 4
+            }
+          }
+        ]
+      });
+
+      assert.equal(
+        flexResult.warnings.some((warning) => warning.includes("days/week")),
+        false
+      );
+      assert.equal(
+        flexResult.reasons.some((reason) => reason.includes("Close to your schedule")),
+        true
+      );
+    }
+  },
   {
     name: "Program use-cases list active programs and create an enrollment",
     run: async () => {
@@ -386,11 +507,73 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
       };
 
       const listProgramsUseCase = new ListProgramsUseCase(programRepository);
+      let createdTrainingContextSource: string | null = null;
+      const trainingSettingsRepository: TrainingSettingsRepository = {
+        async findOrCreateByUserId() {
+          return {
+            userId: "user-1",
+            trainingGoal: null,
+            experienceLevel: "beginner",
+            unitSystem: "imperial",
+            progressionAggressiveness: "balanced",
+            defaultBarbellIncrementLbs: 5,
+            defaultDumbbellIncrementLbs: 5,
+            defaultMachineIncrementLbs: 10,
+            defaultCableIncrementLbs: 5,
+            useRecoveryAdjustments: true,
+            defaultRecoveryState: "normal",
+            allowAutoDeload: true,
+            allowRecalibration: true,
+            preferRepProgressionBeforeWeight: true,
+            minimumConfidenceForIncrease: "medium"
+          };
+        },
+        async updateByUserId() {
+          throw new Error("Not implemented.");
+        }
+      };
+      const exerciseProgressionSettingsRepository: ExerciseProgressionSettingsRepository = {
+        async listByUserId() {
+          return [];
+        },
+        async findByUserIdAndExerciseId() {
+          return null;
+        },
+        async upsert() {
+          throw new Error("Not implemented.");
+        }
+      };
+      const programTrainingContextRepository: ProgramTrainingContextRepository = {
+        async create(input) {
+          createdTrainingContextSource = input.source;
+          return {
+            id: "context-1",
+            userId: input.userId,
+            programId: input.programId,
+            enrollmentId: input.enrollmentId ?? null,
+            source: input.source,
+            goalType: input.goalType,
+            experienceLevel: input.experienceLevel,
+            progressionPreferencesSnapshot: input.progressionPreferencesSnapshot,
+            recoveryPreferencesSnapshot: input.recoveryPreferencesSnapshot,
+            equipmentSettingsSnapshot: input.equipmentSettingsSnapshot,
+            exerciseProgressionSettingsSnapshot: input.exerciseProgressionSettingsSnapshot,
+            guidedAnswersSnapshot: input.guidedAnswersSnapshot ?? null,
+            guidedRecommendationSnapshot: input.guidedRecommendationSnapshot ?? null,
+            coachingEnabled: input.coachingEnabled ?? false,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          };
+        }
+      };
       const followProgramUseCase = new FollowProgramUseCase(
         programRepository,
         enrollmentRepository,
         exerciseRepository,
         workoutSessionRepository,
+        trainingSettingsRepository,
+        exerciseProgressionSettingsRepository,
+        programTrainingContextRepository,
         new MockTransactionManager()
       );
 
@@ -406,6 +589,7 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
       assert.equal(createdEnrollmentTemplateId, "template-1");
       assert.equal(followResult.data.activeProgram.nextWorkoutTemplate?.id, "template-1");
       assert.equal(followResult.data.activeProgram.currentPosition.label, "Week 1 · Day 1");
+      assert.equal(createdTrainingContextSource, "predefined");
     }
   },
   {
@@ -457,6 +641,8 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
                 category: "compound",
                 movementPattern: null,
                 primaryMuscleGroup: null,
+                equipmentType: "barbell",
+                isBodyweight: false,
                 sequenceOrder: index + 1,
                 targetSets: exercise.targetSets,
                 targetReps: exercise.targetReps,
@@ -470,8 +656,71 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         }
       };
 
+      let createdTrainingContextSource: string | null = null;
+      const trainingSettingsRepository: TrainingSettingsRepository = {
+        async findOrCreateByUserId() {
+          return {
+            userId: "user-1",
+            trainingGoal: null,
+            experienceLevel: "beginner",
+            unitSystem: "imperial",
+            progressionAggressiveness: "balanced",
+            defaultBarbellIncrementLbs: 5,
+            defaultDumbbellIncrementLbs: 5,
+            defaultMachineIncrementLbs: 10,
+            defaultCableIncrementLbs: 5,
+            useRecoveryAdjustments: true,
+            defaultRecoveryState: "normal",
+            allowAutoDeload: true,
+            allowRecalibration: true,
+            preferRepProgressionBeforeWeight: true,
+            minimumConfidenceForIncrease: "medium"
+          };
+        },
+        async updateByUserId() {
+          throw new Error("Not implemented.");
+        }
+      };
+      const exerciseProgressionSettingsRepository: ExerciseProgressionSettingsRepository = {
+        async listByUserId() {
+          return [];
+        },
+        async findByUserIdAndExerciseId() {
+          return null;
+        },
+        async upsert() {
+          throw new Error("Not implemented.");
+        }
+      };
+      const programTrainingContextRepository: ProgramTrainingContextRepository = {
+        async create(input) {
+          createdTrainingContextSource = input.source;
+          return {
+            id: "context-1",
+            userId: input.userId,
+            programId: input.programId,
+            enrollmentId: input.enrollmentId ?? null,
+            source: input.source,
+            goalType: input.goalType,
+            experienceLevel: input.experienceLevel,
+            progressionPreferencesSnapshot: input.progressionPreferencesSnapshot,
+            recoveryPreferencesSnapshot: input.recoveryPreferencesSnapshot,
+            equipmentSettingsSnapshot: input.equipmentSettingsSnapshot,
+            exerciseProgressionSettingsSnapshot: input.exerciseProgressionSettingsSnapshot,
+            guidedAnswersSnapshot: input.guidedAnswersSnapshot ?? null,
+            guidedRecommendationSnapshot: input.guidedRecommendationSnapshot ?? null,
+            coachingEnabled: input.coachingEnabled ?? false,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          };
+        }
+      };
+
       const useCase = new CreateCustomProgramUseCase(
         programRepository,
+        trainingSettingsRepository,
+        exerciseProgressionSettingsRepository,
+        programTrainingContextRepository,
         new MockTransactionManager(),
         idempotency.repository
       );
@@ -500,6 +749,7 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
       assert.equal(result.data.program.workouts.length, 2);
       assert.equal(result.data.program.workouts[0]?.exercises[0]?.targetReps, 5);
       assert.equal(result.meta.replayed, false);
+      assert.equal(createdTrainingContextSource, "manual");
     }
   },
   {

@@ -52,10 +52,17 @@ export class UpdateLoggedSetUseCase {
           throw new WorkoutApplicationError("SET_NOT_FOUND", "The requested set could not be found.");
         }
 
-        if (setForUpdate.workoutSession.status !== "in_progress" && setForUpdate.workoutSession.status !== "completed") {
+        if (setForUpdate.workoutSession.status === "completed") {
+          throw new WorkoutApplicationError(
+            "COMPLETED_WORKOUT_READ_ONLY",
+            "Completed workouts are read-only for now."
+          );
+        }
+
+        if (setForUpdate.workoutSession.status !== "in_progress") {
           throw new WorkoutApplicationError(
             "INVALID_SESSION_STATUS",
-            "Sets can only be edited for in-progress or completed workout sessions."
+            "Sets can only be edited for in-progress workout sessions."
           );
         }
 

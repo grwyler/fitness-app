@@ -6,6 +6,7 @@ import {
   progressionRecommendationEvents,
   progressionStates,
   progressionStatesV2,
+  programTrainingContexts,
   programs,
   sets,
   userProgramEnrollments,
@@ -32,6 +33,7 @@ import { DrizzleProgressionRecommendationEventRepository } from "../repositories
 import { DrizzleProgramRepository } from "../repositories/drizzle-program.repository.js";
 import { DrizzleTrainingSettingsRepository } from "../repositories/drizzle-training-settings.repository.js";
 import { DrizzleExerciseProgressionSettingsRepository } from "../repositories/drizzle-exercise-progression-settings.repository.js";
+import { DrizzleProgramTrainingContextRepository } from "../repositories/drizzle-program-training-context.repository.js";
 import { DrizzleUserRepository } from "../repositories/drizzle-user.repository.js";
 import { DrizzleWorkoutSessionRepository } from "../repositories/drizzle-workout-session.repository.js";
 
@@ -41,6 +43,7 @@ create table users (
   auth_provider_id text not null unique,
   email text not null unique,
   password_hash text,
+  tokens_invalid_before timestamptz,
   display_name text,
   role text not null default 'user',
   timezone text not null default 'America/New_York',
@@ -124,6 +127,7 @@ create table programs (
   session_duration_minutes integer not null,
   difficulty_level text not null,
   training_goal text,
+  metadata jsonb,
   is_active boolean not null default true,
   deleted_at timestamptz,
   created_at timestamptz not null default now(),
@@ -157,6 +161,29 @@ create table user_program_enrollments (
   updated_at timestamptz not null default now()
 );
 create unique index idx_one_active_program_per_user on user_program_enrollments(user_id) where status = 'active';
+
+create table program_training_contexts (
+  id text primary key,
+  user_id text not null references users(id),
+  program_id text not null references programs(id),
+  enrollment_id text references user_program_enrollments(id),
+  source text not null,
+  goal_type text,
+  experience_level text,
+  progression_preferences_snapshot jsonb not null,
+  recovery_preferences_snapshot jsonb not null,
+  equipment_settings_snapshot jsonb not null,
+  exercise_progression_settings_snapshot jsonb not null,
+  guided_answers_snapshot jsonb,
+  guided_recommendation_snapshot jsonb,
+  coaching_enabled boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index idx_program_training_contexts_user_id on program_training_contexts(user_id);
+create index idx_program_training_contexts_program_id on program_training_contexts(program_id);
+create index idx_program_training_contexts_enrollment_id on program_training_contexts(enrollment_id);
+create index idx_program_training_contexts_user_program on program_training_contexts(user_id, program_id);
 
 create table workout_template_exercise_entries (
   id text primary key,
@@ -348,6 +375,7 @@ export type WorkoutInfrastructureTestContext = {
     progressionRecommendationEventRepository: DrizzleProgressionRecommendationEventRepository;
     trainingSettingsRepository: DrizzleTrainingSettingsRepository;
     exerciseProgressionSettingsRepository: DrizzleExerciseProgressionSettingsRepository;
+    programTrainingContextRepository: DrizzleProgramTrainingContextRepository;
     idempotencyRepository: DrizzleIdempotencyRepository;
   };
 };
@@ -374,6 +402,7 @@ export async function createWorkoutInfrastructureTestContext(): Promise<WorkoutI
       progressionRecommendationEventRepository: new DrizzleProgressionRecommendationEventRepository(db),
       trainingSettingsRepository: new DrizzleTrainingSettingsRepository(db),
       exerciseProgressionSettingsRepository: new DrizzleExerciseProgressionSettingsRepository(db),
+      programTrainingContextRepository: new DrizzleProgramTrainingContextRepository(db),
       idempotencyRepository: new DrizzleIdempotencyRepository(db)
     }
   };

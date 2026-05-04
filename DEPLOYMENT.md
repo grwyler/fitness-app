@@ -76,6 +76,13 @@ Optional override (usually not needed):
 
 - `EXPO_PUBLIC_API_BASE_URL`: defaults to `https://setwiseapi.vercel.app/api/v1` for Vercel builds
 
+Optional (recommended) observability for mobile/web builds:
+
+- `EXPO_PUBLIC_SENTRY_DSN`: Sentry DSN for the Expo app (web + native)
+- `EXPO_PUBLIC_SENTRY_ENVIRONMENT`: optional override (defaults to unset)
+- `EXPO_PUBLIC_SENTRY_RELEASE`: optional (set to your app version/build identifier)
+- `EXPO_PUBLIC_OBSERVABILITY_ENABLED`: set to `true` to enable Sentry in local dev; set to `false` to force-disable
+
 Do not point the production web app at localhost or at a preview-only API.
 The web app stores the MVP bearer token in browser `localStorage` and sends it to the API on protected requests.
 
@@ -107,6 +114,13 @@ Optional:
 - `USE_PGLITE_DEV` should be left unset in production
 - `PASSWORD_RESET_TOKEN_TTL_MINUTES`: token lifetime in minutes (default `30`)
 - `PASSWORD_RESET_TOKEN_SECRET`: optional; defaults to `JWT_SECRET`
+
+Optional (recommended) API observability:
+
+- `SENTRY_DSN`: enables Sentry error reporting when set in production
+- `SENTRY_ENVIRONMENT`: optional override (defaults to deployment stage like `production` / `staging`)
+- `SENTRY_RELEASE`: optional (set to your git SHA or build identifier)
+- `OBSERVABILITY_ENABLED`: set to `true` to enable Sentry in local dev; set to `false` to force-disable
 
 ## Deploy the API
 
@@ -242,6 +256,7 @@ Pushes to `develop` deploy staging via:
 Both use:
 
 - `vercel pull --environment=preview --git-branch=develop`
+- `npm run db:migrate` (applies `packages/db/migrations` to staging/preview DB)
 - `vercel build`
 - `vercel deploy --prebuilt` (Preview)
 
@@ -346,6 +361,10 @@ The actual payload also includes service metadata and seeded program info.
 ## Expo mobile tester setup
 
 The mobile client reads its API base URL from `EXPO_PUBLIC_API_BASE_URL`.
+
+For EAS internal distribution (TestFlight / Play internal testing), follow:
+
+- [docs/MOBILE_RELEASE.md](docs/MOBILE_RELEASE.md)
 
 For testers, set:
 

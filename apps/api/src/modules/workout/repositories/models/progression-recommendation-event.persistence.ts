@@ -23,5 +23,6 @@ export type ProgressionRecommendationEventRecord = {
 export type CreateProgressionRecommendationEventInput = Omit<
   ProgressionRecommendationEventRecord,
   "id" | "createdAt"
->;
-
+> & {
+  id?: string;
+};

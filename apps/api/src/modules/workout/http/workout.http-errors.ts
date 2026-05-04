@@ -36,6 +36,8 @@ export function toAppError(error: unknown): AppError {
       case "PROGRAM_NOT_FOUND":
       case "WORKOUT_TEMPLATE_NOT_FOUND":
         return new AppError(404, "NOT_FOUND", error.message);
+      case "COMPLETED_WORKOUT_READ_ONLY":
+        return new AppError(409, "COMPLETED_WORKOUT_READ_ONLY", error.message);
       case "ACTIVE_WORKOUT_ALREADY_EXISTS":
       case "ACTIVE_ENROLLMENT_ALREADY_EXISTS":
       case "IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD":

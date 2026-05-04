@@ -12,6 +12,8 @@ import { dashboardProgramTestCases } from "./dashboard-program.test.js";
 import { programCreatorTestCases } from "./program-creator.test.js";
 import { unitSystemMetricTestCases } from "./unit-system-metric.test.js";
 import { mobileConfigTestCases } from "./mobile-config.test.js";
+import { guidedProgramIntakeTestCases } from "./guided-program-intake.test.js";
+import { releaseNotesTestCases } from "./release-notes.test.js";
 
 runMobileTestCases([
   ...mobileConfigTestCases,
@@ -20,13 +22,15 @@ runMobileTestCases([
   ...feedbackTestCases,
   ...progressionScreenTestCases,
   ...setLoggingTestCases,
+  ...releaseNotesTestCases,
   ...unitSystemMetricTestCases,
   ...activeWorkoutScreenTestCases,
   ...workoutSummaryTestCases,
   ...completionCacheTestCases,
   ...dashboardProgramTestCases,
   ...programCreatorTestCases,
-  ...historyDetailTestCases
+  ...historyDetailTestCases,
+  ...guidedProgramIntakeTestCases,
 ]).catch((error) => {
   console.error(error);
   process.exitCode = 1;

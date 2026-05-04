@@ -12,6 +12,22 @@ import type {
   ProgressionStrategy,
   BodyweightProgressionMode,
   TrainingGoal,
+  GuidedGoalType,
+  GuidedEquipmentAccessLevel,
+  GuidedRecoveryPreference,
+  GuidedScheduleFlexibility,
+  GuidedSessionDurationFlexibility,
+  GuidedTrainingStylePreference,
+  GuidedFocusArea,
+  GuidedBusyWeekPreference,
+  GuidedRecoveryTolerance,
+  GuidedEquipmentType,
+  ProgramSplitType,
+  ProgramComplexityLevel,
+  ProgramWeeklyVolumeLevel,
+  ProgramIntensityLevel,
+  ProgramRecoveryDemand,
+  MatchStrength,
   EnrollmentStatus,
   SetStatus,
   UnitSystem,
@@ -136,15 +152,113 @@ export type ProgramWorkoutTemplateDto = {
   exercises: ProgramWorkoutExerciseDto[];
 };
 
+export type PredefinedProgramMetadataDto = {
+  version: 1;
+  goalTypes: GuidedGoalType[];
+  experienceLevels: ExperienceLevel[];
+  splitType: ProgramSplitType;
+  estimatedSessionMinutes: number;
+  sessionDurationRange: { min: number; max: number };
+  equipmentRequired: GuidedEquipmentType[];
+  equipmentOptional?: GuidedEquipmentType[] | undefined;
+  equipmentLimitations?: string[] | undefined;
+  primaryFocusAreas: GuidedFocusArea[];
+  secondaryFocusAreas?: GuidedFocusArea[] | undefined;
+  progressionStyleCompatibility: ProgressionAggressiveness[];
+  recoveryDemand: ProgramRecoveryDemand;
+  fatigueToleranceFit: GuidedRecoveryTolerance;
+  scheduleRealismFit: GuidedScheduleFlexibility;
+  complexityLevel: ProgramComplexityLevel;
+  weeklyVolumeLevel: ProgramWeeklyVolumeLevel;
+  intensityLevel: ProgramIntensityLevel;
+  recommendedBlockWeeks: number;
+  goodFor: string[];
+  notIdealFor: string[];
+  rationale: string;
+  tags: string[];
+};
+
 export type ProgramDto = {
   id: UUID;
   source: ProgramSource;
+  trainingGoal?: TrainingGoal | null;
   name: string;
   description: string | null;
   daysPerWeek: number;
   sessionDurationMinutes: number;
   difficultyLevel: DifficultyLevel;
+  metadata?: PredefinedProgramMetadataDto | null;
   workouts: ProgramWorkoutTemplateDto[];
+};
+
+export type GuidedProgramAnswersV1 = {
+  goal: GuidedGoalType;
+  experienceLevel: ExperienceLevel;
+  daysPerWeek: 2 | 3 | 4 | 5 | 6;
+  sessionDurationMinutes: 30 | 45 | 60 | 75;
+  equipmentAccess: GuidedEquipmentAccessLevel;
+  progressionAggressiveness: ProgressionAggressiveness;
+  recoveryPreference: GuidedRecoveryPreference;
+};
+
+export type GuidedProgramAnswersV2 = {
+  version: 2;
+  intakeDepth: "core" | "refined";
+  goal: GuidedGoalType;
+  experienceLevel: ExperienceLevel;
+  schedule: {
+    daysPerWeek: 2 | 3 | 4 | 5 | 6;
+    flexibility: GuidedScheduleFlexibility;
+  };
+  sessions: {
+    durationMinutes: 30 | 45 | 60 | 75;
+    flexibility: GuidedSessionDurationFlexibility;
+  };
+  equipment: {
+    access: GuidedEquipmentAccessLevel;
+    avoid?: GuidedEquipmentType[] | undefined;
+  };
+  preferences: {
+    progressionAggressiveness: ProgressionAggressiveness;
+    recoveryPreference: GuidedRecoveryPreference;
+    trainingStylePreference?: GuidedTrainingStylePreference | undefined;
+    focusAreas?: GuidedFocusArea[] | undefined;
+    busyWeekPreference?: GuidedBusyWeekPreference | undefined;
+    recoveryTolerance?: GuidedRecoveryTolerance | undefined;
+    exerciseExclusions?: string | null | undefined;
+  };
+};
+
+export type GuidedProgramAnswers = GuidedProgramAnswersV1 | GuidedProgramAnswersV2;
+
+export type RecommendGuidedProgramRequest = {
+  answers: GuidedProgramAnswers;
+};
+
+export type RecommendGuidedProgramResponse = {
+  program: ProgramDto;
+  matchScore?: number;
+  matchStrength?: MatchStrength;
+  alternatives?: Array<{
+    program: ProgramDto;
+    matchScore: number;
+    matchStrength: MatchStrength;
+    reasons: string[];
+    warnings: string[];
+  }>;
+  reasons: string[];
+  warnings: string[];
+  isExactMatch: boolean;
+};
+
+export type FollowProgramRequest = {
+  activationSource?: "guided" | undefined;
+  guidedAnswers?: GuidedProgramAnswers | undefined;
+  guidedRecommendation?: {
+    reasons: string[];
+    warnings: string[];
+    isExactMatch: boolean;
+  } | undefined;
 };
 
 export type CreateCustomProgramExerciseRequest = {

@@ -49,12 +49,15 @@ export class DrizzleProgressionRecommendationEventRepository
     const rows = await executor
       .insert(progressionRecommendationEvents)
       .values(
-        inputs.map((input) => ({
-          id: randomUUID(),
-          ...input,
-          previousWeightLbs: input.previousWeightLbs.toString(),
-          nextWeightLbs: input.nextWeightLbs.toString()
-        }))
+        inputs.map((input) => {
+          const { id, ...rest } = input;
+          return {
+            id: id ?? randomUUID(),
+            ...rest,
+            previousWeightLbs: rest.previousWeightLbs.toString(),
+            nextWeightLbs: rest.nextWeightLbs.toString()
+          };
+        })
       )
       .returning();
 
@@ -77,4 +80,3 @@ export class DrizzleProgressionRecommendationEventRepository
     return rows.map(mapProgressionRecommendationEventRecord);
   }
 }
-
