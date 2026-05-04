@@ -11,6 +11,8 @@ import type {
   GuidedScheduleFlexibility,
   GuidedSessionDurationFlexibility,
   GuidedTrainingStylePreference,
+  MatchStrength,
+  ProgramDto,
   ProgressionAggressiveness
 } from "@fitness/shared";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -135,6 +137,15 @@ export function GuidedProgramSetupScreen({ navigation }: Props) {
   const [recommendation, setRecommendation] = useState<Awaited<ReturnType<typeof recommendGuidedProgram>>["data"] | null>(
     null
   );
+  const [selectedRecommendation, setSelectedRecommendation] = useState<{
+    program: ProgramDto;
+    matchScore?: number;
+    matchStrength?: MatchStrength;
+    reasons: string[];
+    warnings: string[];
+    isExactMatch: boolean;
+    selectionSource: "recommended" | "alternative";
+  } | null>(null);
   const [recommendationError, setRecommendationError] = useState<string | null>(null);
   const [loadingRecommendation, setLoadingRecommendation] = useState(false);
 
@@ -197,6 +208,26 @@ export function GuidedProgramSetupScreen({ navigation }: Props) {
 
   const savedForLaterPreferences = useMemo(() => getGuidedProgramSavedForLaterPreferences(answers), [answers]);
 
+  const activeRecommendation = useMemo(() => {
+    if (selectedRecommendation) {
+      return selectedRecommendation;
+    }
+
+    if (!recommendation) {
+      return null;
+    }
+
+    return {
+      program: recommendation.program,
+      matchScore: recommendation.matchScore,
+      matchStrength: recommendation.matchStrength,
+      reasons: recommendation.reasons,
+      warnings: recommendation.warnings,
+      isExactMatch: recommendation.isExactMatch,
+      selectionSource: "recommended" as const
+    };
+  }, [recommendation, selectedRecommendation]);
+
   async function ensureRecommendation() {
     if (loadingRecommendation) {
       return;
@@ -207,8 +238,18 @@ export function GuidedProgramSetupScreen({ navigation }: Props) {
     try {
       const response = await recommendGuidedProgram(answers);
       setRecommendation(response.data);
+      setSelectedRecommendation({
+        program: response.data.program,
+        matchScore: response.data.matchScore,
+        matchStrength: response.data.matchStrength,
+        reasons: response.data.reasons,
+        warnings: response.data.warnings,
+        isExactMatch: response.data.isExactMatch,
+        selectionSource: "recommended"
+      });
     } catch (error) {
       setRecommendation(null);
+      setSelectedRecommendation(null);
       setRecommendationError(error instanceof Error ? error.message : "Unable to load a recommendation.");
     } finally {
       setLoadingRecommendation(false);

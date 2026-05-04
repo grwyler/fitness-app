@@ -10,23 +10,22 @@ This repo supports a repeatable application version + release notes workflow.
 
 ## Release steps
 
-1. Update the app version (repo root):
+1. Update the app version (repo root) and create a release notes stub automatically:
 
    ```bash
-   npm version patch
-   # or: npm version minor
-   # or: npm version major
+   npm run release -- patch
+   # or: npm run release -- minor
+   # or: npm run release -- major
    ```
 
    Notes:
-   - `npm version` updates `package.json` and creates a git tag by default.
-   - To avoid creating a git tag, use `npm version patch --no-git-tag-version`.
+   - This updates `package.json` and prepends a new entry to `apps/mobile/src/core/release-notes/release-notes.json`.
+   - If you prefer tags to be created automatically, you can still use `npm version patch/minor/major` instead of `npm run release`.
 
-2. Add release notes for the new version:
+2. Fill in release notes for the new version:
 
    - Edit `apps/mobile/src/core/release-notes/release-notes.json`
-   - Add a new entry at the top for the version you just set
-   - Include a `date` (recommended) and categorized sections (Added/Changed/Fixed/etc.)
+   - Add at least one item under Added/Changed/Fixed (or adjust sections as needed)
 
 3. Validate locally:
 
@@ -49,4 +48,3 @@ GitHub Actions runs `npm run validate:release-notes` during deploy workflows to 
 
 - the repo root `package.json` version can be resolved
 - a matching release notes entry exists for that version
-
