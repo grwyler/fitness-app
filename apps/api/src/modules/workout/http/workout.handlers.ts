@@ -5,6 +5,7 @@ import type {
   CompleteWorkoutSessionRequest,
   CreateCustomProgramRequest,
   DeleteWorkoutSetRequest,
+  RecommendGuidedProgramRequest,
   UpdateExerciseProgressionSettingsRequest,
   LogSetRequest,
   StartWorkoutSessionRequest,
@@ -199,9 +200,12 @@ export function createWorkoutHandlers(dependencies: {
     recommendGuidedProgram: asyncHandler(async (request, response) => {
       const context = getRequestContext(request);
       const body = validateBody(recommendGuidedProgramBodySchema, request);
+      const useCaseRequest: RecommendGuidedProgramRequest = {
+        answers: body.answers
+      };
       const result = await dependencies.recommendGuidedProgramUseCase.execute({
         context,
-        request: body
+        request: useCaseRequest
       });
       response.json(success(result.data, result.meta));
     }),

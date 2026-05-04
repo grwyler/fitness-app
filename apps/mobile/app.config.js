@@ -99,7 +99,7 @@ function assertProductionApiBaseUrl(apiBaseUrl, source) {
 
   if (!apiBaseUrl) {
     failConfig(
-      `Missing EXPO_PUBLIC_API_BASE_URL.${sourceLabel} Production web builds require https://setwiseapi.vercel.app/api/v1. Add it to the Vercel web project Production environment.`,
+      `Missing EXPO_PUBLIC_API_BASE_URL.${sourceLabel} Production web builds require https://setwiseapi.vercel.app/api/v1. Add it to the Vercel web project Production environment. If you see this during an API deploy, the Vercel project is likely using the web build config (repo root) instead of the API config (apps/api).`,
     );
   }
 
