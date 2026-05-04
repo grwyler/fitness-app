@@ -150,6 +150,7 @@ export function mapProgramDto(definition: ProgramDefinition): ProgramDto {
     daysPerWeek: definition.program.daysPerWeek,
     sessionDurationMinutes: definition.program.sessionDurationMinutes,
     difficultyLevel: definition.program.difficultyLevel,
+    ...(definition.program.source === "predefined" ? { metadata: definition.program.metadata ?? null } : {}),
     workouts: [...definition.templates]
       .sort((left, right) => left.sequenceOrder - right.sequenceOrder)
       .map((template) => ({

@@ -127,6 +127,7 @@ create table programs (
   session_duration_minutes integer not null,
   difficulty_level text not null,
   training_goal text,
+  metadata jsonb,
   is_active boolean not null default true,
   deleted_at timestamptz,
   created_at timestamptz not null default now(),

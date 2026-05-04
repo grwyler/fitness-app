@@ -130,5 +130,23 @@ export type GuidedRecoveryTolerance = (typeof guidedRecoveryTolerances)[number];
 export const guidedEquipmentTypes = ["barbell", "dumbbell", "machine", "cable", "bodyweight"] as const;
 export type GuidedEquipmentType = (typeof guidedEquipmentTypes)[number];
 
+export const programSplitTypes = ["full_body", "upper_lower", "push_pull_legs", "torso_limbs", "other"] as const;
+export type ProgramSplitType = (typeof programSplitTypes)[number];
+
+export const programComplexityLevels = ["low", "moderate", "high"] as const;
+export type ProgramComplexityLevel = (typeof programComplexityLevels)[number];
+
+export const programWeeklyVolumeLevels = ["low", "moderate", "high", "very_high"] as const;
+export type ProgramWeeklyVolumeLevel = (typeof programWeeklyVolumeLevels)[number];
+
+export const programIntensityLevels = ["low", "moderate", "high"] as const;
+export type ProgramIntensityLevel = (typeof programIntensityLevels)[number];
+
+export const programRecoveryDemands = ["low", "moderate", "high"] as const;
+export type ProgramRecoveryDemand = (typeof programRecoveryDemands)[number];
+
+export const matchStrengthLevels = ["strong", "okay", "weak"] as const;
+export type MatchStrength = (typeof matchStrengthLevels)[number];
+
 export const recoveryStates = ["fresh", "normal", "fatigued", "exhausted"] as const;
 export type RecoveryState = (typeof recoveryStates)[number];

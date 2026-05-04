@@ -25,9 +25,30 @@ export class RecommendGuidedProgramUseCase {
       throw new Error("Recommended program was not found.");
     }
 
+    const alternatives = recommendation.alternatives.flatMap((alternative) => {
+      const altDefinition =
+        programs.find((candidate) => candidate.program.id === alternative.programId) ?? null;
+      if (!altDefinition) {
+        return [];
+      }
+
+      return [
+        {
+          program: mapProgramDto(altDefinition),
+          matchScore: alternative.matchScore,
+          matchStrength: alternative.matchStrength,
+          reasons: alternative.reasons,
+          warnings: alternative.warnings
+        }
+      ];
+    });
+
     return {
       data: {
         program: mapProgramDto(definition),
+        matchScore: recommendation.matchScore,
+        matchStrength: recommendation.matchStrength,
+        alternatives,
         reasons: recommendation.reasons,
         warnings: recommendation.warnings,
         isExactMatch: recommendation.isExactMatch
@@ -38,4 +59,3 @@ export class RecommendGuidedProgramUseCase {
     };
   }
 }
-

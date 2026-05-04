@@ -973,17 +973,17 @@ export const workoutHttpTestCases: HttpTestCase[] = [
           const payload = await readJson(response);
 
           assert.equal(response.status, 200);
-          assert.deepEqual(
-            payload.data.programs.map((program: { name: string }) => program.name),
-            [
-              "3-Day Full Body Beginner",
-              "4-Day Upper/Lower",
-              "4-Day Upper/Lower + Arms",
-              "5-Day Push/Pull/Legs",
-              "3-Day Strength Focus",
-              "4-Day Hypertrophy Focus"
-            ]
-          );
+          const programNames = payload.data.programs.map((program: { name: string }) => program.name);
+          assert.ok(programNames.length >= 6);
+          assert.deepEqual(programNames.slice(0, 6), [
+            "3-Day Full Body Beginner",
+            "4-Day Upper/Lower",
+            "4-Day Upper/Lower + Arms",
+            "5-Day Push/Pull/Legs",
+            "3-Day Strength Focus",
+            "4-Day Hypertrophy Focus"
+          ]);
+          assert.ok(programNames.includes("2-Day Beginner Full Body"));
           assert.equal(payload.data.programs[1].workouts.length, 4);
           assert.deepEqual(
             Array.from(

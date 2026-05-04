@@ -38,6 +38,7 @@ function mapProgramRecord(row: typeof programs.$inferSelect): ProgramRecord {
     sessionDurationMinutes: row.sessionDurationMinutes,
     difficultyLevel: row.difficultyLevel,
     trainingGoal: row.trainingGoal ?? null,
+    metadata: (row as any).metadata ?? null,
     isActive: row.isActive,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt

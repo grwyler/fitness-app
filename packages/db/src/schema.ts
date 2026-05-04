@@ -227,6 +227,7 @@ export const programs = pgTable(
     sessionDurationMinutes: integer("session_duration_minutes").notNull(),
     difficultyLevel: difficultyLevelEnum("difficulty_level").notNull(),
     trainingGoal: trainingGoalEnum("training_goal"),
+    metadata: jsonb("metadata"),
     isActive: boolean("is_active").notNull().default(true),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     ...timestamps

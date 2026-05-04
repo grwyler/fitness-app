@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { seedPrograms } from "@fitness/db";
 import { bootstrapDevelopmentDatabase, DEV_USER_ID } from "../../../../lib/db/dev-bootstrap.js";
 import { createPgliteClient } from "../../../../lib/db/connection.js";
 import { WorkoutApplicationError } from "../../application/errors/workout-application.error.js";
@@ -181,17 +182,16 @@ export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[]
           "select name from programs where is_active = true and deleted_at is null order by created_at"
         )) as { rows: Array<{ name: string }> };
 
-        assert.deepEqual(
-          programRows.rows.map((row) => row.name),
-          [
-            "3-Day Full Body Beginner",
-            "4-Day Upper/Lower",
-            "4-Day Upper/Lower + Arms",
-            "5-Day Push/Pull/Legs",
-            "3-Day Strength Focus",
-            "4-Day Hypertrophy Focus"
-          ]
-        );
+        const bootstrappedNames = programRows.rows.map((row) => row.name);
+        assert.deepEqual(bootstrappedNames.slice(0, 6), [
+          "3-Day Full Body Beginner",
+          "4-Day Upper/Lower",
+          "4-Day Upper/Lower + Arms",
+          "5-Day Push/Pull/Legs",
+          "3-Day Strength Focus",
+          "4-Day Hypertrophy Focus"
+        ]);
+        assert.ok(bootstrappedNames.includes("2-Day Beginner Full Body"));
 
         await client.query(
           `update workout_template_exercise_entries
@@ -271,17 +271,11 @@ export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[]
           ["99999999-9999-9999-9999-999999999901"]
         )) as { rows: Array<{ program_id: string; template_id: string; entry_id: string }> };
 
+        const actualNames = programRows.rows.map((row) => row.name);
+        const expectedNames = [...seedPrograms.map((program) => program.name), "User Custom Program"];
         assert.deepEqual(
-          programRows.rows.map((row) => row.name),
-          [
-            "3-Day Full Body Beginner",
-            "4-Day Upper/Lower",
-            "4-Day Upper/Lower + Arms",
-            "5-Day Push/Pull/Legs",
-            "3-Day Strength Focus",
-            "4-Day Hypertrophy Focus",
-            "User Custom Program"
-          ]
+          [...actualNames].sort((a, b) => a.localeCompare(b)),
+          [...expectedNames].sort((a, b) => a.localeCompare(b))
         );
         assert.equal(activeEnrollmentRows.rows.length, 1);
         assert.equal(activeEnrollmentRows.rows[0]?.program_id, "22222222-2222-2222-2222-222222222223");

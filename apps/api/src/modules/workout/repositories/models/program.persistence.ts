@@ -4,7 +4,8 @@ import type {
   PredefinedWorkoutCategory,
   ProgramSource,
   ProgressionStrategy,
-  TrainingGoal
+  TrainingGoal,
+  PredefinedProgramMetadataDto
 } from "@fitness/shared";
 
 export type ProgramRecord = {
@@ -17,6 +18,7 @@ export type ProgramRecord = {
   sessionDurationMinutes: number;
   difficultyLevel: DifficultyLevel;
   trainingGoal: TrainingGoal | null;
+  metadata?: PredefinedProgramMetadataDto | null;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;

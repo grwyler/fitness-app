@@ -1,20 +1,33 @@
 import type {
   GuidedEquipmentAccessLevel,
   GuidedGoalType,
+  GuidedFocusArea,
+  GuidedBusyWeekPreference,
+  GuidedRecoveryTolerance,
   GuidedProgramAnswers,
   GuidedProgramAnswersV2,
   GuidedScheduleFlexibility,
   GuidedSessionDurationFlexibility,
   GuidedTrainingStylePreference,
+  MatchStrength,
   TrainingGoal
 } from "@fitness/shared";
 import type { ProgramDefinition } from "../../repositories/models/program.persistence.js";
 
 export type GuidedProgramRecommendation = {
   programId: string;
+  matchScore: number;
+  matchStrength: MatchStrength;
   isExactMatch: boolean;
   reasons: string[];
   warnings: string[];
+  alternatives: Array<{
+    programId: string;
+    matchScore: number;
+    matchStrength: MatchStrength;
+    reasons: string[];
+    warnings: string[];
+  }>;
 };
 
 function mapGuidedGoalToTrainingGoal(goal: GuidedGoalType): TrainingGoal | null {
@@ -75,6 +88,9 @@ type NormalizedGuidedProgramProfile = {
   progressionAggressiveness: string;
   recoveryPreference: string;
   trainingStylePreference: GuidedTrainingStylePreference | null;
+  focusAreas: GuidedFocusArea[];
+  busyWeekPreference: GuidedBusyWeekPreference | null;
+  recoveryTolerance: GuidedRecoveryTolerance | null;
   hasRefinement: boolean;
 };
 
@@ -97,6 +113,9 @@ function normalizeGuidedProgramAnswers(input: GuidedProgramAnswers): NormalizedG
       progressionAggressiveness: input.progressionAggressiveness,
       recoveryPreference: input.recoveryPreference,
       trainingStylePreference: null,
+      focusAreas: [],
+      busyWeekPreference: null,
+      recoveryTolerance: null,
       hasRefinement: false
     };
   }
@@ -116,8 +135,17 @@ function normalizeGuidedProgramAnswers(input: GuidedProgramAnswers): NormalizedG
     progressionAggressiveness: input.preferences.progressionAggressiveness,
     recoveryPreference: input.preferences.recoveryPreference,
     trainingStylePreference: input.preferences.trainingStylePreference ?? null,
+    focusAreas: input.preferences.focusAreas ?? [],
+    busyWeekPreference: input.preferences.busyWeekPreference ?? null,
+    recoveryTolerance: input.preferences.recoveryTolerance ?? null,
     hasRefinement: input.intakeDepth === "refined"
   };
+}
+
+function toMatchStrength(score: number): MatchStrength {
+  if (score >= 520) return "strong";
+  if (score >= 420) return "okay";
+  return "weak";
 }
 
 function getProgramEquipmentTypes(definition: ProgramDefinition) {
@@ -201,12 +229,18 @@ export function recommendGuidedProgram(input: {
   const dayWarningThreshold = getDaysWarningThreshold(profile.scheduleFlexibility);
   const durationWarningThreshold = getDurationWarningThresholdMinutes(profile.sessionDurationFlexibility);
 
-  let best: { definition: ProgramDefinition; score: number; warnings: string[]; reasons: string[] } | null = null;
+  const scored: Array<{
+    definition: ProgramDefinition;
+    score: number;
+    warnings: string[];
+    reasons: string[];
+  }> = [];
 
   for (const definition of candidates) {
     const warnings: string[] = [];
     const reasons: string[] = [];
     let score = 0;
+    const meta = definition.program.metadata ?? null;
 
     const dayDiff = Math.abs(definition.program.daysPerWeek - profile.daysPerWeek);
     if (dayDiff === 0) {
@@ -242,29 +276,42 @@ export function recommendGuidedProgram(input: {
       }
     }
 
-    const programDifficultyRank = toDifficultyRank(definition.program.difficultyLevel);
-    const difficultyDiff = Math.abs(programDifficultyRank - desiredDifficultyRank);
-    if (difficultyDiff === 0) {
-      score += 70;
-      reasons.push(`Designed for ${definition.program.difficultyLevel} lifters.`);
+    if (meta?.experienceLevels?.includes(profile.experienceLevel as any)) {
+      score += 120;
+      reasons.push(`Fit for ${profile.experienceLevel} lifters.`);
     } else {
-      score += Math.max(0, 40 - difficultyDiff * 25);
-      warnings.push(
-        `Plan difficulty is ${definition.program.difficultyLevel} (you selected ${profile.experienceLevel}).`
-      );
+      const programDifficultyRank = toDifficultyRank(definition.program.difficultyLevel);
+      const difficultyDiff = Math.abs(programDifficultyRank - desiredDifficultyRank);
+      if (difficultyDiff === 0) {
+        score += 70;
+        reasons.push(`Designed for ${definition.program.difficultyLevel} lifters.`);
+      } else {
+        score += Math.max(0, 40 - difficultyDiff * 25);
+        warnings.push(
+          `Plan difficulty is ${definition.program.difficultyLevel} (you selected ${profile.experienceLevel}).`
+        );
+      }
     }
 
-    if (desiredGoal && definition.program.trainingGoal === desiredGoal) {
-      score += 70;
-      reasons.push("Aligns with your goal.");
-    } else if (definition.program.trainingGoal == null || desiredGoal == null) {
-      score += 35;
-      if (desiredGoal) {
-        warnings.push("This plan doesn't have a goal tag yet, so we matched based on other factors.");
+    if (profile.goal !== "custom") {
+      if (meta?.goalTypes?.includes(profile.goal)) {
+        score += 200;
+        reasons.push("Matches your goal.");
+      } else if (meta?.goalTypes?.length) {
+        score -= 80;
+        warnings.push("Goal isn't a perfect match, so we prioritized other constraints.");
+      } else if (desiredGoal && definition.program.trainingGoal === desiredGoal) {
+        score += 70;
+        reasons.push("Aligns with your goal.");
+      } else if (definition.program.trainingGoal == null || desiredGoal == null) {
+        score += 35;
+        if (desiredGoal) {
+          warnings.push("This plan doesn't have a goal tag yet, so we matched based on other factors.");
+        }
+      } else {
+        score += 10;
+        warnings.push("This plan was selected as the closest match even though the goal tag differs.");
       }
-    } else {
-      score += 10;
-      warnings.push("This plan was selected as the closest match even though the goal tag differs.");
     }
 
     const { types: programEquipmentTypes, hasUnknown } = getProgramEquipmentTypes(definition);
@@ -282,34 +329,97 @@ export function recommendGuidedProgram(input: {
     }
 
     if (profile.trainingStylePreference && profile.trainingStylePreference !== "no_preference") {
-      const programStyle = getProgramStyle(definition);
+      const programStyle =
+        meta?.splitType === "full_body"
+          ? "full_body"
+          : meta?.splitType
+            ? "split"
+            : getProgramStyle(definition);
       if (programStyle === "unknown") {
         warnings.push("We couldn't detect this plan's style yet, so we matched on other factors.");
       } else if (programStyle === profile.trainingStylePreference) {
-        score += 25;
+        score += 30;
         reasons.push("Matches your preferred plan style.");
       } else {
-        score -= 10;
+        score -= 15;
         warnings.push("Plan style doesn't match your preference, but it was the closest overall fit.");
       }
     }
 
-    if (!best || score > best.score) {
-      best = { definition, score, warnings, reasons };
+    if (profile.focusAreas.length > 0 && meta?.primaryFocusAreas?.length) {
+      const focusHits = profile.focusAreas.filter((area) => meta.primaryFocusAreas.includes(area));
+      if (focusHits.length > 0) {
+        score += 15 * focusHits.length;
+        reasons.push(`Includes your focus area${focusHits.length > 1 ? "s" : ""}: ${focusHits.join(", ")}.`);
+      } else {
+        score -= 10;
+      }
     }
+
+    if (profile.recoveryTolerance && meta?.recoveryDemand) {
+      if (profile.recoveryTolerance === "low" && meta.recoveryDemand === "high") {
+        score -= 140;
+        warnings.push("This plan is higher fatigue than you said you recover from.");
+      } else if (profile.recoveryTolerance === "low" && meta.recoveryDemand === "moderate") {
+        score -= 40;
+        warnings.push("This plan may be a bit fatigue-heavy for your recovery preference.");
+      } else if (profile.recoveryTolerance === "high" && meta.recoveryDemand === "high") {
+        score += 20;
+        reasons.push("Matches your higher recovery tolerance.");
+      } else if (profile.recoveryTolerance === "normal" && meta.recoveryDemand === "moderate") {
+        score += 10;
+      }
+    }
+
+    if (profile.busyWeekPreference) {
+      if (profile.busyWeekPreference === "shorter_sessions" && definition.program.sessionDurationMinutes <= 45) {
+        score += 15;
+        reasons.push("Works well for busy weeks (shorter sessions).");
+      }
+      if (profile.busyWeekPreference === "fewer_days" && definition.program.daysPerWeek <= 3) {
+        score += 15;
+        reasons.push("Works well for busy weeks (fewer days).");
+      }
+    }
+
+    if (profile.experienceLevel === "beginner" && meta) {
+      if (definition.program.daysPerWeek >= 5 || meta.weeklyVolumeLevel === "very_high" || meta.weeklyVolumeLevel === "high") {
+        score -= 160;
+        warnings.push("This plan is on the higher-volume side for a beginner.");
+      }
+      if (meta.complexityLevel === "high") {
+        score -= 60;
+        warnings.push("This plan may feel too complex for a beginner.");
+      }
+    }
+
+    scored.push({ definition, score, warnings, reasons });
   }
 
-  if (!best) {
+  if (scored.length === 0) {
     throw new Error("Unable to recommend a program.");
   }
+
+  scored.sort((left, right) => right.score - left.score);
+  const best = scored[0]!;
+  const alternatives = scored.slice(1, 4).map((candidate) => ({
+    programId: candidate.definition.program.id,
+    matchScore: candidate.score,
+    matchStrength: toMatchStrength(candidate.score),
+    reasons: candidate.reasons.length > 0 ? candidate.reasons.slice(0, 3) : ["Close overall match."],
+    warnings: candidate.warnings.slice(0, 3)
+  }));
 
   const isExactMatch = best.warnings.length === 0;
 
   return {
     programId: best.definition.program.id,
+    matchScore: best.score,
+    matchStrength: toMatchStrength(best.score),
     isExactMatch,
     reasons: best.reasons.length > 0 ? best.reasons : ["Selected as the closest match for your answers."],
-    warnings: best.warnings
+    warnings: best.warnings,
+    alternatives
   };
 }
 

@@ -22,6 +22,12 @@ import type {
   GuidedBusyWeekPreference,
   GuidedRecoveryTolerance,
   GuidedEquipmentType,
+  ProgramSplitType,
+  ProgramComplexityLevel,
+  ProgramWeeklyVolumeLevel,
+  ProgramIntensityLevel,
+  ProgramRecoveryDemand,
+  MatchStrength,
   EnrollmentStatus,
   SetStatus,
   UnitSystem,
@@ -146,6 +152,32 @@ export type ProgramWorkoutTemplateDto = {
   exercises: ProgramWorkoutExerciseDto[];
 };
 
+export type PredefinedProgramMetadataDto = {
+  version: 1;
+  goalTypes: GuidedGoalType[];
+  experienceLevels: ExperienceLevel[];
+  splitType: ProgramSplitType;
+  estimatedSessionMinutes: number;
+  sessionDurationRange: { min: number; max: number };
+  equipmentRequired: GuidedEquipmentType[];
+  equipmentOptional?: GuidedEquipmentType[] | undefined;
+  equipmentLimitations?: string[] | undefined;
+  primaryFocusAreas: GuidedFocusArea[];
+  secondaryFocusAreas?: GuidedFocusArea[] | undefined;
+  progressionStyleCompatibility: ProgressionAggressiveness[];
+  recoveryDemand: ProgramRecoveryDemand;
+  fatigueToleranceFit: GuidedRecoveryTolerance;
+  scheduleRealismFit: GuidedScheduleFlexibility;
+  complexityLevel: ProgramComplexityLevel;
+  weeklyVolumeLevel: ProgramWeeklyVolumeLevel;
+  intensityLevel: ProgramIntensityLevel;
+  recommendedBlockWeeks: number;
+  goodFor: string[];
+  notIdealFor: string[];
+  rationale: string;
+  tags: string[];
+};
+
 export type ProgramDto = {
   id: UUID;
   source: ProgramSource;
@@ -155,6 +187,7 @@ export type ProgramDto = {
   daysPerWeek: number;
   sessionDurationMinutes: number;
   difficultyLevel: DifficultyLevel;
+  metadata?: PredefinedProgramMetadataDto | null;
   workouts: ProgramWorkoutTemplateDto[];
 };
 
@@ -204,6 +237,15 @@ export type RecommendGuidedProgramRequest = {
 
 export type RecommendGuidedProgramResponse = {
   program: ProgramDto;
+  matchScore?: number;
+  matchStrength?: MatchStrength;
+  alternatives?: Array<{
+    program: ProgramDto;
+    matchScore: number;
+    matchStrength: MatchStrength;
+    reasons: string[];
+    warnings: string[];
+  }>;
   reasons: string[];
   warnings: string[];
   isExactMatch: boolean;

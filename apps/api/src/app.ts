@@ -84,7 +84,7 @@ function resolveAllowedOrigins(env: AppEnv) {
   const defaultAllowedOrigins =
     stage === "production"
       ? productionAllowedOrigins
-      : stage === "staging"
+      : stage === "staging" || stage === "preview"
         ? [...developmentAllowedOrigins, ...stagingAllowedOrigins, ...productionAllowedOrigins]
         : [...developmentAllowedOrigins, ...productionAllowedOrigins];
 

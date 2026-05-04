@@ -1,4 +1,5 @@
 import { seedExercises as catalogSeedExercises, seedPrograms as catalogSeedPrograms } from "@fitness/db";
+import { createHash } from "node:crypto";
 import { hashPassword } from "../auth/password.js";
 
 export const DEV_USER_ID = "11111111-1111-1111-1111-111111111111";
@@ -68,6 +69,31 @@ const TEMPLATE_IDS_BY_PROGRAM_NAME: Record<string, string[]> = {
     "33333333-3333-3333-3333-333333333384"
   ]
 };
+
+function stableUuid(namespace: string, value: string) {
+  const hash = createHash("sha1").update(`${namespace}:${value}`).digest();
+  const bytes = Buffer.from(hash.subarray(0, 16));
+
+  // UUID v5-ish formatting (version nibble = 5, variant = RFC4122)
+  bytes[6] = (bytes[6]! & 0x0f) | 0x50;
+  bytes[8] = (bytes[8]! & 0x3f) | 0x80;
+
+  const hex = bytes.toString("hex");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+function resolvePredefinedProgramId(programName: string) {
+  return PROGRAM_IDS_BY_NAME[programName] ?? stableUuid("predefined_program", programName);
+}
+
+function resolvePredefinedTemplateId(input: { programName: string; templateOrder: number; templateName: string }) {
+  const known = TEMPLATE_IDS_BY_PROGRAM_NAME[input.programName]?.[input.templateOrder - 1];
+  if (known) {
+    return known;
+  }
+
+  return stableUuid("predefined_template", `${input.programName}:${input.templateOrder}:${input.templateName}`);
+}
 
 function createSeedEntryId(index: number) {
   return `77777777-7777-7777-7777-${String(780000000000 + index).padStart(12, "0")}`;
@@ -239,6 +265,7 @@ alter table exercises add column if not exists is_progression_eligible boolean n
 create table if not exists programs (id uuid primary key, user_id uuid references users(id), source text not null default 'predefined', name text not null, description text, days_per_week integer not null, session_duration_minutes integer not null, difficulty_level text not null, training_goal text, is_active boolean not null default true, deleted_at timestamptz, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
 alter table programs add column if not exists user_id uuid references users(id);
 alter table programs add column if not exists source text not null default 'predefined';
+alter table programs add column if not exists metadata jsonb;
 create index if not exists idx_programs_user_source on programs(user_id, source);
 create table if not exists workout_templates (id uuid primary key, program_id uuid not null references programs(id), name text not null, category text not null default 'Full Body', sequence_order integer not null, estimated_duration_minutes integer, is_active boolean not null default true, deleted_at timestamptz, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
 alter table workout_templates add column if not exists category text not null default 'Full Body';
@@ -366,16 +393,23 @@ export async function bootstrapDevelopmentDatabase(executor: SqlExecutor) {
 
 export async function syncPredefinedProgramCatalog(executor: SqlExecutor) {
   for (const program of catalogSeedPrograms) {
-    const programId = PROGRAM_IDS_BY_NAME[program.name];
-    if (!programId) {
-      throw new Error(`Missing predefined program id for ${program.name}.`);
-    }
+    const programId = resolvePredefinedProgramId(program.name);
 
     await executor.query(
-      `insert into programs (id, user_id, source, name, description, days_per_week, session_duration_minutes, difficulty_level, is_active)
-       values ($1, null, 'predefined', $2, $3, $4, $5, $6, $7)
+      `insert into programs (id, user_id, source, name, description, days_per_week, session_duration_minutes, difficulty_level, training_goal, metadata, is_active)
+       values ($1, null, 'predefined', $2, $3, $4, $5, $6, $7, $8, $9)
        on conflict (id) do update
-       set user_id = null, source = 'predefined', name = excluded.name, description = excluded.description, days_per_week = excluded.days_per_week, session_duration_minutes = excluded.session_duration_minutes, difficulty_level = excluded.difficulty_level, is_active = excluded.is_active, updated_at = now()`,
+       set user_id = null,
+           source = 'predefined',
+           name = excluded.name,
+           description = excluded.description,
+           days_per_week = excluded.days_per_week,
+           session_duration_minutes = excluded.session_duration_minutes,
+           difficulty_level = excluded.difficulty_level,
+           training_goal = excluded.training_goal,
+           metadata = excluded.metadata,
+           is_active = excluded.is_active,
+           updated_at = now()`,
       [
         programId,
         program.name,
@@ -383,16 +417,28 @@ export async function syncPredefinedProgramCatalog(executor: SqlExecutor) {
         program.daysPerWeek,
         program.sessionDurationMinutes,
         program.difficultyLevel,
+        program.trainingGoal,
+        JSON.stringify(program.metadata),
         true
       ]
     );
   }
 
   await executor.query(
-    `insert into programs (id, user_id, source, name, description, days_per_week, session_duration_minutes, difficulty_level, is_active)
-     values ($1, null, 'predefined', $2, $3, $4, $5, $6, $7)
+    `insert into programs (id, user_id, source, name, description, days_per_week, session_duration_minutes, difficulty_level, training_goal, metadata, is_active)
+     values ($1, null, 'predefined', $2, $3, $4, $5, $6, null, null, $7)
      on conflict (id) do update
-     set user_id = null, source = 'predefined', name = excluded.name, description = excluded.description, days_per_week = excluded.days_per_week, session_duration_minutes = excluded.session_duration_minutes, difficulty_level = excluded.difficulty_level, is_active = excluded.is_active, updated_at = now()`,
+     set user_id = null,
+         source = 'predefined',
+         name = excluded.name,
+         description = excluded.description,
+         days_per_week = excluded.days_per_week,
+         session_duration_minutes = excluded.session_duration_minutes,
+         difficulty_level = excluded.difficulty_level,
+         training_goal = excluded.training_goal,
+         metadata = excluded.metadata,
+         is_active = excluded.is_active,
+         updated_at = now()`,
     [
       CUSTOM_WORKOUT_PROGRAM_ID,
       "Custom Workout",
@@ -411,7 +457,7 @@ export async function syncPredefinedProgramCatalog(executor: SqlExecutor) {
        on conflict (id) do update
        set name = excluded.name, category = excluded.category, movement_pattern = excluded.movement_pattern, primary_muscle_group = excluded.primary_muscle_group, equipment_type = excluded.equipment_type, default_target_sets = excluded.default_target_sets, default_target_reps = excluded.default_target_reps, default_starting_weight_lbs = excluded.default_starting_weight_lbs, default_increment_lbs = excluded.default_increment_lbs, is_bodyweight = excluded.is_bodyweight, is_weight_optional = excluded.is_weight_optional, is_progression_eligible = excluded.is_progression_eligible, is_active = excluded.is_active, updated_at = now()`,
       [
-        EXERCISE_IDS[exercise.slug],
+        EXERCISE_IDS[exercise.slug] ?? stableUuid("exercise", exercise.slug),
         exercise.name,
         exercise.category,
         exercise.movementPattern,
@@ -431,17 +477,14 @@ export async function syncPredefinedProgramCatalog(executor: SqlExecutor) {
 
   let templateEntryIndex = 1;
   for (const program of catalogSeedPrograms) {
-    const programId = PROGRAM_IDS_BY_NAME[program.name];
-    const templateIds = TEMPLATE_IDS_BY_PROGRAM_NAME[program.name];
-    if (!programId || !templateIds || templateIds.length < program.templates.length) {
-      throw new Error(`Missing predefined workout template ids for ${program.name}.`);
-    }
+    const programId = resolvePredefinedProgramId(program.name);
 
     for (const template of program.templates) {
-      const templateId = templateIds[template.sequenceOrder - 1];
-      if (!templateId) {
-        throw new Error(`Missing predefined workout template id for ${program.name} day ${template.sequenceOrder}.`);
-      }
+      const templateId = resolvePredefinedTemplateId({
+        programName: program.name,
+        templateOrder: template.sequenceOrder,
+        templateName: template.name
+      });
 
       await executor.query(
         `insert into workout_templates (id, program_id, name, category, sequence_order, estimated_duration_minutes, is_active)
@@ -467,18 +510,30 @@ export async function syncPredefinedProgramCatalog(executor: SqlExecutor) {
 
       for (const entry of template.exercises) {
         await executor.query(
-          `insert into workout_template_exercise_entries (id, workout_template_id, exercise_id, sequence_order, target_sets, target_reps, rest_seconds)
-           values ($1, $2, $3, $4, $5, $6, $7)
+          `insert into workout_template_exercise_entries (id, workout_template_id, exercise_id, sequence_order, target_sets, target_reps, rep_range_min, rep_range_max, rest_seconds, progression_strategy)
+           values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
            on conflict (id) do update
-           set workout_template_id = excluded.workout_template_id, exercise_id = excluded.exercise_id, sequence_order = excluded.sequence_order, target_sets = excluded.target_sets, target_reps = excluded.target_reps, rest_seconds = excluded.rest_seconds, updated_at = now()`,
+           set workout_template_id = excluded.workout_template_id,
+               exercise_id = excluded.exercise_id,
+               sequence_order = excluded.sequence_order,
+               target_sets = excluded.target_sets,
+               target_reps = excluded.target_reps,
+               rep_range_min = excluded.rep_range_min,
+               rep_range_max = excluded.rep_range_max,
+               rest_seconds = excluded.rest_seconds,
+               progression_strategy = excluded.progression_strategy,
+               updated_at = now()`,
           [
             createSeedEntryId(templateEntryIndex++),
             templateId,
-            EXERCISE_IDS[entry.exerciseSlug],
+            EXERCISE_IDS[entry.exerciseSlug] ?? stableUuid("exercise", entry.exerciseSlug),
             entry.sequenceOrder,
             entry.targetSets,
             entry.targetReps,
-            entry.restSeconds
+            (entry as any).repRangeMin ?? null,
+            (entry as any).repRangeMax ?? null,
+            entry.restSeconds,
+            (entry as any).progressionStrategy ?? null
           ]
         );
       }
