@@ -343,7 +343,9 @@ export function createWorkoutHandlers(dependencies: {
       const useCaseRequest: LogSetRequest = {
         actualReps: body.actualReps,
         ...(body.actualWeight ? { actualWeight: body.actualWeight } : {}),
-        ...(body.completedAt ? { completedAt: body.completedAt } : {})
+        ...(body.completedAt ? { completedAt: body.completedAt } : {}),
+        ...(body.rir !== undefined ? { rir: body.rir } : {}),
+        ...(body.failureStatus !== undefined ? { failureStatus: body.failureStatus } : {})
       };
 
       const result = await dependencies.logSetUseCase.execute({
@@ -364,7 +366,9 @@ export function createWorkoutHandlers(dependencies: {
       const useCaseRequest: LogSetRequest = {
         actualReps: body.actualReps,
         ...(body.actualWeight ? { actualWeight: body.actualWeight } : {}),
-        ...(body.completedAt ? { completedAt: body.completedAt } : {})
+        ...(body.completedAt ? { completedAt: body.completedAt } : {}),
+        ...(body.rir !== undefined ? { rir: body.rir } : {}),
+        ...(body.failureStatus !== undefined ? { failureStatus: body.failureStatus } : {})
       };
 
       const result = await dependencies.updateLoggedSetUseCase.execute({

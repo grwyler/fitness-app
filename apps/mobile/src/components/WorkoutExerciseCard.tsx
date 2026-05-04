@@ -1,4 +1,12 @@
-import { formatWeightForUser, type EffortFeedback, type ExerciseEntryDto, type SetDto, type UnitSystem } from "@fitness/shared";
+import {
+  formatWeightForUser,
+  type EffortFeedback,
+  type ExerciseEntryDto,
+  type SetDto,
+  type SetFailureStatus,
+  type SetRir,
+  type UnitSystem
+} from "@fitness/shared";
 import { Pressable, StyleSheet, View } from "react-native";
 import {
   adjustWeightText,
@@ -21,6 +29,19 @@ import { Chip } from "./Chip";
 import { SetMetricInput } from "./SetMetricInput";
 
 const effortOptions: EffortFeedback[] = ["too_easy", "just_right", "too_hard"];
+const setRirOptions: Array<{ value: SetRir; label: string }> = [
+  { value: "rir_0", label: "0" },
+  { value: "rir_1", label: "1" },
+  { value: "rir_2", label: "2" },
+  { value: "rir_3", label: "3" },
+  { value: "rir_4", label: "4" },
+  { value: "rir_5_plus", label: "5+" }
+];
+const failureOptions: Array<{ value: SetFailureStatus; label: string }> = [
+  { value: "muscular_failure", label: "Failure" },
+  { value: "technical_failure", label: "Tech fail" },
+  { value: "stopped_early", label: "Stopped" }
+];
 
 function formatFeedbackLabel(feedback: EffortFeedback) {
   switch (feedback) {
@@ -31,6 +52,23 @@ function formatFeedbackLabel(feedback: EffortFeedback) {
     case "too_hard":
       return "Too hard";
   }
+}
+
+function formatSetEffortSummary(set: SetDto) {
+  const parts: string[] = [];
+  if (set.failureStatus) {
+    parts.push(
+      set.failureStatus === "muscular_failure"
+        ? "Failure"
+        : set.failureStatus === "technical_failure"
+          ? "Tech fail"
+          : "Stopped early"
+    );
+  }
+  if (set.rir) {
+    parts.push(set.rir === "rir_5_plus" ? "RIR 5+" : `RIR ${set.rir.replace("rir_", "")}`);
+  }
+  return parts.length > 0 ? parts.join(" · ") : null;
 }
 
 export function WorkoutExerciseCard(props: {
@@ -298,6 +336,78 @@ export function WorkoutExerciseCard(props: {
                   <AppText variant={validation.error ? "error" : "caption"} tone={validation.error ? "danger" : "secondary"}>
                     {validation.error ?? outcomeText}
                   </AppText>
+
+                  <View style={styles.effortSection}>
+                    <AppText variant="caption" tone="secondary">
+                      Effort (optional)
+                    </AppText>
+
+                    <View style={styles.effortRow}>
+                      <AppText variant="caption" tone="secondary" style={styles.effortLabel}>
+                        RIR
+                      </AppText>
+                      <View style={styles.effortChips}>
+                        {setRirOptions.map((option) => {
+                          const selected = draft.rir === option.value;
+                          return (
+                            <Chip
+                              key={option.value}
+                              label={option.label}
+                              onPress={() => {
+                                const nextRir = selected ? null : option.value;
+                                const clearsFailure =
+                                  nextRir !== null &&
+                                  nextRir !== "rir_0" &&
+                                  (draft.failureStatus === "muscular_failure" ||
+                                    draft.failureStatus === "technical_failure");
+                                props.onChangeSetLogDraft(set.id, {
+                                  ...draft,
+                                  rir: nextRir,
+                                  ...(clearsFailure ? { failureStatus: null } : {})
+                                });
+                              }}
+                              selected={selected}
+                              variant={selected ? "selected" : "muted"}
+                              disabled={isLogging || readOnly}
+                            />
+                          );
+                        })}
+                      </View>
+                    </View>
+
+                    <View style={styles.effortRow}>
+                      <AppText variant="caption" tone="secondary" style={styles.effortLabel}>
+                        Failure
+                      </AppText>
+                      <View style={styles.effortChips}>
+                        {failureOptions.map((option) => {
+                          const selected = draft.failureStatus === option.value;
+                          return (
+                            <Chip
+                              key={option.value}
+                              label={option.label}
+                              onPress={() => {
+                                const nextFailureStatus = selected ? null : option.value;
+                                props.onChangeSetLogDraft(set.id, {
+                                  ...draft,
+                                  failureStatus: nextFailureStatus,
+                                  ...(nextFailureStatus === "muscular_failure" ||
+                                  nextFailureStatus === "technical_failure"
+                                    ? { rir: "rir_0" }
+                                    : nextFailureStatus === "stopped_early"
+                                      ? { rir: null }
+                                      : {})
+                                });
+                              }}
+                              selected={selected}
+                              variant={selected ? "selected" : "muted"}
+                              disabled={isLogging || readOnly}
+                            />
+                          );
+                        })}
+                      </View>
+                    </View>
+                  </View>
                   <PrimaryButton
                     label={
                       isLogging
@@ -333,6 +443,7 @@ export function WorkoutExerciseCard(props: {
                       weightLbs: set.actualWeight?.value ?? set.targetWeight.value,
                       unitSystem: props.unitSystem
                     }).text}
+                    {formatSetEffortSummary(set) ? ` · ${formatSetEffortSummary(set)}` : ""}
                   </AppText>
                   {outcomeTone && loggedOutcomeText && loggedOutcomeText !== "Ready" ? (
                     <AppText variant="caption" tone={outcomeTone}>
@@ -515,6 +626,24 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: spacing.xs,
     justifyContent: "space-between"
+  },
+  effortSection: {
+    gap: spacing.xs,
+    marginTop: spacing.xs
+  },
+  effortRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.xs
+  },
+  effortLabel: {
+    minWidth: 52
+  },
+  effortChips: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.xs
   },
   feedbackSection: {
     gap: spacing.sm

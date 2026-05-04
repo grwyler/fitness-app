@@ -15,8 +15,31 @@ function buildLogSetFingerprint(setId: string, request: LogSetRequest) {
     setId,
     actualReps: request.actualReps,
     actualWeight: request.actualWeight ?? null,
-    completedAt: request.completedAt ?? null
+    completedAt: request.completedAt ?? null,
+    rir: request.rir ?? null,
+    failureStatus: request.failureStatus ?? null
   });
+}
+
+function normalizeSetEffortForPersistence(request: LogSetRequest) {
+  if (request.failureStatus === "muscular_failure" || request.failureStatus === "technical_failure") {
+    return {
+      rir: "rir_0" as const,
+      failureStatus: request.failureStatus
+    };
+  }
+
+  if (request.failureStatus === "stopped_early") {
+    return {
+      rir: null,
+      failureStatus: "stopped_early" as const
+    };
+  }
+
+  return {
+    ...(request.rir !== undefined ? { rir: request.rir ?? null } : {}),
+    ...(request.failureStatus !== undefined ? { failureStatus: request.failureStatus ?? null } : {})
+  };
 }
 
 export class LogSetUseCase {
@@ -77,7 +100,8 @@ export class LogSetUseCase {
             actualReps: input.request.actualReps,
             actualWeightLbs,
             status,
-            completedAt: input.request.completedAt ? new Date(input.request.completedAt) : new Date()
+            completedAt: input.request.completedAt ? new Date(input.request.completedAt) : new Date(),
+            ...normalizeSetEffortForPersistence(input.request)
           },
           { tx }
         );

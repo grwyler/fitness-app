@@ -52,6 +52,8 @@ function mapSetDto(set: SetRecord) {
     targetWeight: toWeightValueDto(set.targetWeightLbs),
     actualWeight: set.actualWeightLbs === null ? null : toWeightValueDto(set.actualWeightLbs),
     status: set.status,
+    rir: set.rir ?? null,
+    failureStatus: set.failureStatus ?? null,
     completedAt: toIsoString(set.completedAt)
   };
 }

@@ -29,6 +29,8 @@ function createSet(overrides: Partial<SetDto> = {}): SetDto {
     },
     actualWeight: null,
     status: "pending",
+    rir: null,
+    failureStatus: null,
     completedAt: null,
     ...overrides
   };

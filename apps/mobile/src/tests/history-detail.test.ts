@@ -42,6 +42,8 @@ const workout: WorkoutSessionDto = {
             targetWeight: { value: 145, unit: "lb" },
             actualWeight: { value: 145, unit: "lb" },
             status: "completed",
+            rir: null,
+            failureStatus: null,
             completedAt: "2026-04-24T10:10:00.000Z"
           },
           {
@@ -53,6 +55,8 @@ const workout: WorkoutSessionDto = {
             targetWeight: { value: 145, unit: "lb" },
             actualWeight: { value: 145, unit: "lb" },
             status: "failed",
+            rir: null,
+            failureStatus: null,
             completedAt: "2026-04-24T10:15:00.000Z"
           },
           {
@@ -64,6 +68,8 @@ const workout: WorkoutSessionDto = {
             targetWeight: { value: 145, unit: "lb" },
             actualWeight: null,
             status: "pending",
+            rir: null,
+            failureStatus: null,
             completedAt: null
           }
         ]
@@ -149,6 +155,8 @@ export const historyDetailTestCases: MobileTestCase[] = [
                 targetWeight: { value: 135, unit: "lb" },
                 actualWeight: { value: 135, unit: "lb" },
                 status: "completed",
+                rir: null,
+                failureStatus: null,
                 completedAt: "2026-04-24T10:10:00.000Z"
               }
             ]
@@ -182,6 +190,8 @@ export const historyDetailTestCases: MobileTestCase[] = [
                 targetWeight: { value: 135, unit: "lb" },
                 actualWeight: null,
                 status: "completed",
+                rir: null,
+                failureStatus: null,
                 completedAt: "2026-04-24T10:10:00.000Z"
               }
             ]

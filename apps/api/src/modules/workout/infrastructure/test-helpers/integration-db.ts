@@ -252,6 +252,8 @@ create table sets (
   target_weight_lbs numeric(6,2) not null,
   actual_weight_lbs numeric(6,2),
   status text not null default 'pending',
+  rir text,
+  failure_status text,
   completed_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()

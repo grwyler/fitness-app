@@ -73,6 +73,8 @@ export class WorkoutSessionFactory {
           targetWeightLbs: exerciseEntry.targetWeightLbs,
           actualWeightLbs: null,
           status: "pending" as const,
+          rir: null,
+          failureStatus: null,
           completedAt: null
         }))
     );

@@ -49,6 +49,8 @@ function createWorkout(): WorkoutSessionDto {
             targetWeight: { value: 135, unit: "lb" },
             actualWeight: { value: 135, unit: "lb" },
             status: "completed",
+            rir: null,
+            failureStatus: null,
             completedAt: "2026-04-24T10:10:00.000Z"
           },
           {
@@ -60,6 +62,8 @@ function createWorkout(): WorkoutSessionDto {
             targetWeight: { value: 135, unit: "lb" },
             actualWeight: { value: 135, unit: "lb" },
             status: "failed",
+            rir: null,
+            failureStatus: null,
             completedAt: "2026-04-24T10:15:00.000Z"
           }
         ]
@@ -300,6 +304,8 @@ export const workoutSummaryTestCases: MobileTestCase[] = [
                   targetWeight: { value: 135, unit: "lb" },
                   actualWeight: { value: 135, unit: "lb" },
                   status: "completed",
+                  rir: null,
+                  failureStatus: null,
                   completedAt: "2026-04-24T10:10:00.000Z"
                 }
               ]

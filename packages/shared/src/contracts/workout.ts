@@ -29,6 +29,8 @@ import type {
   ProgramRecoveryDemand,
   MatchStrength,
   EnrollmentStatus,
+  SetFailureStatus,
+  SetRir,
   SetStatus,
   UnitSystem,
   WorkoutSessionStatus
@@ -62,6 +64,8 @@ export type SetDto = {
   targetWeight: WeightValueDto;
   actualWeight: WeightValueDto | null;
   status: SetStatus;
+  rir: SetRir | null;
+  failureStatus: SetFailureStatus | null;
   completedAt: ISODateTime | null;
 };
 
@@ -413,6 +417,8 @@ export type LogSetRequest = {
   actualReps: number;
   actualWeight?: WeightValueDto;
   completedAt?: ISODateTime;
+  rir?: SetRir | null;
+  failureStatus?: SetFailureStatus | null;
 };
 
 export type LogSetResponse = {

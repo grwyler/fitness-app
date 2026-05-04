@@ -34,6 +34,12 @@ export function WorkoutSummaryScreen({ navigation, route }: Props) {
   const encouragement = getWorkoutSummaryEncouragement(summary, unitSystem);
   const outcomes = getWorkoutSummaryOutcomes(summary, unitSystem);
   const unusualReviewItems = getUnusualProgressionReviewItems(summary, unitSystem);
+  const effortSetCount = summary.workoutSession.exercises.reduce((total, exercise) => {
+    return (
+      total +
+      exercise.sets.filter((set) => set.rir !== null || set.failureStatus !== null).length
+    );
+  }, 0);
 
   return (
     <Screen>
@@ -56,6 +62,9 @@ export function WorkoutSummaryScreen({ navigation, route }: Props) {
             </View>
           ))}
         </View>
+        {effortSetCount > 0 ? (
+          <Text style={styles.successBody}>Effort notes logged on {effortSetCount} set{effortSetCount === 1 ? "" : "s"}.</Text>
+        ) : null}
         <Text style={styles.successBody}>
           Next workout: {summary.nextWorkoutTemplate?.name ?? "No next workout queued"}
         </Text>

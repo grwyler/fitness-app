@@ -25,6 +25,8 @@ import {
   progressionStrategies,
   progressionAggressivenessLevels,
   recoveryStates,
+  setFailureStatusValues,
+  setRirValues,
   setStatuses,
   trainingGoals,
   unitSystems,
@@ -40,6 +42,8 @@ const enrollmentStatusEnum = pgEnum("program_enrollment_status", enrollmentStatu
 const workoutSessionStatusEnum = pgEnum("workout_session_status", workoutSessionStatuses);
 const effortFeedbackEnum = pgEnum("effort_feedback", effortFeedbackValues);
 const setStatusEnum = pgEnum("set_status", setStatuses);
+const setRirEnum = pgEnum("set_rir", setRirValues);
+const setFailureStatusEnum = pgEnum("set_failure_status", setFailureStatusValues);
 const progressMetricTypeEnum = pgEnum("progress_metric_type", progressMetricTypes);
 const progressionStrategyEnum = pgEnum("progression_strategy", progressionStrategies);
 const progressionAggressivenessEnum = pgEnum("progression_aggressiveness", progressionAggressivenessLevels);
@@ -426,6 +430,8 @@ export const sets = pgTable(
     targetWeightLbs: numeric("target_weight_lbs", { precision: 6, scale: 2 }).notNull(),
     actualWeightLbs: numeric("actual_weight_lbs", { precision: 6, scale: 2 }),
     status: setStatusEnum("status").notNull().default("pending"),
+    rir: setRirEnum("rir"),
+    failureStatus: setFailureStatusEnum("failure_status"),
     completedAt: timestamp("completed_at", { withTimezone: true }),
     ...timestamps
   },

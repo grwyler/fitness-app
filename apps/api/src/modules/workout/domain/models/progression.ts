@@ -4,6 +4,8 @@ import type {
   ExperienceLevel,
   ProgressionAggressiveness,
   ProgressionResult,
+  SetFailureStatus,
+  SetRir,
   RecoveryState,
   TrainingGoal
 } from "@fitness/shared";
@@ -41,6 +43,8 @@ export type ExerciseWorkoutSetOutcome = {
   actualReps: number | null;
   targetWeightLbs: number;
   actualWeightLbs: number | null;
+  rir?: SetRir | null;
+  failureStatus?: SetFailureStatus | null;
 };
 
 export type ProgressionComputationInput = {

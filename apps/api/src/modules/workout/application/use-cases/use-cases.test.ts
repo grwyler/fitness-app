@@ -85,6 +85,8 @@ function createBaseWorkoutSessionGraph(): WorkoutSessionGraph {
         targetWeightLbs: 135,
         actualWeightLbs: null,
         status: "pending",
+        rir: null,
+        failureStatus: null,
         completedAt: null,
         createdAt: new Date("2026-04-24T10:00:00.000Z"),
         updatedAt: new Date("2026-04-24T10:00:00.000Z")
@@ -98,6 +100,8 @@ function createBaseWorkoutSessionGraph(): WorkoutSessionGraph {
         targetWeightLbs: 135,
         actualWeightLbs: null,
         status: "pending",
+        rir: null,
+        failureStatus: null,
         completedAt: null,
         createdAt: new Date("2026-04-24T10:00:00.000Z"),
         updatedAt: new Date("2026-04-24T10:00:00.000Z")
@@ -111,6 +115,8 @@ function createBaseWorkoutSessionGraph(): WorkoutSessionGraph {
         targetWeightLbs: 135,
         actualWeightLbs: null,
         status: "pending",
+        rir: null,
+        failureStatus: null,
         completedAt: null,
         createdAt: new Date("2026-04-24T10:00:00.000Z"),
         updatedAt: new Date("2026-04-24T10:00:00.000Z")

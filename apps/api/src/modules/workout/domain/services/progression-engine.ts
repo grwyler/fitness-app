@@ -205,12 +205,53 @@ export function isMaterialRepOverperformanceSet(set: ExerciseWorkoutSetOutcome, 
   return set.actualReps >= materialRepOverperformanceThreshold(set.targetReps);
 }
 
+function isRirSupportedRepOverperformanceSet(set: ExerciseWorkoutSetOutcome, incrementLbs: number) {
+  if (set.rir !== "rir_5_plus") {
+    return false;
+  }
+
+  if (set.actualReps === null || set.actualWeightLbs === null) {
+    return false;
+  }
+
+  if (set.actualReps <= 0 || set.targetReps <= 0) {
+    return false;
+  }
+
+  if (!isWeightCloseToTarget({ actualWeightLbs: set.actualWeightLbs, targetWeightLbs: set.targetWeightLbs, incrementLbs })) {
+    return false;
+  }
+
+  const threshold = Math.max(set.targetReps + 3, Math.ceil(set.targetReps * 1.5));
+  return set.actualReps >= threshold;
+}
+
 function isExtremeRepOverperformanceSet(set: ExerciseWorkoutSetOutcome) {
   if (set.actualReps === null) {
     return false;
   }
 
   return set.targetReps > 0 && set.actualReps >= extremeRepOverperformanceThreshold(set.targetReps);
+}
+
+function getSetEffortSignals(sets: ExerciseWorkoutSetOutcome[] | undefined) {
+  const normalizedSets = sets ?? [];
+  const hasStoppedEarly = normalizedSets.some((set) => set.failureStatus === "stopped_early");
+  const hasTechnicalFailure = normalizedSets.some((set) => set.failureStatus === "technical_failure");
+  const hasMuscularFailure = normalizedSets.some((set) => set.failureStatus === "muscular_failure");
+  const hasRir0 = normalizedSets.some((set) => set.rir === "rir_0");
+  const hasNearFailure = hasTechnicalFailure || hasMuscularFailure || hasRir0;
+  const hasRir5Plus = normalizedSets.some((set) => set.rir === "rir_5_plus");
+
+  return {
+    hasStoppedEarly,
+    hasTechnicalFailure,
+    hasMuscularFailure,
+    hasRir0,
+    hasNearFailure,
+    hasRir5Plus,
+    hasAnyEffort: normalizedSets.some((set) => set.rir != null || set.failureStatus != null)
+  };
 }
 
 function hasEffectiveFailure(outcome: ExerciseWorkoutOutcome) {
@@ -220,6 +261,7 @@ function hasEffectiveFailure(outcome: ExerciseWorkoutOutcome) {
 
   return outcome.sets.some(
     (set) =>
+      set.failureStatus !== "stopped_early" &&
       set.actualReps !== null &&
       set.actualReps < set.targetReps &&
       !isMaterialOverperformanceSet(set)
@@ -227,12 +269,13 @@ function hasEffectiveFailure(outcome: ExerciseWorkoutOutcome) {
 }
 
 function hasExceptionalOverperformance(input: { outcome: ExerciseWorkoutOutcome; incrementLbs: number }) {
-  const weightQualifyingSets = input.outcome.sets?.filter(isMaterialOverperformanceSet) ?? [];
+  const performanceSets = (input.outcome.sets ?? []).filter((set) => set.failureStatus !== "stopped_early");
+  const weightQualifyingSets = performanceSets.filter(isMaterialOverperformanceSet);
   if (weightQualifyingSets.length >= MIN_RECALIBRATION_SET_COUNT) {
     return true;
   }
 
-  const repQualifyingSets = input.outcome.sets?.filter((set) => isMaterialRepOverperformanceSet(set, input.incrementLbs)) ?? [];
+  const repQualifyingSets = performanceSets.filter((set) => isMaterialRepOverperformanceSet(set, input.incrementLbs));
   if (repQualifyingSets.length >= MIN_RECALIBRATION_SET_COUNT) {
     return true;
   }
@@ -435,6 +478,56 @@ export class ProgressionEngine {
       throw new Error("Double progression requires per-set outcomes.");
     }
 
+    const effortSignals = getSetEffortSignals(outcome.sets);
+    const performanceSets = outcome.sets.filter((set) => set.failureStatus !== "stopped_early");
+    if (effortSignals.hasStoppedEarly && performanceSets.length === 0) {
+      const nextState: ProgressionStateSnapshotV2 = {
+        currentWeightLbs: previousWeightLbs,
+        lastCompletedWeightLbs: state.lastCompletedWeightLbs,
+        consecutiveFailures: state.consecutiveFailures,
+        lastEffortFeedback: outcome.effortFeedback,
+        repGoal: previousRepGoal,
+        repRangeMin,
+        repRangeMax
+      };
+
+      return {
+        previousWeightLbs,
+        nextWeightLbs: previousWeightLbs,
+        previousRepGoal,
+        nextRepGoal: previousRepGoal,
+        result: "repeated",
+        reason: "Repeated because one or more sets were marked stopped early.",
+        nextState
+      };
+    }
+
+    if (effortSignals.hasTechnicalFailure) {
+      const nextState: ProgressionStateSnapshotV2 = {
+        currentWeightLbs: previousWeightLbs,
+        lastCompletedWeightLbs: previousWeightLbs,
+        consecutiveFailures: 0,
+        lastEffortFeedback: outcome.effortFeedback,
+        lastPerformedAt,
+        repGoal: previousRepGoal,
+        repRangeMin,
+        repRangeMax
+      };
+
+      return {
+        previousWeightLbs,
+        nextWeightLbs: previousWeightLbs,
+        previousRepGoal,
+        nextRepGoal: previousRepGoal,
+        result: "repeated",
+        reason: "Repeated because a set was marked technical failure.",
+        nextState
+      };
+    }
+
+    const setsForProgression = performanceSets.length > 0 ? performanceSets : outcome.sets;
+    const shouldCapIncreaseSteps = effortSignals.hasNearFailure || effortSignals.hasStoppedEarly;
+
     if (previousWeightLbs < 0) {
       throw new Error("currentWeightLbs must be greater than or equal to 0.");
     }
@@ -487,14 +580,14 @@ export class ProgressionEngine {
       };
     }
 
-    const hasBelowRangeMin = outcome.sets.some(
+    const hasBelowRangeMin = setsForProgression.some(
       (set) => (set.actualReps ?? 0) < repRangeMin && !isMaterialOverperformanceSet(set)
     );
     if (hasBelowRangeMin) {
       return this.calculateFailureResultV2(input, previousWeightLbs);
     }
 
-    const metRepGoal = outcome.sets.every(
+    const metRepGoal = setsForProgression.every(
       (set) => (set.actualReps ?? 0) >= previousRepGoal || isMaterialOverperformanceSet(set)
     );
     if (!metRepGoal) {
@@ -696,7 +789,7 @@ export class ProgressionEngine {
     }
 
     if (!shouldFavorWeight && previousRepGoal < repRangeMax) {
-      const increaseSteps =
+      const computedIncreaseSteps =
         repRangeMax > repRangeMin
           ? getRepIncreaseStepCount({
               aggressiveness: input.progressionAggressiveness ?? "balanced",
@@ -706,6 +799,7 @@ export class ProgressionEngine {
               recoveryState
             })
           : 1;
+      const increaseSteps = shouldCapIncreaseSteps ? 1 : computedIncreaseSteps;
       const nextRepGoal = clampInteger(previousRepGoal + increaseSteps, repRangeMin, repRangeMax);
       const nextState: ProgressionStateSnapshotV2 = {
         currentWeightLbs: previousWeightLbs,
@@ -782,7 +876,7 @@ export class ProgressionEngine {
       };
     }
 
-    const rawIncreaseSteps =
+    const computedRawIncreaseSteps =
       repRangeMax > repRangeMin
         ? getAggressiveSuccessStepCount({
             category: exercise.exerciseCategory,
@@ -791,6 +885,7 @@ export class ProgressionEngine {
             recoveryState
           })
         : 1;
+    const rawIncreaseSteps = shouldCapIncreaseSteps ? 1 : computedRawIncreaseSteps;
     const increaseSteps =
       trainingGoal === "hypertrophy" || trainingGoal === "endurance" || trainingGoal === "general_fitness"
         ? 1
@@ -1354,6 +1449,44 @@ export class ProgressionEngine {
     const trainingGoal = resolveTrainingGoal(input.trainingGoal);
     const recoveryState = input.recoveryState ?? null;
 
+    const effortSignals = getSetEffortSignals(outcome.sets);
+    const performanceSets = (outcome.sets ?? []).filter((set) => set.failureStatus !== "stopped_early");
+    if (effortSignals.hasStoppedEarly && performanceSets.length === 0) {
+      const nextState: ProgressionStateSnapshot = {
+        currentWeightLbs: previousWeightLbs,
+        lastCompletedWeightLbs: previousWeightLbs,
+        consecutiveFailures: 0,
+        lastEffortFeedback: outcome.effortFeedback
+      };
+
+      return {
+        previousWeightLbs,
+        nextWeightLbs: previousWeightLbs,
+        result: "repeated",
+        reason: "Repeated because one or more sets were marked stopped early.",
+        nextState
+      };
+    }
+
+    if (effortSignals.hasTechnicalFailure) {
+      const nextState: ProgressionStateSnapshot = {
+        currentWeightLbs: previousWeightLbs,
+        lastCompletedWeightLbs: previousWeightLbs,
+        consecutiveFailures: 0,
+        lastEffortFeedback: outcome.effortFeedback
+      };
+
+      return {
+        previousWeightLbs,
+        nextWeightLbs: previousWeightLbs,
+        result: "repeated",
+        reason: "Repeated because a set was marked technical failure.",
+        nextState
+      };
+    }
+
+    const shouldCapIncreaseSteps = effortSignals.hasNearFailure || effortSignals.hasStoppedEarly;
+
     if (outcome.effortFeedback === "too_hard") {
       const nextState: ProgressionStateSnapshot = {
         currentWeightLbs: previousWeightLbs,
@@ -1455,13 +1588,14 @@ export class ProgressionEngine {
       };
     }
 
-    const rawIncreaseSteps = getRepIncreaseStepCount({
+    const computedRawIncreaseSteps = getRepIncreaseStepCount({
       aggressiveness: input.progressionAggressiveness ?? "balanced",
       category: exercise.exerciseCategory,
       effortFeedback: outcome.effortFeedback,
       experienceLevel: input.experienceLevel ?? null,
       recoveryState
     });
+    const rawIncreaseSteps = shouldCapIncreaseSteps ? 1 : computedRawIncreaseSteps;
     const increaseSteps =
       trainingGoal === "hypertrophy" || trainingGoal === "endurance" || trainingGoal === "general_fitness"
         ? 1
@@ -1495,9 +1629,19 @@ export class ProgressionEngine {
     previousWeightLbs: number
   ): ProgressionComputationResult | null {
     const { exercise, outcome } = input;
-    const weightQualifyingSets = outcome.sets?.filter(isMaterialOverperformanceSet) ?? [];
-    const repQualifyingSets =
-      outcome.sets?.filter((set) => isMaterialRepOverperformanceSet(set, exercise.incrementLbs)) ?? [];
+
+    const effortSignals = getSetEffortSignals(outcome.sets);
+    if (effortSignals.hasNearFailure || effortSignals.hasTechnicalFailure || effortSignals.hasStoppedEarly) {
+      return null;
+    }
+
+    const performanceSets = (outcome.sets ?? []).filter((set) => set.failureStatus !== "stopped_early");
+    const weightQualifyingSets = performanceSets.filter(isMaterialOverperformanceSet);
+    const repQualifyingSets = performanceSets.filter(
+      (set) =>
+        isMaterialRepOverperformanceSet(set, exercise.incrementLbs) ||
+        isRirSupportedRepOverperformanceSet(set, exercise.incrementLbs)
+    );
 
     const useWeightSignal = weightQualifyingSets.length >= MIN_RECALIBRATION_SET_COUNT;
     const useRepSignal =
@@ -1554,9 +1698,19 @@ export class ProgressionEngine {
     previousWeightLbs: number
   ): ProgressionComputationResultV2 | null {
     const { exercise, outcome, state } = input;
-    const weightQualifyingSets = outcome.sets?.filter(isMaterialOverperformanceSet) ?? [];
-    const repQualifyingSets =
-      outcome.sets?.filter((set) => isMaterialRepOverperformanceSet(set, exercise.incrementLbs)) ?? [];
+
+    const effortSignals = getSetEffortSignals(outcome.sets);
+    if (effortSignals.hasNearFailure || effortSignals.hasTechnicalFailure || effortSignals.hasStoppedEarly) {
+      return null;
+    }
+
+    const performanceSets = (outcome.sets ?? []).filter((set) => set.failureStatus !== "stopped_early");
+    const weightQualifyingSets = performanceSets.filter(isMaterialOverperformanceSet);
+    const repQualifyingSets = performanceSets.filter(
+      (set) =>
+        isMaterialRepOverperformanceSet(set, exercise.incrementLbs) ||
+        isRirSupportedRepOverperformanceSet(set, exercise.incrementLbs)
+    );
 
     const useWeightSignal = weightQualifyingSets.length >= MIN_RECALIBRATION_SET_COUNT;
     const useRepSignal =
@@ -1568,6 +1722,7 @@ export class ProgressionEngine {
     }
 
     const qualifyingSets = useWeightSignal ? weightQualifyingSets : repQualifyingSets;
+    const includesRir5Plus = qualifyingSets.some((set) => set.rir === "rir_5_plus");
 
     const estimatedOneRepMaxes = qualifyingSets.map((set) =>
       estimateOneRepMaxEpley(set.actualWeightLbs!, set.actualReps!)
@@ -1613,7 +1768,9 @@ export class ProgressionEngine {
       result: "recalibrated",
       reason: useWeightSignal
         ? `Recalibrated from ${previousWeightLbs} lb to ${nextWeightLbs} lb based on materially heavier sets logged.`
-        : `Recalibrated from ${previousWeightLbs} lb to ${nextWeightLbs} lb because reps greatly exceeded the target at the prescribed weight.`,
+        : `Recalibrated from ${previousWeightLbs} lb to ${nextWeightLbs} lb because reps greatly exceeded the target at the prescribed weight${
+            includesRir5Plus ? " (and you reported 5+ reps in reserve)." : "."
+          }`,
       nextState
     };
   }

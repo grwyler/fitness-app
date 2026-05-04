@@ -42,6 +42,18 @@ export type EffortFeedback = (typeof effortFeedbackValues)[number];
 export const setStatuses = ["pending", "completed", "skipped", "failed"] as const;
 export type SetStatus = (typeof setStatuses)[number];
 
+// Optional per-set effort logging (MVP).
+// RIR is stored as an enum to support a "5+" bucket without awkward sentinel integers.
+export const setRirValues = ["rir_0", "rir_1", "rir_2", "rir_3", "rir_4", "rir_5_plus"] as const;
+export type SetRir = (typeof setRirValues)[number];
+
+export const setFailureStatusValues = [
+  "muscular_failure",
+  "technical_failure",
+  "stopped_early"
+] as const;
+export type SetFailureStatus = (typeof setFailureStatusValues)[number];
+
 export const progressMetricTypes = [
   "weight_increase",
   "personal_best",

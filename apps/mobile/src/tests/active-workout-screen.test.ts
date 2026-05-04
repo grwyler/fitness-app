@@ -62,6 +62,8 @@ function createWorkout(overrides?: {
                   unit: "lb"
                 },
           status,
+          rir: null,
+          failureStatus: null,
           completedAt: status === "pending" ? null : "2026-04-24T10:10:00.000Z"
         }))
       }

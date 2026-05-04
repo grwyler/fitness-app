@@ -3,6 +3,8 @@ import {
   formatWeightForUser,
   parseWeightInputForUser,
   type LogSetRequest,
+  type SetFailureStatus,
+  type SetRir,
   type SetDto,
   type UnitSystem,
   type WeightValueDto
@@ -11,6 +13,8 @@ import {
 export type SetLogDraft = {
   repsText: string;
   weightText: string;
+  rir?: SetRir | null;
+  failureStatus?: SetFailureStatus | null;
 };
 
 export type SetLogValidation = {
@@ -64,7 +68,9 @@ export function getSetLogDefaultDraft(input: {
       unitSystem,
       includeUnit: false,
       maximumFractionDigits: unitSystem === "metric" ? 1 : 2
-    }).text
+    }).text,
+    ...(input.set.rir ? { rir: input.set.rir } : {}),
+    ...(input.set.failureStatus ? { failureStatus: input.set.failureStatus } : {})
   };
 }
 
@@ -127,9 +133,30 @@ export function buildLogSetRequestFromDraft(
     return null;
   }
 
+  const hasRirField = "rir" in draft;
+  const hasFailureStatusField = "failureStatus" in draft;
+  const normalizedFailureStatus = hasFailureStatusField ? (draft.failureStatus ?? null) : undefined;
+  const normalizedRir = (() => {
+    if (!hasRirField && !hasFailureStatusField) {
+      return undefined;
+    }
+
+    if (normalizedFailureStatus === "muscular_failure" || normalizedFailureStatus === "technical_failure") {
+      return "rir_0" as const;
+    }
+
+    if (normalizedFailureStatus === "stopped_early") {
+      return null;
+    }
+
+    return hasRirField ? (draft.rir ?? null) : undefined;
+  })();
+
   return {
     actualReps: validation.actualReps,
-    actualWeight: validation.actualWeight
+    actualWeight: validation.actualWeight,
+    ...(hasRirField || hasFailureStatusField ? { rir: normalizedRir ?? null } : {}),
+    ...(hasFailureStatusField ? { failureStatus: normalizedFailureStatus ?? null } : {})
   };
 }
 

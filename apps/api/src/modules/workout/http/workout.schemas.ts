@@ -18,7 +18,9 @@ import {
   guidedFocusAreas,
   guidedBusyWeekPreferences,
   guidedRecoveryTolerances,
-  guidedEquipmentTypes
+  guidedEquipmentTypes,
+  setFailureStatusValues,
+  setRirValues
 } from "@fitness/shared";
 
 const weightValueSchema = z.object({
@@ -188,11 +190,33 @@ export const addCustomWorkoutExerciseBodySchema = z.object({
   restSeconds: z.number().int().min(0).max(1800).nullable().optional()
 });
 
-export const logSetBodySchema = z.object({
-  actualReps: z.number().int().min(0),
-  actualWeight: weightValueSchema.optional(),
-  completedAt: isoDateTimeSchema.optional()
-});
+export const logSetBodySchema = z
+  .object({
+    actualReps: z.number().int().min(0),
+    actualWeight: weightValueSchema.optional(),
+    completedAt: isoDateTimeSchema.optional(),
+    rir: z.enum(setRirValues).nullable().optional(),
+    failureStatus: z.enum(setFailureStatusValues).nullable().optional()
+  })
+  .superRefine((value, ctx) => {
+    if (value.failureStatus === "muscular_failure" || value.failureStatus === "technical_failure") {
+      if (value.rir && value.rir !== "rir_0") {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "rir must be rir_0 when failureStatus indicates failure."
+        });
+      }
+    }
+
+    if (value.failureStatus === "stopped_early") {
+      if (value.rir !== null && value.rir !== undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "rir must be omitted or null when failureStatus is stopped_early."
+        });
+      }
+    }
+  });
 
 export const completeWorkoutSessionBodySchema = z.object({
   completedAt: isoDateTimeSchema.optional(),

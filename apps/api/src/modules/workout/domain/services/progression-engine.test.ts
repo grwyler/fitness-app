@@ -1168,6 +1168,115 @@ export const progressionEngineTestCases: DomainTestCase[] = [
     }
   },
   {
+    name: "ProgressionEngine (double) caps too_easy weight jumps when a set is marked near failure (RIR 0)",
+    run: () => {
+      const result = engine.calculateDoubleProgression({
+        trainingGoal: "strength",
+        performedAt: new Date("2026-05-01T10:00:00.000Z"),
+        state: {
+          currentWeightLbs: 135,
+          lastCompletedWeightLbs: 130,
+          consecutiveFailures: 0,
+          lastEffortFeedback: "just_right",
+          lastPerformedAt: new Date("2026-04-28T10:00:00.000Z"),
+          repGoal: 7,
+          repRangeMin: 6,
+          repRangeMax: 10
+        },
+        exercise: {
+          exerciseName: "Bench Press",
+          exerciseCategory: "compound",
+          incrementLbs: 5,
+          isBodyweight: false,
+          isWeightOptional: false
+        },
+        outcome: {
+          effortFeedback: "too_easy",
+          sets: [
+            { targetReps: 7, actualReps: 7, targetWeightLbs: 135, actualWeightLbs: 135, rir: "rir_0" },
+            { targetReps: 7, actualReps: 7, targetWeightLbs: 135, actualWeightLbs: 135 },
+            { targetReps: 7, actualReps: 7, targetWeightLbs: 135, actualWeightLbs: 135 }
+          ]
+        }
+      });
+
+      assert.equal(result.result, "increased");
+      assert.equal(result.nextWeightLbs, 140);
+    }
+  },
+  {
+    name: "ProgressionEngine (double) repeats when a set is marked technical failure",
+    run: () => {
+      const result = engine.calculateDoubleProgression({
+        trainingGoal: "strength",
+        performedAt: new Date("2026-05-01T10:00:00.000Z"),
+        state: {
+          currentWeightLbs: 135,
+          lastCompletedWeightLbs: 130,
+          consecutiveFailures: 0,
+          lastEffortFeedback: "just_right",
+          lastPerformedAt: new Date("2026-04-28T10:00:00.000Z"),
+          repGoal: 7,
+          repRangeMin: 6,
+          repRangeMax: 10
+        },
+        exercise: {
+          exerciseName: "Bench Press",
+          exerciseCategory: "compound",
+          incrementLbs: 5,
+          isBodyweight: false,
+          isWeightOptional: false
+        },
+        outcome: {
+          effortFeedback: "too_easy",
+          sets: [
+            { targetReps: 7, actualReps: 7, targetWeightLbs: 135, actualWeightLbs: 135, failureStatus: "technical_failure" },
+            { targetReps: 7, actualReps: 7, targetWeightLbs: 135, actualWeightLbs: 135 },
+            { targetReps: 7, actualReps: 7, targetWeightLbs: 135, actualWeightLbs: 135 }
+          ]
+        }
+      });
+
+      assert.equal(result.result, "repeated");
+      assert.equal(result.nextWeightLbs, 135);
+    }
+  },
+  {
+    name: "ProgressionEngine (double) can recalibrate from high reps supported by RIR 5+",
+    run: () => {
+      const result = engine.calculateDoubleProgression({
+        performedAt: new Date("2026-05-01T10:00:00.000Z"),
+        state: {
+          currentWeightLbs: 135,
+          lastCompletedWeightLbs: 130,
+          consecutiveFailures: 0,
+          lastEffortFeedback: "just_right",
+          lastPerformedAt: new Date("2026-04-28T10:00:00.000Z"),
+          repGoal: 8,
+          repRangeMin: 6,
+          repRangeMax: 10
+        },
+        exercise: {
+          exerciseName: "Bench Press",
+          exerciseCategory: "compound",
+          incrementLbs: 5,
+          isBodyweight: false,
+          isWeightOptional: false
+        },
+        outcome: {
+          effortFeedback: "too_easy",
+          sets: [
+            { targetReps: 8, actualReps: 16, targetWeightLbs: 135, actualWeightLbs: 135, rir: "rir_5_plus" },
+            { targetReps: 8, actualReps: 16, targetWeightLbs: 135, actualWeightLbs: 135, rir: "rir_5_plus" }
+          ]
+        }
+      });
+
+      assert.equal(result.result, "recalibrated");
+      assert.ok(result.nextWeightLbs > 145);
+    }
+  },
+  {
     name: "ProgressionEngine (double) favors earlier load jumps for strength goals",
     run: () => {
       const result = engine.calculateDoubleProgression({

@@ -99,6 +99,8 @@ export class AddWorkoutSetUseCase {
               targetWeightLbs: exerciseEntry.targetWeightLbs,
               actualWeightLbs: null,
               status: "pending",
+              rir: null,
+              failureStatus: null,
               completedAt: null
             }
           },

@@ -47,6 +47,23 @@ function daysSince(previous: Date, current: Date) {
   return Math.floor(ms / 86_400_000);
 }
 
+function buildSetEffortSignalsFromSets(sets: Array<{ rir: string | null; failureStatus: string | null }>) {
+  const hasTechnicalFailure = sets.some((set) => set.failureStatus === "technical_failure");
+  const hasMuscularFailure = sets.some((set) => set.failureStatus === "muscular_failure");
+  const hasStoppedEarly = sets.some((set) => set.failureStatus === "stopped_early");
+  const hasRir0 = sets.some((set) => set.rir === "rir_0");
+  const hasRir5Plus = sets.some((set) => set.rir === "rir_5_plus");
+
+  return {
+    hasAnyEffort: sets.some((set) => set.rir != null || set.failureStatus != null),
+    hasNearFailure: hasTechnicalFailure || hasMuscularFailure || hasRir0,
+    hasMuscularFailure,
+    hasTechnicalFailure,
+    hasStoppedEarly,
+    hasRir5Plus
+  };
+}
+
 function buildProgressionExplanation(input: {
   result: ProgressionUpdateDto["result"];
   reason: string;
@@ -55,6 +72,14 @@ function buildProgressionExplanation(input: {
   previousRepGoal: number;
   nextRepGoal: number;
   effortFeedback: EffortFeedback | null;
+  setEffortSignals?: {
+    hasAnyEffort: boolean;
+    hasNearFailure: boolean;
+    hasMuscularFailure: boolean;
+    hasTechnicalFailure: boolean;
+    hasStoppedEarly: boolean;
+    hasRir5Plus: boolean;
+  };
   workoutIsPartial: boolean;
   totalSetCount: number;
   loggedSetCount: number;
@@ -99,6 +124,28 @@ function buildProgressionExplanation(input: {
   } else {
     reasonCodes.push("EFFORT_MISSING");
     evidence.push("Effort feedback missing");
+  }
+
+  if (input.setEffortSignals?.hasAnyEffort) {
+    if (input.setEffortSignals.hasTechnicalFailure) {
+      reasonCodes.push("SET_TECHNICAL_FAILURE");
+      evidence.push("A set was marked technical failure");
+    }
+    if (input.setEffortSignals.hasMuscularFailure) {
+      reasonCodes.push("SET_MUSCULAR_FAILURE");
+      evidence.push("A set was marked failure");
+    }
+    if (input.setEffortSignals.hasStoppedEarly) {
+      reasonCodes.push("SET_STOPPED_EARLY");
+      evidence.push("A set was marked stopped early");
+    }
+    if (input.setEffortSignals.hasRir5Plus) {
+      reasonCodes.push("SET_RIR_5_PLUS");
+      evidence.push("Reported 5+ reps in reserve on a set");
+    } else if (input.setEffortSignals.hasNearFailure) {
+      reasonCodes.push("SET_NEAR_FAILURE");
+      evidence.push("Reported 0 RIR / near-failure effort on a set");
+    }
   }
 
   if (input.workoutIsPartial) {
@@ -195,6 +242,9 @@ function buildProgressionExplanation(input: {
     if (!input.effortFeedback) {
       return "low";
     }
+    if (input.setEffortSignals?.hasTechnicalFailure) {
+      return "low";
+    }
     if (input.missingActualWeight) {
       return "low";
     }
@@ -217,8 +267,20 @@ function buildProgressionExplanation(input: {
     return "medium";
   })();
 
+  const adjustedConfidence: ProgressionUpdateDto["confidence"] = (() => {
+    if (!input.setEffortSignals) {
+      return confidence;
+    }
+
+    if (input.setEffortSignals.hasNearFailure || input.setEffortSignals.hasStoppedEarly) {
+      return confidence === "high" ? "medium" : confidence;
+    }
+
+    return confidence;
+  })();
+
   return {
-    confidence,
+    confidence: adjustedConfidence,
     reasonCodes: [...new Set(reasonCodes)],
     evidence
   };
@@ -697,7 +759,9 @@ export class CompleteWorkoutSessionUseCase {
           }
 
           const relatedSets = workoutSessionGraph.sets.filter((set) => set.exerciseEntryId === exerciseEntry.id);
-          const hasFailure = relatedSets.some((set) => set.status === "failed");
+          const hasFailure = relatedSets.some(
+            (set) => set.status === "failed" && set.failureStatus !== "stopped_early"
+          );
 
           const progressionStrategy: ProgressionStrategy = (() => {
             const raw = (exerciseEntry.progressionRuleSnapshot as Record<string, unknown> | null)?.[
@@ -774,7 +838,9 @@ export class CompleteWorkoutSessionUseCase {
                     targetReps: set.targetReps,
                     actualReps: set.actualReps,
                     targetWeightLbs: set.targetWeightLbs,
-                    actualWeightLbs: set.actualWeightLbs
+                    actualWeightLbs: set.actualWeightLbs,
+                    rir: set.rir,
+                    failureStatus: set.failureStatus
                   }))
                 }
               }
@@ -822,7 +888,9 @@ export class CompleteWorkoutSessionUseCase {
                     targetReps: set.targetReps,
                     actualReps: set.actualReps,
                     targetWeightLbs: set.targetWeightLbs,
-                    actualWeightLbs: set.actualWeightLbs
+                    actualWeightLbs: set.actualWeightLbs,
+                    rir: set.rir,
+                    failureStatus: set.failureStatus
                   }))
                 }
               }
@@ -866,7 +934,9 @@ export class CompleteWorkoutSessionUseCase {
                 targetReps: set.targetReps,
                 actualReps: set.actualReps,
                 targetWeightLbs: set.targetWeightLbs,
-                actualWeightLbs: set.actualWeightLbs
+                actualWeightLbs: set.actualWeightLbs,
+                rir: set.rir,
+                failureStatus: set.failureStatus
               }))
             },
             performedAt: completedAt
@@ -924,10 +994,13 @@ export class CompleteWorkoutSessionUseCase {
             previousRepGoal: cappedProgressionResult.previousRepGoal,
             nextRepGoal: cappedProgressionResult.nextRepGoal,
             effortFeedback,
+            setEffortSignals: buildSetEffortSignalsFromSets(relatedSets),
             workoutIsPartial: isPartial,
             totalSetCount: relatedSets.length,
             loggedSetCount: loggedSets.length,
-            hasFailedSets: loggedSets.some((set) => set.status === "failed"),
+            hasFailedSets: loggedSets.some(
+              (set) => set.status === "failed" && set.failureStatus !== "stopped_early"
+            ),
             missingActualWeight,
             lastPerformedAt: progressionStateV2.lastPerformedAt ?? null,
             performedAt: completedAt,
@@ -1031,7 +1104,9 @@ export class CompleteWorkoutSessionUseCase {
           }
 
           const relatedSets = workoutSessionGraph.sets.filter((set) => set.exerciseEntryId === exerciseEntry.id);
-          const hasFailure = relatedSets.some((set) => set.status === "failed");
+          const hasFailure = relatedSets.some(
+            (set) => set.status === "failed" && set.failureStatus !== "stopped_early"
+          );
           const effortFeedback = exerciseFeedbackByEntryId[exerciseEntry.id];
           if (!effortFeedback) {
             skippedProgressionUpdatesV1Direct.push({
@@ -1106,7 +1181,9 @@ export class CompleteWorkoutSessionUseCase {
                 targetReps: set.targetReps,
                 actualReps: set.actualReps,
                 targetWeightLbs: set.targetWeightLbs,
-                actualWeightLbs: set.actualWeightLbs
+                actualWeightLbs: set.actualWeightLbs,
+                rir: set.rir,
+                failureStatus: set.failureStatus
               }))
             },
             performedAt: completedAt
@@ -1126,10 +1203,13 @@ export class CompleteWorkoutSessionUseCase {
             previousRepGoal: exerciseEntry.targetReps,
             nextRepGoal: exerciseEntry.targetReps,
             effortFeedback,
+            setEffortSignals: buildSetEffortSignalsFromSets(relatedSets),
             workoutIsPartial: isPartial,
             totalSetCount: relatedSets.length,
             loggedSetCount: loggedSets.length,
-            hasFailedSets: loggedSets.some((set) => set.status === "failed"),
+            hasFailedSets: loggedSets.some(
+              (set) => set.status === "failed" && set.failureStatus !== "stopped_early"
+            ),
             missingActualWeight,
             lastPerformedAt: progressionState.lastPerformedAt ?? null,
             performedAt: completedAt,
@@ -1469,10 +1549,13 @@ export class CompleteWorkoutSessionUseCase {
             previousRepGoal: progressionResult.previousRepGoal,
             nextRepGoal: progressionResult.nextRepGoal,
             effortFeedback: exerciseFeedbackByEntryId[exerciseEntry.id] ?? null,
+            setEffortSignals: buildSetEffortSignalsFromSets(relatedSets),
             workoutIsPartial: workoutSessionGraph.session.isPartial,
             totalSetCount: relatedSets.length,
             loggedSetCount: loggedSets.length,
-            hasFailedSets: loggedSets.some((set) => set.status === "failed"),
+            hasFailedSets: loggedSets.some(
+              (set) => set.status === "failed" && set.failureStatus !== "stopped_early"
+            ),
             missingActualWeight,
             lastPerformedAt: v2StateByTemplateEntryId.get(workoutTemplateExerciseEntryId)?.lastPerformedAt ?? null,
             performedAt: completedAt,
@@ -1534,10 +1617,13 @@ export class CompleteWorkoutSessionUseCase {
             previousRepGoal: exerciseEntry.targetReps,
             nextRepGoal: exerciseEntry.targetReps,
             effortFeedback,
+            setEffortSignals: buildSetEffortSignalsFromSets(relatedSets),
             workoutIsPartial: workoutSessionGraph.session.isPartial,
             totalSetCount: relatedSets.length,
             loggedSetCount: loggedSets.length,
-            hasFailedSets: loggedSets.some((set) => set.status === "failed"),
+            hasFailedSets: loggedSets.some(
+              (set) => set.status === "failed" && set.failureStatus !== "stopped_early"
+            ),
             missingActualWeight,
             lastPerformedAt: progressionState?.lastPerformedAt ?? null,
             performedAt: completedAt,
@@ -1605,10 +1691,13 @@ export class CompleteWorkoutSessionUseCase {
             previousRepGoal: progressionStateV2.repGoal,
             nextRepGoal: progressionStateV2.repGoal,
             effortFeedback: null,
+            setEffortSignals: buildSetEffortSignalsFromSets(relatedSets),
             workoutIsPartial: workoutSessionGraph.session.isPartial,
             totalSetCount: relatedSets.length,
             loggedSetCount: loggedSets.length,
-            hasFailedSets: loggedSets.some((set) => set.status === "failed"),
+            hasFailedSets: loggedSets.some(
+              (set) => set.status === "failed" && set.failureStatus !== "stopped_early"
+            ),
             missingActualWeight,
             lastPerformedAt: progressionStateV2.lastPerformedAt,
             performedAt: completedAt,
@@ -1676,10 +1765,13 @@ export class CompleteWorkoutSessionUseCase {
             previousRepGoal: exerciseEntry.targetReps,
             nextRepGoal: exerciseEntry.targetReps,
             effortFeedback: null,
+            setEffortSignals: buildSetEffortSignalsFromSets(relatedSets),
             workoutIsPartial: workoutSessionGraph.session.isPartial,
             totalSetCount: relatedSets.length,
             loggedSetCount: loggedSets.length,
-            hasFailedSets: loggedSets.some((set) => set.status === "failed"),
+            hasFailedSets: loggedSets.some(
+              (set) => set.status === "failed" && set.failureStatus !== "stopped_early"
+            ),
             missingActualWeight,
             lastPerformedAt: progressionState.lastPerformedAt,
             performedAt: completedAt,
@@ -1740,10 +1832,13 @@ export class CompleteWorkoutSessionUseCase {
             previousRepGoal: exerciseEntry.targetReps,
             nextRepGoal: exerciseEntry.targetReps,
             effortFeedback: exerciseFeedbackByEntryId[exerciseEntry.id] ?? null,
+            setEffortSignals: buildSetEffortSignalsFromSets(relatedSets),
             workoutIsPartial: true,
             totalSetCount,
             loggedSetCount,
-            hasFailedSets: relatedSets.some((set) => set.status === "failed"),
+            hasFailedSets: relatedSets.some(
+              (set) => set.status === "failed" && set.failureStatus !== "stopped_early"
+            ),
             missingActualWeight: relatedSets.some(
               (set) => (set.status === "completed" || set.status === "failed") && set.actualWeightLbs === null
             ),

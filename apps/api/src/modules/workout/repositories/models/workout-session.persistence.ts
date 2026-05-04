@@ -2,6 +2,8 @@ import type {
   EffortFeedback,
   ExerciseCategory,
   RecoveryState,
+  SetFailureStatus,
+  SetRir,
   SetStatus,
   WorkoutSessionStatus
 } from "@fitness/shared";
@@ -54,6 +56,8 @@ export type SetRecord = {
   targetWeightLbs: number;
   actualWeightLbs: number | null;
   status: SetStatus;
+  rir: SetRir | null;
+  failureStatus: SetFailureStatus | null;
   completedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -101,6 +105,8 @@ export type UpdateLoggedSetInput = {
   actualWeightLbs: number;
   status: SetStatus;
   completedAt: Date;
+  rir?: SetRir | null;
+  failureStatus?: SetFailureStatus | null;
 };
 
 export type CompleteWorkoutSessionPersistenceInput = {

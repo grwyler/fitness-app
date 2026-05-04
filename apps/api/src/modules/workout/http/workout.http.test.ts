@@ -2146,6 +2146,117 @@ export const workoutHttpTestCases: HttpTestCase[] = [
     }
   },
   {
+    name: "POST /api/v1/sets/:setId/log accepts optional RIR logging",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        await seedInProgressWorkout(context, {
+          setStatuses: ["pending", "pending", "pending"],
+          actualReps: [0, 0, 0]
+        });
+        const server = await startHttpServer(context.db);
+
+        try {
+          const response = await fetch(`${server.baseUrl}/api/v1/sets/set-1/log`, {
+            method: "POST",
+            headers: createAuthHeaders({
+              "content-type": "application/json",
+              "Idempotency-Key": "log-http-key-rir-1"
+            }),
+            body: JSON.stringify({
+              actualReps: 8,
+              rir: "rir_2"
+            })
+          });
+          const payload = await readJson(response);
+
+          assert.equal(response.status, 200);
+          assert.equal(payload.data.set.rir, "rir_2");
+          assert.equal(payload.data.set.failureStatus, null);
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "POST /api/v1/sets/:setId/log accepts failure status and normalizes RIR to 0",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        await seedInProgressWorkout(context, {
+          setStatuses: ["pending", "pending", "pending"],
+          actualReps: [0, 0, 0]
+        });
+        const server = await startHttpServer(context.db);
+
+        try {
+          const response = await fetch(`${server.baseUrl}/api/v1/sets/set-1/log`, {
+            method: "POST",
+            headers: createAuthHeaders({
+              "content-type": "application/json",
+              "Idempotency-Key": "log-http-key-failure-1"
+            }),
+            body: JSON.stringify({
+              actualReps: 8,
+              failureStatus: "technical_failure"
+            })
+          });
+          const payload = await readJson(response);
+
+          assert.equal(response.status, 200);
+          assert.equal(payload.data.set.failureStatus, "technical_failure");
+          assert.equal(payload.data.set.rir, "rir_0");
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "POST /api/v1/sets/:setId/log rejects invalid RIR values",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        await seedInProgressWorkout(context, {
+          setStatuses: ["pending", "pending", "pending"],
+          actualReps: [0, 0, 0]
+        });
+        const server = await startHttpServer(context.db);
+
+        try {
+          const response = await fetch(`${server.baseUrl}/api/v1/sets/set-1/log`, {
+            method: "POST",
+            headers: createAuthHeaders({
+              "content-type": "application/json",
+              "Idempotency-Key": "log-http-key-invalid-rir-1"
+            }),
+            body: JSON.stringify({
+              actualReps: 8,
+              rir: "rir_6"
+            })
+          });
+
+          assert.equal(response.status, 400);
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
     name: "PUT /api/v1/sets/:setId edits a logged set",
     run: async () => {
       const context = await createWorkoutInfrastructureTestContext();

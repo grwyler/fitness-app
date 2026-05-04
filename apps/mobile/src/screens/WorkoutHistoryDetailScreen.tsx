@@ -57,6 +57,23 @@ function formatSetStatus(status: string) {
   return "Not logged";
 }
 
+function formatSetEffort(input: { rir: string | null; failureStatus: string | null }) {
+  const parts: string[] = [];
+  if (input.failureStatus) {
+    parts.push(
+      input.failureStatus === "muscular_failure"
+        ? "Failure"
+        : input.failureStatus === "technical_failure"
+          ? "Tech fail"
+          : "Stopped early"
+    );
+  }
+  if (input.rir) {
+    parts.push(input.rir === "rir_5_plus" ? "RIR 5+" : `RIR ${input.rir.replace("rir_", "")}`);
+  }
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
 export function WorkoutHistoryDetailScreen({ route, navigation }: Props) {
   const detailQuery = useWorkoutHistoryDetail(route.params.sessionId);
   const progressionQuery = useProgression();
@@ -209,6 +226,9 @@ export function WorkoutHistoryDetailScreen({ route, navigation }: Props) {
                         weightLbs: set.actualWeight?.value ?? set.targetWeight.value,
                         unitSystem
                       }).text}`}
+                  {formatSetEffort({ rir: set.rir, failureStatus: set.failureStatus })
+                    ? ` \u2022 ${formatSetEffort({ rir: set.rir, failureStatus: set.failureStatus })}`
+                    : ""}
                 </Text>
                 <Text
                   style={[

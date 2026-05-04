@@ -173,6 +173,8 @@ export class AddCustomWorkoutExerciseUseCase {
               targetWeightLbs,
               actualWeightLbs: null,
               status: "pending",
+              rir: null,
+              failureStatus: null,
               completedAt: null
             }))
           },

@@ -119,6 +119,8 @@ function mapSetRecord(row: typeof sets.$inferSelect): SetRecord {
     targetWeightLbs: normalizeNumeric(row.targetWeightLbs),
     actualWeightLbs: normalizeNullableNumeric(row.actualWeightLbs),
     status: row.status,
+    rir: row.rir ?? null,
+    failureStatus: row.failureStatus ?? null,
     completedAt: row.completedAt,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt
@@ -537,6 +539,8 @@ export class DrizzleWorkoutSessionRepository implements WorkoutSessionRepository
         actualWeightLbs: input.actualWeightLbs.toString(),
         status: input.status,
         completedAt: input.completedAt,
+        ...(input.rir !== undefined ? { rir: input.rir } : {}),
+        ...(input.failureStatus !== undefined ? { failureStatus: input.failureStatus } : {}),
         updatedAt: new Date()
       })
       .where(eq(sets.id, input.setId))
