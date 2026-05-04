@@ -15,7 +15,11 @@ const contentType = response.headers.get("content-type") ?? "";
 const body = await response.text();
 
 if (!response.ok) {
-  throw new Error(`Expected ${healthUrl} to return 2xx, received ${response.status}.`);
+  const snippet = body ? body.slice(0, 280) : "";
+  throw new Error(
+    `Expected ${healthUrl} to return 2xx, received ${response.status}.` +
+      (snippet ? ` Response body (truncated): ${snippet}` : "")
+  );
 }
 
 if (!contentType.includes("application/json")) {

@@ -84,11 +84,26 @@ jobs:
           printf "%s\n" "$DEPLOYMENT_OUTPUT"
 
       - name: Smoke check API production URL
+        shell: bash
         env:
           API_PRODUCTION_URL: ${{ vars.VERCEL_API_PRODUCTION_URL }}
         run: |
-          if [ -n "$API_PRODUCTION_URL" ]; then
-            npm run smoke:api:url -- "$API_PRODUCTION_URL"
-          else
-            npm run smoke:api:url -- "$API_DEPLOYMENT_URL"
+          CANONICAL_API_PRODUCTION_URL="https://setwisefitapi.vercel.app"
+
+          echo "API deployment URL: ${API_DEPLOYMENT_URL}"
+          echo "Configured VERCEL_API_PRODUCTION_URL: ${API_PRODUCTION_URL:-"(not set)"}"
+          echo ""
+
+          echo "Smoke checking deployment URL..."
+          npm run smoke:api:url -- "$API_DEPLOYMENT_URL"
+          echo ""
+
+          PRODUCTION_TARGET="${API_PRODUCTION_URL:-$CANONICAL_API_PRODUCTION_URL}"
+          echo "Smoke checking production alias URL: ${PRODUCTION_TARGET}"
+          if ! npm run smoke:api:url -- "$PRODUCTION_TARGET"; then
+            echo ""
+            echo "Smoke check failed for the production URL."
+            echo "If this is pointing at an old deployment, update the GitHub Actions variable VERCEL_API_PRODUCTION_URL to:"
+            echo "  ${CANONICAL_API_PRODUCTION_URL}"
+            exit 1
           fi
