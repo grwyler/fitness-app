@@ -13,7 +13,7 @@ The Neon documentation is the source of truth for all Neon-related information. 
 
 ### Fetching Docs as Markdowns
 
-Any Neon doc page can be fetched as markdown in two ways:
+Any Neon doc pages can be fetched as markdown in two ways:
 
 1. **Append `.md` to the URL** (simplest): https://neon.com/docs/introduction/branching.md
 2. **Request `text/markdown`** on the standard URL: `curl -H "Accept: text/markdown" https://neon.com/docs/introduction/branching`
