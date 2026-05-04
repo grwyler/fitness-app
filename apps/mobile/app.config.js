@@ -149,7 +149,8 @@ module.exports = () => {
     "EXPO_PUBLIC_API_BASE_URL",
     resolveOptions,
   );
-  const apiBaseUrl = apiBaseUrlResult.value;
+  const inferredApiBaseUrl = isProductionBuild ? inferDefaultApiBaseUrl() : undefined;
+  const apiBaseUrl = apiBaseUrlResult.value ?? inferredApiBaseUrl;
   const sentryDsnResult = resolveEnvValue(
     "EXPO_PUBLIC_SENTRY_DSN",
     resolveOptions,
@@ -170,7 +171,7 @@ module.exports = () => {
   if (isProductionBuild) {
     assertProductionApiBaseUrl(
       apiBaseUrl,
-      apiBaseUrlResult.source ?? "default",
+      apiBaseUrlResult.source ?? (inferredApiBaseUrl ? "inferred_default" : "default"),
     );
   }
 
