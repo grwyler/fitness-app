@@ -71,6 +71,7 @@ export function createWorkoutHttpRouter(database: WorkoutDatabase) {
     workoutSessionRepository,
     progressionStateRepository,
     exerciseRepository,
+    programRepository,
     transactionManager,
     idempotencyRepository
   );

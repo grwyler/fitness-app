@@ -452,6 +452,10 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         async findTemplateExerciseEntryIdsByTemplateIdAndSequenceOrders() {
           return [];
         }
+        ,
+        async appendWorkoutTemplateExerciseEntry() {
+          throw new Error("Not implemented.");
+        }
       };
 
       const workoutSessionRepository: WorkoutSessionRepository = {
@@ -937,6 +941,10 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         async findTemplateExerciseEntryIdsByTemplateIdAndSequenceOrders() {
           return [];
         }
+        ,
+        async appendWorkoutTemplateExerciseEntry() {
+          throw new Error("Not implemented.");
+        }
       };
 
       const progressionStateV2Repository = defaultProgressionStateV2Repository;
@@ -1084,6 +1092,10 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         },
         async findTemplateExerciseEntryIdsByTemplateIdAndSequenceOrders() {
           return [];
+        }
+        ,
+        async appendWorkoutTemplateExerciseEntry() {
+          throw new Error("Not implemented.");
         }
       };
 
@@ -1242,6 +1254,10 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         },
         async findTemplateExerciseEntryIdsByTemplateIdAndSequenceOrders() {
           return [];
+        }
+        ,
+        async appendWorkoutTemplateExerciseEntry() {
+          throw new Error("Not implemented.");
         }
       };
 
@@ -1620,6 +1636,10 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         async findTemplateExerciseEntryIdsByTemplateIdAndSequenceOrders() {
           return [];
         }
+        ,
+        async appendWorkoutTemplateExerciseEntry() {
+          throw new Error("Not implemented.");
+        }
       };
 
       const progressMetricRepository: ProgressMetricRepository = {
@@ -1890,6 +1910,10 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         async findTemplateExerciseEntryIdsByTemplateIdAndSequenceOrders() {
           return [];
         }
+        ,
+        async appendWorkoutTemplateExerciseEntry() {
+          throw new Error("Not implemented.");
+        }
       };
 
       const progressMetricRepository: ProgressMetricRepository = {
@@ -2136,6 +2160,10 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         },
         async findTemplateExerciseEntryIdsByTemplateIdAndSequenceOrders() {
           return [];
+        }
+        ,
+        async appendWorkoutTemplateExerciseEntry() {
+          throw new Error("Not implemented.");
         }
       };
 
@@ -2415,6 +2443,10 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         async findTemplateExerciseEntryIdsByTemplateIdAndSequenceOrders() {
           return [];
         }
+        ,
+        async appendWorkoutTemplateExerciseEntry() {
+          throw new Error("Not implemented.");
+        }
       };
       const progressMetricRepository: ProgressMetricRepository = {
         async createMany(inputs) {
@@ -2643,6 +2675,10 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         async findTemplateExerciseEntryIdsByTemplateIdAndSequenceOrders() {
           return [];
         }
+        ,
+        async appendWorkoutTemplateExerciseEntry() {
+          throw new Error("Not implemented.");
+        }
       };
 
       const progressionStateV2Repository = defaultProgressionStateV2Repository;
@@ -2828,6 +2864,10 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         },
         async findTemplateExerciseEntryIdsByTemplateIdAndSequenceOrders() {
           return [];
+        }
+        ,
+        async appendWorkoutTemplateExerciseEntry() {
+          throw new Error("Not implemented.");
         }
       };
 

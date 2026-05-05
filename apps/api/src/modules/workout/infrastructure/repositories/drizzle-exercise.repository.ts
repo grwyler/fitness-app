@@ -4,6 +4,8 @@ import {
   workoutTemplateExerciseEntries,
   workoutTemplates
 } from "@fitness/db";
+import { randomUUID } from "crypto";
+import type { ProgressionStrategy } from "@fitness/shared";
 import type { ExerciseRepository } from "../../repositories/interfaces/exercise.repository.js";
 import type { RepositoryOptions } from "../../repositories/models/persistence-context.js";
 import type {
@@ -230,5 +232,47 @@ export class DrizzleExerciseRepository implements ExerciseRepository {
     return uniqueOrders
       .filter((order) => rowBySequenceOrder.has(order))
       .map((order) => rowBySequenceOrder.get(order)!);
+  }
+
+  public async appendWorkoutTemplateExerciseEntry(
+    input: {
+      workoutTemplateId: string;
+      exerciseId: string;
+      sequenceOrder: number;
+      targetSets: number;
+      targetReps: number;
+      repRangeMin?: number;
+      repRangeMax?: number;
+      restSeconds: number | null;
+      progressionStrategy?: ProgressionStrategy;
+    },
+    options?: RepositoryOptions
+  ): Promise<string> {
+    const executor = resolveExecutor(this.db, options);
+    const now = new Date();
+    const [row] = await executor
+      .insert(workoutTemplateExerciseEntries)
+      .values({
+        id: randomUUID(),
+        workoutTemplateId: input.workoutTemplateId,
+        exerciseId: input.exerciseId,
+        sequenceOrder: input.sequenceOrder,
+        targetSets: input.targetSets,
+        targetReps: input.targetReps,
+        repRangeMin: input.repRangeMin ?? null,
+        repRangeMax: input.repRangeMax ?? null,
+        restSeconds: input.restSeconds,
+        progressionStrategy: input.progressionStrategy ?? null,
+        deletedAt: null,
+        createdAt: now,
+        updatedAt: now
+      })
+      .returning({ id: workoutTemplateExerciseEntries.id });
+
+    if (!row?.id) {
+      throw new Error("Workout template exercise entry could not be created.");
+    }
+
+    return row.id;
   }
 }

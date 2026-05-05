@@ -1,6 +1,7 @@
 import type { AddCustomWorkoutExerciseRequest, WorkoutSessionDto } from "@fitness/shared";
 import { generateCustomWorkoutNameFromExercises } from "@fitness/shared";
 import { CUSTOM_WORKOUT_TEMPLATE_NAME, isCustomWorkoutProgramId } from "../../domain/models/custom-workout.js";
+import type { ProgramRepository } from "../../repositories/interfaces/program.repository.js";
 import type { ExerciseRepository } from "../../repositories/interfaces/exercise.repository.js";
 import type { IdempotencyRepository } from "../../repositories/interfaces/idempotency.repository.js";
 import type { ProgressionStateRepository } from "../../repositories/interfaces/progression-state.repository.js";
@@ -21,8 +22,12 @@ function buildAddCustomExerciseFingerprint(
     exerciseId: request.exerciseId,
     targetSets: request.targetSets,
     targetReps: request.targetReps,
+    repRangeMin: request.repRangeMin ?? null,
+    repRangeMax: request.repRangeMax ?? null,
     targetWeight: request.targetWeight?.value ?? null,
-    restSeconds: request.restSeconds ?? null
+    restSeconds: request.restSeconds ?? null,
+    progressionStrategy: request.progressionStrategy ?? null,
+    updatePlan: request.updatePlan ?? false
   });
 }
 
@@ -33,6 +38,7 @@ export class AddCustomWorkoutExerciseUseCase {
     private readonly workoutSessionRepository: WorkoutSessionRepository,
     private readonly progressionStateRepository: ProgressionStateRepository,
     private readonly exerciseRepository: ExerciseRepository,
+    private readonly programRepository: ProgramRepository,
     private readonly transactionManager: TransactionManager,
     idempotencyRepository: IdempotencyRepository
   ) {
@@ -65,12 +71,6 @@ export class AddCustomWorkoutExerciseUseCase {
           throw new WorkoutApplicationError(
             "INVALID_SESSION_STATUS",
             "Exercises can only be added to an in-progress workout session."
-          );
-        }
-        if (!isCustomWorkoutProgramId(workoutSessionGraph.session.programId)) {
-          throw new WorkoutApplicationError(
-            "BUSINESS_RULE_VIOLATION",
-            "Exercises can only be added to custom workouts."
           );
         }
 
@@ -147,12 +147,86 @@ export class AddCustomWorkoutExerciseUseCase {
             0
           ) + 1;
 
+        const wantsPlanUpdate = Boolean(input.request.updatePlan);
+        const canUpdatePlan = await (async () => {
+          if (!wantsPlanUpdate) {
+            return false;
+          }
+
+          if (isCustomWorkoutProgramId(workoutSessionGraph.session.programId)) {
+            throw new WorkoutApplicationError(
+              "BUSINESS_RULE_VIOLATION",
+              "The plan cannot be updated for ad hoc custom workouts."
+            );
+          }
+
+          const definition = await this.programRepository.findActiveById(
+            workoutSessionGraph.session.programId,
+            input.context.userId,
+            { tx }
+          );
+          if (!definition) {
+            throw new WorkoutApplicationError("PROGRAM_NOT_FOUND", "The requested program could not be found.");
+          }
+
+          if (definition.program.userId !== input.context.userId || definition.program.source !== "custom") {
+            throw new WorkoutApplicationError(
+              "BUSINESS_RULE_VIOLATION",
+              "The plan can only be updated for your custom programs."
+            );
+          }
+
+          return true;
+        })();
+
+        const workoutTemplateExerciseEntryId = canUpdatePlan
+          ? await (async () => {
+              const templateDefinition = await this.exerciseRepository.findTemplateDefinitionById(
+                workoutSessionGraph.session.workoutTemplateId,
+                { tx }
+              );
+              if (!templateDefinition) {
+                throw new WorkoutApplicationError(
+                  "WORKOUT_TEMPLATE_NOT_FOUND",
+                  "The workout template could not be loaded to update the plan."
+                );
+              }
+
+              const nextTemplateSequenceOrder =
+                templateDefinition.exercises.reduce(
+                  (maxSequenceOrder, record) => Math.max(maxSequenceOrder, record.templateExercise.sequenceOrder),
+                  0
+                ) + 1;
+
+              return this.exerciseRepository.appendWorkoutTemplateExerciseEntry(
+                {
+                  workoutTemplateId: workoutSessionGraph.session.workoutTemplateId,
+                  exerciseId: exercise.id,
+                  sequenceOrder: nextTemplateSequenceOrder,
+                  targetSets: input.request.targetSets,
+                  targetReps: input.request.targetReps,
+                  restSeconds: input.request.restSeconds ?? null,
+                  ...(input.request.repRangeMin !== undefined
+                    ? { repRangeMin: input.request.repRangeMin }
+                    : {}),
+                  ...(input.request.repRangeMax !== undefined
+                    ? { repRangeMax: input.request.repRangeMax }
+                    : {}),
+                  ...(input.request.progressionStrategy !== undefined
+                    ? { progressionStrategy: input.request.progressionStrategy }
+                    : {})
+                },
+                { tx }
+              );
+            })()
+          : null;
+
         const updatedGraph = await this.workoutSessionRepository.appendCustomExercise(
           {
             sessionId: workoutSessionGraph.session.id,
             exerciseEntry: {
               exerciseId: exercise.id,
-              workoutTemplateExerciseEntryId: null,
+              workoutTemplateExerciseEntryId,
               sequenceOrder: nextSequenceOrder,
               targetSets: input.request.targetSets,
               targetReps: input.request.targetReps,

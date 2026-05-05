@@ -288,8 +288,12 @@ export function createWorkoutHandlers(dependencies: {
         exerciseId: body.exerciseId,
         targetSets: body.targetSets,
         targetReps: body.targetReps,
+        ...(body.repRangeMin !== undefined ? { repRangeMin: body.repRangeMin } : {}),
+        ...(body.repRangeMax !== undefined ? { repRangeMax: body.repRangeMax } : {}),
         ...(body.targetWeight !== undefined ? { targetWeight: body.targetWeight } : {}),
-        ...(body.restSeconds !== undefined ? { restSeconds: body.restSeconds } : {})
+        ...(body.restSeconds !== undefined ? { restSeconds: body.restSeconds } : {}),
+        ...(body.progressionStrategy !== undefined ? { progressionStrategy: body.progressionStrategy } : {}),
+        ...(body.updatePlan !== undefined ? { updatePlan: body.updatePlan } : {})
       };
 
       const result = await dependencies.addCustomWorkoutExerciseUseCase.execute({

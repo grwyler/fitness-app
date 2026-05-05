@@ -15,6 +15,7 @@ import { WorkoutExerciseCard } from "../components/WorkoutExerciseCard";
 import type { RootStackParamList } from "../core/navigation/navigation-types";
 import { FeedbackButton } from "../features/feedback/components/FeedbackButton";
 import { useCurrentWorkout } from "../features/workout/hooks/useCurrentWorkout";
+import { useDashboard } from "../features/workout/hooks/useDashboard";
 import { useLogSet } from "../features/workout/hooks/useLogSet";
 import { useUpdateLoggedSet } from "../features/workout/hooks/useUpdateLoggedSet";
 import { useCompleteWorkout } from "../features/workout/hooks/useCompleteWorkout";
@@ -77,6 +78,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
   }, []);
 
   const currentWorkoutQuery = useCurrentWorkout();
+  const dashboardQuery = useDashboard();
   const trainingSettingsQuery = useTrainingSettings();
   const logSetMutation = useLogSet();
   const updateLoggedSetMutation = useUpdateLoggedSet();
@@ -557,6 +559,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
       targetReps: number;
       targetWeight?: { value: number; unit: "lb" };
     }>;
+    updatePlan?: boolean;
   }) {
     if (cancelWorkoutMutation.isPending) {
       return;
@@ -575,7 +578,10 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
       for (const request of input.requests) {
         const result = await addCustomWorkoutExerciseMutation.mutateAsync({
           sessionId: workout.id,
-          request
+          request: {
+            ...request,
+            ...(input.updatePlan ? { updatePlan: true } : {})
+          }
         });
         latestWorkout = result.response.data;
       }
@@ -660,18 +666,16 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
         </View>
       ) : (
         <>
-          {workout.sessionType === "custom" ? (
-            <PrimaryButton
-              label="Add exercise"
-              variant="secondary"
-              onPress={() => {
-                setCustomExerciseError(null);
-                setIsExercisePickerOpen(true);
-              }}
-              disabled={addCustomWorkoutExerciseMutation.isPending}
-              loading={addCustomWorkoutExerciseMutation.isPending}
-            />
-          ) : null}
+          <PrimaryButton
+            label="Add exercise"
+            variant="secondary"
+            onPress={() => {
+              setCustomExerciseError(null);
+              setIsExercisePickerOpen(true);
+            }}
+            disabled={addCustomWorkoutExerciseMutation.isPending}
+            loading={addCustomWorkoutExerciseMutation.isPending}
+          />
           {workout.exercises.map((exercise) => (
             <WorkoutExerciseCard
               key={exercise.id}
@@ -859,11 +863,28 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
         unitSystem={unitSystem}
         programDayNumber={programDayNumber}
         workoutName={programDayWorkoutName}
+        planUpdate={
+          workout.sessionType === "program"
+            ? {
+                enabled:
+                  dashboardQuery.data?.activeProgram?.program.id === workout.programId &&
+                  dashboardQuery.data?.activeProgram?.program.source === "custom",
+                disabledReason:
+                  dashboardQuery.isLoading
+                    ? "Loading your program details…"
+                    : dashboardQuery.data?.activeProgram?.program.id !== workout.programId
+                      ? "Plan updates require an active custom program."
+                      : dashboardQuery.data?.activeProgram?.program.source !== "custom"
+                        ? "To update the plan, clone/edit this program (custom programs only)."
+                        : "Plan updates are available for custom programs."
+              }
+            : null
+        }
         submitting={
           addCustomWorkoutExerciseMutation.isPending ||
           (isProgramDayCustomWorkoutBuilder && cancelWorkoutMutation.isPending)
         }
-        visible={isExercisePickerOpen && workout.sessionType === "custom"}
+        visible={isExercisePickerOpen}
         onChangeWorkoutName={setProgramDayWorkoutName}
         onClose={() => {
           setIsExercisePickerOpen(false);

@@ -5,6 +5,7 @@ import type {
   WorkoutTemplateRecord
 } from "../models/exercise.persistence.js";
 import type { ExerciseProgressionSeedRecord } from "../models/progression-state.persistence.js";
+import type { ProgressionStrategy } from "@fitness/shared";
 
 export interface ExerciseRepository {
   listActive(options?: RepositoryOptions): Promise<ExerciseRecord[]>;
@@ -34,4 +35,19 @@ export interface ExerciseRepository {
     sequenceOrders: number[],
     options?: RepositoryOptions
   ): Promise<Array<{ sequenceOrder: number; workoutTemplateExerciseEntryId: string }>>;
+
+  appendWorkoutTemplateExerciseEntry(
+    input: {
+      workoutTemplateId: string;
+      exerciseId: string;
+      sequenceOrder: number;
+      targetSets: number;
+      targetReps: number;
+      repRangeMin?: number;
+      repRangeMax?: number;
+      restSeconds: number | null;
+      progressionStrategy?: ProgressionStrategy;
+    },
+    options?: RepositoryOptions
+  ): Promise<string>;
 }

@@ -192,11 +192,12 @@ export function CustomExercisePickerModal(props: {
   unitSystem: UnitSystem;
   programDayNumber?: number | null;
   workoutName?: string;
+  planUpdate?: { enabled: boolean; disabledReason?: string } | null;
   submitting: boolean;
   visible: boolean;
   onChangeWorkoutName?: (value: string) => void;
   onClose: () => void;
-  onSubmit: (input: { requests: CustomExercisePickerRequest[] }) => void;
+  onSubmit: (input: { requests: CustomExercisePickerRequest[]; updatePlan?: boolean }) => void;
 }) {
   const [step, setStep] = useState<Step>("select");
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -210,6 +211,7 @@ export function CustomExercisePickerModal(props: {
   const [selectedExerciseIds, setSelectedExerciseIds] = useState<string[]>([]);
   const [configureIndex, setConfigureIndex] = useState(0);
   const [configByExerciseId, setConfigByExerciseId] = useState<Record<string, ExerciseConfigDraft>>({});
+  const [updatePlan, setUpdatePlan] = useState(false);
   const pendingInitialRequestsRef = useRef<CustomExercisePickerRequest[] | null>(null);
   const templateEntryIdByExerciseIdRef = useRef<Record<string, string>>({});
   const unitLabel = props.unitSystem === "metric" ? "kg" : "lb";
@@ -230,6 +232,7 @@ export function CustomExercisePickerModal(props: {
     setSelectedExerciseIds([]);
     setConfigureIndex(0);
     setConfigByExerciseId({});
+    setUpdatePlan(false);
     setValidationError(null);
     templateEntryIdByExerciseIdRef.current = {};
 
@@ -529,7 +532,7 @@ export function CustomExercisePickerModal(props: {
       };
     });
 
-    props.onSubmit({ requests });
+    props.onSubmit({ requests, ...(updatePlan ? { updatePlan: true } : {}) });
   }
 
   const actionLabel = getCustomExercisePickerActionLabel({
@@ -813,6 +816,29 @@ export function CustomExercisePickerModal(props: {
 
               {props.errorMessage ? <AppText variant="error">{props.errorMessage}</AppText> : null}
               {validationError ? <AppText variant="error">{validationError}</AppText> : null}
+              {props.planUpdate ? (
+                <Card padding="md" contentStyle={styles.planCard}>
+                  <AppText variant="caption" tone="tertiary">
+                    Plan
+                  </AppText>
+                  <View style={styles.planRow}>
+                    <Chip
+                      label="Update plan"
+                      selected={updatePlan}
+                      disabled={!props.planUpdate.enabled}
+                      onPress={() => setUpdatePlan((current) => !current)}
+                    />
+                    <AppText variant="caption" tone="secondary">
+                      {updatePlan ? "This will show up next time too." : "This is for today only."}
+                    </AppText>
+                  </View>
+                  {!props.planUpdate.enabled && props.planUpdate.disabledReason ? (
+                    <AppText variant="caption" tone="tertiary">
+                      {props.planUpdate.disabledReason}
+                    </AppText>
+                  ) : null}
+                </Card>
+              ) : null}
               <View style={styles.configureActions}>
                 <PrimaryButton
                   label={configureIndex === 0 ? "Back" : "Previous"}
@@ -905,6 +931,15 @@ const styles = StyleSheet.create({
   },
   configureCardContent: { gap: spacing.sm },
   configureInputs: {
+    gap: spacing.sm
+  },
+  planCard: {
+    gap: spacing.xs
+  },
+  planRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: spacing.sm
   },
   configureActions: {

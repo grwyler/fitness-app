@@ -407,6 +407,11 @@ export type AddCustomWorkoutExerciseRequest = {
   targetWeight?: WeightValueDto;
   restSeconds?: number | null;
   progressionStrategy?: ProgressionStrategy;
+  /**
+   * When true, also updates the underlying workout template (plan) so this exercise
+   * appears in future sessions of this workout.
+   */
+  updatePlan?: boolean;
 };
 
 export type AddWorkoutSetRequest = Record<string, never>;
