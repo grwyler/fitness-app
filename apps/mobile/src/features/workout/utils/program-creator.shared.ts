@@ -7,6 +7,7 @@ import type {
   ProgramWorkoutTemplateDto,
   WorkoutSessionDto
 } from "@fitness/shared";
+import { resolveCustomProgramName } from "@fitness/shared";
 import { predefinedWorkoutCategories } from "./dashboard-program.shared";
 
 export const CUSTOM_WORKOUT_BUILDER_PREFIX = "custom-builder:";
@@ -125,13 +126,7 @@ export function buildAssignedProgramRequest(input: {
   days: ProgramDayAssignment[];
   preserveEntryIdsForWorkoutIds?: Set<string>;
 }): BuildAssignedProgramRequestResult {
-  const name = input.name.trim().replace(/\s+/g, " ");
-  if (!name) {
-    return {
-      request: null,
-      error: "Program name is required."
-    };
-  }
+  const name = resolveCustomProgramName(input.name);
 
   if (input.days.length === 0) {
     return {

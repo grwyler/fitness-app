@@ -11,6 +11,7 @@ import {
   exerciseEntries,
   idempotencyRecords,
   progressMetrics,
+  programTrainingContexts,
   progressionStates,
   progressionRecommendationEvents,
   programs,
@@ -211,6 +212,12 @@ async function resetUserData(database: Pick<DatabaseLike, "transaction">, userId
         .returning({ id: progressionStates.id })
     ).length;
     const deletedWorkoutSessions = await deleteWhereIn(tx, workoutSessions, workoutSessions.id, sessionIds);
+    const deletedProgramTrainingContexts = (
+      await tx
+        .delete(programTrainingContexts)
+        .where(eq(programTrainingContexts.userId, userId))
+        .returning({ id: programTrainingContexts.id })
+    ).length;
     const deletedEnrollments = (
       await tx
         .delete(userProgramEnrollments)
@@ -240,6 +247,7 @@ async function resetUserData(database: Pick<DatabaseLike, "transaction">, userId
       deletedExerciseEntries,
       deletedIdempotencyRecords,
       deletedProgressMetrics,
+      deletedProgramTrainingContexts,
       deletedProgressionRecommendationEvents,
       deletedProgressionStates,
       deletedSets,

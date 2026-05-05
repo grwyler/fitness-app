@@ -1,4 +1,5 @@
 import type { UpdateCustomProgramRequest, UpdateCustomProgramResponse } from "@fitness/shared";
+import { resolveCustomProgramName } from "@fitness/shared";
 import type { ProgramRepository } from "../../repositories/interfaces/program.repository.js";
 import { WorkoutApplicationError } from "../errors/workout-application.error.js";
 import { mapProgramDto } from "../mappers/workout-dto.mapper.js";
@@ -6,27 +7,20 @@ import type { TransactionManager } from "../services/transaction-manager.js";
 import type { RequestContext } from "../types/request-context.js";
 import type { UseCaseResult } from "../types/use-case-result.js";
 
-function normalizeName(value: string) {
-  return value.trim().replace(/\s+/g, " ");
-}
-
 function normalizeOptionalDescription(value: string | null | undefined) {
   const normalized = (value ?? "").trim().replace(/\s+/g, " ");
   return normalized.length > 0 ? normalized : null;
 }
 
 function validateUpdateCustomProgramRequest(request: UpdateCustomProgramRequest) {
-  const name = normalizeName(request.name);
-  if (!name) {
-    throw new WorkoutApplicationError("VALIDATION_ERROR", "Program name is required.");
-  }
+  const name = resolveCustomProgramName(request.name);
 
   if (request.workouts.length === 0) {
     throw new WorkoutApplicationError("VALIDATION_ERROR", "Add at least one workout day.");
   }
 
   const workouts = request.workouts.map((workout, index) => {
-    const workoutName = normalizeName(workout.name);
+    const workoutName = workout.name.trim().replace(/\s+/g, " ");
     if (!workoutName) {
       throw new WorkoutApplicationError("VALIDATION_ERROR", "Workout day name is required.");
     }

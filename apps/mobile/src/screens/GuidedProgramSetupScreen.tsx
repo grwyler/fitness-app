@@ -859,16 +859,6 @@ export function GuidedProgramSetupScreen({ navigation }: Props) {
                     </AppText>
                   )}
 
-                  <Button
-                    label="Browse the full catalog"
-                    variant="ghost"
-                    onPress={() =>
-                      navigation.navigate("Dashboard", {
-                        openProgramPicker: true,
-                        guidedAnswers: answers
-                      })
-                    }
-                  />
                 </View>
 
                 <View style={styles.reviewSection}>

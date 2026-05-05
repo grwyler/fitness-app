@@ -5,6 +5,7 @@ import type {
   ProgramWorkoutTemplateDto,
   WorkoutSessionDto
 } from "@fitness/shared";
+import { DEFAULT_CUSTOM_PROGRAM_NAME } from "@fitness/shared";
 import {
   buildAssignedProgramRequest,
   buildCustomWorkoutExerciseRequestsFromProgramWorkout,
@@ -249,6 +250,19 @@ export const programCreatorTestCases: MobileTestCase[] = [
       assert.equal(result.request?.workouts[0]?.name, "Day 1: Push Strength");
       assert.equal(result.request?.workouts[0]?.exercises[0]?.exerciseId, "exercise-1");
       assert.equal(result.request?.workouts[0]?.exercises[0]?.targetSets, 3);
+    }
+  },
+  {
+    name: "Program creator defaults program name when blank",
+    run: () => {
+      const [day] = createProgramDayAssignments(1);
+      const result = buildAssignedProgramRequest({
+        name: "   ",
+        days: [{ ...day!, workout: predefinedWorkout }]
+      });
+
+      assert.equal(result.error, null);
+      assert.equal(result.request?.name, DEFAULT_CUSTOM_PROGRAM_NAME);
     }
   },
   {

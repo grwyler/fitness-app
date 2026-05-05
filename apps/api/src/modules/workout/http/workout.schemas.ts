@@ -162,7 +162,7 @@ const createCustomProgramWorkoutSchema = z.object({
 });
 
 export const createCustomProgramBodySchema = z.object({
-  name: z.string().trim().min(1).max(120),
+  name: z.string().trim().max(120),
   description: z.string().trim().min(1).max(160).nullable().optional(),
   workouts: z.array(createCustomProgramWorkoutSchema).min(1).max(14)
 });

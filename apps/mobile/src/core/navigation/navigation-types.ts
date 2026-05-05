@@ -1,4 +1,4 @@
-import type { CompleteWorkoutSessionResponse, GuidedProgramAnswers, ProgramWorkoutTemplateDto } from "@fitness/shared";
+import type { CompleteWorkoutSessionResponse, ProgramWorkoutTemplateDto } from "@fitness/shared";
 import type { CustomWorkoutBuilderMode } from "../../features/workout/utils/custom-workout-builder.shared";
 
 export type RootStackParamList = {
@@ -15,12 +15,7 @@ export type RootStackParamList = {
         token?: string;
       }
     | undefined;
-  Dashboard:
-    | {
-        openProgramPicker?: boolean;
-        guidedAnswers?: GuidedProgramAnswers;
-      }
-    | undefined;
+  Dashboard: undefined;
   GuidedProgramSetup: undefined;
   CreateProgram:
     | {

@@ -17,6 +17,7 @@ import {
   workoutTemplateExerciseEntries,
   workoutTemplates
 } from "@fitness/db";
+import { DEFAULT_CUSTOM_PROGRAM_NAME } from "@fitness/shared";
 import type { Request } from "express";
 import { createApp } from "../../../app.js";
 import { getEnv, resetEnvForTests } from "../../../config/env.js";
@@ -1389,6 +1390,50 @@ export const workoutHttpTestCases: HttpTestCase[] = [
 
           assert.equal(response.status, 400);
           assert.equal(payload.error.code, "VALIDATION_ERROR");
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "POST /api/v1/programs defaults an empty custom program name",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        const server = await startHttpServer(context.db);
+
+        try {
+          const response = await fetch(`${server.baseUrl}/api/v1/programs`, {
+            method: "POST",
+            headers: createAuthHeaders({
+              "content-type": "application/json",
+              "Idempotency-Key": "create-program-default-name-key"
+            }),
+            body: JSON.stringify({
+              name: "   ",
+              workouts: [
+                {
+                  name: "Day 1",
+                  exercises: [
+                    {
+                      exerciseId: "exercise-1",
+                      targetSets: 3,
+                      targetReps: 8
+                    }
+                  ]
+                }
+              ]
+            })
+          });
+          const payload = await readJson(response);
+
+          assert.equal(response.status, 201);
+          assert.equal(payload.data.program.name, DEFAULT_CUSTOM_PROGRAM_NAME);
         } finally {
           await server.close();
         }

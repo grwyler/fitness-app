@@ -43,12 +43,6 @@ export function getDashboardPrimarySectionOrder(input: {
   return input.hasActiveProgram ? ["currentProgram", "startWorkout"] : ["programSetup"];
 }
 
-export function getProgramSectionActionLabels(input: { hasActiveProgram: boolean }) {
-  return input.hasActiveProgram
-    ? ["Switch Program", "Build My Own Program"]
-    : ["Choose Ready-Made Plan", "Build My Own Program"];
-}
-
 export function getNextProgramPositionLabel(activeProgram: ActiveProgramDto | null | undefined) {
   if (!activeProgram) {
     return null;

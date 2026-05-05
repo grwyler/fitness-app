@@ -1,7 +1,6 @@
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "./navigation-types";
 import { DashboardScreen } from "../../screens/DashboardScreen";
-import { GuidedProgramSetupScreen } from "../../screens/GuidedProgramSetupScreen";
 import { CreateProgramScreen } from "../../screens/CreateProgramScreen";
 import { ActiveWorkoutScreen } from "../../screens/ActiveWorkoutScreen";
 import { WorkoutSummaryScreen } from "../../screens/WorkoutSummaryScreen";
@@ -84,11 +83,6 @@ export function AppNavigator() {
             options={{ title: "Active Workout", headerRight: () => <UserMenuButton /> }}
           />
           <Stack.Screen
-            name="GuidedProgramSetup"
-            component={GuidedProgramSetupScreen}
-            options={{ title: "Recommended plan", headerRight: () => <UserMenuButton /> }}
-          />
-          <Stack.Screen
             name="CreateProgram"
             component={CreateProgramScreen}
             options={({ route }) => ({
@@ -96,7 +90,7 @@ export function AppNavigator() {
                 ? "Edit Program"
                 : route.params?.cloneProgramId
                   ? "Customize Program"
-                  : "Build My Own Program",
+                  : "Create a program",
               headerRight: () => <UserMenuButton />
             })}
           />

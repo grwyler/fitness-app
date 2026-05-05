@@ -1,4 +1,5 @@
 import type { CreateCustomProgramRequest, CreateCustomProgramResponse } from "@fitness/shared";
+import { resolveCustomProgramName } from "@fitness/shared";
 import type { ProgramRepository } from "../../repositories/interfaces/program.repository.js";
 import type { IdempotencyRepository } from "../../repositories/interfaces/idempotency.repository.js";
 import type { ExerciseProgressionSettingsRepository } from "../../repositories/interfaces/exercise-progression-settings.repository.js";
@@ -11,10 +12,6 @@ import type { TransactionManager } from "../services/transaction-manager.js";
 import type { RequestContext } from "../types/request-context.js";
 import type { UseCaseResult } from "../types/use-case-result.js";
 
-function normalizeName(value: string) {
-  return value.trim().replace(/\s+/g, " ");
-}
-
 function normalizeOptionalDescription(value: string | null | undefined) {
   const normalized = (value ?? "").trim().replace(/\s+/g, " ");
   return normalized.length > 0 ? normalized : null;
@@ -22,10 +19,10 @@ function normalizeOptionalDescription(value: string | null | undefined) {
 
 function buildCreateCustomProgramFingerprint(request: CreateCustomProgramRequest) {
   return JSON.stringify({
-    name: normalizeName(request.name),
+    name: resolveCustomProgramName(request.name),
     description: normalizeOptionalDescription(request.description),
     workouts: request.workouts.map((workout) => ({
-      name: normalizeName(workout.name),
+      name: workout.name.trim().replace(/\s+/g, " "),
       exercises: workout.exercises.map((exercise) => ({
         exerciseId: exercise.exerciseId,
         targetSets: exercise.targetSets,
@@ -40,17 +37,14 @@ function buildCreateCustomProgramFingerprint(request: CreateCustomProgramRequest
 }
 
 function validateCreateCustomProgramRequest(request: CreateCustomProgramRequest) {
-  const name = normalizeName(request.name);
-  if (!name) {
-    throw new WorkoutApplicationError("VALIDATION_ERROR", "Program name is required.");
-  }
+  const name = resolveCustomProgramName(request.name);
 
   if (request.workouts.length === 0) {
     throw new WorkoutApplicationError("VALIDATION_ERROR", "Add at least one workout day.");
   }
 
   const workouts = request.workouts.map((workout, index) => {
-    const workoutName = normalizeName(workout.name);
+    const workoutName = workout.name.trim().replace(/\s+/g, " ");
     if (!workoutName) {
       throw new WorkoutApplicationError("VALIDATION_ERROR", "Workout day name is required.");
     }

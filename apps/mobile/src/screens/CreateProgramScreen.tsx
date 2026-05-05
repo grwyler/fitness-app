@@ -6,10 +6,8 @@ import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { AppText } from "../components/AppText";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
-import { Chip } from "../components/Chip";
 import { Input } from "../components/Input";
 import { ListRow } from "../components/ListRow";
-import { ModalSheet } from "../components/ModalSheet";
 import { Screen } from "../components/Screen";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { CustomExercisePickerModal } from "../features/workout/components/CustomExercisePickerModal";
@@ -25,16 +23,12 @@ import {
   buildAssignedProgramRequest,
   buildCustomWorkoutExerciseRequestsFromProgramWorkout,
   createProgramDayAssignments,
-  getAssignableWorkoutDescription,
-  getAssignableWorkoutChoices,
-  groupAssignableWorkoutChoices,
   resizeProgramDayAssignments,
   type CustomExercisePickerRequest,
-  type AssignableWorkoutChoice,
-  type AssignableWorkoutGroup,
   type ProgramDayAssignment
 } from "../features/workout/utils/program-creator.shared";
 import { getHiddenExerciseCount, getPlannedExerciseLines } from "../features/workout/utils/dashboard-program.shared";
+import { getWorkoutEstimatedDurationMinutes } from "../features/workout/utils/workout-duration-estimator.shared";
 import { colors, spacing } from "../theme/tokens";
 
 type Props = NativeStackScreenProps<RootStackParamList, "CreateProgram">;
@@ -56,7 +50,6 @@ export function CreateProgramScreen({ navigation, route }: Props) {
   const [programName, setProgramName] = useState("");
   const [daysPerWeek, setDaysPerWeek] = useState(3);
   const [days, setDays] = useState<ProgramDayAssignment[]>(createProgramDayAssignments(3));
-  const [pickerDayNumber, setPickerDayNumber] = useState<number | null>(null);
   const [customWorkoutDayNumber, setCustomWorkoutDayNumber] = useState<number | null>(null);
   const [customWorkoutName, setCustomWorkoutName] = useState("");
   const [customExerciseError, setCustomExerciseError] = useState<string | null>(null);
@@ -87,16 +80,6 @@ export function CreateProgramScreen({ navigation, route }: Props) {
   );
   const isEditing = Boolean(editProgramId);
   const isCloning = Boolean(cloneProgramId) && !isEditing;
-
-  const workoutChoices = useMemo(
-    () => getAssignableWorkoutChoices(programsQuery.data ?? []),
-    [programsQuery.data]
-  );
-  const workoutGroups = useMemo(
-    () => groupAssignableWorkoutChoices(workoutChoices),
-    [workoutChoices]
-  );
-  const hasCustomWorkoutChoices = workoutChoices.some((choice) => choice.source === "custom");
 
   useEffect(() => {
     if (!editProgram || loadedSourceProgramId === editProgram.id) {
@@ -141,12 +124,10 @@ export function CreateProgramScreen({ navigation, route }: Props) {
     setDays((current) =>
       current.map((day) => (day.dayNumber === dayNumber ? { ...day, workout } : day))
     );
-    setPickerDayNumber(null);
     setSavedProgramId(null);
   }
 
   function openCustomWorkoutBuilderForDay(dayNumber: number) {
-    setPickerDayNumber(null);
     setSavedProgramId(null);
     setCustomWorkoutDayNumber(dayNumber);
     setCustomWorkoutName("");
@@ -157,7 +138,6 @@ export function CreateProgramScreen({ navigation, route }: Props) {
   }
 
   function openCustomWorkoutEditorForDay(dayNumber: number, workout: ProgramWorkoutTemplateDto) {
-    setPickerDayNumber(null);
     setSavedProgramId(null);
     setCustomWorkoutDayNumber(dayNumber);
     setCustomWorkoutName(workout.name);
@@ -298,14 +278,14 @@ export function CreateProgramScreen({ navigation, route }: Props) {
     <Screen>
       <View style={styles.header}>
         <AppText variant="overline" tone="accent" style={styles.eyebrow}>
-          {isEditing ? "Edit Program" : isCloning ? "Customize Program" : "Build My Own Program"}
+          {isEditing ? "Edit Program" : isCloning ? "Customize Program" : "Create a program"}
         </AppText>
         <AppText variant="title2" style={styles.title}>
           {isEditing
             ? "Update your weekly training plan."
             : isCloning
               ? "Make this program yours with a custom copy."
-              : "Build a weekly plan from workouts."}
+              : "Create a weekly plan from workouts."}
         </AppText>
         <AppText tone="secondary" style={styles.subtitle}>
           Name the program, choose training days, then assign a workout to each day.
@@ -391,7 +371,11 @@ export function CreateProgramScreen({ navigation, route }: Props) {
                     ) : null}
                     <Button
                       label={day.workout ? "Change" : "Choose"}
-                      onPress={() => setPickerDayNumber(day.dayNumber)}
+                      onPress={() =>
+                        day.workout
+                          ? openCustomWorkoutEditorForDay(day.dayNumber, day.workout)
+                          : openCustomWorkoutBuilderForDay(day.dayNumber)
+                      }
                       variant="secondary"
                       fullWidth={false}
                       size="sm"
@@ -411,11 +395,6 @@ export function CreateProgramScreen({ navigation, route }: Props) {
             </View>
           ))
         )}
-        {!hasCustomWorkoutChoices ? (
-          <AppText tone="secondary">
-            Your Workouts will appear here after custom programs have reusable workout days.
-          </AppText>
-        ) : null}
       </Card>
 
       {validationError ? (
@@ -471,23 +450,6 @@ export function CreateProgramScreen({ navigation, route }: Props) {
           onPress={handleSaveProgram}
         />
       )}
-
-      <WorkoutPickerModal
-        groups={workoutGroups}
-        loading={programsQuery.isLoading}
-        visible={pickerDayNumber !== null}
-        onClose={() => setPickerDayNumber(null)}
-        onCreateCustomWorkout={() => {
-          if (pickerDayNumber !== null) {
-            openCustomWorkoutBuilderForDay(pickerDayNumber);
-          }
-        }}
-        onSelectWorkout={(choice) => {
-          if (pickerDayNumber !== null) {
-            assignWorkoutToDay(pickerDayNumber, choice.workout);
-          }
-        }}
-      />
       <CustomExercisePickerModal
         errorMessage={customExerciseError}
         exercises={exercisesQuery.data ?? []}
@@ -511,11 +473,12 @@ export function CreateProgramScreen({ navigation, route }: Props) {
 function WorkoutPreview(props: { workout: ProgramWorkoutTemplateDto }) {
   const plannedExerciseLines = getPlannedExerciseLines(props.workout, 3);
   const hiddenExerciseCount = getHiddenExerciseCount(props.workout, plannedExerciseLines.length);
+  const estimatedMinutes = getWorkoutEstimatedDurationMinutes(props.workout);
 
   return (
     <View style={styles.exerciseList}>
       <AppText variant="meta" tone="secondary">
-        {props.workout.category} - estimated {props.workout.estimatedDurationMinutes ?? 60} minutes
+        {props.workout.category} - estimated {estimatedMinutes} minutes
       </AppText>
       {plannedExerciseLines.map((line) => (
         <AppText key={line} variant="meta">
@@ -526,197 +489,6 @@ function WorkoutPreview(props: { workout: ProgramWorkoutTemplateDto }) {
         <AppText variant="meta">+{hiddenExerciseCount} more planned</AppText>
       ) : null}
     </View>
-  );
-}
-
-function WorkoutPickerModal(props: {
-  groups: AssignableWorkoutGroup[];
-  loading: boolean;
-  visible: boolean;
-  onClose: () => void;
-  onCreateCustomWorkout: () => void;
-  onSelectWorkout: (choice: AssignableWorkoutChoice) => void;
-}) {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [filtersExpanded, setFiltersExpanded] = useState(false);
-  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
-  const [lengthFilter, setLengthFilter] = useState<"any" | "quick" | "standard" | "long">("any");
-
-  const allChoices = useMemo(() => props.groups.flatMap((group) => group.workouts), [props.groups]);
-
-  const isFiltering = Boolean(
-    searchQuery.trim() || categoryFilter || lengthFilter !== "any"
-  );
-
-  const filteredChoices = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-
-    return allChoices.filter((choice) => {
-      if (categoryFilter && choice.category !== categoryFilter) {
-        return false;
-      }
-
-      const count = choice.workout.exercises.length;
-      if (lengthFilter === "quick" && count > 3) {
-        return false;
-      }
-      if (lengthFilter === "standard" && (count < 4 || count > 6)) {
-        return false;
-      }
-      if (lengthFilter === "long" && count < 7) {
-        return false;
-      }
-
-      if (!query) {
-        return true;
-      }
-
-      const haystack = `${choice.workout.name} ${choice.programName} ${choice.category}`.toLowerCase();
-      return haystack.includes(query);
-    });
-  }, [allChoices, categoryFilter, lengthFilter, searchQuery]);
-
-  const availableCategories = useMemo(() => {
-    const titles = props.groups.map((group) => group.title).filter(Boolean);
-    return Array.from(new Set(titles));
-  }, [props.groups]);
-
-  function clearFilters() {
-    setCategoryFilter(null);
-    setLengthFilter("any");
-  }
-
-  return (
-    <ModalSheet
-      headerRight={
-        <Button label="Close" onPress={props.onClose} variant="ghost" fullWidth={false} size="sm" />
-      }
-      onClose={props.onClose}
-      subtitle="Build workout"
-      title="Create a workout"
-      visible={props.visible}
-    >
-      <ScrollView contentContainerStyle={styles.workoutChoiceList}>
-        <View style={styles.searchPanel}>
-          <View style={styles.searchHeaderRow}>
-            <AppText variant="sectionLabel" tone="accent">
-              Search workouts
-            </AppText>
-            <Button
-              label={filtersExpanded ? "Hide filters" : categoryFilter || lengthFilter !== "any" ? "Filters (on)" : "Filters"}
-              onPress={() => setFiltersExpanded((current) => !current)}
-              variant="ghost"
-              fullWidth={false}
-              size="sm"
-            />
-          </View>
-          <Input
-            autoCapitalize="words"
-            onChangeText={setSearchQuery}
-            placeholder="Push, legs, beginner, upper..."
-            value={searchQuery}
-          />
-
-          {filtersExpanded ? (
-            <View style={styles.filterPanel}>
-              <View style={styles.chipRow}>
-                <AppText variant="overline" tone="secondary">
-                  Type
-                </AppText>
-                <Chip label="All" onPress={() => setCategoryFilter(null)} selected={!categoryFilter} />
-                {availableCategories.map((title) => (
-                  <Chip
-                    key={`cat:${title}`}
-                    label={title}
-                    onPress={() => setCategoryFilter((current) => (current === title ? null : title))}
-                    selected={categoryFilter === title}
-                  />
-                ))}
-              </View>
-
-              <View style={styles.chipRow}>
-                <AppText variant="overline" tone="secondary">
-                  Length
-                </AppText>
-                {(["any", "quick", "standard", "long"] as const).map((value) => (
-                  <Chip
-                    key={`len:${value}`}
-                    label={
-                      value === "any"
-                        ? "Any"
-                        : value === "quick"
-                          ? "Quick (≤3)"
-                          : value === "standard"
-                            ? "Standard (4–6)"
-                            : "Long (7+)"
-                    }
-                    selected={lengthFilter === value}
-                    onPress={() => setLengthFilter(value)}
-                  />
-                ))}
-
-                {categoryFilter || lengthFilter !== "any" ? (
-                  <Chip label="Clear" variant="muted" onPress={clearFilters} />
-                ) : null}
-              </View>
-            </View>
-          ) : null}
-        </View>
-
-        <Card
-          onPress={props.onCreateCustomWorkout}
-          variant="hero"
-          padding="md"
-          contentStyle={styles.createWorkoutChoice}
-        >
-          <View style={styles.workoutTitleGroup}>
-            <AppText variant="bodyStrong">Create a workout</AppText>
-            <AppText variant="meta" tone="secondary">
-              Choose the exact exercises you want for this day.
-            </AppText>
-          </View>
-          <Chip label="Create" variant="selected" />
-        </Card>
-
-        <AppText variant="overline" tone="secondary">
-          Suggested workouts
-        </AppText>
-        {props.loading ? (
-          <AppText tone="secondary">Loading workouts...</AppText>
-        ) : props.groups.length === 0 ? (
-          <AppText tone="secondary">No predefined or reusable workouts are available yet.</AppText>
-        ) : isFiltering ? (
-          filteredChoices.length === 0 ? (
-            <AppText tone="secondary">No workouts match your search.</AppText>
-          ) : (
-            filteredChoices.map((choice) => (
-              <ListRow
-                key={choice.id}
-                title={choice.workout.name}
-                subtitle={`${getAssignableWorkoutDescription(choice)} · ${choice.category}`}
-                onPress={() => props.onSelectWorkout(choice)}
-                right={<Chip label="Use" variant="selected" />}
-              />
-            ))
-          )
-        ) : (
-          props.groups.map((group) => (
-            <View key={group.title} style={styles.workoutGroup}>
-              <AppText variant="headline">{group.title}</AppText>
-              {group.workouts.map((choice) => (
-                <ListRow
-                  key={choice.id}
-                  title={choice.workout.name}
-                  subtitle={getAssignableWorkoutDescription(choice)}
-                  onPress={() => props.onSelectWorkout(choice)}
-                  right={<Chip label="Use" variant="selected" />}
-                />
-              ))}
-            </View>
-          ))
-        )}
-      </ScrollView>
-    </ModalSheet>
   );
 }
 

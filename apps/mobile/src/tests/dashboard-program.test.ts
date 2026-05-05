@@ -7,7 +7,6 @@ import {
   getHiddenExerciseCount,
   getNextProgramPositionLabel,
   getPlannedExerciseLines,
-  getProgramSectionActionLabels,
   getProgramWorkoutPositionLabel,
   getProgramWorkouts,
   getWorkoutIntentSummary
@@ -136,15 +135,6 @@ export const dashboardProgramTestCases: MobileTestCase[] = [
     run: () => {
       assert.deepEqual(getDashboardPrimarySectionOrder({ hasActiveProgram: false }), [
         "programSetup"
-      ]);
-    }
-  },
-  {
-    name: "Dashboard program section labels switch and build actions",
-    run: () => {
-      assert.deepEqual(getProgramSectionActionLabels({ hasActiveProgram: true }), [
-        "Switch Program",
-        "Build My Own Program"
       ]);
     }
   },
