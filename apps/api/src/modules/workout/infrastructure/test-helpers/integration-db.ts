@@ -936,6 +936,7 @@ export async function countRecords(context: WorkoutInfrastructureTestContext) {
 }
 
 export {
+  exerciseEntries,
   exercises,
   idempotencyRecords,
   progressMetrics,

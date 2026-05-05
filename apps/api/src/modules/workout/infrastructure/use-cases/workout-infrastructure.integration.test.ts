@@ -15,6 +15,7 @@ import {
   countRecords,
   createWorkoutInfrastructureTestContext,
   disposeWorkoutInfrastructureTestContext,
+  exerciseEntries,
   exercises,
   idempotencyRecords,
   progressMetrics,
@@ -170,6 +171,55 @@ async function startAndCompleteWorkout(input: {
 }
 
 export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[] = [
+  {
+    name: "Conflicting exercise vs set effort signals reduce confidence and are evidenced",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        await seedInProgressWorkout(context);
+
+        await context.db
+          .update(sets)
+          .set({ rir: "rir_0", failureStatus: null })
+          .where(eq(sets.id, "set-1"));
+
+        const useCase = new CompleteWorkoutSessionUseCase(
+          context.repositories.workoutSessionRepository,
+          context.repositories.enrollmentRepository,
+          context.repositories.progressionStateRepository,
+          context.repositories.progressionStateV2Repository,
+          context.repositories.exerciseRepository,
+          context.repositories.userRepository,
+          context.repositories.programRepository,
+          context.repositories.progressMetricRepository,
+          context.repositories.progressionRecommendationEventRepository,
+          context.repositories.trainingSettingsRepository,
+          context.repositories.exerciseProgressionSettingsRepository,
+          context.transactionManager,
+          context.repositories.idempotencyRepository
+        );
+
+        const result = await useCase.execute({
+          context: { userId: "user-1", unitSystem: "imperial" },
+          sessionId: "session-1",
+          request: {
+            completedAt: "2026-04-24T10:45:00.000Z",
+            exerciseFeedback: [{ exerciseEntryId: "entry-1", effortFeedback: "too_easy" }]
+          },
+          idempotencyKey: "complete-conflicting-effort-key-1"
+        });
+
+        assert.equal(result.data.progressionUpdates.length, 1);
+        assert.equal(result.data.progressionUpdates[0]?.confidence, "low");
+        assert.ok(result.data.progressionUpdates[0]?.reasonCodes.includes("CONFLICTING_EFFORT_SIGNALS"));
+        assert.ok(result.data.progressionUpdates[0]?.reasonCodes.includes("SET_NEAR_FAILURE"));
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
   {
     name: "Development bootstrap syncs all predefined programs without replacing active enrollment",
     run: async () => {
@@ -1365,7 +1415,7 @@ export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[]
     }
   },
   {
-    name: "Progression recommendation events persist (skipped)",
+    name: "Progression recommendation events persist when effort feedback is defaulted",
     run: async () => {
       const context = await createWorkoutInfrastructureTestContext();
 
@@ -1399,11 +1449,12 @@ export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[]
           idempotencyKey: "complete-event-skipped-key-1"
         });
 
-        assert.equal(result.data.progressionUpdates[0]?.result, "skipped");
+        assert.equal(result.data.progressionUpdates[0]?.result, "increased");
+        assert.equal(result.data.progressionUpdates[0]?.confidence, "medium");
 
         const [persistedProgressionStateV2] = await context.db.select().from(progressionStatesV2);
         assert.equal(persistedProgressionStateV2?.repGoal, 8);
-        assert.equal(String(persistedProgressionStateV2?.currentWeightLbs), "135.00");
+        assert.equal(String(persistedProgressionStateV2?.currentWeightLbs), "140.00");
         assert.equal(
           persistedProgressionStateV2?.lastPerformedAt?.toISOString(),
           new Date("2026-04-24T10:45:00.000Z").toISOString()
@@ -1415,7 +1466,8 @@ export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[]
           .where(eq(progressionRecommendationEvents.workoutSessionId, "session-1"));
 
         assert.equal(events.length, 1);
-        assert.equal(events[0]?.result, "skipped");
+        assert.equal(events[0]?.result, "increased");
+        assert.equal(events[0]?.confidence, "medium");
       } finally {
         await disposeWorkoutInfrastructureTestContext(context);
       }
@@ -1431,9 +1483,9 @@ export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[]
         await seedInProgressWorkout(context);
 
         await context.db
-          .update(workoutTemplateExerciseEntries)
-          .set({ progressionStrategy: "no_progression" })
-          .where(eq(workoutTemplateExerciseEntries.id, "template-entry-1"));
+          .update(exerciseEntries)
+          .set({ progressionRuleSnapshot: { incrementLbs: 5, progressionStrategy: "no_progression" } })
+          .where(eq(exerciseEntries.id, "entry-1"));
 
         const useCase = new CompleteWorkoutSessionUseCase(
           context.repositories.workoutSessionRepository,

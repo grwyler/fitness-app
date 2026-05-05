@@ -220,6 +220,66 @@ export const progressionEngineTestCases: DomainTestCase[] = [
     }
   },
   {
+    name: "ProgressionEngine treats 5+ RIR with high reps as a conservative too-easy signal",
+    run: () => {
+      const result = engine.calculate({
+        state: {
+          currentWeightLbs: 135,
+          lastCompletedWeightLbs: 130,
+          consecutiveFailures: 0,
+          lastEffortFeedback: "just_right"
+        },
+        exercise: {
+          exerciseName: "Bench Press",
+          exerciseCategory: "compound",
+          incrementLbs: 5,
+          isBodyweight: false,
+          isWeightOptional: false
+        },
+        outcome: {
+          effortFeedback: "just_right",
+          hasFailure: false,
+          sets: [
+            { targetReps: 8, actualReps: 12, targetWeightLbs: 135, actualWeightLbs: 135, rir: "rir_5_plus" },
+            { targetReps: 8, actualReps: 8, targetWeightLbs: 135, actualWeightLbs: 135 }
+          ]
+        }
+      });
+
+      assert.equal(result.result, "increased");
+      assert.equal(result.nextWeightLbs, 145);
+      assert.match(result.reason, /set-level effort suggests the weight was too light/i);
+    }
+  },
+  {
+    name: "ProgressionEngine does not overreact to 5+ RIR when reps are not high",
+    run: () => {
+      const result = engine.calculate({
+        state: {
+          currentWeightLbs: 135,
+          lastCompletedWeightLbs: 130,
+          consecutiveFailures: 0,
+          lastEffortFeedback: "just_right"
+        },
+        exercise: {
+          exerciseName: "Bench Press",
+          exerciseCategory: "compound",
+          incrementLbs: 5,
+          isBodyweight: false,
+          isWeightOptional: false
+        },
+        outcome: {
+          effortFeedback: "just_right",
+          hasFailure: false,
+          sets: [{ targetReps: 8, actualReps: 9, targetWeightLbs: 135, actualWeightLbs: 135, rir: "rir_5_plus" }]
+        }
+      });
+
+      assert.equal(result.result, "increased");
+      assert.equal(result.nextWeightLbs, 140);
+    }
+  },
+  {
     name: "ProgressionEngine uses more conservative too_easy jumps for advanced users",
     run: () => {
       const result = engine.calculate({

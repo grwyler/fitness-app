@@ -4,7 +4,10 @@ import type {
   EffortFeedback,
   ProgressionUpdateDto,
   RecoveryState,
+  ProgressionAggressiveness,
   ProgressionStrategy,
+  SetFailureStatus,
+  SetRir,
   TrainingGoal,
   ExperienceLevel,
   ProgressionConfidence
@@ -13,7 +16,11 @@ import { progressionStrategies } from "@fitness/shared";
 import { randomUUID } from "node:crypto";
 import { isCustomWorkoutProgramId } from "../../domain/models/custom-workout.js";
 import { ProgramAdvancementPolicy } from "../../domain/services/program-advancement-policy.js";
-import { ProgressionEngine } from "../../domain/services/progression-engine.js";
+import {
+  ProgressionEngine,
+  isMaterialOverperformanceSet,
+  isMaterialRepOverperformanceSet
+} from "../../domain/services/progression-engine.js";
 import { WorkoutValidationService } from "../../domain/services/workout-validation-service.js";
 import type { EnrollmentRepository } from "../../repositories/interfaces/enrollment.repository.js";
 import type { ExerciseRepository } from "../../repositories/interfaces/exercise.repository.js";
@@ -41,6 +48,7 @@ import type { ProgressionRecommendationEventRepository } from "../../repositorie
 import type { CreateProgressionRecommendationEventInput } from "../../repositories/models/progression-recommendation-event.persistence.js";
 import { errorReporter } from "../../../../lib/observability/error-reporter.js";
 import { logger } from "../../../../lib/observability/logger.js";
+import type { ExerciseWorkoutSetOutcome } from "../../domain/models/progression.js";
 
 function daysSince(previous: Date, current: Date) {
   const ms = current.getTime() - previous.getTime();
@@ -64,6 +72,85 @@ function buildSetEffortSignalsFromSets(sets: Array<{ rir: string | null; failure
   };
 }
 
+const TARGET_WEIGHT_TOLERANCE_RELATIVE = 0.02;
+const MIN_RECALIBRATION_SET_COUNT = 2;
+
+function isWeightCloseToTargetForEvidence(input: { actualWeightLbs: number; targetWeightLbs: number; incrementLbs: number }) {
+  if (input.targetWeightLbs <= 0) {
+    return false;
+  }
+
+  const absoluteTolerance = Math.max(0, input.incrementLbs / 2);
+  const relativeTolerance = Math.max(0, input.targetWeightLbs * TARGET_WEIGHT_TOLERANCE_RELATIVE);
+  const tolerance = Math.max(absoluteTolerance, relativeTolerance);
+  return Math.abs(input.actualWeightLbs - input.targetWeightLbs) <= tolerance;
+}
+
+function isRirSupportedRepOverperformanceSetForEvidence(
+  set: ExerciseWorkoutSetOutcome,
+  incrementLbs: number
+) {
+  if ((set.rir ?? null) !== "rir_5_plus") {
+    return false;
+  }
+
+  if (set.actualReps === null || set.actualWeightLbs === null) {
+    return false;
+  }
+
+  if (set.actualReps <= 0 || set.targetReps <= 0) {
+    return false;
+  }
+
+  if (!isWeightCloseToTargetForEvidence({ actualWeightLbs: set.actualWeightLbs, targetWeightLbs: set.targetWeightLbs, incrementLbs })) {
+    return false;
+  }
+
+  const threshold = Math.max(set.targetReps + 3, Math.ceil(set.targetReps * 1.5));
+  return set.actualReps >= threshold;
+}
+
+function isExtremeRepOverperformanceSetForEvidence(set: { actualReps: number | null; targetReps: number }) {
+  if (set.actualReps === null) {
+    return false;
+  }
+
+  const targetReps = set.targetReps;
+  const threshold = Math.max(targetReps + 20, Math.ceil(targetReps * 5));
+  return targetReps > 0 && set.actualReps >= threshold;
+}
+
+function wouldQualifyForRecalibrationEvidence(input: {
+  sets: ExerciseWorkoutSetOutcome[];
+  incrementLbs: number;
+}) {
+  const effortSignals = buildSetEffortSignalsFromSets(
+    input.sets.map((set) => ({
+      rir: (set.rir as SetRir | null | undefined) ?? null,
+      failureStatus: (set.failureStatus as SetFailureStatus | null | undefined) ?? null
+    }))
+  );
+  if (effortSignals.hasNearFailure || effortSignals.hasTechnicalFailure || effortSignals.hasStoppedEarly) {
+    return false;
+  }
+
+  const performanceSets = input.sets.filter((set) => set.failureStatus !== "stopped_early");
+  const weightQualifyingSets = performanceSets.filter((set) => isMaterialOverperformanceSet(set));
+
+  const repQualifyingSets = performanceSets.filter(
+    (set) =>
+      isMaterialRepOverperformanceSet(set, input.incrementLbs) ||
+      isRirSupportedRepOverperformanceSetForEvidence(set, input.incrementLbs)
+  );
+
+  const useWeightSignal = weightQualifyingSets.length >= MIN_RECALIBRATION_SET_COUNT;
+  const useRepSignal =
+    !useWeightSignal &&
+    (repQualifyingSets.length >= MIN_RECALIBRATION_SET_COUNT || repQualifyingSets.some(isExtremeRepOverperformanceSetForEvidence));
+
+  return useWeightSignal || useRepSignal;
+}
+
 function buildProgressionExplanation(input: {
   result: ProgressionUpdateDto["result"];
   reason: string;
@@ -72,6 +159,12 @@ function buildProgressionExplanation(input: {
   previousRepGoal: number;
   nextRepGoal: number;
   effortFeedback: EffortFeedback | null;
+  effortFeedbackDefaulted?: boolean;
+  progressionAggressiveness?: ProgressionAggressiveness | null;
+  preferRepProgressionBeforeWeight?: boolean | null;
+  allowAutoDeload?: boolean | null;
+  allowRecalibration?: boolean | null;
+  recalibrationBlocked?: boolean;
   setEffortSignals?: {
     hasAnyEffort: boolean;
     hasNearFailure: boolean;
@@ -90,8 +183,16 @@ function buildProgressionExplanation(input: {
   trainingGoal: TrainingGoal;
   goalSource: "user" | "program" | "default";
   experienceLevel: ExperienceLevel | null;
-  recoveryState: RecoveryState | null;
+  reportedRecoveryState: RecoveryState | null;
+  effectiveRecoveryState: RecoveryState | null;
+  recoveryAdjustmentsEnabled: boolean;
   recoveryInfluenced: boolean;
+  overrideSignals?: {
+    incrementOverrideUsed?: boolean;
+    progressionStrategyOverrideUsed?: boolean;
+    repRangeOverrideUsed?: boolean;
+    maxJumpSettingUsed?: boolean;
+  };
 }) {
   const reasonCodes: string[] = [];
   const evidence: string[] = [];
@@ -106,7 +207,10 @@ function buildProgressionExplanation(input: {
     }
   }
 
-  if (input.effortFeedback) {
+  if (input.effortFeedbackDefaulted) {
+    reasonCodes.push("EFFORT_DEFAULTED");
+    evidence.push("Effort defaulted to just right");
+  } else if (input.effortFeedback) {
     reasonCodes.push(
       input.effortFeedback === "too_easy"
         ? "EFFORT_TOO_EASY"
@@ -148,6 +252,71 @@ function buildProgressionExplanation(input: {
     }
   }
 
+  const hasSetEffort = input.setEffortSignals?.hasAnyEffort === true;
+  const conflictingEffortSignals =
+    hasSetEffort &&
+    ((input.setEffortSignals?.hasRir5Plus && input.effortFeedback === "too_hard") ||
+      (input.setEffortSignals?.hasNearFailure && input.effortFeedback === "too_easy"));
+
+  if (conflictingEffortSignals) {
+    reasonCodes.push("CONFLICTING_EFFORT_SIGNALS");
+    evidence.push("Exercise-level effort conflicted with set-level effort signals");
+  }
+
+  if (input.overrideSignals) {
+    if (input.overrideSignals.progressionStrategyOverrideUsed) {
+      reasonCodes.push("EXERCISE_OVERRIDE_STRATEGY");
+      evidence.push("Used an exercise-specific progression strategy override");
+    }
+    if (input.overrideSignals.repRangeOverrideUsed) {
+      reasonCodes.push("EXERCISE_OVERRIDE_REP_RANGE");
+      evidence.push("Used an exercise-specific rep range override");
+    }
+    if (input.overrideSignals.incrementOverrideUsed) {
+      reasonCodes.push("EXERCISE_OVERRIDE_INCREMENT");
+      evidence.push("Used an exercise-specific equipment increment override");
+    }
+    if (input.overrideSignals.maxJumpSettingUsed) {
+      reasonCodes.push("EXERCISE_OVERRIDE_MAX_JUMP");
+      evidence.push("Applied an exercise-specific max jump per session cap");
+    }
+  }
+
+  if (input.progressionAggressiveness && input.progressionAggressiveness !== "balanced") {
+    reasonCodes.push(`PROGRESSION_AGGRESSIVENESS_${input.progressionAggressiveness.toUpperCase()}`);
+    evidence.push(`Progression aggressiveness: ${input.progressionAggressiveness}`);
+  }
+
+  if (
+    input.preferRepProgressionBeforeWeight === true &&
+    input.result === "increased" &&
+    input.nextWeightLbs === input.previousWeightLbs &&
+    input.nextRepGoal > input.previousRepGoal
+  ) {
+    reasonCodes.push("PREFER_REPS_BEFORE_WEIGHT_APPLIED");
+    evidence.push("Preference applied: progress reps before weight");
+  }
+
+  if (input.recalibrationBlocked) {
+    reasonCodes.push("RECALIBRATION_DISABLED");
+    evidence.push("Recalibration was suggested but disabled by settings");
+  }
+
+  if (input.reason.toLowerCase().includes("confidence was below your setting")) {
+    reasonCodes.push("MIN_CONFIDENCE_GATE_BLOCKED_INCREASE");
+    evidence.push("Increase was blocked by your minimum confidence setting");
+  }
+
+  if (input.reason.toLowerCase().includes("auto-deload is disabled")) {
+    reasonCodes.push("AUTO_DELOAD_DISABLED");
+    evidence.push("Auto-deload is disabled, so the app repeated instead of deloading");
+  }
+
+  if (input.reason.toLowerCase().includes("rounded down to")) {
+    reasonCodes.push("EQUIPMENT_INCREMENT_ROUNDING");
+    evidence.push("Recommendation was rounded down to match equipment increments");
+  }
+
   if (input.workoutIsPartial) {
     reasonCodes.push("WORKOUT_PARTIAL");
   }
@@ -186,9 +355,12 @@ function buildProgressionExplanation(input: {
     evidence.push(`Experience level: ${input.experienceLevel}`);
   }
 
-  if (input.recoveryInfluenced && input.recoveryState && input.recoveryState !== "normal") {
-    reasonCodes.push(`RECOVERY_${input.recoveryState.toUpperCase()}`);
-    evidence.push("User reported fatigue/recovery state");
+  if (!input.recoveryAdjustmentsEnabled) {
+    reasonCodes.push("RECOVERY_ADJUSTMENTS_DISABLED");
+    evidence.push("Recovery was recorded but recovery adjustments are disabled");
+  } else if (input.recoveryInfluenced && input.effectiveRecoveryState && input.effectiveRecoveryState !== "normal") {
+    reasonCodes.push(`RECOVERY_${input.effectiveRecoveryState.toUpperCase()}`);
+    evidence.push("Recovery influenced this recommendation");
   }
 
   switch (input.result) {
@@ -239,7 +411,7 @@ function buildProgressionExplanation(input: {
     if (input.workoutIsPartial) {
       return "low";
     }
-    if (!input.effortFeedback) {
+    if (!input.effortFeedback && !input.effortFeedbackDefaulted) {
       return "low";
     }
     if (input.setEffortSignals?.hasTechnicalFailure) {
@@ -272,11 +444,21 @@ function buildProgressionExplanation(input: {
       return confidence;
     }
 
-    if (input.setEffortSignals.hasNearFailure || input.setEffortSignals.hasStoppedEarly) {
-      return confidence === "high" ? "medium" : confidence;
+    let next = confidence;
+
+    if (input.effortFeedbackDefaulted && next === "high") {
+      next = "medium";
     }
 
-    return confidence;
+    if (input.setEffortSignals.hasNearFailure || input.setEffortSignals.hasStoppedEarly) {
+      next = next === "high" ? "medium" : next;
+    }
+
+    if (conflictingEffortSignals) {
+      next = next === "high" ? "medium" : next === "medium" ? "low" : next;
+    }
+
+    return next;
   })();
 
   return {
@@ -524,10 +706,10 @@ export class CompleteWorkoutSessionUseCase {
         const progressionGoal: TrainingGoal | null = goalSource === "default" ? null : trainingGoal;
 
         const completedAt = input.request.completedAt ? new Date(input.request.completedAt) : new Date();
-        const recoveryState: RecoveryState | null =
-          userTrainingSettings.useRecoveryAdjustments
-            ? (input.request.recoveryState ?? userTrainingSettings.defaultRecoveryState)
-            : null;
+        const recoveryAdjustmentsEnabled = userTrainingSettings.useRecoveryAdjustments;
+        const reportedRecoveryState: RecoveryState =
+          input.request.recoveryState ?? userTrainingSettings.defaultRecoveryState;
+        const effectiveRecoveryState: RecoveryState | null = recoveryAdjustmentsEnabled ? reportedRecoveryState : null;
         const hasPendingSets = workoutSessionGraph.sets.some((set) => set.status === "pending");
         if (hasPendingSets) {
           await this.workoutSessionRepository.skipPendingWorkoutSets(
@@ -728,6 +910,7 @@ export class CompleteWorkoutSessionUseCase {
         const computedProgressionUpdatesV2: Array<{
           exerciseEntry: typeof progressionEligibleExerciseEntries[number];
           workoutTemplateExerciseEntryId: string;
+          incrementLbs: number;
           progressionResult: ReturnType<ProgressionEngine["calculateDoubleProgression"]>;
           inputSnapshot: Record<string, unknown>;
         }> = [];
@@ -848,55 +1031,9 @@ export class CompleteWorkoutSessionUseCase {
             continue;
           }
 
-          const effortFeedback = exerciseFeedbackByEntryId[exerciseEntry.id];
-          if (!effortFeedback) {
-            skippedProgressionUpdatesV2.push({
-              exerciseEntry,
-              workoutTemplateExerciseEntryId,
-              reason: "Progression skipped because effort feedback was not provided.",
-              inputSnapshot: {
-                version: "v2",
-                performedAt: completedAt.toISOString(),
-                workoutSessionId: workoutSessionGraph.session.id,
-                exerciseEntryId: exerciseEntry.id,
-                workoutTemplateExerciseEntryId,
-                state: {
-                  currentWeightLbs: progressionStateV2.currentWeightLbs,
-                  lastCompletedWeightLbs: progressionStateV2.lastCompletedWeightLbs,
-                  consecutiveFailures: progressionStateV2.consecutiveFailures,
-                  lastEffortFeedback: progressionStateV2.lastEffortFeedback,
-                  lastPerformedAt: progressionStateV2.lastPerformedAt?.toISOString() ?? null,
-                  repGoal: clampedRepGoal,
-                  repRangeMin,
-                  repRangeMax
-                },
-                exercise: {
-                  exerciseId: exerciseEntry.exerciseId,
-                  exerciseName: exerciseEntry.exerciseNameSnapshot,
-                  exerciseCategory: progressionSeed.exerciseCategory,
-                  incrementLbs,
-                  isBodyweight: progressionSeed.isBodyweight,
-                  isWeightOptional: progressionSeed.isWeightOptional,
-                  progressionStrategy: effectiveProgressionStrategy
-                },
-                outcome: {
-                  effortFeedback: null,
-                  hasFailure,
-                  sets: relatedSets.map((set) => ({
-                    setId: set.id,
-                    status: set.status,
-                    targetReps: set.targetReps,
-                    actualReps: set.actualReps,
-                    targetWeightLbs: set.targetWeightLbs,
-                    actualWeightLbs: set.actualWeightLbs,
-                    rir: set.rir,
-                    failureStatus: set.failureStatus
-                  }))
-                }
-              }
-            });
-            continue;
-          }
+          const explicitEffortFeedback = exerciseFeedbackByEntryId[exerciseEntry.id] ?? null;
+          const effortFeedback: EffortFeedback = explicitEffortFeedback ?? "just_right";
+          const effortFeedbackDefaulted = explicitEffortFeedback === null;
 
           const loggedSets = relatedSets.filter((set) => set.status === "completed" || set.status === "failed");
           const missingActualWeight = loggedSets.some((set) => set.actualWeightLbs === null);
@@ -905,7 +1042,7 @@ export class CompleteWorkoutSessionUseCase {
             strategy: effectiveProgressionStrategy,
             experienceLevel,
             trainingGoal: progressionGoal,
-            recoveryState,
+            recoveryState: effectiveRecoveryState,
             progressionAggressiveness: userTrainingSettings.progressionAggressiveness,
             allowAutoDeload: userTrainingSettings.allowAutoDeload,
             allowRecalibration: userTrainingSettings.allowRecalibration,
@@ -929,6 +1066,7 @@ export class CompleteWorkoutSessionUseCase {
             },
             outcome: {
               effortFeedback,
+              effortFeedbackDefaulted,
               hasFailure,
               sets: relatedSets.map((set) => ({
                 targetReps: set.targetReps,
@@ -994,6 +1132,7 @@ export class CompleteWorkoutSessionUseCase {
             previousRepGoal: cappedProgressionResult.previousRepGoal,
             nextRepGoal: cappedProgressionResult.nextRepGoal,
             effortFeedback,
+            effortFeedbackDefaulted,
             setEffortSignals: buildSetEffortSignalsFromSets(relatedSets),
             workoutIsPartial: isPartial,
             totalSetCount: relatedSets.length,
@@ -1007,8 +1146,16 @@ export class CompleteWorkoutSessionUseCase {
             trainingGoal,
             goalSource,
             experienceLevel,
-            recoveryState,
-            recoveryInfluenced: recoveryState !== "normal" && cappedProgressionResult.reason.includes("recovery=")
+            reportedRecoveryState,
+            effectiveRecoveryState,
+            recoveryAdjustmentsEnabled,
+            recoveryInfluenced: effectiveRecoveryState !== null && effectiveRecoveryState !== "normal" && cappedProgressionResult.reason.includes("recovery="),
+            overrideSignals: {
+              incrementOverrideUsed: (exerciseSettings?.incrementOverrideLbs ?? null) !== null,
+              progressionStrategyOverrideUsed: (exerciseSettings?.progressionStrategy ?? null) !== null,
+              repRangeOverrideUsed: (exerciseSettings?.repRangeMin ?? null) !== null || (exerciseSettings?.repRangeMax ?? null) !== null,
+              maxJumpSettingUsed: (exerciseSettings?.maxJumpPerSessionLbs ?? null) !== null
+            }
           });
 
           const gatedProgressionResult =
@@ -1031,6 +1178,7 @@ export class CompleteWorkoutSessionUseCase {
           computedProgressionUpdatesV2.push({
             exerciseEntry,
             workoutTemplateExerciseEntryId,
+            incrementLbs,
             progressionResult: gatedProgressionResult,
             inputSnapshot: {
               version: "v2",
@@ -1075,6 +1223,7 @@ export class CompleteWorkoutSessionUseCase {
 
         const computedProgressionUpdatesV1Direct: Array<{
           exerciseEntry: typeof progressionEligibleExerciseEntries[number];
+          incrementLbs: number;
           progressionResult: ReturnType<ProgressionEngine["calculate"]>;
           inputSnapshot: Record<string, unknown>;
         }> = [];
@@ -1094,6 +1243,7 @@ export class CompleteWorkoutSessionUseCase {
           }
 
           const incrementLbs = resolveIncrementLbs(exerciseEntry.exerciseId, progressionSeed.incrementLbs);
+          const exerciseSettings = exerciseSettingsByExerciseId.get(exerciseEntry.exerciseId) ?? null;
 
           const progressionState = progressionStateV1ByExerciseId.get(exerciseEntry.exerciseId);
           if (!progressionState) {
@@ -1107,47 +1257,9 @@ export class CompleteWorkoutSessionUseCase {
           const hasFailure = relatedSets.some(
             (set) => set.status === "failed" && set.failureStatus !== "stopped_early"
           );
-          const effortFeedback = exerciseFeedbackByEntryId[exerciseEntry.id];
-          if (!effortFeedback) {
-            skippedProgressionUpdatesV1Direct.push({
-              exerciseEntry,
-              reason: "Progression skipped because effort feedback was not provided.",
-              inputSnapshot: {
-                version: "v1",
-                performedAt: completedAt.toISOString(),
-                workoutSessionId: workoutSessionGraph.session.id,
-                exerciseEntryId: exerciseEntry.id,
-                state: {
-                  currentWeightLbs: progressionState.currentWeightLbs,
-                  lastCompletedWeightLbs: progressionState.lastCompletedWeightLbs,
-                  consecutiveFailures: progressionState.consecutiveFailures,
-                  lastEffortFeedback: progressionState.lastEffortFeedback,
-                  lastPerformedAt: progressionState.lastPerformedAt?.toISOString() ?? null
-                },
-                exercise: {
-                  exerciseId: exerciseEntry.exerciseId,
-                  exerciseName: exerciseEntry.exerciseNameSnapshot,
-                  exerciseCategory: progressionSeed.exerciseCategory,
-                  incrementLbs,
-                  isBodyweight: progressionSeed.isBodyweight,
-                  isWeightOptional: progressionSeed.isWeightOptional
-                },
-                outcome: {
-                  effortFeedback: null,
-                  hasFailure,
-                  sets: relatedSets.map((set) => ({
-                    setId: set.id,
-                    status: set.status,
-                    targetReps: set.targetReps,
-                    actualReps: set.actualReps,
-                    targetWeightLbs: set.targetWeightLbs,
-                    actualWeightLbs: set.actualWeightLbs
-                  }))
-                }
-              }
-            });
-            continue;
-          }
+          const explicitEffortFeedback = exerciseFeedbackByEntryId[exerciseEntry.id] ?? null;
+          const effortFeedback: EffortFeedback = explicitEffortFeedback ?? "just_right";
+          const effortFeedbackDefaulted = explicitEffortFeedback === null;
 
           const loggedSets = relatedSets.filter((set) => set.status === "completed" || set.status === "failed");
           const missingActualWeight = loggedSets.some((set) => set.actualWeightLbs === null);
@@ -1155,7 +1267,7 @@ export class CompleteWorkoutSessionUseCase {
           const baseProgressionResult = this.progressionEngine.calculate({
             experienceLevel,
             trainingGoal: progressionGoal,
-            recoveryState,
+            recoveryState: effectiveRecoveryState,
             progressionAggressiveness: userTrainingSettings.progressionAggressiveness,
             allowAutoDeload: userTrainingSettings.allowAutoDeload,
             allowRecalibration: userTrainingSettings.allowRecalibration,
@@ -1176,6 +1288,7 @@ export class CompleteWorkoutSessionUseCase {
             },
             outcome: {
               effortFeedback,
+              effortFeedbackDefaulted,
               hasFailure,
               sets: relatedSets.map((set) => ({
                 targetReps: set.targetReps,
@@ -1203,6 +1316,7 @@ export class CompleteWorkoutSessionUseCase {
             previousRepGoal: exerciseEntry.targetReps,
             nextRepGoal: exerciseEntry.targetReps,
             effortFeedback,
+            effortFeedbackDefaulted,
             setEffortSignals: buildSetEffortSignalsFromSets(relatedSets),
             workoutIsPartial: isPartial,
             totalSetCount: relatedSets.length,
@@ -1216,8 +1330,16 @@ export class CompleteWorkoutSessionUseCase {
             trainingGoal,
             goalSource,
             experienceLevel,
-            recoveryState,
-            recoveryInfluenced: recoveryState !== "normal" && progressionResult.reason.includes("recovery=")
+            reportedRecoveryState,
+            effectiveRecoveryState,
+            recoveryAdjustmentsEnabled,
+            recoveryInfluenced: effectiveRecoveryState !== null && effectiveRecoveryState !== "normal" && progressionResult.reason.includes("recovery="),
+            overrideSignals: {
+              incrementOverrideUsed: (exerciseSettings?.incrementOverrideLbs ?? null) !== null,
+              progressionStrategyOverrideUsed: (exerciseSettings?.progressionStrategy ?? null) !== null,
+              repRangeOverrideUsed: (exerciseSettings?.repRangeMin ?? null) !== null || (exerciseSettings?.repRangeMax ?? null) !== null,
+              maxJumpSettingUsed: (exerciseSettings?.maxJumpPerSessionLbs ?? null) !== null
+            }
           });
           const gatedProgressionResult =
             progressionResult.result === "increased" &&
@@ -1236,6 +1358,7 @@ export class CompleteWorkoutSessionUseCase {
 
           computedProgressionUpdatesV1Direct.push({
             exerciseEntry,
+            incrementLbs,
             progressionResult: gatedProgressionResult,
             inputSnapshot: {
               version: "v1",
@@ -1486,7 +1609,7 @@ export class CompleteWorkoutSessionUseCase {
             durationSeconds,
             isPartial,
             userEffortFeedback: input.request.userEffortFeedback ?? null,
-            recoveryState
+            recoveryState: reportedRecoveryState
           },
           { tx }
         );
@@ -1537,10 +1660,27 @@ export class CompleteWorkoutSessionUseCase {
         const progressionUpdates: ProgressionUpdateDto[] = [];
         const recommendationEventInputs: CreateProgressionRecommendationEventInput[] = [];
 
-        for (const { exerciseEntry, workoutTemplateExerciseEntryId, progressionResult, inputSnapshot } of computedProgressionUpdatesV2) {
+        for (const { exerciseEntry, workoutTemplateExerciseEntryId, incrementLbs, progressionResult, inputSnapshot } of computedProgressionUpdatesV2) {
           const relatedSets = workoutSessionGraph.sets.filter((set) => set.exerciseEntryId === exerciseEntry.id);
           const loggedSets = relatedSets.filter((set) => set.status === "completed" || set.status === "failed");
           const missingActualWeight = loggedSets.some((set) => set.actualWeightLbs === null);
+          const exerciseSettings = exerciseSettingsByExerciseId.get(exerciseEntry.exerciseId) ?? null;
+          const explicitEffortFeedback = exerciseFeedbackByEntryId[exerciseEntry.id] ?? null;
+          const effortFeedback: EffortFeedback = explicitEffortFeedback ?? "just_right";
+          const effortFeedbackDefaulted = explicitEffortFeedback === null;
+          const recalibrationBlocked =
+            userTrainingSettings.allowRecalibration === false &&
+            wouldQualifyForRecalibrationEvidence({
+              sets: relatedSets.map((set) => ({
+                targetReps: set.targetReps,
+                actualReps: set.actualReps,
+                targetWeightLbs: set.targetWeightLbs,
+                actualWeightLbs: set.actualWeightLbs,
+                rir: set.rir ?? null,
+                failureStatus: set.failureStatus ?? null
+              })),
+              incrementLbs
+            });
           const explanation = buildProgressionExplanation({
             result: progressionResult.result,
             reason: progressionResult.reason,
@@ -1548,7 +1688,13 @@ export class CompleteWorkoutSessionUseCase {
             nextWeightLbs: progressionResult.nextWeightLbs,
             previousRepGoal: progressionResult.previousRepGoal,
             nextRepGoal: progressionResult.nextRepGoal,
-            effortFeedback: exerciseFeedbackByEntryId[exerciseEntry.id] ?? null,
+            effortFeedback,
+            effortFeedbackDefaulted,
+            progressionAggressiveness: userTrainingSettings.progressionAggressiveness,
+            preferRepProgressionBeforeWeight: userTrainingSettings.preferRepProgressionBeforeWeight,
+            allowAutoDeload: userTrainingSettings.allowAutoDeload,
+            allowRecalibration: userTrainingSettings.allowRecalibration,
+            recalibrationBlocked,
             setEffortSignals: buildSetEffortSignalsFromSets(relatedSets),
             workoutIsPartial: workoutSessionGraph.session.isPartial,
             totalSetCount: relatedSets.length,
@@ -1562,8 +1708,16 @@ export class CompleteWorkoutSessionUseCase {
             trainingGoal,
             goalSource,
             experienceLevel,
-            recoveryState,
-            recoveryInfluenced: recoveryState !== "normal" && progressionResult.reason.includes("recovery=")
+            reportedRecoveryState,
+            effectiveRecoveryState,
+            recoveryAdjustmentsEnabled,
+            recoveryInfluenced: effectiveRecoveryState !== null && effectiveRecoveryState !== "normal" && progressionResult.reason.includes("recovery="),
+            overrideSignals: {
+              incrementOverrideUsed: (exerciseSettings?.incrementOverrideLbs ?? null) !== null,
+              progressionStrategyOverrideUsed: (exerciseSettings?.progressionStrategy ?? null) !== null,
+              repRangeOverrideUsed: (exerciseSettings?.repRangeMin ?? null) !== null || (exerciseSettings?.repRangeMax ?? null) !== null,
+              maxJumpSettingUsed: (exerciseSettings?.maxJumpPerSessionLbs ?? null) !== null
+            }
           });
 
           progressionUpdates.push(
@@ -1603,12 +1757,28 @@ export class CompleteWorkoutSessionUseCase {
           );
         }
 
-        for (const { exerciseEntry, progressionResult, inputSnapshot } of computedProgressionUpdatesV1Direct) {
+        for (const { exerciseEntry, incrementLbs, progressionResult, inputSnapshot } of computedProgressionUpdatesV1Direct) {
           const relatedSets = workoutSessionGraph.sets.filter((set) => set.exerciseEntryId === exerciseEntry.id);
           const loggedSets = relatedSets.filter((set) => set.status === "completed" || set.status === "failed");
           const missingActualWeight = loggedSets.some((set) => set.actualWeightLbs === null);
-          const effortFeedback = exerciseFeedbackByEntryId[exerciseEntry.id] ?? null;
+          const exerciseSettings = exerciseSettingsByExerciseId.get(exerciseEntry.exerciseId) ?? null;
+          const explicitEffortFeedback = exerciseFeedbackByEntryId[exerciseEntry.id] ?? null;
+          const effortFeedback: EffortFeedback = explicitEffortFeedback ?? "just_right";
+          const effortFeedbackDefaulted = explicitEffortFeedback === null;
           const progressionState = progressionStateV1ByExerciseId.get(exerciseEntry.exerciseId) ?? null;
+          const recalibrationBlocked =
+            userTrainingSettings.allowRecalibration === false &&
+            wouldQualifyForRecalibrationEvidence({
+              sets: relatedSets.map((set) => ({
+                targetReps: set.targetReps,
+                actualReps: set.actualReps,
+                targetWeightLbs: set.targetWeightLbs,
+                actualWeightLbs: set.actualWeightLbs,
+                rir: set.rir ?? null,
+                failureStatus: set.failureStatus ?? null
+              })),
+              incrementLbs
+            });
           const explanation = buildProgressionExplanation({
             result: progressionResult.result,
             reason: progressionResult.reason,
@@ -1617,6 +1787,12 @@ export class CompleteWorkoutSessionUseCase {
             previousRepGoal: exerciseEntry.targetReps,
             nextRepGoal: exerciseEntry.targetReps,
             effortFeedback,
+            effortFeedbackDefaulted,
+            progressionAggressiveness: userTrainingSettings.progressionAggressiveness,
+            preferRepProgressionBeforeWeight: userTrainingSettings.preferRepProgressionBeforeWeight,
+            allowAutoDeload: userTrainingSettings.allowAutoDeload,
+            allowRecalibration: userTrainingSettings.allowRecalibration,
+            recalibrationBlocked,
             setEffortSignals: buildSetEffortSignalsFromSets(relatedSets),
             workoutIsPartial: workoutSessionGraph.session.isPartial,
             totalSetCount: relatedSets.length,
@@ -1630,8 +1806,16 @@ export class CompleteWorkoutSessionUseCase {
             trainingGoal,
             goalSource,
             experienceLevel,
-            recoveryState,
-            recoveryInfluenced: recoveryState !== "normal" && progressionResult.reason.includes("recovery=")
+            reportedRecoveryState,
+            effectiveRecoveryState,
+            recoveryAdjustmentsEnabled,
+            recoveryInfluenced: effectiveRecoveryState !== null && effectiveRecoveryState !== "normal" && progressionResult.reason.includes("recovery="),
+            overrideSignals: {
+              incrementOverrideUsed: (exerciseSettings?.incrementOverrideLbs ?? null) !== null,
+              progressionStrategyOverrideUsed: (exerciseSettings?.progressionStrategy ?? null) !== null,
+              repRangeOverrideUsed: (exerciseSettings?.repRangeMin ?? null) !== null || (exerciseSettings?.repRangeMax ?? null) !== null,
+              maxJumpSettingUsed: (exerciseSettings?.maxJumpPerSessionLbs ?? null) !== null
+            }
           });
 
           progressionUpdates.push(
@@ -1683,6 +1867,10 @@ export class CompleteWorkoutSessionUseCase {
           const relatedSets = workoutSessionGraph.sets.filter((set) => set.exerciseEntryId === exerciseEntry.id);
           const loggedSets = relatedSets.filter((set) => set.status === "completed" || set.status === "failed");
           const missingActualWeight = loggedSets.some((set) => set.actualWeightLbs === null);
+          const explicitEffortFeedback = exerciseFeedbackByEntryId[exerciseEntry.id] ?? null;
+          const effortFeedback: EffortFeedback = explicitEffortFeedback ?? "just_right";
+          const effortFeedbackDefaulted = explicitEffortFeedback === null;
+          const exerciseSettings = exerciseSettingsByExerciseId.get(exerciseEntry.exerciseId) ?? null;
           const explanation = buildProgressionExplanation({
             result: "skipped",
             reason,
@@ -1690,7 +1878,8 @@ export class CompleteWorkoutSessionUseCase {
             nextWeightLbs: progressionStateV2.currentWeightLbs,
             previousRepGoal: progressionStateV2.repGoal,
             nextRepGoal: progressionStateV2.repGoal,
-            effortFeedback: null,
+            effortFeedback,
+            effortFeedbackDefaulted,
             setEffortSignals: buildSetEffortSignalsFromSets(relatedSets),
             workoutIsPartial: workoutSessionGraph.session.isPartial,
             totalSetCount: relatedSets.length,
@@ -1704,8 +1893,16 @@ export class CompleteWorkoutSessionUseCase {
             trainingGoal,
             goalSource,
             experienceLevel,
-            recoveryState,
-            recoveryInfluenced: recoveryState !== "normal" && reason.includes("recovery=")
+            reportedRecoveryState,
+            effectiveRecoveryState,
+            recoveryAdjustmentsEnabled,
+            recoveryInfluenced: effectiveRecoveryState !== null && effectiveRecoveryState !== "normal" && reason.includes("recovery="),
+            overrideSignals: {
+              incrementOverrideUsed: (exerciseSettings?.incrementOverrideLbs ?? null) !== null,
+              progressionStrategyOverrideUsed: (exerciseSettings?.progressionStrategy ?? null) !== null,
+              repRangeOverrideUsed: (exerciseSettings?.repRangeMin ?? null) !== null || (exerciseSettings?.repRangeMax ?? null) !== null,
+              maxJumpSettingUsed: (exerciseSettings?.maxJumpPerSessionLbs ?? null) !== null
+            }
           });
 
           progressionUpdates.push(
@@ -1757,6 +1954,10 @@ export class CompleteWorkoutSessionUseCase {
           const relatedSets = workoutSessionGraph.sets.filter((set) => set.exerciseEntryId === exerciseEntry.id);
           const loggedSets = relatedSets.filter((set) => set.status === "completed" || set.status === "failed");
           const missingActualWeight = loggedSets.some((set) => set.actualWeightLbs === null);
+          const explicitEffortFeedback = exerciseFeedbackByEntryId[exerciseEntry.id] ?? null;
+          const effortFeedback: EffortFeedback = explicitEffortFeedback ?? "just_right";
+          const effortFeedbackDefaulted = explicitEffortFeedback === null;
+          const exerciseSettings = exerciseSettingsByExerciseId.get(exerciseEntry.exerciseId) ?? null;
           const explanation = buildProgressionExplanation({
             result: "skipped",
             reason,
@@ -1764,7 +1965,8 @@ export class CompleteWorkoutSessionUseCase {
             nextWeightLbs: progressionState.currentWeightLbs,
             previousRepGoal: exerciseEntry.targetReps,
             nextRepGoal: exerciseEntry.targetReps,
-            effortFeedback: null,
+            effortFeedback,
+            effortFeedbackDefaulted,
             setEffortSignals: buildSetEffortSignalsFromSets(relatedSets),
             workoutIsPartial: workoutSessionGraph.session.isPartial,
             totalSetCount: relatedSets.length,
@@ -1778,8 +1980,16 @@ export class CompleteWorkoutSessionUseCase {
             trainingGoal,
             goalSource,
             experienceLevel,
-            recoveryState,
-            recoveryInfluenced: recoveryState !== "normal" && reason.includes("recovery=")
+            reportedRecoveryState,
+            effectiveRecoveryState,
+            recoveryAdjustmentsEnabled,
+            recoveryInfluenced: effectiveRecoveryState !== null && effectiveRecoveryState !== "normal" && reason.includes("recovery="),
+            overrideSignals: {
+              incrementOverrideUsed: (exerciseSettings?.incrementOverrideLbs ?? null) !== null,
+              progressionStrategyOverrideUsed: (exerciseSettings?.progressionStrategy ?? null) !== null,
+              repRangeOverrideUsed: (exerciseSettings?.repRangeMin ?? null) !== null || (exerciseSettings?.repRangeMax ?? null) !== null,
+              maxJumpSettingUsed: (exerciseSettings?.maxJumpPerSessionLbs ?? null) !== null
+            }
           });
 
           progressionUpdates.push(
@@ -1824,6 +2034,10 @@ export class CompleteWorkoutSessionUseCase {
           const loggedSetCount = relatedSets.filter((set) => set.status === "completed" || set.status === "failed").length;
           const totalSetCount = relatedSets.length;
           const reason = `No progression update because this exercise was only partially completed (${loggedSetCount} of ${totalSetCount} sets logged; unlogged sets were skipped).`;
+          const explicitEffortFeedback = exerciseFeedbackByEntryId[exerciseEntry.id] ?? null;
+          const effortFeedback: EffortFeedback = explicitEffortFeedback ?? "just_right";
+          const effortFeedbackDefaulted = explicitEffortFeedback === null;
+          const exerciseSettings = exerciseSettingsByExerciseId.get(exerciseEntry.exerciseId) ?? null;
           const explanation = buildProgressionExplanation({
             result: "skipped",
             reason,
@@ -1831,7 +2045,8 @@ export class CompleteWorkoutSessionUseCase {
             nextWeightLbs: exerciseEntry.targetWeightLbs,
             previousRepGoal: exerciseEntry.targetReps,
             nextRepGoal: exerciseEntry.targetReps,
-            effortFeedback: exerciseFeedbackByEntryId[exerciseEntry.id] ?? null,
+            effortFeedback,
+            effortFeedbackDefaulted,
             setEffortSignals: buildSetEffortSignalsFromSets(relatedSets),
             workoutIsPartial: true,
             totalSetCount,
@@ -1847,8 +2062,16 @@ export class CompleteWorkoutSessionUseCase {
             trainingGoal,
             goalSource,
             experienceLevel,
-            recoveryState,
-            recoveryInfluenced: recoveryState !== "normal" && reason.includes("recovery=")
+            reportedRecoveryState,
+            effectiveRecoveryState,
+            recoveryAdjustmentsEnabled,
+            recoveryInfluenced: effectiveRecoveryState !== null && effectiveRecoveryState !== "normal" && reason.includes("recovery="),
+            overrideSignals: {
+              incrementOverrideUsed: (exerciseSettings?.incrementOverrideLbs ?? null) !== null,
+              progressionStrategyOverrideUsed: (exerciseSettings?.progressionStrategy ?? null) !== null,
+              repRangeOverrideUsed: (exerciseSettings?.repRangeMin ?? null) !== null || (exerciseSettings?.repRangeMax ?? null) !== null,
+              maxJumpSettingUsed: (exerciseSettings?.maxJumpPerSessionLbs ?? null) !== null
+            }
           });
 
           const workoutTemplateExerciseEntryId =

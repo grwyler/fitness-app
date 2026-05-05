@@ -54,6 +54,20 @@ function getSuccessIncreaseStepCount(category: ExerciseCategory, effortFeedback:
   return 1;
 }
 
+function shouldTreatRirAsTooEasy(outcome: ExerciseWorkoutOutcome, incrementLbs: number) {
+  const effortSignals = getSetEffortSignals(outcome.sets);
+  if (!effortSignals.hasRir5Plus) {
+    return false;
+  }
+
+  if (effortSignals.hasNearFailure || effortSignals.hasTechnicalFailure || effortSignals.hasStoppedEarly) {
+    return false;
+  }
+
+  const sets = outcome.sets ?? [];
+  return sets.some((set) => isRirSupportedRepOverperformanceSet(set, incrementLbs));
+}
+
 function getAggressiveSuccessStepCount(input: {
   category: ExerciseCategory;
   effortFeedback: ExerciseWorkoutOutcome["effortFeedback"];
@@ -479,6 +493,9 @@ export class ProgressionEngine {
     }
 
     const effortSignals = getSetEffortSignals(outcome.sets);
+    const rirTooEasySignal = shouldTreatRirAsTooEasy(outcome, exercise.incrementLbs);
+    const effectiveEffortFeedback =
+      rirTooEasySignal && outcome.effortFeedback !== "too_easy" ? ("too_easy" as const) : outcome.effortFeedback;
     const performanceSets = outcome.sets.filter((set) => set.failureStatus !== "stopped_early");
     if (effortSignals.hasStoppedEarly && performanceSets.length === 0) {
       const nextState: ProgressionStateSnapshotV2 = {
@@ -607,7 +624,7 @@ export class ProgressionEngine {
         previousRepGoal,
         nextRepGoal: previousRepGoal,
         result: "repeated",
-        reason: `Repeated because reps were below the current rep goal of ${previousRepGoal} within range ${repRangeMin}–${repRangeMax}.`,
+        reason: `Repeated because reps were below the current rep goal of ${previousRepGoal} within range ${repRangeMin}-${repRangeMax}.`,
         nextState
       };
     }
@@ -794,7 +811,7 @@ export class ProgressionEngine {
           ? getRepIncreaseStepCount({
               aggressiveness: input.progressionAggressiveness ?? "balanced",
               category: exercise.exerciseCategory,
-              effortFeedback: outcome.effortFeedback,
+              effortFeedback: effectiveEffortFeedback,
               experienceLevel: input.experienceLevel ?? null,
               recoveryState
             })
@@ -818,7 +835,7 @@ export class ProgressionEngine {
         previousRepGoal,
         nextRepGoal,
         result: "increased",
-        reason: `Increased reps from ${previousRepGoal} to ${nextRepGoal} within range ${repRangeMin}–${repRangeMax}.`,
+        reason: `Increased reps from ${previousRepGoal} to ${nextRepGoal} within range ${repRangeMin}-${repRangeMax}.`,
         nextState
       };
     }
@@ -880,7 +897,7 @@ export class ProgressionEngine {
       repRangeMax > repRangeMin
         ? getAggressiveSuccessStepCount({
             category: exercise.exerciseCategory,
-            effortFeedback: outcome.effortFeedback,
+            effortFeedback: effectiveEffortFeedback,
             experienceLevel: input.experienceLevel ?? null,
             recoveryState
           })
@@ -911,7 +928,9 @@ export class ProgressionEngine {
       nextRepGoal,
       result: "increased",
       reason: withPolicySuffix(
-        `Increased weight from ${previousWeightLbs} to ${nextWeightLbs} and reset reps to ${repRangeMin}.`,
+        `Increased weight from ${previousWeightLbs} to ${nextWeightLbs} and reset reps to ${repRangeMin}.${
+          rirTooEasySignal ? " (Set effort suggested the weight was too light.)" : ""
+        }`,
         { trainingGoal, experienceLevel: input.experienceLevel ?? null, recoveryState }
       ),
       nextState
@@ -1142,7 +1161,7 @@ export class ProgressionEngine {
         previousRepGoal,
         nextRepGoal: previousRepGoal,
         result: "repeated",
-        reason: `Repeated because reps were below the current rep goal of ${previousRepGoal} within range ${repRangeMin}–${repRangeMax}.`,
+        reason: `Repeated because reps were below the current rep goal of ${previousRepGoal} within range ${repRangeMin}-${repRangeMax}.`,
         nextState
       };
     }
@@ -1307,7 +1326,7 @@ export class ProgressionEngine {
         previousRepGoal,
         nextRepGoal,
         result: "increased",
-        reason: `Increased reps from ${previousRepGoal} to ${nextRepGoal} within range ${repRangeMin}–${repRangeMax}.`,
+        reason: `Increased reps from ${previousRepGoal} to ${nextRepGoal} within range ${repRangeMin}-${repRangeMax}.`,
         nextState
       };
     }
@@ -1329,7 +1348,7 @@ export class ProgressionEngine {
       previousRepGoal,
       nextRepGoal: previousRepGoal,
       result: "repeated",
-      reason: `Repeated because reps are already at the top of the range ${repRangeMin}–${repRangeMax}.`,
+      reason: `Repeated because reps are already at the top of the range ${repRangeMin}-${repRangeMax}.`,
       nextState
     };
   }
@@ -1355,11 +1374,31 @@ export class ProgressionEngine {
         lastEffortFeedback: outcome.effortFeedback
       };
 
+      const roundingNote =
+        nextWeightLbs !== attemptedDeloadWeight ? ` (rounded down to ${exercise.incrementLbs} lb increments)` : "";
+
       return {
         previousWeightLbs,
         nextWeightLbs,
         result: "reduced",
-        reason: `Reduced from ${previousWeightLbs} lb to ${nextWeightLbs} lb after two consecutive failed workouts (10% deload).`,
+        reason: `Reduced from ${previousWeightLbs} lb to ${nextWeightLbs} lb after two consecutive failed workouts (10% deload)${roundingNote}.`,
+        nextState
+      };
+    }
+
+    if (input.allowAutoDeload === false && state.consecutiveFailures >= 1) {
+      const nextState: ProgressionStateSnapshot = {
+        currentWeightLbs: previousWeightLbs,
+        lastCompletedWeightLbs: state.lastCompletedWeightLbs,
+        consecutiveFailures: state.consecutiveFailures + 1,
+        lastEffortFeedback: outcome.effortFeedback
+      };
+
+      return {
+        previousWeightLbs,
+        nextWeightLbs: previousWeightLbs,
+        result: "repeated",
+        reason: `Repeated ${previousWeightLbs} lb because sets missed the prescribed reps and auto-deload is disabled.`,
         nextState
       };
     }
@@ -1420,6 +1459,28 @@ export class ProgressionEngine {
       };
     }
 
+    if (input.allowAutoDeload === false && nextFailureCount >= 2) {
+      const nextState: ProgressionStateSnapshotV2 = {
+        currentWeightLbs: previousWeightLbs,
+        lastCompletedWeightLbs: state.lastCompletedWeightLbs,
+        consecutiveFailures: nextFailureCount,
+        lastEffortFeedback: outcome.effortFeedback,
+        repGoal: previousRepGoal,
+        repRangeMin,
+        repRangeMax
+      };
+
+      return {
+        previousWeightLbs,
+        nextWeightLbs: previousWeightLbs,
+        previousRepGoal,
+        nextRepGoal: previousRepGoal,
+        result: "repeated",
+        reason: "Repeated because reps were below the target range minimum and auto-deload is disabled.",
+        nextState
+      };
+    }
+
     const nextState: ProgressionStateSnapshotV2 = {
       currentWeightLbs: previousWeightLbs,
       lastCompletedWeightLbs: state.lastCompletedWeightLbs,
@@ -1450,6 +1511,10 @@ export class ProgressionEngine {
     const recoveryState = input.recoveryState ?? null;
 
     const effortSignals = getSetEffortSignals(outcome.sets);
+    const rirTooEasySignal = shouldTreatRirAsTooEasy(outcome, exercise.incrementLbs);
+    const effectiveEffortFeedback =
+      rirTooEasySignal && outcome.effortFeedback !== "too_easy" ? ("too_easy" as const) : outcome.effortFeedback;
+
     const performanceSets = (outcome.sets ?? []).filter((set) => set.failureStatus !== "stopped_early");
     if (effortSignals.hasStoppedEarly && performanceSets.length === 0) {
       const nextState: ProgressionStateSnapshot = {
@@ -1504,7 +1569,7 @@ export class ProgressionEngine {
       };
     }
 
-    if (trainingGoal === "maintenance" && outcome.effortFeedback !== "too_easy") {
+    if (trainingGoal === "maintenance" && effectiveEffortFeedback !== "too_easy") {
       const nextState: ProgressionStateSnapshot = {
         currentWeightLbs: previousWeightLbs,
         lastCompletedWeightLbs: previousWeightLbs,
@@ -1525,7 +1590,7 @@ export class ProgressionEngine {
       };
     }
 
-    if ((recoveryState === "fatigued" || recoveryState === "exhausted") && outcome.effortFeedback !== "too_easy") {
+    if ((recoveryState === "fatigued" || recoveryState === "exhausted") && effectiveEffortFeedback !== "too_easy") {
       const nextState: ProgressionStateSnapshot = {
         currentWeightLbs: previousWeightLbs,
         lastCompletedWeightLbs: previousWeightLbs,
@@ -1591,7 +1656,7 @@ export class ProgressionEngine {
     const computedRawIncreaseSteps = getRepIncreaseStepCount({
       aggressiveness: input.progressionAggressiveness ?? "balanced",
       category: exercise.exerciseCategory,
-      effortFeedback: outcome.effortFeedback,
+      effortFeedback: effectiveEffortFeedback,
       experienceLevel: input.experienceLevel ?? null,
       recoveryState
     });
@@ -1615,8 +1680,8 @@ export class ProgressionEngine {
       nextWeightLbs,
       result: "increased",
       reason: withPolicySuffix(
-        outcome.effortFeedback === "too_easy"
-          ? `Increased from ${previousWeightLbs} lb to ${nextWeightLbs} lb because all sets were completed and effort was marked too easy.`
+        effectiveEffortFeedback === "too_easy"
+          ? `Increased from ${previousWeightLbs} lb to ${nextWeightLbs} lb because all sets were completed and the set-level effort suggests the weight was too light.`
           : `Increased from ${previousWeightLbs} lb to ${nextWeightLbs} lb because all sets were completed and effort was marked manageable.`,
         { trainingGoal, experienceLevel: input.experienceLevel ?? null, recoveryState }
       ),

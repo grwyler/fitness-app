@@ -34,6 +34,7 @@ export type ExerciseProgressionContext = {
 
 export type ExerciseWorkoutOutcome = {
   effortFeedback: EffortFeedback;
+  effortFeedbackDefaulted?: boolean;
   hasFailure?: boolean;
   sets?: ExerciseWorkoutSetOutcome[];
 };

@@ -17,6 +17,8 @@ export type SetLogDraft = {
   failureStatus?: SetFailureStatus | null;
 };
 
+export type SetEffortCategory = "very_easy" | "good" | "hard" | "max" | "stopped_early";
+
 export type SetLogValidation = {
   actualReps: number | null;
   actualWeight: WeightValueDto | null;
@@ -237,4 +239,118 @@ export function getSetOutcomeText(input: {
   }
 
   return input.actualReps >= input.targetReps ? "Meets target" : "Below target";
+}
+
+export function getSetEffortCategory(input: {
+  rir?: SetRir | null | undefined;
+  failureStatus?: SetFailureStatus | null | undefined;
+}): SetEffortCategory | null {
+  if (input.failureStatus === "stopped_early") {
+    return "stopped_early";
+  }
+
+  if (input.failureStatus === "technical_failure" || input.failureStatus === "muscular_failure") {
+    return "max";
+  }
+
+  switch (input.rir ?? null) {
+    case "rir_5_plus":
+    case "rir_4":
+      return "very_easy";
+    case "rir_3":
+    case "rir_2":
+      return "good";
+    case "rir_1":
+      return "hard";
+    case "rir_0":
+      return "max";
+    default:
+      return null;
+  }
+}
+
+export function applySetEffortCategory(draft: SetLogDraft, category: SetEffortCategory | null): SetLogDraft {
+  if (category === null) {
+    return {
+      ...draft,
+      rir: null,
+      failureStatus: null
+    };
+  }
+
+  if (category === "stopped_early") {
+    return {
+      ...draft,
+      failureStatus: "stopped_early",
+      rir: null
+    };
+  }
+
+  if (category === "very_easy") {
+    return {
+      ...draft,
+      rir: "rir_5_plus",
+      failureStatus: null
+    };
+  }
+
+  if (category === "good") {
+    return {
+      ...draft,
+      rir: "rir_2",
+      failureStatus: null
+    };
+  }
+
+  if (category === "hard") {
+    return {
+      ...draft,
+      rir: "rir_1",
+      failureStatus: null
+    };
+  }
+
+  // "max"
+  return {
+    ...draft,
+    rir: "rir_0",
+    ...(draft.failureStatus === "stopped_early" ? { failureStatus: null } : {})
+  };
+}
+
+export function formatSetEffortSummary(input: {
+  rir?: SetRir | null | undefined;
+  failureStatus?: SetFailureStatus | null | undefined;
+}): string | null {
+  const failureStatus = input.failureStatus ?? null;
+  const rir = input.rir ?? null;
+
+  if (failureStatus === "stopped_early") {
+    return "Stopped early";
+  }
+
+  if (failureStatus === "technical_failure") {
+    return "Max (technique)";
+  }
+
+  if (failureStatus === "muscular_failure") {
+    return "Max (failure)";
+  }
+
+  switch (rir) {
+    case "rir_0":
+      return "Max";
+    case "rir_1":
+      return "Hard (1 left)";
+    case "rir_2":
+      return "Good (2 left)";
+    case "rir_3":
+      return "Good (3 left)";
+    case "rir_4":
+      return "Very easy (4 left)";
+    case "rir_5_plus":
+      return "Very easy (4+ left)";
+    default:
+      return null;
+  }
 }

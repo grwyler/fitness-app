@@ -16,6 +16,7 @@ type ActiveWorkoutState = {
   setLogDraftsBySetId: Record<string, SetLogDraft>;
   setActiveSessionId(sessionId: string | null): void;
   setExerciseFeedback(exerciseEntryId: string, feedback: EffortFeedback): void;
+  clearExerciseFeedbackForEntry(exerciseEntryId: string): void;
   clearExerciseFeedback(): void;
   setSetLogDraft(setId: string, draft: SetLogDraft): void;
   clearSetLogDraft(setId: string): void;
@@ -43,6 +44,13 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
         [exerciseEntryId]: feedback
       }
     }));
+  },
+  clearExerciseFeedbackForEntry(exerciseEntryId) {
+    set((state) => {
+      const next = { ...state.exerciseFeedbackByEntryId };
+      delete next[exerciseEntryId];
+      return { exerciseFeedbackByEntryId: next };
+    });
   },
   clearExerciseFeedback() {
     set({ exerciseFeedbackByEntryId: {} });

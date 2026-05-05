@@ -11,6 +11,7 @@ import { Pressable, StyleSheet, View } from "react-native";
 import {
   adjustWeightText,
   buildLogSetRequestFromDraft,
+  formatSetEffortSummary as formatSetEffortSummaryText,
   getPreviousLoggedSet,
   getSetLogDefaultDraft,
   getSetOutcomeText,
@@ -37,10 +38,10 @@ const setRirOptions: Array<{ value: SetRir; label: string }> = [
   { value: "rir_4", label: "4" },
   { value: "rir_5_plus", label: "5+" }
 ];
-const failureOptions: Array<{ value: SetFailureStatus; label: string }> = [
+const maxFailureOptions: Array<{ value: SetFailureStatus | null; label: string }> = [
+  { value: null, label: "No failure" },
   { value: "muscular_failure", label: "Failure" },
-  { value: "technical_failure", label: "Tech fail" },
-  { value: "stopped_early", label: "Stopped" }
+  { value: "technical_failure", label: "Tech fail" }
 ];
 
 function formatFeedbackLabel(feedback: EffortFeedback) {
@@ -52,23 +53,6 @@ function formatFeedbackLabel(feedback: EffortFeedback) {
     case "too_hard":
       return "Too hard";
   }
-}
-
-function formatSetEffortSummary(set: SetDto) {
-  const parts: string[] = [];
-  if (set.failureStatus) {
-    parts.push(
-      set.failureStatus === "muscular_failure"
-        ? "Failure"
-        : set.failureStatus === "technical_failure"
-          ? "Tech fail"
-          : "Stopped early"
-    );
-  }
-  if (set.rir) {
-    parts.push(set.rir === "rir_5_plus" ? "RIR 5+" : `RIR ${set.rir.replace("rir_", "")}`);
-  }
-  return parts.length > 0 ? parts.join(" · ") : null;
 }
 
 export function WorkoutExerciseCard(props: {
@@ -339,74 +323,83 @@ export function WorkoutExerciseCard(props: {
 
                   <View style={styles.effortSection}>
                     <AppText variant="caption" tone="secondary">
-                      Effort (optional)
+                      Reps in reserve (optional)
                     </AppText>
 
-                    <View style={styles.effortRow}>
-                      <AppText variant="caption" tone="secondary" style={styles.effortLabel}>
-                        RIR
-                      </AppText>
-                      <View style={styles.effortChips}>
-                        {setRirOptions.map((option) => {
-                          const selected = draft.rir === option.value;
-                          return (
-                            <Chip
-                              key={option.value}
-                              label={option.label}
-                              onPress={() => {
-                                const nextRir = selected ? null : option.value;
-                                const clearsFailure =
-                                  nextRir !== null &&
-                                  nextRir !== "rir_0" &&
-                                  (draft.failureStatus === "muscular_failure" ||
-                                    draft.failureStatus === "technical_failure");
-                                props.onChangeSetLogDraft(set.id, {
-                                  ...draft,
-                                  rir: nextRir,
-                                  ...(clearsFailure ? { failureStatus: null } : {})
-                                });
-                              }}
-                              selected={selected}
-                              variant={selected ? "selected" : "muted"}
-                              disabled={isLogging || readOnly}
-                            />
-                          );
-                        })}
-                      </View>
+                    <View style={styles.effortChipsRow}>
+                      {setRirOptions.map((option) => {
+                        const selected =
+                          (draft.rir ?? null) === option.value && (draft.failureStatus ?? null) !== "stopped_early";
+
+                        return (
+                          <Chip
+                            key={option.value}
+                            label={option.label}
+                            onPress={() => {
+                              const nextRir = selected ? null : option.value;
+                              const clearsFailure = nextRir !== null && nextRir !== "rir_0";
+
+                              props.onChangeSetLogDraft(set.id, {
+                                ...draft,
+                                rir: nextRir,
+                                ...(draft.failureStatus === "stopped_early" ? { failureStatus: null } : {}),
+                                ...(clearsFailure ? { failureStatus: null } : {})
+                              });
+                            }}
+                            selected={selected}
+                            variant={selected ? "selected" : "muted"}
+                            disabled={isLogging || readOnly}
+                          />
+                        );
+                      })}
+                      <Chip
+                        label="Stopped early"
+                        onPress={() => {
+                          const selected = (draft.failureStatus ?? null) === "stopped_early";
+                          props.onChangeSetLogDraft(set.id, {
+                            ...draft,
+                            failureStatus: selected ? null : "stopped_early",
+                            rir: null
+                          });
+                        }}
+                        selected={(draft.failureStatus ?? null) === "stopped_early"}
+                        variant={(draft.failureStatus ?? null) === "stopped_early" ? "selected" : "muted"}
+                        disabled={isLogging || readOnly}
+                      />
                     </View>
 
-                    <View style={styles.effortRow}>
-                      <AppText variant="caption" tone="secondary" style={styles.effortLabel}>
-                        Failure
-                      </AppText>
-                      <View style={styles.effortChips}>
-                        {failureOptions.map((option) => {
-                          const selected = draft.failureStatus === option.value;
-                          return (
-                            <Chip
-                              key={option.value}
-                              label={option.label}
-                              onPress={() => {
-                                const nextFailureStatus = selected ? null : option.value;
-                                props.onChangeSetLogDraft(set.id, {
-                                  ...draft,
-                                  failureStatus: nextFailureStatus,
-                                  ...(nextFailureStatus === "muscular_failure" ||
-                                  nextFailureStatus === "technical_failure"
-                                    ? { rir: "rir_0" }
-                                    : nextFailureStatus === "stopped_early"
-                                      ? { rir: null }
-                                      : {})
-                                });
-                              }}
-                              selected={selected}
-                              variant={selected ? "selected" : "muted"}
-                              disabled={isLogging || readOnly}
-                            />
-                          );
-                        })}
+                    <AppText variant="caption" tone="tertiary" style={styles.effortHelper}>
+                      How many reps you could still do. 0 = max effort.
+                    </AppText>
+
+                    {draft.rir === "rir_0" ? (
+                      <View style={styles.effortRow}>
+                        <AppText variant="caption" tone="secondary" style={styles.effortLabel}>
+                          Failure type
+                        </AppText>
+                        <View style={styles.effortChips}>
+                          {maxFailureOptions.map((option) => {
+                            const selected = (draft.failureStatus ?? null) === option.value;
+                            return (
+                              <Chip
+                                key={option.label}
+                                label={option.label}
+                                onPress={() => {
+                                  props.onChangeSetLogDraft(set.id, {
+                                    ...draft,
+                                    failureStatus: selected ? null : option.value,
+                                    rir: "rir_0"
+                                  });
+                                }}
+                                selected={selected}
+                                variant={selected ? "selected" : "muted"}
+                                disabled={isLogging || readOnly}
+                              />
+                            );
+                          })}
+                        </View>
                       </View>
-                    </View>
+                    ) : null}
                   </View>
                   <PrimaryButton
                     label={
@@ -443,7 +436,9 @@ export function WorkoutExerciseCard(props: {
                       weightLbs: set.actualWeight?.value ?? set.targetWeight.value,
                       unitSystem: props.unitSystem
                     }).text}
-                    {formatSetEffortSummary(set) ? ` · ${formatSetEffortSummary(set)}` : ""}
+                    {formatSetEffortSummaryText({ rir: set.rir, failureStatus: set.failureStatus })
+                      ? ` - ${formatSetEffortSummaryText({ rir: set.rir, failureStatus: set.failureStatus })}`
+                      : ""}
                   </AppText>
                   {outcomeTone && loggedOutcomeText && loggedOutcomeText !== "Ready" ? (
                     <AppText variant="caption" tone={outcomeTone}>
@@ -466,12 +461,7 @@ export function WorkoutExerciseCard(props: {
       />
 
       <View style={styles.feedbackSection}>
-        <AppText variant="bodyStrong">How did this exercise feel?</AppText>
-        {props.highlightMissingFeedback && props.selectedFeedback === undefined ? (
-          <AppText variant="caption" tone="secondary">
-            Rate effort to finish this workout.
-          </AppText>
-        ) : null}
+        <AppText variant="bodyStrong">How did this exercise feel? (optional)</AppText>
         <View style={styles.feedbackOptions}>
           {effortOptions.map((option) => {
             const selected = props.selectedFeedback === option;
@@ -629,6 +619,19 @@ const styles = StyleSheet.create({
   },
   effortSection: {
     gap: spacing.xs,
+    marginTop: spacing.xs
+  },
+  effortHelper: {
+    marginTop: 2
+  },
+  effortChipsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.xs,
+    marginTop: spacing.xs
+  },
+  effortAdvancedRow: {
+    alignItems: "flex-start",
     marginTop: spacing.xs
   },
   effortRow: {

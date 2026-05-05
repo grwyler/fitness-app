@@ -104,7 +104,7 @@ export const activeWorkoutScreenTestCases: MobileTestCase[] = [
     }
   },
   {
-    name: "Full completion keeps finish enabled with missing feedback (UI highlights on press)",
+    name: "Full completion keeps finish enabled even when effort feedback is not manually selected",
     run: () => {
       const workout = createWorkout({
         setStatuses: ["completed", "completed", "completed"]
@@ -118,7 +118,7 @@ export const activeWorkoutScreenTestCases: MobileTestCase[] = [
       assert.equal(missingFeedbackState.finishButtonDisabled, false);
       assert.equal(
         missingFeedbackState.footerMessage,
-        "Rate effort for each exercise to unlock progression updates."
+        "All sets are logged. Effort defaults to just right (optional to change)."
       );
       assert.equal(completeFeedbackState.finishButtonDisabled, false);
       assert.equal(
@@ -138,7 +138,7 @@ export const activeWorkoutScreenTestCases: MobileTestCase[] = [
     }
   },
   {
-    name: "Finish-early UI surfaces missing feedback count for completed exercises",
+    name: "Finish-early UI no longer treats missing effort as blocking",
     run: () => {
       const workout: WorkoutSessionDto = {
         ...createWorkout({
@@ -176,7 +176,29 @@ export const activeWorkoutScreenTestCases: MobileTestCase[] = [
 
       assert.equal(state.finishButtonLabel, "End workout");
       assert.equal(state.finishButtonDisabled, false);
-      assert.equal(state.missingEffortFeedbackCompletedExerciseCount, 1);
+      assert.equal(state.missingEffortFeedbackCompletedExerciseCount, 0);
+    }
+  },
+  {
+    name: "Completion request includes exercise effort feedback only when explicitly provided",
+    run: () => {
+      const workout = createWorkout({
+        setStatuses: ["completed", "completed", "completed"]
+      });
+      const request = buildCompleteWorkoutRequest(
+        workout,
+        {
+          "entry-1": "too_easy"
+        },
+        { finishEarly: false }
+      );
+
+      assert.deepEqual(request.exerciseFeedback, [
+        {
+          exerciseEntryId: "entry-1",
+          effortFeedback: "too_easy"
+        }
+      ]);
     }
   },
   {

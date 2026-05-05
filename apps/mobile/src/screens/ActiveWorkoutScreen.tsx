@@ -87,6 +87,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
   const cancelWorkoutMutation = useCancelWorkout();
   const feedbackByEntryId = useActiveWorkoutStore((state) => state.exerciseFeedbackByEntryId);
   const setExerciseFeedback = useActiveWorkoutStore((state) => state.setExerciseFeedback);
+  const clearExerciseFeedbackForEntry = useActiveWorkoutStore((state) => state.clearExerciseFeedbackForEntry);
   const activeSessionId = useActiveWorkoutStore((state) => state.activeSessionId);
   const setLogDraftsBySetId = useActiveWorkoutStore((state) => state.setLogDraftsBySetId);
   const setSetLogDraft = useActiveWorkoutStore((state) => state.setSetLogDraft);
@@ -274,24 +275,8 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
     hasPendingSetSave
   });
   const isReadOnlyWorkout = workout.status !== "in_progress";
-  const showFinishEarlyFeedbackWarning = completionUiState.missingEffortFeedbackCompletedExerciseCount > 0;
-
-  const missingFeedbackExerciseEntryIds = new Set(
-    workout.exercises
-      .filter((exercise) => {
-        if (exercise.sets.length === 0) {
-          return false;
-        }
-
-        const isFullyCompleted = exercise.sets.every((set) => set.status === "completed" || set.status === "failed");
-        if (!isFullyCompleted) {
-          return false;
-        }
-
-        return feedbackByEntryId[exercise.id] === undefined;
-      })
-      .map((exercise) => exercise.id)
-  );
+  const showFinishEarlyFeedbackWarning = false;
+  const missingFeedbackExerciseEntryIds = new Set<string>();
 
   const restTimerCard = restTimer ? (
     <Card variant="hero" style={styles.restTimerCard} padding="sm">
@@ -693,10 +678,8 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
               exercise={exercise}
               unitSystem={unitSystem}
               readOnly={isReadOnlyWorkout}
-              highlightMissingFeedback={showMissingFeedbackHighlights && missingFeedbackExerciseEntryIds.has(exercise.id)}
-              {...(feedbackByEntryId[exercise.id]
-                ? { selectedFeedback: feedbackByEntryId[exercise.id] }
-                : {})}
+              highlightMissingFeedback={false}
+              selectedFeedback={feedbackByEntryId[exercise.id] ?? "just_right"}
               loggingSetId={logSetMutation.isPending ? logSetMutation.variables?.setId ?? null : null}
               editingSetId={editingSetId}
               recentlyLoggedSetId={recentlyLoggedSetId}
@@ -716,6 +699,11 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
               onUpdateLoggedSet={handleUpdateLoggedSet}
               onSelectFeedback={(feedback) => {
                 setLastAction(`set_exercise_feedback:${exercise.id}`);
+                if (feedback === "just_right") {
+                  clearExerciseFeedbackForEntry(exercise.id);
+                  return;
+                }
+
                 setExerciseFeedback(exercise.id, feedback);
               }}
             />

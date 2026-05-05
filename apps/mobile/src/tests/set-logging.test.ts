@@ -2,8 +2,11 @@ import assert from "node:assert/strict";
 import type { SetDto } from "@fitness/shared";
 import {
   adjustWeightText,
+  applySetEffortCategory,
   buildLogSetRequestFromDraft,
+  formatSetEffortSummary,
   formatRestTimer,
+  getSetEffortCategory,
   getRestTimerSecondsRemaining,
   getPreviousLoggedSet,
   getRestDurationSeconds,
@@ -154,6 +157,63 @@ export const setLoggingTestCases: MobileTestCase[] = [
       assert.equal(getRestTimerSecondsRemaining({ endAtMs: 10_000, nowMs: 9_000 }), 1);
       assert.equal(getRestTimerSecondsRemaining({ endAtMs: 10_000, nowMs: 10_000 }), 0);
       assert.equal(getRestTimerSecondsRemaining({ endAtMs: 10_000, nowMs: 11_000 }), 0);
+    }
+  },
+  {
+    name: "Set effort categories map to consistent rir/failure fields",
+    run: () => {
+      const baseDraft = { repsText: "8", weightText: "135" as string };
+
+      assert.equal(getSetEffortCategory({ rir: "rir_5_plus", failureStatus: null }), "very_easy");
+      assert.equal(getSetEffortCategory({ rir: "rir_2", failureStatus: null }), "good");
+      assert.equal(getSetEffortCategory({ rir: "rir_1", failureStatus: null }), "hard");
+      assert.equal(getSetEffortCategory({ rir: "rir_0", failureStatus: null }), "max");
+      assert.equal(getSetEffortCategory({ rir: null, failureStatus: "technical_failure" }), "max");
+      assert.equal(getSetEffortCategory({ rir: null, failureStatus: "stopped_early" }), "stopped_early");
+
+      assert.deepEqual(applySetEffortCategory(baseDraft, "very_easy"), {
+        ...baseDraft,
+        rir: "rir_5_plus",
+        failureStatus: null
+      });
+      assert.deepEqual(applySetEffortCategory(baseDraft, "good"), {
+        ...baseDraft,
+        rir: "rir_2",
+        failureStatus: null
+      });
+      assert.deepEqual(applySetEffortCategory(baseDraft, "hard"), {
+        ...baseDraft,
+        rir: "rir_1",
+        failureStatus: null
+      });
+      assert.deepEqual(applySetEffortCategory(baseDraft, "max"), {
+        ...baseDraft,
+        rir: "rir_0"
+      });
+      assert.deepEqual(applySetEffortCategory(baseDraft, "stopped_early"), {
+        ...baseDraft,
+        rir: null,
+        failureStatus: "stopped_early"
+      });
+
+      assert.deepEqual(buildLogSetRequestFromDraft(applySetEffortCategory(baseDraft, "stopped_early")), {
+        actualReps: 8,
+        actualWeight: { value: 135, unit: "lb" },
+        rir: null,
+        failureStatus: "stopped_early"
+      });
+    }
+  },
+  {
+    name: "Set effort summaries are user-friendly and non-jargony",
+    run: () => {
+      assert.equal(formatSetEffortSummary({ rir: "rir_5_plus", failureStatus: null }), "Very easy (4+ left)");
+      assert.equal(formatSetEffortSummary({ rir: "rir_2", failureStatus: null }), "Good (2 left)");
+      assert.equal(formatSetEffortSummary({ rir: "rir_1", failureStatus: null }), "Hard (1 left)");
+      assert.equal(formatSetEffortSummary({ rir: "rir_0", failureStatus: null }), "Max");
+      assert.equal(formatSetEffortSummary({ rir: null, failureStatus: "muscular_failure" }), "Max (failure)");
+      assert.equal(formatSetEffortSummary({ rir: null, failureStatus: "technical_failure" }), "Max (technique)");
+      assert.equal(formatSetEffortSummary({ rir: null, failureStatus: "stopped_early" }), "Stopped early");
     }
   }
 ];

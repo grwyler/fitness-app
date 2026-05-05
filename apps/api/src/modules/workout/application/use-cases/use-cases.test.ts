@@ -1989,7 +1989,7 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
     }
   },
   {
-    name: "CompleteWorkoutSessionUseCase completes without effort feedback and returns skipped progression update",
+    name: "CompleteWorkoutSessionUseCase completes without effort feedback and defaults effort to just_right",
     run: async () => {
       const idempotency = createMockIdempotencyRepository();
       let graphReadCount = 0;
@@ -2227,8 +2227,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
       assert.equal(result.data.workoutSession.status, "completed");
       assert.equal(result.data.workoutSession.isPartial, false);
       assert.equal(result.data.progressionUpdates.length, 1);
-      assert.equal(result.data.progressionUpdates[0]?.result, "skipped");
-      assert.match(result.data.progressionUpdates[0]?.reason ?? "", /effort feedback was not provided/i);
+      assert.equal(result.data.progressionUpdates[0]?.result, "increased");
+      assert.equal(result.data.progressionUpdates[0]?.confidence, "medium");
+      assert.equal(result.data.progressionUpdates[0]?.nextWeight.value, 140);
     }
   },
   {

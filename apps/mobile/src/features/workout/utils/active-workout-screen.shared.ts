@@ -10,6 +10,8 @@ export type WorkoutCompletionUiState = {
   footerMessage: string;
 };
 
+const DEFAULT_EXERCISE_EFFORT: EffortFeedback = "just_right";
+
 export function getWorkoutCompletionUiState(
   workout: WorkoutSessionDto,
   feedbackByEntryId: Record<string, EffortFeedback | undefined>,
@@ -22,21 +24,8 @@ export function getWorkoutCompletionUiState(
   const hasPendingSets = workout.exercises.some((exercise) =>
     exercise.sets.some((set) => set.status === "pending")
   );
-  const completedExercisesMissingFeedback = workout.exercises.filter((exercise) => {
-    if (exercise.sets.length === 0) {
-      return false;
-    }
-
-    const isFullyCompleted = exercise.sets.every((set) => set.status === "completed" || set.status === "failed");
-    if (!isFullyCompleted) {
-      return false;
-    }
-
-    return feedbackByEntryId[exercise.id] === undefined;
-  });
-  const hasCompleteFeedback = hasExercises && workout.exercises.every(
-    (exercise) => feedbackByEntryId[exercise.id] !== undefined
-  );
+  const completedExercisesMissingFeedback = [];
+  const hasCompleteFeedback = hasExercises;
 
   return {
     hasPendingSets,
@@ -51,9 +40,7 @@ export function getWorkoutCompletionUiState(
           ? "Add at least one exercise to continue."
         : hasPendingSets
           ? "You can finish early. Unlogged sets will be marked skipped, and exercises with skipped sets won't update progression."
-          : hasCompleteFeedback
-            ? "All sets are logged and feedback is ready."
-            : "Rate effort for each exercise to unlock progression updates."
+          : "All sets are logged. Effort defaults to just right (optional to change)."
   };
 }
 
@@ -81,7 +68,7 @@ export function buildCompleteWorkoutRequest(
       .filter((exercise) => feedbackByEntryId[exercise.id] !== undefined)
       .map((exercise) => ({
         exerciseEntryId: exercise.id,
-        effortFeedback: feedbackByEntryId[exercise.id]!
+        effortFeedback: feedbackByEntryId[exercise.id] ?? DEFAULT_EXERCISE_EFFORT
       })),
     finishEarly: input.finishEarly,
     ...(input.recoveryState ? { recoveryState: input.recoveryState } : {})
