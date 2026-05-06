@@ -22,6 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: write
 
     steps:
       - name: Checkout
@@ -63,4 +64,23 @@ jobs:
         run: |
           git push origin HEAD:main
           git push origin "v${{ steps.version.outputs.version }}"
+
+      - name: Trigger production deployments
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          payload='{"ref":"main"}'
+
+          curl -sS -X POST \
+            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${REPO}/actions/workflows/vercel-production.yml/dispatches" \
+            -d "${payload}"
+
+          curl -sS -X POST \
+            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${REPO}/actions/workflows/vercel-api-production.yml/dispatches" \
+            -d "${payload}"
 
