@@ -1,0 +1,66 @@
+name: Auto-update release notes
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - CHANGELOG.md
+      - package.json
+      - package-lock.json
+      - apps/mobile/src/core/release-notes/release-notes.json
+  workflow_dispatch:
+
+concurrency:
+  group: auto-release-notes
+  cancel-in-progress: true
+
+jobs:
+  release-notes:
+    name: Bump version + draft release notes
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Generate release notes entry (patch)
+        run: node scripts/release.mjs patch
+
+      - name: Resolve version
+        id: version
+        run: echo "version=$(node -p \"require('./package.json').version\")" >> "$GITHUB_OUTPUT"
+
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add package.json package-lock.json CHANGELOG.md apps/mobile/src/core/release-notes/release-notes.json
+          git commit -m "chore(release): v${{ steps.version.outputs.version }}"
+
+      - name: Tag release
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          TAG="v${VERSION}"
+          if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
+            echo "Tag ${TAG} already exists. Aborting."
+            exit 1
+          fi
+          git tag -a "${TAG}" -m "${TAG}"
+
+      - name: Push commit + tag
+        run: |
+          git push origin HEAD:main
+          git push origin "v${{ steps.version.outputs.version }}"
+

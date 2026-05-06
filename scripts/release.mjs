@@ -76,8 +76,62 @@ function categorizeSubject(subject) {
   if (parsed.type === "feat") return { section: "Added", text: parsed.rest };
   if (parsed.type === "fix") return { section: "Fixed", text: parsed.rest };
   if (["refactor", "perf"].includes(parsed.type)) return { section: "Changed", text: parsed.rest };
+  if (["docs", "chore", "build", "ci", "test", "style"].includes(parsed.type)) return { section: "Changed", text: parsed.rest };
 
   return null;
+}
+
+function isNoiseSubject(subject) {
+  const trimmed = String(subject ?? "").trim();
+  if (!trimmed) return true;
+
+  if (/^merge(\s|:)/i.test(trimmed)) return true;
+  if (/^revert(\s|:)/i.test(trimmed)) return false;
+
+  const conventional = stripConventionalPrefix(trimmed);
+  if (conventional?.type === "chore" && /^release(\s|:)/i.test(conventional.rest)) return true;
+  if (conventional?.type === "chore" && /^v?\d+\.\d+\.\d+(\s|$)/i.test(conventional.rest)) return true;
+  if (conventional?.type === "chore" && /\brelease notes\b/i.test(conventional.rest)) return true;
+
+  return false;
+}
+
+function uniquePreserveOrder(items) {
+  const seen = new Set();
+  const output = [];
+  for (const item of items) {
+    const key = String(item ?? "").trim();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    output.push(key);
+  }
+  return output;
+}
+
+function draftReleaseNotesFromSubjects(subjects) {
+  const drafted = {
+    Added: [],
+    Changed: [],
+    Fixed: []
+  };
+
+  for (const subject of subjects) {
+    if (isNoiseSubject(subject)) continue;
+
+    const categorized = categorizeSubject(subject);
+    if (categorized) {
+      drafted[categorized.section]?.push(categorized.text);
+      continue;
+    }
+
+    drafted.Changed.push(String(subject).trim());
+  }
+
+  drafted.Added = uniquePreserveOrder(drafted.Added).slice(0, 10);
+  drafted.Changed = uniquePreserveOrder(drafted.Changed).slice(0, 10);
+  drafted.Fixed = uniquePreserveOrder(drafted.Fixed).slice(0, 10);
+
+  return drafted;
 }
 
 function gitTagExists(tag) {
@@ -144,7 +198,7 @@ if (releases.some((entry) => normalizeVersion(entry?.version) === nextVersion)) 
 
 const today = new Date().toISOString().slice(0, 10);
 
-const drafted = {
+let drafted = {
   Added: [],
   Changed: [],
   Fixed: []
@@ -154,11 +208,7 @@ if (draftNotesEnabled) {
   const previousTag = gitTagExists(`v${currentVersion}`) ? `v${currentVersion}` : gitTagExists(currentVersion) ? currentVersion : null;
   try {
     const subjects = readGitSubjectsSinceTag(previousTag);
-    for (const subject of subjects) {
-      const categorized = categorizeSubject(subject);
-      if (!categorized) continue;
-      drafted[categorized.section]?.push(categorized.text);
-    }
+    drafted = draftReleaseNotesFromSubjects(subjects);
   } catch {
     // Best-effort: release notes can still be edited manually.
   }
@@ -184,6 +234,29 @@ releaseNotesJson.releases = [
 packageJson.version = nextVersion;
 
 writeJson(packageJsonPath, packageJson);
+
+const packageLockPath = path.join(repoRoot, "package-lock.json");
+if (fs.existsSync(packageLockPath)) {
+  try {
+    const packageLock = readJson(packageLockPath);
+    if (packageLock && typeof packageLock === "object") {
+      if (typeof packageLock.version === "string") {
+        packageLock.version = nextVersion;
+      }
+
+      if (packageLock.packages && typeof packageLock.packages === "object" && packageLock.packages[""]) {
+        const rootPackage = packageLock.packages[""];
+        if (rootPackage && typeof rootPackage === "object" && typeof rootPackage.version === "string") {
+          rootPackage.version = nextVersion;
+        }
+      }
+    }
+    writeJson(packageLockPath, packageLock);
+  } catch (error) {
+    fail(`Failed to update package-lock.json: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
 writeJson(releaseNotesPath, releaseNotesJson);
 
 try {
