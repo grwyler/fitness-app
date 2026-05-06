@@ -51,6 +51,15 @@ export type WeightValueDto = {
   unit: "lb";
 };
 
+export type WorkoutSetTargetDto = {
+  repTargetText?: string | null;
+  targetWeight?: WeightValueDto;
+  durationSeconds?: number | null;
+  distanceMeters?: number | null;
+  rpe?: number | null;
+  note?: string | null;
+};
+
 export type WorkoutSessionType = "program" | "custom";
 
 export type PredefinedWorkoutCategory = "Push" | "Pull" | "Legs" | "Full Body" | "Quick";
@@ -82,6 +91,15 @@ export type ExerciseEntryDto = {
   repRangeMax?: number;
   targetWeight: WeightValueDto;
   restSeconds: number | null;
+  /**
+   * Optional label for the rep target. Useful for prescriptions like "AMRAP" or "failure".
+   */
+  repTargetText?: string | null;
+  /**
+   * Optional per-set targets for advanced prescriptions.
+   */
+  setTargets?: WorkoutSetTargetDto[] | null;
+  notes?: string | null;
   effortFeedback: EffortFeedback | null;
   completedAt: ISODateTime | null;
   sets: SetDto[];
@@ -145,6 +163,10 @@ export type ProgramWorkoutExerciseDto = {
   repRangeMax?: number;
   restSeconds: number | null;
   progressionStrategy?: ProgressionStrategy;
+  repTargetText?: string | null;
+  targetWeight?: WeightValueDto;
+  setTargets?: WorkoutSetTargetDto[] | null;
+  notes?: string | null;
 };
 
 export type ProgramWorkoutTemplateDto = {
@@ -274,6 +296,10 @@ export type CreateCustomProgramExerciseRequest = {
   repRangeMax?: number;
   restSeconds?: number | null;
   progressionStrategy?: ProgressionStrategy;
+  repTargetText?: string | null;
+  targetWeight?: WeightValueDto;
+  setTargets?: WorkoutSetTargetDto[] | null;
+  notes?: string | null;
 };
 
 export type CreateCustomProgramWorkoutRequest = {

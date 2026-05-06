@@ -12,6 +12,11 @@ function normalizeOptionalDescription(value: string | null | undefined) {
   return normalized.length > 0 ? normalized : null;
 }
 
+function normalizeOptionalShortText(value: string | null | undefined) {
+  const normalized = (value ?? "").trim().replace(/\s+/g, " ");
+  return normalized.length > 0 ? normalized : null;
+}
+
 function validateUpdateCustomProgramRequest(request: UpdateCustomProgramRequest) {
   const name = resolveCustomProgramName(request.name);
 
@@ -74,6 +79,17 @@ function validateUpdateCustomProgramRequest(request: UpdateCustomProgramRequest)
           }
         }
 
+        const repTargetText = normalizeOptionalShortText(exercise.repTargetText);
+        const notes = normalizeOptionalDescription(exercise.notes);
+        const setTargets = exercise.setTargets?.length ? exercise.setTargets : null;
+
+        if (setTargets && setTargets.length !== exercise.targetSets) {
+          throw new WorkoutApplicationError(
+            "VALIDATION_ERROR",
+            "Custom set targets must match the sets count."
+          );
+        }
+
         return {
           exerciseId: exercise.exerciseId,
           workoutTemplateExerciseEntryId,
@@ -82,7 +98,11 @@ function validateUpdateCustomProgramRequest(request: UpdateCustomProgramRequest)
           repRangeMin,
           repRangeMax,
           restSeconds: exercise.restSeconds ?? null,
-          progressionStrategy: exercise.progressionStrategy ?? null
+          progressionStrategy: exercise.progressionStrategy ?? null,
+          ...(repTargetText ? { repTargetText } : {}),
+          ...(exercise.targetWeight ? { targetWeight: exercise.targetWeight } : {}),
+          ...(notes ? { notes } : {}),
+          ...(setTargets ? { setTargets } : {})
         };
       })
     };

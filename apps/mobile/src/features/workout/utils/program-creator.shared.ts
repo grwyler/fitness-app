@@ -139,7 +139,7 @@ export function buildAssignedProgramRequest(input: {
   if (missingDay) {
     return {
       request: null,
-      error: `Choose a workout for Day ${missingDay.dayNumber}.`
+      error: `Add a workout for Day ${missingDay.dayNumber}.`
     };
   }
 
@@ -164,8 +164,12 @@ export function buildAssignedProgramRequest(input: {
               ...(exercise.repRangeMin != null && exercise.repRangeMax != null && exercise.repRangeMax > exercise.repRangeMin
                 ? { repRangeMin: exercise.repRangeMin, repRangeMax: exercise.repRangeMax }
                 : {}),
+              ...(exercise.repTargetText != null ? { repTargetText: exercise.repTargetText } : {}),
+              ...(exercise.targetWeight ? { targetWeight: exercise.targetWeight } : {}),
               ...(exercise.restSeconds !== null ? { restSeconds: exercise.restSeconds } : {}),
-              ...(exercise.progressionStrategy ? { progressionStrategy: exercise.progressionStrategy } : {})
+              ...(exercise.progressionStrategy ? { progressionStrategy: exercise.progressionStrategy } : {}),
+              ...(exercise.setTargets ? { setTargets: exercise.setTargets } : {}),
+              ...(exercise.notes != null ? { notes: exercise.notes } : {})
             }))
         };
       })

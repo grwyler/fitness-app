@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import type { ExperienceLevel, PredefinedWorkoutCategory } from "@fitness/shared";
+import type { ExperienceLevel, PredefinedWorkoutCategory, WorkoutSetTargetDto } from "@fitness/shared";
 import {
   boolean,
   check,
@@ -367,6 +367,10 @@ export const workoutTemplateExerciseEntries = pgTable(
     repRangeMax: integer("rep_range_max"),
     restSeconds: integer("rest_seconds"),
     progressionStrategy: progressionStrategyEnum("progression_strategy"),
+    repTargetText: text("rep_target_text"),
+    targetWeightLbs: numeric("target_weight_lbs", { precision: 6, scale: 2 }),
+    notes: text("notes"),
+    setTargets: jsonb("set_targets").$type<WorkoutSetTargetDto[] | null>(),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     ...timestamps
   },

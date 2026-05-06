@@ -174,7 +174,11 @@ export function mapProgramDto(definition: ProgramDefinition): ProgramDto {
             ...(exercise.repRangeMin != null ? { repRangeMin: exercise.repRangeMin } : {}),
             ...(exercise.repRangeMax != null ? { repRangeMax: exercise.repRangeMax } : {}),
             restSeconds: exercise.restSeconds,
-            ...(exercise.progressionStrategy != null ? { progressionStrategy: exercise.progressionStrategy } : {})
+            ...(exercise.progressionStrategy != null ? { progressionStrategy: exercise.progressionStrategy } : {}),
+            ...(exercise.repTargetText != null ? { repTargetText: exercise.repTargetText } : {}),
+            ...(exercise.targetWeight ? { targetWeight: exercise.targetWeight } : {}),
+            ...(exercise.setTargets ? { setTargets: exercise.setTargets } : {}),
+            ...(exercise.notes != null ? { notes: exercise.notes } : {})
           }))
       }))
   };

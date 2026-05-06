@@ -1,4 +1,9 @@
-import type { ExerciseCategory, PredefinedWorkoutCategory, ProgressionStrategy } from "@fitness/shared";
+import type {
+  ExerciseCategory,
+  PredefinedWorkoutCategory,
+  ProgressionStrategy,
+  WorkoutSetTargetDto
+} from "@fitness/shared";
 
 export type ExerciseRecord = {
   id: string;
@@ -43,6 +48,10 @@ export type WorkoutTemplateExerciseRecord = {
   repRangeMax?: number | null;
   restSeconds: number | null;
   progressionStrategy?: ProgressionStrategy | null;
+  repTargetText?: string | null;
+  targetWeightLbs?: number | null;
+  notes?: string | null;
+  setTargets?: WorkoutSetTargetDto[] | null;
   createdAt: Date;
   updatedAt: Date;
 };

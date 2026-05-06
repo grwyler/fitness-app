@@ -1,16 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
 import { generateCustomWorkoutNameFromExercises } from "@fitness/shared";
-import type { AddCustomWorkoutExerciseRequest, ProgramDto, ProgramWorkoutTemplateDto } from "@fitness/shared";
+import type {
+  ExerciseCatalogItemDto,
+  ProgramDto,
+  ProgramWorkoutExerciseDto,
+  ProgramWorkoutTemplateDto
+} from "@fitness/shared";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 import { AppText } from "../components/AppText";
-import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { Input } from "../components/Input";
-import { ListRow } from "../components/ListRow";
 import { Screen } from "../components/Screen";
 import { PrimaryButton } from "../components/PrimaryButton";
-import { CustomExercisePickerModal } from "../features/workout/components/CustomExercisePickerModal";
+import { ExercisePickerModal } from "../features/workout/components/ExercisePickerModal";
+import { ProgramDayWorkoutBuilderCard } from "../features/workout/components/ProgramDayWorkoutBuilderCard";
 import type { RootStackParamList } from "../core/navigation/navigation-types";
 import { useCreateCustomProgram } from "../features/workout/hooks/useCreateCustomProgram";
 import { useDashboard } from "../features/workout/hooks/useDashboard";
@@ -21,14 +25,15 @@ import { useExercises } from "../features/workout/hooks/useExercises";
 import { usePrograms } from "../features/workout/hooks/usePrograms";
 import {
   buildAssignedProgramRequest,
-  buildCustomWorkoutExerciseRequestsFromProgramWorkout,
   createProgramDayAssignments,
   resizeProgramDayAssignments,
-  type CustomExercisePickerRequest,
+  CUSTOM_WORKOUT_BUILDER_PREFIX,
   type ProgramDayAssignment
 } from "../features/workout/utils/program-creator.shared";
-import { getHiddenExerciseCount, getPlannedExerciseLines } from "../features/workout/utils/dashboard-program.shared";
-import { getWorkoutEstimatedDurationMinutes } from "../features/workout/utils/workout-duration-estimator.shared";
+import {
+  CUSTOM_WORKOUT_DEFAULT_TARGET_REPS,
+  CUSTOM_WORKOUT_DEFAULT_TARGET_SETS
+} from "../features/workout/hooks/useCustomWorkoutExercises";
 import { colors, spacing } from "../theme/tokens";
 
 type Props = NativeStackScreenProps<RootStackParamList, "CreateProgram">;
@@ -50,14 +55,7 @@ export function CreateProgramScreen({ navigation, route }: Props) {
   const [programName, setProgramName] = useState("");
   const [daysPerWeek, setDaysPerWeek] = useState(3);
   const [days, setDays] = useState<ProgramDayAssignment[]>(createProgramDayAssignments(3));
-  const [customWorkoutDayNumber, setCustomWorkoutDayNumber] = useState<number | null>(null);
-  const [customWorkoutName, setCustomWorkoutName] = useState("");
-  const [customExerciseError, setCustomExerciseError] = useState<string | null>(null);
-  const [customWorkoutInitialRequests, setCustomWorkoutInitialRequests] = useState<
-    CustomExercisePickerRequest[] | null
-  >(null);
-  const [editingWorkoutTemplateId, setEditingWorkoutTemplateId] = useState<string | null>(null);
-  const [customWorkoutInitKey, setCustomWorkoutInitKey] = useState(0);
+  const [exercisePickerDayNumber, setExercisePickerDayNumber] = useState<number | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [savedProgramId, setSavedProgramId] = useState<string | null>(null);
   const [autoFollowPending, setAutoFollowPending] = useState(false);
@@ -65,7 +63,7 @@ export function CreateProgramScreen({ navigation, route }: Props) {
   const dashboardQuery = useDashboard();
   const trainingSettingsQuery = useTrainingSettings();
   const programsQuery = usePrograms();
-  const exercisesQuery = useExercises(customWorkoutDayNumber !== null);
+  const exercisesQuery = useExercises(exercisePickerDayNumber !== null);
   const createProgramMutation = useCreateCustomProgram();
   const updateProgramMutation = useUpdateCustomProgram();
   const followProgramMutation = useFollowProgram();
@@ -127,93 +125,100 @@ export function CreateProgramScreen({ navigation, route }: Props) {
     setSavedProgramId(null);
   }
 
-  function openCustomWorkoutBuilderForDay(dayNumber: number) {
-    setSavedProgramId(null);
-    setCustomWorkoutDayNumber(dayNumber);
-    setCustomWorkoutName("");
-    setCustomExerciseError(null);
-    setCustomWorkoutInitialRequests(null);
-    setEditingWorkoutTemplateId(null);
-    setCustomWorkoutInitKey((current) => current + 1);
+  function getDefaultProgressionStrategy(exercise: ExerciseCatalogItemDto) {
+    if (!exercise.isProgressionEligible) {
+      return "no_progression" as const;
+    }
+
+    if (exercise.isBodyweight) {
+      return exercise.isWeightOptional ? ("bodyweight_weighted" as const) : ("bodyweight_reps" as const);
+    }
+
+    return "double_progression" as const;
   }
 
-  function openCustomWorkoutEditorForDay(dayNumber: number, workout: ProgramWorkoutTemplateDto) {
-    setSavedProgramId(null);
-    setCustomWorkoutDayNumber(dayNumber);
-    setCustomWorkoutName(workout.name);
-    setCustomExerciseError(null);
-    setCustomWorkoutInitialRequests(buildCustomWorkoutExerciseRequestsFromProgramWorkout(workout));
-    setEditingWorkoutTemplateId(isEditing && editProgram?.source === "custom" ? workout.id : null);
-    setCustomWorkoutInitKey((current) => current + 1);
-  }
-
-  function closeCustomWorkoutBuilder() {
-    setCustomWorkoutDayNumber(null);
-    setCustomWorkoutName("");
-    setCustomExerciseError(null);
-    setCustomWorkoutInitialRequests(null);
-    setEditingWorkoutTemplateId(null);
-  }
-
-  function assignCustomWorkoutToDay(input: {
-    requests: CustomExercisePickerRequest[];
+  function buildSuggestedWorkoutName(input: {
+    entries: ProgramWorkoutExerciseDto[];
+    exercises: ExerciseCatalogItemDto[];
   }) {
-    if (!customWorkoutDayNumber) {
-      return;
+    const exercisesById = new Map(input.exercises.map((exercise) => [exercise.id, exercise]));
+
+    const resolved = input.entries
+      .map((entry) => exercisesById.get(entry.exerciseId) ?? null)
+      .filter(Boolean) as ExerciseCatalogItemDto[];
+
+    if (resolved.length === 0) {
+      return null;
     }
 
-    if (input.requests.length === 0) {
-      setCustomExerciseError("Choose at least one exercise to continue.");
-      return;
-    }
-
-    const exercisesById = new Map((exercisesQuery.data ?? []).map((exercise) => [exercise.id, exercise]));
-    const selectedExercises = input.requests
-      .map((request) => exercisesById.get(request.exerciseId) ?? null)
-      .filter(Boolean);
-
-    if (selectedExercises.length !== input.requests.length) {
-      setCustomExerciseError("Some selected exercises were not found. Please try again.");
-      return;
-    }
-
-    const normalizedName = customWorkoutName.trim().replace(/\s+/g, " ");
-    const suggestedName =
+    return (
       generateCustomWorkoutNameFromExercises(
-        selectedExercises.map((exercise) => ({
+        resolved.map((exercise) => ({
           name: exercise.name,
           primaryMuscleGroup: exercise.primaryMuscleGroup,
           movementPattern: exercise.movementPattern,
           category: exercise.category
         }))
-      ) ?? null;
+      ) ?? null
+    );
+  }
 
-    const workoutName = normalizedName || suggestedName || "Workout";
-    const workoutIdSuffix = input.requests.map((request) => request.exerciseId).join(":") || "empty";
-    const workoutId = editingWorkoutTemplateId ?? `custom-builder:${workoutIdSuffix}`;
+  function ensureNormalizedExercises(exercises: ProgramWorkoutExerciseDto[]) {
+    return [...exercises]
+      .sort((left, right) => left.sequenceOrder - right.sequenceOrder)
+      .map((exercise, index) => ({ ...exercise, sequenceOrder: index + 1 }));
+  }
 
-    assignWorkoutToDay(customWorkoutDayNumber, {
-      id: workoutId,
-      name: workoutName,
-      category: "Full Body",
-      sequenceOrder: 1,
-      estimatedDurationMinutes: null,
-      exercises: input.requests.map((request, index) => {
-        const exercise = exercisesById.get(request.exerciseId)!;
+  function addExerciseToDay(input: { dayNumber: number; exercise: ExerciseCatalogItemDto }) {
+    setDays((current) =>
+      current.map((day) => {
+        if (day.dayNumber !== input.dayNumber) {
+          return day;
+        }
+
+        const existingWorkout = day.workout;
+        const baseWorkout: ProgramWorkoutTemplateDto =
+          existingWorkout ??
+          ({
+            id: `${CUSTOM_WORKOUT_BUILDER_PREFIX}day-${input.dayNumber}:${Date.now()}`,
+            name: "Workout",
+            category: "Full Body",
+            sequenceOrder: 1,
+            estimatedDurationMinutes: null,
+            exercises: []
+          } satisfies ProgramWorkoutTemplateDto);
+
+        const normalized = ensureNormalizedExercises(baseWorkout.exercises);
+        const nextEntry: ProgramWorkoutExerciseDto = {
+          id: `${CUSTOM_WORKOUT_BUILDER_PREFIX}${input.exercise.id}:${Date.now()}`,
+          exerciseId: input.exercise.id,
+          exerciseName: input.exercise.name,
+          category: input.exercise.category,
+          sequenceOrder: normalized.length + 1,
+          targetSets: input.exercise.defaultTargetSets ?? CUSTOM_WORKOUT_DEFAULT_TARGET_SETS,
+          targetReps: input.exercise.defaultTargetReps ?? CUSTOM_WORKOUT_DEFAULT_TARGET_REPS,
+          repTargetText: String(input.exercise.defaultTargetReps ?? CUSTOM_WORKOUT_DEFAULT_TARGET_REPS),
+          restSeconds: null,
+          progressionStrategy: getDefaultProgressionStrategy(input.exercise)
+        };
+
+        const nextEntries = [...normalized, nextEntry];
+        const suggestedName = buildSuggestedWorkoutName({ entries: nextEntries, exercises: exercisesQuery.data ?? [] });
+
         return {
-          id: request.workoutTemplateExerciseEntryId ?? `custom-builder:${request.exerciseId}:${index + 1}`,
-          exerciseId: request.exerciseId,
-          exerciseName: exercise.name,
-          category: exercise.category,
-          sequenceOrder: index + 1,
-          targetSets: request.targetSets,
-          targetReps: request.targetReps,
-          ...(request.progressionStrategy ? { progressionStrategy: request.progressionStrategy } : {}),
-          restSeconds: null
+          ...day,
+          workout: {
+            ...baseWorkout,
+            name:
+              baseWorkout.name.trim() && baseWorkout.name !== "Workout"
+                ? baseWorkout.name
+                : suggestedName ?? baseWorkout.name,
+            exercises: nextEntries
+          }
         };
       })
-    });
-    closeCustomWorkoutBuilder();
+    );
+    setSavedProgramId(null);
   }
 
   function handleSaveProgram() {
@@ -354,44 +359,23 @@ export function CreateProgramScreen({ navigation, route }: Props) {
         ) : (
           days.map((day) => (
             <View key={day.dayNumber} style={styles.dayBlock}>
-              <ListRow
-                title={`Day ${day.dayNumber}`}
-                subtitle={day.workout ? day.workout.name : "Needs workout"}
-                variant={day.workout ? "default" : "muted"}
-                right={
-                  <View style={styles.dayActions}>
-                    {day.workout ? (
-                      <Button
-                        label="Edit"
-                        onPress={() => openCustomWorkoutEditorForDay(day.dayNumber, day.workout!)}
-                        variant="ghost"
-                        fullWidth={false}
-                        size="sm"
-                      />
-                    ) : null}
-                    <Button
-                      label={day.workout ? "Change" : "Choose"}
-                      onPress={() =>
-                        day.workout
-                          ? openCustomWorkoutEditorForDay(day.dayNumber, day.workout)
-                          : openCustomWorkoutBuilderForDay(day.dayNumber)
-                      }
-                      variant="secondary"
-                      fullWidth={false}
-                      size="sm"
-                    />
-                  </View>
-                }
+              <ProgramDayWorkoutBuilderCard
+                dayNumber={day.dayNumber}
+                workout={day.workout}
+                unitSystem={unitSystem}
+                onAddExercisePress={() => {
+                  setSavedProgramId(null);
+                  setExercisePickerDayNumber(day.dayNumber);
+                }}
+                onChangeWorkout={(workout) => {
+                  setDays((current) =>
+                    current.map((candidate) =>
+                      candidate.dayNumber === day.dayNumber ? { ...candidate, workout } : candidate
+                    )
+                  );
+                  setSavedProgramId(null);
+                }}
               />
-              {day.workout ? (
-                <View style={styles.dayPreview}>
-                  <WorkoutPreview workout={day.workout} />
-                </View>
-              ) : (
-                <AppText variant="caption" tone="secondary">
-                  Choose a workout for this day - you can change it later.
-                </AppText>
-              )}
             </View>
           ))
         )}
@@ -450,45 +434,23 @@ export function CreateProgramScreen({ navigation, route }: Props) {
           onPress={handleSaveProgram}
         />
       )}
-      <CustomExercisePickerModal
-        errorMessage={customExerciseError}
+      <ExercisePickerModal
+        visible={exercisePickerDayNumber !== null}
+        title="Add exercise"
+        subtitle={exercisePickerDayNumber ? `Day ${exercisePickerDayNumber}` : undefined}
         exercises={exercisesQuery.data ?? []}
-        loadingExercises={exercisesQuery.isLoading}
-        initialRequests={customWorkoutInitialRequests}
-        initializationKey={customWorkoutInitKey}
-        mode="assignToProgramDay"
-        unitSystem={unitSystem}
-        {...(customWorkoutDayNumber !== null ? { programDayNumber: customWorkoutDayNumber } : {})}
-        workoutName={customWorkoutName}
-        submitting={false}
-        visible={customWorkoutDayNumber !== null}
-        onChangeWorkoutName={setCustomWorkoutName}
-        onClose={closeCustomWorkoutBuilder}
-        onSubmit={assignCustomWorkoutToDay}
+        loading={exercisesQuery.isLoading}
+        onClose={() => setExercisePickerDayNumber(null)}
+        onSelect={(exercise) => {
+          if (!exercisePickerDayNumber) {
+            return;
+          }
+
+          addExerciseToDay({ dayNumber: exercisePickerDayNumber, exercise });
+          setExercisePickerDayNumber(null);
+        }}
       />
     </Screen>
-  );
-}
-
-function WorkoutPreview(props: { workout: ProgramWorkoutTemplateDto }) {
-  const plannedExerciseLines = getPlannedExerciseLines(props.workout, 3);
-  const hiddenExerciseCount = getHiddenExerciseCount(props.workout, plannedExerciseLines.length);
-  const estimatedMinutes = getWorkoutEstimatedDurationMinutes(props.workout);
-
-  return (
-    <View style={styles.exerciseList}>
-      <AppText variant="meta" tone="secondary">
-        {props.workout.category} - estimated {estimatedMinutes} minutes
-      </AppText>
-      {plannedExerciseLines.map((line) => (
-        <AppText key={line} variant="meta">
-          {line}
-        </AppText>
-      ))}
-      {hiddenExerciseCount > 0 ? (
-        <AppText variant="meta">+{hiddenExerciseCount} more planned</AppText>
-      ) : null}
-    </View>
   );
 }
 
@@ -538,82 +500,5 @@ const styles = StyleSheet.create({
   },
   dayBlock: {
     gap: spacing.xs
-  },
-  dayPreview: {
-    paddingLeft: spacing.md
-  },
-  dayActions: {
-    flexDirection: "row",
-    gap: spacing.md
-  },
-  workoutTitleGroup: {
-    flex: 1,
-    gap: 4
-  },
-  searchPanel: {
-    gap: spacing.xs
-  },
-  searchHeaderRow: {
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "space-between"
-  },
-  filterPanel: {
-    gap: spacing.xs
-  },
-  chipRow: {
-    alignItems: "center",
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.xs
-  },
-  exerciseList: {
-    gap: spacing.xs
-  },
-  exerciseLine: {
-    color: colors.textPrimary,
-    fontSize: 15,
-    fontWeight: "600",
-    lineHeight: 21
-  },
-  exerciseMeta: {
-    color: colors.textSecondary,
-    fontSize: 14,
-    fontWeight: "600",
-    lineHeight: 20
-  },
-  addText: {
-    color: colors.accentStrong,
-    fontSize: 14,
-    fontWeight: "600"
-  },
-  removeText: {
-    color: colors.danger,
-    fontSize: 14,
-    fontWeight: "600"
-  },
-  errorText: {
-    color: colors.danger,
-    fontSize: 14,
-    fontWeight: "600"
-  },
-  rowHeader: {
-    alignItems: "flex-start",
-    flexDirection: "row",
-    gap: spacing.md,
-    justifyContent: "space-between"
-  },
-  workoutChoiceList: {
-    gap: spacing.md,
-    paddingBottom: spacing.lg
-  },
-  workoutGroup: {
-    gap: spacing.sm
-  },
-  createWorkoutChoice: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: spacing.md,
-    justifyContent: "space-between"
   }
 });

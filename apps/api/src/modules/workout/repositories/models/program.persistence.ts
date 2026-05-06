@@ -5,7 +5,9 @@ import type {
   ProgramSource,
   ProgressionStrategy,
   TrainingGoal,
-  PredefinedProgramMetadataDto
+  PredefinedProgramMetadataDto,
+  WorkoutSetTargetDto,
+  WeightValueDto
 } from "@fitness/shared";
 
 export type ProgramRecord = {
@@ -40,6 +42,10 @@ export type ProgramTemplateExerciseRecord = {
   repRangeMax?: number | null;
   restSeconds: number | null;
   progressionStrategy?: ProgressionStrategy | null;
+  repTargetText?: string | null;
+  targetWeight?: WeightValueDto | null;
+  setTargets?: WorkoutSetTargetDto[] | null;
+  notes?: string | null;
 };
 
 export type ProgramTemplateRecord = {
@@ -73,6 +79,10 @@ export type CreateCustomProgramExerciseInput = {
   repRangeMax?: number | null;
   restSeconds: number | null;
   progressionStrategy?: ProgressionStrategy | null;
+  repTargetText?: string | null;
+  targetWeight?: WeightValueDto | null;
+  setTargets?: WorkoutSetTargetDto[] | null;
+  notes?: string | null;
 };
 
 export type CreateCustomProgramWorkoutInput = {

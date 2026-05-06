@@ -196,6 +196,10 @@ create table workout_template_exercise_entries (
   rep_range_max integer,
   rest_seconds integer,
   progression_strategy text,
+  rep_target_text text,
+  target_weight_lbs numeric(6,2),
+  notes text,
+  set_targets jsonb,
   deleted_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()

@@ -17,6 +17,11 @@ function normalizeOptionalDescription(value: string | null | undefined) {
   return normalized.length > 0 ? normalized : null;
 }
 
+function normalizeOptionalShortText(value: string | null | undefined) {
+  const normalized = (value ?? "").trim().replace(/\s+/g, " ");
+  return normalized.length > 0 ? normalized : null;
+}
+
 function buildCreateCustomProgramFingerprint(request: CreateCustomProgramRequest) {
   return JSON.stringify({
     name: resolveCustomProgramName(request.name),
@@ -30,7 +35,19 @@ function buildCreateCustomProgramFingerprint(request: CreateCustomProgramRequest
         repRangeMin: exercise.repRangeMin ?? null,
         repRangeMax: exercise.repRangeMax ?? null,
         restSeconds: exercise.restSeconds ?? null,
-        progressionStrategy: exercise.progressionStrategy ?? null
+        progressionStrategy: exercise.progressionStrategy ?? null,
+        repTargetText: normalizeOptionalShortText(exercise.repTargetText) ?? null,
+        targetWeight: exercise.targetWeight?.value ?? null,
+        notes: normalizeOptionalDescription(exercise.notes) ?? null,
+        setTargets:
+          exercise.setTargets?.map((setTarget) => ({
+            repTargetText: normalizeOptionalShortText(setTarget.repTargetText) ?? null,
+            targetWeight: setTarget.targetWeight?.value ?? null,
+            durationSeconds: setTarget.durationSeconds ?? null,
+            distanceMeters: setTarget.distanceMeters ?? null,
+            rpe: setTarget.rpe ?? null,
+            note: normalizeOptionalShortText(setTarget.note) ?? null
+          })) ?? null
       }))
     }))
   });
@@ -97,6 +114,17 @@ function validateCreateCustomProgramRequest(request: CreateCustomProgramRequest)
           }
         }
 
+        const repTargetText = normalizeOptionalShortText(exercise.repTargetText);
+        const notes = normalizeOptionalDescription(exercise.notes);
+        const setTargets = exercise.setTargets?.length ? exercise.setTargets : null;
+
+        if (setTargets && setTargets.length !== exercise.targetSets) {
+          throw new WorkoutApplicationError(
+            "VALIDATION_ERROR",
+            "Custom set targets must match the sets count."
+          );
+        }
+
         return {
           exerciseId: exercise.exerciseId,
           targetSets: exercise.targetSets,
@@ -104,7 +132,11 @@ function validateCreateCustomProgramRequest(request: CreateCustomProgramRequest)
           repRangeMin,
           repRangeMax,
           restSeconds: exercise.restSeconds ?? null,
-          progressionStrategy: exercise.progressionStrategy ?? null
+          progressionStrategy: exercise.progressionStrategy ?? null,
+          ...(repTargetText ? { repTargetText } : {}),
+          ...(exercise.targetWeight ? { targetWeight: exercise.targetWeight } : {}),
+          ...(notes ? { notes } : {}),
+          ...(setTargets ? { setTargets } : {})
         };
       })
     };

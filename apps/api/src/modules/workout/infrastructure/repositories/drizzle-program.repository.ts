@@ -177,6 +177,10 @@ export class DrizzleProgramRepository implements ProgramRepository {
             repRangeMax: exercise.repRangeMax ?? null,
             restSeconds: exercise.restSeconds,
             progressionStrategy: exercise.progressionStrategy ?? null,
+            repTargetText: exercise.repTargetText ?? null,
+            targetWeightLbs: exercise.targetWeight ? String(exercise.targetWeight.value) : null,
+            notes: exercise.notes ?? null,
+            setTargets: exercise.setTargets ?? null,
             createdAt: input.createdAt,
             updatedAt: input.createdAt
           }))
@@ -315,6 +319,10 @@ export class DrizzleProgramRepository implements ProgramRepository {
         repRangeMax: number | null;
         restSeconds: number | null;
         progressionStrategy: string | null;
+        repTargetText: string | null;
+        targetWeightLbs: number | null;
+        notes: string | null;
+        setTargets: CreateCustomProgramInput["workouts"][number]["exercises"][number]["setTargets"];
       }> = [];
       const insertInputs: Array<typeof workoutTemplateExerciseEntries.$inferInsert> = [];
 
@@ -353,7 +361,11 @@ export class DrizzleProgramRepository implements ProgramRepository {
             repRangeMin: exercise.repRangeMin ?? null,
             repRangeMax: exercise.repRangeMax ?? null,
             restSeconds: exercise.restSeconds,
-            progressionStrategy: exercise.progressionStrategy ?? null
+            progressionStrategy: exercise.progressionStrategy ?? null,
+            repTargetText: exercise.repTargetText ?? null,
+            targetWeightLbs: exercise.targetWeight ? exercise.targetWeight.value : null,
+            notes: exercise.notes ?? null,
+            setTargets: exercise.setTargets ?? null
           });
           continue;
         }
@@ -384,7 +396,11 @@ export class DrizzleProgramRepository implements ProgramRepository {
             repRangeMin: exercise.repRangeMin ?? null,
             repRangeMax: exercise.repRangeMax ?? null,
             restSeconds: exercise.restSeconds,
-            progressionStrategy: exercise.progressionStrategy ?? null
+            progressionStrategy: exercise.progressionStrategy ?? null,
+            repTargetText: exercise.repTargetText ?? null,
+            targetWeightLbs: exercise.targetWeight ? exercise.targetWeight.value : null,
+            notes: exercise.notes ?? null,
+            setTargets: exercise.setTargets ?? null
           });
           continue;
         }
@@ -400,6 +416,10 @@ export class DrizzleProgramRepository implements ProgramRepository {
           repRangeMax: exercise.repRangeMax ?? null,
           restSeconds: exercise.restSeconds,
           progressionStrategy: exercise.progressionStrategy ?? null,
+          repTargetText: exercise.repTargetText ?? null,
+          targetWeightLbs: exercise.targetWeight ? String(exercise.targetWeight.value) : null,
+          notes: exercise.notes ?? null,
+          setTargets: exercise.setTargets ?? null,
           deletedAt: null,
           createdAt: input.updatedAt,
           updatedAt: input.updatedAt
@@ -445,6 +465,10 @@ export class DrizzleProgramRepository implements ProgramRepository {
             repRangeMax: update.repRangeMax,
             restSeconds: update.restSeconds,
             progressionStrategy: update.progressionStrategy,
+            repTargetText: update.repTargetText ?? null,
+            targetWeightLbs: update.targetWeightLbs === null ? null : String(update.targetWeightLbs),
+            notes: update.notes ?? null,
+            setTargets: update.setTargets ?? null,
             updatedAt: input.updatedAt
           })
           .where(eq(workoutTemplateExerciseEntries.id, update.id));
@@ -573,7 +597,17 @@ export class DrizzleProgramRepository implements ProgramRepository {
         repRangeMin: row.templateExercise.repRangeMin ?? null,
         repRangeMax: row.templateExercise.repRangeMax ?? null,
         restSeconds: row.templateExercise.restSeconds,
-        progressionStrategy: row.templateExercise.progressionStrategy ?? null
+        progressionStrategy: row.templateExercise.progressionStrategy ?? null,
+        repTargetText: row.templateExercise.repTargetText ?? null,
+        targetWeight:
+          row.templateExercise.targetWeightLbs === null || row.templateExercise.targetWeightLbs === undefined
+            ? null
+            : {
+                value: Number(row.templateExercise.targetWeightLbs),
+                unit: "lb" as const
+              },
+        setTargets: row.templateExercise.setTargets ?? null,
+        notes: row.templateExercise.notes ?? null
       });
       exercisesByTemplateId.set(row.templateExercise.workoutTemplateId, existing);
     }

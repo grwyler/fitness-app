@@ -148,7 +148,22 @@ export function createWorkoutHandlers(dependencies: {
             ...(exercise.repRangeMin != null ? { repRangeMin: exercise.repRangeMin } : {}),
             ...(exercise.repRangeMax != null ? { repRangeMax: exercise.repRangeMax } : {}),
             ...(exercise.progressionStrategy != null ? { progressionStrategy: exercise.progressionStrategy } : {}),
-            ...(exercise.restSeconds !== undefined ? { restSeconds: exercise.restSeconds } : {})
+            ...(exercise.restSeconds !== undefined ? { restSeconds: exercise.restSeconds } : {}),
+            ...(exercise.repTargetText != null ? { repTargetText: exercise.repTargetText } : {}),
+            ...(exercise.targetWeight ? { targetWeight: exercise.targetWeight } : {}),
+            ...(exercise.setTargets
+              ? {
+                  setTargets: exercise.setTargets.map((setTarget) => ({
+                    ...(setTarget.repTargetText !== undefined ? { repTargetText: setTarget.repTargetText } : {}),
+                    ...(setTarget.targetWeight ? { targetWeight: setTarget.targetWeight } : {}),
+                    ...(setTarget.durationSeconds !== undefined ? { durationSeconds: setTarget.durationSeconds } : {}),
+                    ...(setTarget.distanceMeters !== undefined ? { distanceMeters: setTarget.distanceMeters } : {}),
+                    ...(setTarget.rpe !== undefined ? { rpe: setTarget.rpe } : {}),
+                    ...(setTarget.note !== undefined ? { note: setTarget.note } : {})
+                  }))
+                }
+              : {}),
+            ...(exercise.notes != null ? { notes: exercise.notes } : {})
           }))
         }))
       };
@@ -179,7 +194,22 @@ export function createWorkoutHandlers(dependencies: {
             ...(exercise.repRangeMin != null ? { repRangeMin: exercise.repRangeMin } : {}),
             ...(exercise.repRangeMax != null ? { repRangeMax: exercise.repRangeMax } : {}),
             ...(exercise.progressionStrategy != null ? { progressionStrategy: exercise.progressionStrategy } : {}),
-            ...(exercise.restSeconds !== undefined ? { restSeconds: exercise.restSeconds } : {})
+            ...(exercise.restSeconds !== undefined ? { restSeconds: exercise.restSeconds } : {}),
+            ...(exercise.repTargetText != null ? { repTargetText: exercise.repTargetText } : {}),
+            ...(exercise.targetWeight ? { targetWeight: exercise.targetWeight } : {}),
+            ...(exercise.setTargets
+              ? {
+                  setTargets: exercise.setTargets.map((setTarget) => ({
+                    ...(setTarget.repTargetText !== undefined ? { repTargetText: setTarget.repTargetText } : {}),
+                    ...(setTarget.targetWeight ? { targetWeight: setTarget.targetWeight } : {}),
+                    ...(setTarget.durationSeconds !== undefined ? { durationSeconds: setTarget.durationSeconds } : {}),
+                    ...(setTarget.distanceMeters !== undefined ? { distanceMeters: setTarget.distanceMeters } : {}),
+                    ...(setTarget.rpe !== undefined ? { rpe: setTarget.rpe } : {}),
+                    ...(setTarget.note !== undefined ? { note: setTarget.note } : {})
+                  }))
+                }
+              : {}),
+            ...(exercise.notes != null ? { notes: exercise.notes } : {})
           }))
         }))
       };
