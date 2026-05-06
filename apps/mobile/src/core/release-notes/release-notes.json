@@ -1,6 +1,18 @@
 {
   "releases": [
     {
+      "version": "0.1.3",
+      "date": "2026-05-06",
+      "sections": [
+        {
+          "title": "Changed",
+          "items": [
+            "Fix release notes automation on main"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.1.2",
       "date": "2026-05-06",
       "sections": [
