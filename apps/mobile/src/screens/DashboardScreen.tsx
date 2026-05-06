@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Alert, Platform, ScrollView, StyleSheet, View } from "react-native";
-import type { ProgramDto } from "@fitness/shared";
+import type { ProgramDto, UnitSystem } from "@fitness/shared";
 import { AppText } from "../components/AppText";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
@@ -18,6 +18,7 @@ import { useCancelWorkout } from "../features/workout/hooks/useCancelWorkout";
 import { useFollowProgram } from "../features/workout/hooks/useFollowProgram";
 import { usePrograms } from "../features/workout/hooks/usePrograms";
 import { useStartWorkout } from "../features/workout/hooks/useStartWorkout";
+import { useTrainingSettings } from "../features/workout/hooks/useTrainingSettings";
 import {
   getCurrentProgramWorkoutChoices,
   findProgramWorkoutById,
@@ -28,6 +29,7 @@ import {
   getWorkoutIntentSummary,
   type CurrentProgramWorkoutChoice
 } from "../features/workout/utils/dashboard-program.shared";
+import { getWorkoutEstimatedDurationMinutes } from "../features/workout/utils/workout-duration-estimator.shared";
 import type { RootStackParamList } from "../core/navigation/navigation-types";
 import { colors, radius, spacing } from "../theme/tokens";
 
@@ -43,6 +45,7 @@ export function DashboardScreen({ navigation }: Props) {
   const auth = useAppAuth();
   const dashboardQuery = useDashboard();
   const programsQuery = usePrograms();
+  const trainingSettingsQuery = useTrainingSettings();
   const startWorkoutMutation = useStartWorkout();
   const cancelWorkoutMutation = useCancelWorkout();
   const followProgramMutation = useFollowProgram();
@@ -78,6 +81,7 @@ export function DashboardScreen({ navigation }: Props) {
   }
 
   const dashboard = dashboardQuery.data;
+  const unitSystem = trainingSettingsQuery.data?.unitSystem ?? "imperial";
   const activeProgram = dashboard.activeProgram;
   const activeWorkout = dashboard.activeWorkoutSession;
   const nextWorkout = dashboard.nextWorkoutTemplate;
@@ -219,7 +223,10 @@ export function DashboardScreen({ navigation }: Props) {
               <AppText variant="title1">{nextWorkout.name}</AppText>
               <AppText variant="meta" tone="secondary">
                 {activeProgram.program.name} - estimated{" "}
-                {nextWorkout.estimatedDurationMinutes ?? activeProgram.program.sessionDurationMinutes ?? 0} minutes
+                {nextWorkoutPlan
+                  ? getWorkoutEstimatedDurationMinutes(nextWorkoutPlan)
+                  : (activeProgram.program.sessionDurationMinutes ?? 0)}{" "}
+                minutes
               </AppText>
             </View>
           ) : null}
@@ -272,7 +279,7 @@ export function DashboardScreen({ navigation }: Props) {
           ) : null}
 
           {nextWorkout ? (
-            <AppText tone="secondary">{getWorkoutIntentSummary(nextWorkoutPlan)}</AppText>
+            <AppText tone="secondary">{getWorkoutIntentSummary(nextWorkoutPlan, unitSystem)}</AppText>
           ) : (
             <AppText tone="secondary">Pick a day from your program to start logging.</AppText>
           )}
@@ -456,6 +463,7 @@ export function DashboardScreen({ navigation }: Props) {
         recommendedWorkoutId={nextWorkout?.id ?? null}
         selectedStartingWorkoutId={selectedStartingWorkoutId}
         startingWorkout={Boolean(startWorkoutMutation.isPending && selectedStartingWorkoutId)}
+        unitSystem={unitSystem}
         visible={isCurrentProgramWorkoutPickerOpen}
         onClose={() => setIsCurrentProgramWorkoutPickerOpen(false)}
         onSelectWorkout={startCurrentProgramWorkout}
@@ -471,6 +479,7 @@ function CurrentProgramWorkoutPickerModal(props: {
   recommendedWorkoutId: string | null;
   selectedStartingWorkoutId: string | null;
   startingWorkout: boolean;
+  unitSystem: UnitSystem;
   visible: boolean;
   onClose: () => void;
   onSelectWorkout: (choice: CurrentProgramWorkoutChoice) => void;
@@ -492,7 +501,7 @@ function CurrentProgramWorkoutPickerModal(props: {
           <AppText tone="secondary">No workouts are available in this program.</AppText>
         ) : (
           props.choices.map((choice) => {
-            const plannedExerciseLines = getPlannedExerciseLines(choice.workout, 3);
+            const plannedExerciseLines = getPlannedExerciseLines(choice.workout, 3, props.unitSystem);
             const hiddenExerciseCount = getHiddenExerciseCount(choice.workout, plannedExerciseLines.length);
             const isRecommended = choice.workout.id === props.recommendedWorkoutId;
             const isStartingThisWorkout =
@@ -517,7 +526,7 @@ function CurrentProgramWorkoutPickerModal(props: {
                     </View>
                   ) : null}
                 </View>
-                <AppText tone="secondary">{getWorkoutIntentSummary(choice.workout)}</AppText>
+                <AppText tone="secondary">{getWorkoutIntentSummary(choice.workout, props.unitSystem)}</AppText>
                 <View style={styles.exerciseList}>
                   {plannedExerciseLines.map((line) => (
                     <AppText key={line} variant="meta">

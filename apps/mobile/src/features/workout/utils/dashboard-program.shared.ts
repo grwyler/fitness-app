@@ -1,7 +1,8 @@
 import type {
   ActiveProgramDto,
   PredefinedWorkoutCategory,
-  ProgramWorkoutTemplateDto
+  ProgramWorkoutTemplateDto,
+  UnitSystem
 } from "@fitness/shared";
 
 export const predefinedWorkoutCategories: PredefinedWorkoutCategory[] = [
@@ -123,7 +124,78 @@ export function getProgramWorkoutPositionLabel(input: {
   return `Week ${week} • Day ${day}`;
 }
 
-export function getWorkoutIntentSummary(workout: ProgramWorkoutTemplateDto | null | undefined) {
+function formatDurationSecondsCompact(seconds: number) {
+  const safe = Math.max(0, Math.floor(seconds));
+  const minutes = Math.floor(safe / 60);
+  const remaining = safe % 60;
+  return `${minutes}:${remaining.toString().padStart(2, "0")}`;
+}
+
+function formatDistanceCompact(distanceMeters: number, unitSystem: UnitSystem) {
+  if (!Number.isFinite(distanceMeters) || distanceMeters < 0) {
+    return null;
+  }
+
+  const value = unitSystem === "metric" ? distanceMeters / 1000 : distanceMeters / 1609.344;
+  const unit = unitSystem === "metric" ? "km" : "mi";
+  const text = value.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+  return `${text} ${unit}`;
+}
+
+function formatExerciseIntentTarget(
+  exercise: ProgramWorkoutTemplateDto["exercises"][number],
+  unitSystem: UnitSystem
+) {
+  const modality = exercise.loggingModality ?? "reps_load";
+
+  if (modality === "reps_load" || modality === "reps_only") {
+    const repText =
+      exercise.repRangeMin != null &&
+      exercise.repRangeMax != null &&
+      exercise.repRangeMax > exercise.repRangeMin
+        ? `${exercise.repRangeMin}-${exercise.repRangeMax}`
+        : `${exercise.targetReps ?? "reps"}`;
+    return `${exercise.targetSets} x ${repText}`;
+  }
+
+  if (modality === "time" || modality === "hold") {
+    const duration =
+      exercise.targetDurationSeconds != null ? formatDurationSecondsCompact(exercise.targetDurationSeconds) : null;
+    return duration
+      ? `${exercise.targetSets} x ${duration}`
+      : `${exercise.targetSets} set${exercise.targetSets === 1 ? "" : "s"}`;
+  }
+
+  if (modality === "time_distance") {
+    const duration =
+      exercise.targetDurationSeconds != null ? formatDurationSecondsCompact(exercise.targetDurationSeconds) : null;
+    const distance =
+      exercise.targetDistanceMeters != null ? formatDistanceCompact(exercise.targetDistanceMeters, unitSystem) : null;
+    if (duration && distance) return `${distance} · ${duration}`;
+    if (duration) return duration;
+    if (distance) return distance;
+    return `${exercise.targetSets} set${exercise.targetSets === 1 ? "" : "s"}`;
+  }
+
+  if (modality === "distance") {
+    const distance =
+      exercise.targetDistanceMeters != null ? formatDistanceCompact(exercise.targetDistanceMeters, unitSystem) : null;
+    return distance ?? `${exercise.targetSets} set${exercise.targetSets === 1 ? "" : "s"}`;
+  }
+
+  // interval
+  const rounds = exercise.targetRounds ?? null;
+  const duration =
+    exercise.targetDurationSeconds != null ? formatDurationSecondsCompact(exercise.targetDurationSeconds) : null;
+  if (rounds != null && duration) return `${rounds} rounds · ${duration}`;
+  if (rounds != null) return `${rounds} rounds`;
+  return duration ?? `${exercise.targetSets} set${exercise.targetSets === 1 ? "" : "s"}`;
+}
+
+export function getWorkoutIntentSummary(
+  workout: ProgramWorkoutTemplateDto | null | undefined,
+  unitSystem: UnitSystem = "imperial"
+) {
   if (!workout) {
     return "Workout plan unavailable.";
   }
@@ -135,20 +207,12 @@ export function getWorkoutIntentSummary(workout: ProgramWorkoutTemplateDto | nul
   const exerciseCount = workout.exercises.length;
   const plannedSetCount = workout.exercises.reduce((sum, exercise) => sum + exercise.targetSets, 0);
   const firstExercise = workout.exercises[0];
-  const formatRepTarget = (exercise: NonNullable<typeof firstExercise>) =>
-    exercise.repRangeMin != null && exercise.repRangeMax != null && exercise.repRangeMax > exercise.repRangeMin
-      ? `${exercise.targetSets} x ${exercise.repRangeMin}-${exercise.repRangeMax}`
-      : `${exercise.targetSets} x ${exercise.targetReps}`;
+  const firstTarget = firstExercise ? formatExerciseIntentTarget(firstExercise, unitSystem) : null;
   const commonTarget =
     firstExercise &&
-    workout.exercises.every(
-      (exercise) =>
-        exercise.targetSets === firstExercise.targetSets &&
-        exercise.targetReps === firstExercise.targetReps &&
-        (exercise.repRangeMin ?? null) === (firstExercise.repRangeMin ?? null) &&
-        (exercise.repRangeMax ?? null) === (firstExercise.repRangeMax ?? null)
-    )
-      ? formatRepTarget(firstExercise)
+    firstTarget &&
+    workout.exercises.every((exercise) => formatExerciseIntentTarget(exercise, unitSystem) === firstTarget)
+      ? firstTarget
       : null;
 
   return commonTarget
@@ -158,7 +222,8 @@ export function getWorkoutIntentSummary(workout: ProgramWorkoutTemplateDto | nul
 
 export function getPlannedExerciseLines(
   workout: ProgramWorkoutTemplateDto | null | undefined,
-  limit = 4
+  limit = 4,
+  unitSystem: UnitSystem = "imperial"
 ) {
   if (!workout) {
     return [];
@@ -167,14 +232,7 @@ export function getPlannedExerciseLines(
   return [...workout.exercises]
     .sort((left, right) => left.sequenceOrder - right.sequenceOrder)
     .slice(0, limit)
-    .map((exercise) => {
-      const repText =
-        exercise.repRangeMin != null && exercise.repRangeMax != null && exercise.repRangeMax > exercise.repRangeMin
-          ? `${exercise.repRangeMin}-${exercise.repRangeMax}`
-          : String(exercise.targetReps);
-
-      return `${exercise.exerciseName}: ${exercise.targetSets} x ${repText}`;
-    });
+    .map((exercise) => `${exercise.exerciseName}: ${formatExerciseIntentTarget(exercise, unitSystem)}`);
 }
 
 export function getHiddenExerciseCount(
