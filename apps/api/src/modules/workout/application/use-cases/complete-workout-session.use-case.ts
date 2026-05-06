@@ -424,7 +424,16 @@ function buildProgressionExplanation(input: {
       return "medium";
     }
     if (!input.lastPerformedAt || !input.performedAt) {
-      return "medium";
+      const recoveryState = input.effectiveRecoveryState ?? input.reportedRecoveryState ?? null;
+      const hasStrongNoHistorySignal =
+        input.loggedSetCount > 0 &&
+        input.loggedSetCount === input.totalSetCount &&
+        !input.hasFailedSets &&
+        input.effortFeedback === "too_easy" &&
+        input.setEffortSignals?.hasRir5Plus === true &&
+        recoveryState === "fresh";
+
+      return hasStrongNoHistorySignal ? "high" : "medium";
     }
 
     const gapDays = daysSince(input.lastPerformedAt, input.performedAt);

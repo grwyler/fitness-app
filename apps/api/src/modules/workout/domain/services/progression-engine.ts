@@ -748,6 +748,13 @@ export class ProgressionEngine {
       (!preferReps && repRangeMax > repRangeMin && previousRepGoal >= repRangeMin) ||
       (trainingGoal === "strength" && repRangeMax > repRangeMin && previousRepGoal >= strengthRepCeiling);
 
+    const rir5PlusSetCount = setsForProgression.filter((set) => (set.rir ?? null) === "rir_5_plus").length;
+    const hasCleanRir5PlusSignal =
+      rir5PlusSetCount >= 2 &&
+      !effortSignals.hasNearFailure &&
+      !effortSignals.hasTechnicalFailure &&
+      !effortSignals.hasStoppedEarly;
+
     if (
       (recoveryState === "fatigued" || recoveryState === "exhausted") &&
       outcome.effortFeedback !== "too_easy"
@@ -801,6 +808,53 @@ export class ProgressionEngine {
           experienceLevel: input.experienceLevel ?? null,
           recoveryState
         }),
+        nextState
+      };
+    }
+
+    if (
+      preferReps &&
+      !shouldFavorWeight &&
+      previousRepGoal < repRangeMax &&
+      effectiveEffortFeedback === "too_easy" &&
+      hasCleanRir5PlusSignal &&
+      recoveryState !== "fatigued" &&
+      recoveryState !== "exhausted"
+    ) {
+      const computedIncreaseSteps =
+        repRangeMax > repRangeMin
+          ? getRepIncreaseStepCount({
+              aggressiveness: input.progressionAggressiveness ?? "balanced",
+              category: exercise.exerciseCategory,
+              effortFeedback: effectiveEffortFeedback,
+              experienceLevel: input.experienceLevel ?? null,
+              recoveryState
+            })
+          : 1;
+      const increaseSteps = shouldCapIncreaseSteps ? 1 : computedIncreaseSteps;
+      const nextRepGoal = clampInteger(previousRepGoal + increaseSteps, repRangeMin, repRangeMax);
+      const nextWeightLbs = roundDownToIncrement(previousWeightLbs + exercise.incrementLbs, exercise.incrementLbs);
+      const nextState: ProgressionStateSnapshotV2 = {
+        currentWeightLbs: nextWeightLbs,
+        lastCompletedWeightLbs: previousWeightLbs,
+        consecutiveFailures: 0,
+        lastEffortFeedback: outcome.effortFeedback,
+        lastPerformedAt,
+        repGoal: nextRepGoal,
+        repRangeMin,
+        repRangeMax
+      };
+
+      return {
+        previousWeightLbs,
+        nextWeightLbs,
+        previousRepGoal,
+        nextRepGoal,
+        result: "increased",
+        reason: withPolicySuffix(
+          `Increased weight from ${previousWeightLbs} to ${nextWeightLbs} and reps from ${previousRepGoal} to ${nextRepGoal} within range ${repRangeMin}-${repRangeMax} because effort was marked too easy and sets indicated 5+ reps in reserve.`,
+          { trainingGoal, experienceLevel: input.experienceLevel ?? null, recoveryState }
+        ),
         nextState
       };
     }

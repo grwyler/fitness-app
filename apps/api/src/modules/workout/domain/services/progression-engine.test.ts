@@ -880,6 +880,47 @@ export const progressionEngineTestCases: DomainTestCase[] = [
     }
   },
   {
+    name: "ProgressionEngine (double) increases weight even before the top of the rep range when effort is too_easy and sets report 5+ RIR",
+    run: () => {
+      const result = engine.calculateDoubleProgression({
+        performedAt: new Date("2026-05-01T10:00:00.000Z"),
+        recoveryState: "fresh",
+        state: {
+          currentWeightLbs: 95,
+          lastCompletedWeightLbs: null,
+          consecutiveFailures: 0,
+          lastEffortFeedback: null,
+          lastPerformedAt: null,
+          repGoal: 8,
+          repRangeMin: 8,
+          repRangeMax: 12
+        },
+        exercise: {
+          exerciseName: "Bench Press",
+          exerciseCategory: "compound",
+          incrementLbs: 5,
+          isBodyweight: false,
+          isWeightOptional: false
+        },
+        outcome: {
+          effortFeedback: "too_easy",
+          sets: [
+            { targetReps: 8, actualReps: 8, targetWeightLbs: 95, actualWeightLbs: 95, rir: "rir_5_plus" },
+            { targetReps: 8, actualReps: 8, targetWeightLbs: 95, actualWeightLbs: 95, rir: "rir_5_plus" },
+            { targetReps: 8, actualReps: 8, targetWeightLbs: 95, actualWeightLbs: 95, rir: "rir_5_plus" }
+          ]
+        }
+      });
+
+      assert.equal(result.result, "increased");
+      assert.equal(result.previousWeightLbs, 95);
+      assert.equal(result.nextWeightLbs, 100);
+      assert.equal(result.previousRepGoal, 8);
+      assert.equal(result.nextRepGoal, 10);
+      assert.match(result.reason, /Increased weight from 95 to 100/i);
+    }
+  },
+  {
     name: "ProgressionEngine (double) recalibrates when multiple sets greatly exceed the target reps at the prescribed weight",
     run: () => {
       const result = engine.calculateDoubleProgression({
