@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## v0.1.2 (2026-05-06)
+
+### Changed
+
+- Automate release notes updates on main
+
 ## v0.1.1 (2026-05-06)
 
 ### Changed
