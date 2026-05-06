@@ -53,4 +53,26 @@ export interface ExerciseRepository {
     },
     options?: RepositoryOptions
   ): Promise<string>;
+
+  updateWorkoutTemplateExerciseEntry(
+    input: {
+      workoutTemplateExerciseEntryId: string;
+      targetSets: number;
+      targetReps: number | null;
+      targetWeightLbs: number | null;
+      targetDurationSeconds?: number | null;
+      targetDistanceMeters?: number | null;
+      targetRounds?: number | null;
+      restSeconds: number | null;
+    },
+    options?: RepositoryOptions
+  ): Promise<void>;
+
+  softDeleteWorkoutTemplateExerciseEntry(
+    input: {
+      workoutTemplateExerciseEntryId: string;
+      deletedAt: Date;
+    },
+    options?: RepositoryOptions
+  ): Promise<void>;
 }

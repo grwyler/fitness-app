@@ -266,6 +266,23 @@ export const addCustomWorkoutExerciseBodySchema = z.object({
   }
 });
 
+export const updateWorkoutExerciseEntryBodySchema = z.object({
+  targetSets: z.number().int().min(1).max(20),
+  targetReps: z.number().int().min(1).max(200).nullable().optional(),
+  targetWeight: weightValueSchema.nullable().optional(),
+  targetDurationSeconds: z.number().int().min(1).max(86_400).nullable().optional(),
+  targetDistanceMeters: z.number().finite().min(0).max(200_000).nullable().optional(),
+  targetRounds: z.number().int().min(1).max(10_000).nullable().optional(),
+  restSeconds: z.number().int().min(0).max(1800).nullable().optional(),
+  updatePlan: z.boolean().optional()
+});
+
+export const deleteWorkoutExerciseEntryBodySchema = z
+  .object({
+    updatePlan: z.boolean().optional()
+  })
+  .optional();
+
 export const logSetBodySchema = z
   .object({
     actualReps: z.number().int().min(0).nullable().optional(),

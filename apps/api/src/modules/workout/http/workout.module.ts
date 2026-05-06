@@ -16,6 +16,8 @@ import { DrizzleWorkoutSessionRepository } from "../infrastructure/repositories/
 import { CompleteWorkoutSessionUseCase } from "../application/use-cases/complete-workout-session.use-case.js";
 import { CancelWorkoutSessionUseCase } from "../application/use-cases/cancel-workout-session.use-case.js";
 import { AddCustomWorkoutExerciseUseCase } from "../application/use-cases/add-custom-workout-exercise.use-case.js";
+import { UpdateWorkoutExerciseEntryUseCase } from "../application/use-cases/update-workout-exercise-entry.use-case.js";
+import { DeleteWorkoutExerciseEntryUseCase } from "../application/use-cases/delete-workout-exercise-entry.use-case.js";
 import { AddWorkoutSetUseCase } from "../application/use-cases/add-workout-set.use-case.js";
 import { DeleteWorkoutSetUseCase } from "../application/use-cases/delete-workout-set.use-case.js";
 import { FollowProgramUseCase } from "../application/use-cases/follow-program.use-case.js";
@@ -70,6 +72,23 @@ export function createWorkoutHttpRouter(database: WorkoutDatabase) {
   const addCustomWorkoutExerciseUseCase = new AddCustomWorkoutExerciseUseCase(
     workoutSessionRepository,
     progressionStateRepository,
+    exerciseRepository,
+    programRepository,
+    transactionManager,
+    idempotencyRepository
+  );
+
+  const updateWorkoutExerciseEntryUseCase = new UpdateWorkoutExerciseEntryUseCase(
+    workoutSessionRepository,
+    exerciseRepository,
+    progressionStateV2Repository,
+    programRepository,
+    transactionManager,
+    idempotencyRepository
+  );
+
+  const deleteWorkoutExerciseEntryUseCase = new DeleteWorkoutExerciseEntryUseCase(
+    workoutSessionRepository,
     exerciseRepository,
     programRepository,
     transactionManager,
@@ -185,6 +204,8 @@ export function createWorkoutHttpRouter(database: WorkoutDatabase) {
     getCurrentWorkoutSessionUseCase,
     startWorkoutSessionUseCase,
     addCustomWorkoutExerciseUseCase,
+    updateWorkoutExerciseEntryUseCase,
+    deleteWorkoutExerciseEntryUseCase,
     addWorkoutSetUseCase,
     deleteWorkoutSetUseCase,
     logSetUseCase,

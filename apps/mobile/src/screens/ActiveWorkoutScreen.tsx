@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import type { ExerciseEntryDto, RecoveryState, SetDto } from "@fitness/shared";
+import type { ExerciseEntryDto, RecoveryState, SetDto, UpdateWorkoutExerciseEntryRequest } from "@fitness/shared";
 import { Platform, Pressable, StyleSheet, View } from "react-native";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import { AppText } from "../components/AppText";
@@ -12,6 +12,8 @@ import { LoadingState } from "../components/LoadingState";
 import { ErrorState } from "../components/ErrorState";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { WorkoutExerciseCard } from "../components/WorkoutExerciseCard";
+import { ModalSheet } from "../components/ModalSheet";
+import { Button } from "../components/Button";
 import type { RootStackParamList } from "../core/navigation/navigation-types";
 import { FeedbackButton } from "../features/feedback/components/FeedbackButton";
 import { useCurrentWorkout } from "../features/workout/hooks/useCurrentWorkout";
@@ -21,9 +23,11 @@ import { useUpdateLoggedSet } from "../features/workout/hooks/useUpdateLoggedSet
 import { useCompleteWorkout } from "../features/workout/hooks/useCompleteWorkout";
 import { useCancelWorkout } from "../features/workout/hooks/useCancelWorkout";
 import { CustomExercisePickerModal } from "../features/workout/components/CustomExercisePickerModal";
+import { EditWorkoutExerciseEntryModal } from "../features/workout/components/EditWorkoutExerciseEntryModal";
 import { useAddCustomWorkoutExercise } from "../features/workout/hooks/useCustomWorkoutExercises";
 import { useExercises } from "../features/workout/hooks/useExercises";
 import { useAddWorkoutSet, useDeleteWorkoutSet } from "../features/workout/hooks/useWorkoutSets";
+import { useDeleteWorkoutExerciseEntry, useUpdateWorkoutExerciseEntry } from "../features/workout/hooks/useWorkoutExerciseEntries";
 import { useTrainingSettings } from "../features/workout/hooks/useTrainingSettings";
 import { useActiveWorkoutStore } from "../features/workout/store/active-workout-store";
 import { type CustomWorkoutBuilderMode } from "../features/workout/utils/custom-workout-builder.shared";
@@ -84,6 +88,8 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
   const updateLoggedSetMutation = useUpdateLoggedSet();
   const addWorkoutSetMutation = useAddWorkoutSet();
   const deleteWorkoutSetMutation = useDeleteWorkoutSet();
+  const updateWorkoutExerciseEntryMutation = useUpdateWorkoutExerciseEntry();
+  const deleteWorkoutExerciseEntryMutation = useDeleteWorkoutExerciseEntry();
   const addCustomWorkoutExerciseMutation = useAddCustomWorkoutExercise();
   const completeWorkoutMutation = useCompleteWorkout();
   const cancelWorkoutMutation = useCancelWorkout();
@@ -97,6 +103,9 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
   const [submittingSetIds, setSubmittingSetIds] = useState<Record<string, boolean>>({});
   const [deletingSetIds, setDeletingSetIds] = useState<Record<string, boolean>>({});
   const [editingSetId, setEditingSetId] = useState<string | null>(null);
+  const [editingExerciseEntryId, setEditingExerciseEntryId] = useState<string | null>(null);
+  const [removingExerciseEntryId, setRemovingExerciseEntryId] = useState<string | null>(null);
+  const [removeUpdatePlan, setRemoveUpdatePlan] = useState(false);
   const [recoveryState, setRecoveryState] = useState<RecoveryState>("normal");
   const [showFinishEarlyConfirmation, setShowFinishEarlyConfirmation] = useState(false);
   const [showDiscardConfirmation, setShowDiscardConfirmation] = useState(false);
@@ -255,6 +264,12 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
   }
 
   const workout = activeWorkout;
+  const editingExercise = editingExerciseEntryId
+    ? workout.exercises.find((exercise) => exercise.id === editingExerciseEntryId) ?? null
+    : null;
+  const removingExercise = removingExerciseEntryId
+    ? workout.exercises.find((exercise) => exercise.id === removingExerciseEntryId) ?? null
+    : null;
   const totalPlannedSets = workout.exercises.reduce((total, exercise) => total + exercise.sets.length, 0);
   const loggedSetCount = workout.exercises.reduce(
     (total, exercise) => total + exercise.sets.filter((set) => set.status !== "pending").length,
@@ -493,6 +508,65 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
     );
   }
 
+  function handleEditExercise(exercise: ExerciseEntryDto) {
+    if (isReadOnlyWorkout || updateWorkoutExerciseEntryMutation.isPending) {
+      return;
+    }
+
+    setLastAction(`edit_exercise:${exercise.id}`);
+    setEditingExerciseEntryId(exercise.id);
+  }
+
+  function handleRemoveExercise(exercise: ExerciseEntryDto) {
+    if (isReadOnlyWorkout || deleteWorkoutExerciseEntryMutation.isPending) {
+      return;
+    }
+
+    setLastAction(`remove_exercise:${exercise.id}`);
+    setRemoveUpdatePlan(false);
+    setRemovingExerciseEntryId(exercise.id);
+  }
+
+  function handleSubmitExerciseEdit(request: UpdateWorkoutExerciseEntryRequest) {
+    if (!editingExercise) {
+      return;
+    }
+
+    setLastAction(`save_exercise_edit:${editingExercise.id}`);
+    updateWorkoutExerciseEntryMutation.mutate(
+      {
+        sessionId: workout.id,
+        exerciseEntryId: editingExercise.id,
+        request
+      },
+      {
+        onSuccess: () => {
+          setEditingExerciseEntryId(null);
+        }
+      }
+    );
+  }
+
+  function handleConfirmRemoveExercise() {
+    if (!removingExercise) {
+      return;
+    }
+
+    setLastAction(`confirm_remove_exercise:${removingExercise.id}`);
+    deleteWorkoutExerciseEntryMutation.mutate(
+      {
+        sessionId: workout.id,
+        exerciseEntryId: removingExercise.id,
+        request: removeUpdatePlan ? { updatePlan: true } : {}
+      },
+      {
+        onSuccess: () => {
+          setRemovingExerciseEntryId(null);
+        }
+      }
+    );
+  }
+
   function handleCompleteWorkout() {
     if (completionInFlight.current || completeWorkoutMutation.isPending) {
       return;
@@ -704,6 +778,13 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
               exercise={exercise}
               unitSystem={unitSystem}
               readOnly={isReadOnlyWorkout}
+              canEditExercise={!updateWorkoutExerciseEntryMutation.isPending}
+              canRemoveExercise={
+                !deleteWorkoutExerciseEntryMutation.isPending &&
+                exercise.sets.every((set) => set.status === "pending")
+              }
+              onEditExercise={handleEditExercise}
+              onRemoveExercise={handleRemoveExercise}
               highlightMissingFeedback={false}
               selectedFeedback={feedbackByEntryId[exercise.id] ?? "just_right"}
               loggingSetId={logSetMutation.isPending ? logSetMutation.variables?.setId ?? null : null}
@@ -736,6 +817,79 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
           ))}
         </>
       )}
+
+      <EditWorkoutExerciseEntryModal
+        visible={Boolean(editingExercise)}
+        exercise={editingExercise}
+        unitSystem={unitSystem}
+        allowUpdatePlan={Boolean(editingExercise?.workoutTemplateExerciseEntryId)}
+        submitting={updateWorkoutExerciseEntryMutation.isPending}
+        errorText={
+          updateWorkoutExerciseEntryMutation.isError
+            ? updateWorkoutExerciseEntryMutation.error instanceof Error
+              ? updateWorkoutExerciseEntryMutation.error.message
+              : "Exercise not updated. Try again."
+            : null
+        }
+        onClose={() => setEditingExerciseEntryId(null)}
+        onSubmit={handleSubmitExerciseEdit}
+      />
+
+      <ModalSheet
+        visible={Boolean(removingExercise)}
+        title="Remove exercise"
+        subtitle={removingExercise?.exerciseName}
+        onClose={() => setRemovingExerciseEntryId(null)}
+        headerRight={<Button label="Close" variant="ghost" onPress={() => setRemovingExerciseEntryId(null)} />}
+      >
+        <View style={styles.removeModalContent}>
+          <AppText tone="secondary">
+            This removes the exercise from your current workout. If you also update the plan, it won&apos;t appear in this workout next time.
+          </AppText>
+
+          {removingExercise?.workoutTemplateExerciseEntryId ? (
+            <View style={styles.removeScopeRow}>
+              <Chip
+                label="This workout"
+                onPress={() => setRemoveUpdatePlan(false)}
+                selected={!removeUpdatePlan}
+                variant={!removeUpdatePlan ? "selected" : "muted"}
+                disabled={deleteWorkoutExerciseEntryMutation.isPending}
+              />
+              <Chip
+                label="Update plan"
+                onPress={() => setRemoveUpdatePlan(true)}
+                selected={removeUpdatePlan}
+                variant={removeUpdatePlan ? "selected" : "muted"}
+                disabled={deleteWorkoutExerciseEntryMutation.isPending}
+              />
+            </View>
+          ) : null}
+
+          {deleteWorkoutExerciseEntryMutation.isError ? (
+            <AppText variant="error">
+              {deleteWorkoutExerciseEntryMutation.error instanceof Error
+                ? deleteWorkoutExerciseEntryMutation.error.message
+                : "Exercise not removed. Try again."}
+            </AppText>
+          ) : null}
+
+          <View style={styles.removeActionRow}>
+            <Button
+              label="Cancel"
+              variant="secondary"
+              onPress={() => setRemovingExerciseEntryId(null)}
+              disabled={deleteWorkoutExerciseEntryMutation.isPending}
+            />
+            <Button
+              label={deleteWorkoutExerciseEntryMutation.isPending ? "Removing..." : "Remove"}
+              variant="danger"
+              onPress={handleConfirmRemoveExercise}
+              loading={deleteWorkoutExerciseEntryMutation.isPending}
+            />
+          </View>
+        </View>
+      </ModalSheet>
 
       <View style={styles.footer}>
         {logSetMutation.isError ? (
@@ -1053,5 +1207,18 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: spacing.xs
+  },
+  removeModalContent: {
+    gap: spacing.md
+  },
+  removeScopeRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm
+  },
+  removeActionRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    justifyContent: "space-between"
   },
 });

@@ -4,8 +4,10 @@ import type {
   AddWorkoutSetRequest,
   CompleteWorkoutSessionRequest,
   CreateCustomProgramRequest,
+  DeleteWorkoutExerciseEntryRequest,
   DeleteWorkoutSetRequest,
   RecommendGuidedProgramRequest,
+  UpdateWorkoutExerciseEntryRequest,
   UpdateExerciseProgressionSettingsRequest,
   LogSetRequest,
   StartWorkoutSessionRequest,
@@ -33,15 +35,19 @@ import {
   setParamsSchema,
   startWorkoutSessionBodySchema,
   updateExerciseProgressionSettingsBodySchema,
+  updateWorkoutExerciseEntryBodySchema,
   updateTrainingSettingsBodySchema,
   workoutSessionExerciseParamsSchema,
   workoutHistoryQuerySchema,
+  deleteWorkoutExerciseEntryBodySchema,
   workoutSessionParamsSchema
 } from "./workout.schemas.js";
 import type { AddCustomWorkoutExerciseUseCase } from "../application/use-cases/add-custom-workout-exercise.use-case.js";
 import type { AddWorkoutSetUseCase } from "../application/use-cases/add-workout-set.use-case.js";
 import type { CompleteWorkoutSessionUseCase } from "../application/use-cases/complete-workout-session.use-case.js";
 import type { CancelWorkoutSessionUseCase } from "../application/use-cases/cancel-workout-session.use-case.js";
+import type { UpdateWorkoutExerciseEntryUseCase } from "../application/use-cases/update-workout-exercise-entry.use-case.js";
+import type { DeleteWorkoutExerciseEntryUseCase } from "../application/use-cases/delete-workout-exercise-entry.use-case.js";
 import type { DeleteWorkoutSetUseCase } from "../application/use-cases/delete-workout-set.use-case.js";
 import type { FollowProgramUseCase } from "../application/use-cases/follow-program.use-case.js";
 import type { CreateCustomProgramUseCase } from "../application/use-cases/create-custom-program.use-case.js";
@@ -78,6 +84,8 @@ export type WorkoutHttpHandlers = {
   getCurrentWorkoutSession: RequestHandler;
   startWorkoutSession: RequestHandler;
   addCustomWorkoutExercise: RequestHandler;
+  updateWorkoutExerciseEntry: RequestHandler;
+  deleteWorkoutExerciseEntry: RequestHandler;
   addWorkoutSet: RequestHandler;
   deleteWorkoutSet: RequestHandler;
   logSet: RequestHandler;
@@ -105,6 +113,8 @@ export function createWorkoutHandlers(dependencies: {
   getCurrentWorkoutSessionUseCase: GetCurrentWorkoutSessionUseCase;
   startWorkoutSessionUseCase: StartWorkoutSessionUseCase;
   addCustomWorkoutExerciseUseCase: AddCustomWorkoutExerciseUseCase;
+  updateWorkoutExerciseEntryUseCase: UpdateWorkoutExerciseEntryUseCase;
+  deleteWorkoutExerciseEntryUseCase: DeleteWorkoutExerciseEntryUseCase;
   addWorkoutSetUseCase: AddWorkoutSetUseCase;
   deleteWorkoutSetUseCase: DeleteWorkoutSetUseCase;
   logSetUseCase: LogSetUseCase;
@@ -337,6 +347,53 @@ export function createWorkoutHandlers(dependencies: {
       });
 
       response.status(201).json(success(result.data, result.meta));
+    }),
+
+    updateWorkoutExerciseEntry: asyncHandler(async (request, response) => {
+      const context = getRequestContext(request);
+      const params = validateParams(workoutSessionExerciseParamsSchema, request);
+      const body = validateBody(updateWorkoutExerciseEntryBodySchema, request);
+      const idempotencyKey = requireIdempotencyKey(request);
+      const useCaseRequest: UpdateWorkoutExerciseEntryRequest = {
+        targetSets: body.targetSets,
+        ...(body.targetReps !== undefined ? { targetReps: body.targetReps } : {}),
+        ...(body.targetWeight !== undefined ? { targetWeight: body.targetWeight } : {}),
+        ...(body.targetDurationSeconds !== undefined ? { targetDurationSeconds: body.targetDurationSeconds } : {}),
+        ...(body.targetDistanceMeters !== undefined ? { targetDistanceMeters: body.targetDistanceMeters } : {}),
+        ...(body.targetRounds !== undefined ? { targetRounds: body.targetRounds } : {}),
+        ...(body.restSeconds !== undefined ? { restSeconds: body.restSeconds } : {}),
+        ...(body.updatePlan !== undefined ? { updatePlan: body.updatePlan } : {})
+      };
+
+      const result = await dependencies.updateWorkoutExerciseEntryUseCase.execute({
+        context,
+        sessionId: params.sessionId,
+        exerciseEntryId: params.exerciseEntryId,
+        request: useCaseRequest,
+        idempotencyKey
+      });
+
+      response.json(success(result.data, result.meta));
+    }),
+
+    deleteWorkoutExerciseEntry: asyncHandler(async (request, response) => {
+      const context = getRequestContext(request);
+      const params = validateParams(workoutSessionExerciseParamsSchema, request);
+      const body = validateBody(deleteWorkoutExerciseEntryBodySchema, request) ?? {};
+      const idempotencyKey = requireIdempotencyKey(request);
+      const useCaseRequest: DeleteWorkoutExerciseEntryRequest = {
+        ...(body.updatePlan !== undefined ? { updatePlan: body.updatePlan } : {})
+      };
+
+      const result = await dependencies.deleteWorkoutExerciseEntryUseCase.execute({
+        context,
+        sessionId: params.sessionId,
+        exerciseEntryId: params.exerciseEntryId,
+        request: useCaseRequest,
+        idempotencyKey
+      });
+
+      response.json(success(result.data, result.meta));
     }),
 
     addWorkoutSet: asyncHandler(async (request, response) => {

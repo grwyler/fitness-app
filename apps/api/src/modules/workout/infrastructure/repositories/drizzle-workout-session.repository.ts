@@ -10,11 +10,13 @@ import type {
   CompleteWorkoutSessionPersistenceInput,
   CreateWorkoutSessionGraphInput,
   DeleteWorkoutSetInput,
+  DeleteWorkoutExerciseEntryInput,
   ExerciseEntryRecord,
   PersistExerciseEntryFeedbackInput,
   SkipPendingWorkoutSetsInput,
   SetRecord,
   UpdateLoggedSetInput,
+  UpdateWorkoutExerciseEntryInput,
   WorkoutHistorySummaryRecord,
   WorkoutSessionGraph,
   WorkoutSessionRecord,
@@ -567,6 +569,155 @@ export class DrizzleWorkoutSessionRepository implements WorkoutSessionRepository
     const graph = await this.loadSessionGraph(exerciseEntryRow.workoutSessionId, executor);
     if (!graph) {
       throw new Error(`Workout session could not be reloaded after deleting a set.`);
+    }
+
+    return graph;
+  }
+
+  public async updateWorkoutExerciseEntry(
+    input: UpdateWorkoutExerciseEntryInput,
+    options?: RepositoryOptions
+  ): Promise<WorkoutSessionGraph> {
+    const executor = resolveExecutor(this.db, options);
+    const [exerciseEntryRow] = await executor
+      .select()
+      .from(exerciseEntries)
+      .where(eq(exerciseEntries.id, input.exerciseEntryId))
+      .limit(1);
+
+    if (!exerciseEntryRow) {
+      throw new Error(`Exercise entry ${input.exerciseEntryId} was not found for update.`);
+    }
+
+    const existingSetRows = await executor
+      .select()
+      .from(sets)
+      .where(eq(sets.exerciseEntryId, input.exerciseEntryId))
+      .orderBy(asc(sets.setNumber));
+
+    const maxExistingSetNumber = existingSetRows.reduce((maxNumber: number, setRow: any) => Math.max(maxNumber, setRow.setNumber), 0);
+    const maxLockedSetNumber = existingSetRows.reduce(
+      (maxNumber: number, setRow: any) => (setRow.status === "pending" ? maxNumber : Math.max(maxNumber, setRow.setNumber)),
+      0
+    );
+
+    if (input.targetSets < maxLockedSetNumber) {
+      throw new Error(
+        `Cannot reduce targetSets below already-logged sets for exercise entry ${input.exerciseEntryId}.`
+      );
+    }
+
+    await executor
+      .update(exerciseEntries)
+      .set({
+        targetSets: input.targetSets,
+        targetReps: input.targetReps,
+        targetWeightLbs: input.targetWeightLbs === null ? null : String(input.targetWeightLbs),
+        ...(input.targetDurationSeconds !== undefined ? { targetDurationSeconds: input.targetDurationSeconds } : {}),
+        ...(input.targetDistanceMeters !== undefined
+          ? { targetDistanceMeters: input.targetDistanceMeters === null ? null : String(input.targetDistanceMeters) }
+          : {}),
+        ...(input.targetRounds !== undefined ? { targetRounds: input.targetRounds } : {}),
+        restSeconds: input.restSeconds,
+        updatedAt: new Date()
+      })
+      .where(eq(exerciseEntries.id, input.exerciseEntryId));
+
+    await executor
+      .update(sets)
+      .set({
+        targetReps: input.targetReps,
+        targetWeightLbs: input.targetWeightLbs === null ? null : String(input.targetWeightLbs),
+        ...(input.targetDurationSeconds !== undefined ? { targetDurationSeconds: input.targetDurationSeconds } : {}),
+        ...(input.targetDistanceMeters !== undefined
+          ? { targetDistanceMeters: input.targetDistanceMeters === null ? null : String(input.targetDistanceMeters) }
+          : {}),
+        ...(input.targetRounds !== undefined ? { targetRounds: input.targetRounds } : {}),
+        updatedAt: new Date()
+      })
+      .where(and(eq(sets.exerciseEntryId, input.exerciseEntryId), eq(sets.status, "pending")));
+
+    if (input.targetSets > maxExistingSetNumber) {
+      const missingCount = input.targetSets - maxExistingSetNumber;
+      const inserted = await executor
+        .insert(sets)
+        .values(
+          Array.from({ length: missingCount }, (_, index) => {
+            const setNumber = maxExistingSetNumber + index + 1;
+            return {
+              id: randomUUID(),
+              exerciseEntryId: input.exerciseEntryId,
+              setNumber,
+              setType: "working",
+              targetReps: input.targetReps,
+              actualReps: null,
+              targetWeightLbs: input.targetWeightLbs === null ? null : String(input.targetWeightLbs),
+              actualWeightLbs: null,
+              ...(input.targetDurationSeconds !== undefined ? { targetDurationSeconds: input.targetDurationSeconds } : {}),
+              actualDurationSeconds: null,
+              ...(input.targetDistanceMeters !== undefined
+                ? { targetDistanceMeters: input.targetDistanceMeters === null ? null : String(input.targetDistanceMeters) }
+                : {}),
+              actualDistanceMeters: null,
+              ...(input.targetRounds !== undefined ? { targetRounds: input.targetRounds } : {}),
+              actualRounds: null,
+              status: "pending",
+              rir: null,
+              failureStatus: null,
+              completedAt: null
+            };
+          })
+        )
+        .returning({ id: sets.id });
+
+      if (inserted.length !== missingCount) {
+        throw new Error(`Could not append new sets for exercise entry ${input.exerciseEntryId}.`);
+      }
+    } else if (input.targetSets < maxExistingSetNumber) {
+      await executor
+        .delete(sets)
+        .where(and(eq(sets.exerciseEntryId, input.exerciseEntryId), eq(sets.status, "pending"), gte(sets.setNumber, input.targetSets + 1)));
+    }
+
+    const graph = await this.loadSessionGraph(exerciseEntryRow.workoutSessionId, executor);
+    if (!graph) {
+      throw new Error(`Workout session could not be reloaded after updating an exercise entry.`);
+    }
+
+    return graph;
+  }
+
+  public async deleteWorkoutExerciseEntry(
+    input: DeleteWorkoutExerciseEntryInput,
+    options?: RepositoryOptions
+  ): Promise<WorkoutSessionGraph> {
+    const executor = resolveExecutor(this.db, options);
+    const [exerciseEntryRow] = await executor
+      .select()
+      .from(exerciseEntries)
+      .where(eq(exerciseEntries.id, input.exerciseEntryId))
+      .limit(1);
+
+    if (!exerciseEntryRow) {
+      throw new Error(`Exercise entry ${input.exerciseEntryId} was not found for deletion.`);
+    }
+
+    const lockedSets = await executor
+      .select({ id: sets.id })
+      .from(sets)
+      .where(and(eq(sets.exerciseEntryId, input.exerciseEntryId), sql`${sets.status} <> 'pending'`))
+      .limit(1);
+
+    if (lockedSets.length > 0) {
+      throw new Error(`Cannot delete exercise entry ${input.exerciseEntryId} because it has logged sets.`);
+    }
+
+    await executor.delete(sets).where(eq(sets.exerciseEntryId, input.exerciseEntryId));
+    await executor.delete(exerciseEntries).where(eq(exerciseEntries.id, input.exerciseEntryId));
+
+    const graph = await this.loadSessionGraph(exerciseEntryRow.workoutSessionId, executor);
+    if (!graph) {
+      throw new Error(`Workout session could not be reloaded after deleting an exercise entry.`);
     }
 
     return graph;

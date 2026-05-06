@@ -211,6 +211,10 @@ export function WorkoutExerciseCard(props: {
   exercise: ExerciseEntryDto;
   unitSystem: UnitSystem;
   readOnly?: boolean;
+  canEditExercise?: boolean;
+  canRemoveExercise?: boolean;
+  onEditExercise?: (exercise: ExerciseEntryDto) => void;
+  onRemoveExercise?: (exercise: ExerciseEntryDto) => void;
   selectedFeedback?: EffortFeedback;
   highlightMissingFeedback?: boolean;
   loggingSetId?: string | null;
@@ -246,7 +250,27 @@ export function WorkoutExerciseCard(props: {
   return (
     <Card variant="default" style={[styles.card, props.highlightMissingFeedback && styles.cardNeedsFeedback]}>
       <View style={styles.header}>
-        <AppText variant="cardTitle">{props.exercise.exerciseName}</AppText>
+        <View style={styles.headerTopRow}>
+          <AppText variant="cardTitle" style={styles.headerTitle}>
+            {props.exercise.exerciseName}
+          </AppText>
+          {props.onEditExercise ? (
+            <InlineTextButton
+              label="Edit"
+              tone="accent"
+              disabled={readOnly || props.canEditExercise === false}
+              onPress={() => props.onEditExercise?.(props.exercise)}
+            />
+          ) : null}
+          {props.onRemoveExercise ? (
+            <InlineTextButton
+              label="Remove"
+              tone="danger"
+              disabled={readOnly || props.canRemoveExercise === false}
+              onPress={() => props.onRemoveExercise?.(props.exercise)}
+            />
+          ) : null}
+        </View>
         <AppText tone="secondary">
           {formatExerciseTargetSummary({
             modality: props.exercise.loggingModality,
@@ -920,6 +944,15 @@ const styles = StyleSheet.create({
   },
   header: {
     gap: spacing.xs
+  },
+  headerTopRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: spacing.sm,
+    justifyContent: "space-between"
+  },
+  headerTitle: {
+    flex: 1
   },
   setList: {
     borderRadius: 10,

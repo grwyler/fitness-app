@@ -112,6 +112,21 @@ export type DeleteWorkoutSetInput = {
   targetSets: number;
 };
 
+export type UpdateWorkoutExerciseEntryInput = {
+  exerciseEntryId: string;
+  targetSets: number;
+  targetReps: number | null;
+  targetWeightLbs: number | null;
+  targetDurationSeconds?: number | null;
+  targetDistanceMeters?: number | null;
+  targetRounds?: number | null;
+  restSeconds: number | null;
+};
+
+export type DeleteWorkoutExerciseEntryInput = {
+  exerciseEntryId: string;
+};
+
 export type UpdateLoggedSetInput = {
   setId: string;
   actualReps: number | null;

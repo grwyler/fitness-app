@@ -328,4 +328,72 @@ export class DrizzleExerciseRepository implements ExerciseRepository {
 
     return row.id;
   }
+
+  public async updateWorkoutTemplateExerciseEntry(
+    input: {
+      workoutTemplateExerciseEntryId: string;
+      targetSets: number;
+      targetReps: number | null;
+      targetWeightLbs: number | null;
+      targetDurationSeconds?: number | null;
+      targetDistanceMeters?: number | null;
+      targetRounds?: number | null;
+      restSeconds: number | null;
+    },
+    options?: RepositoryOptions
+  ): Promise<void> {
+    const executor = resolveExecutor(this.db, options);
+    const [row] = await executor
+      .update(workoutTemplateExerciseEntries)
+      .set({
+        targetSets: input.targetSets,
+        targetReps: input.targetReps,
+        targetWeightLbs: input.targetWeightLbs === null ? null : String(input.targetWeightLbs),
+        ...(input.targetDurationSeconds !== undefined ? { targetDurationSeconds: input.targetDurationSeconds } : {}),
+        ...(input.targetDistanceMeters !== undefined
+          ? {
+              targetDistanceMeters:
+                input.targetDistanceMeters === null ? null : String(input.targetDistanceMeters)
+            }
+          : {}),
+        ...(input.targetRounds !== undefined ? { targetRounds: input.targetRounds } : {}),
+        restSeconds: input.restSeconds,
+        updatedAt: new Date()
+      })
+      .where(
+        and(
+          eq(workoutTemplateExerciseEntries.id, input.workoutTemplateExerciseEntryId),
+          sql`${workoutTemplateExerciseEntries.deletedAt} is null`
+        )
+      )
+      .returning({ id: workoutTemplateExerciseEntries.id });
+
+    if (!row?.id) {
+      throw new Error(`Workout template exercise entry ${input.workoutTemplateExerciseEntryId} could not be updated.`);
+    }
+  }
+
+  public async softDeleteWorkoutTemplateExerciseEntry(
+    input: { workoutTemplateExerciseEntryId: string; deletedAt: Date },
+    options?: RepositoryOptions
+  ): Promise<void> {
+    const executor = resolveExecutor(this.db, options);
+    const [row] = await executor
+      .update(workoutTemplateExerciseEntries)
+      .set({
+        deletedAt: input.deletedAt,
+        updatedAt: new Date()
+      })
+      .where(
+        and(
+          eq(workoutTemplateExerciseEntries.id, input.workoutTemplateExerciseEntryId),
+          sql`${workoutTemplateExerciseEntries.deletedAt} is null`
+        )
+      )
+      .returning({ id: workoutTemplateExerciseEntries.id });
+
+    if (!row?.id) {
+      throw new Error(`Workout template exercise entry ${input.workoutTemplateExerciseEntryId} could not be deleted.`);
+    }
+  }
 }

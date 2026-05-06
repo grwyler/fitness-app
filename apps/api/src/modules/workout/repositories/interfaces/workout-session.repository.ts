@@ -7,9 +7,11 @@ import type {
   CompleteWorkoutSessionPersistenceInput,
   CreateWorkoutSessionGraphInput,
   DeleteWorkoutSetInput,
+  DeleteWorkoutExerciseEntryInput,
   PersistExerciseEntryFeedbackInput,
   SkipPendingWorkoutSetsInput,
   UpdateLoggedSetInput,
+  UpdateWorkoutExerciseEntryInput,
   WorkoutHistorySummaryRecord,
   WorkoutSessionGraph,
   WorkoutSessionRecord,
@@ -62,6 +64,10 @@ export interface WorkoutSessionRepository {
   appendWorkoutSet(input: AppendWorkoutSetInput, options?: RepositoryOptions): Promise<WorkoutSessionGraph>;
 
   deleteWorkoutSet(input: DeleteWorkoutSetInput, options?: RepositoryOptions): Promise<WorkoutSessionGraph>;
+
+  updateWorkoutExerciseEntry(input: UpdateWorkoutExerciseEntryInput, options?: RepositoryOptions): Promise<WorkoutSessionGraph>;
+
+  deleteWorkoutExerciseEntry(input: DeleteWorkoutExerciseEntryInput, options?: RepositoryOptions): Promise<WorkoutSessionGraph>;
 
   updateLoggedSet(
     input: UpdateLoggedSetInput,

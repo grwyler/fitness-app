@@ -29,6 +29,8 @@ import type {
   UpdateExerciseProgressionSettingsResponse,
   UpdateTrainingSettingsRequest,
   UpdateTrainingSettingsResponse,
+  UpdateWorkoutExerciseEntryRequest,
+  DeleteWorkoutExerciseEntryRequest,
   WorkoutSessionDto
 } from "@fitness/shared";
 import { apiRequest } from "./client";
@@ -159,6 +161,38 @@ export async function addWorkoutSet(input: {
     `/workout-sessions/${input.sessionId}/exercises/${input.exerciseEntryId}/sets`,
     {
       method: "POST",
+      body: input.request,
+      idempotencyKey: input.idempotencyKey
+    }
+  );
+}
+
+export async function updateWorkoutExerciseEntry(input: {
+  sessionId: string;
+  exerciseEntryId: string;
+  request: UpdateWorkoutExerciseEntryRequest;
+  idempotencyKey: string;
+}) {
+  return apiRequest<WorkoutSessionDto, { replayed: boolean }>(
+    `/workout-sessions/${input.sessionId}/exercises/${input.exerciseEntryId}`,
+    {
+      method: "PUT",
+      body: input.request,
+      idempotencyKey: input.idempotencyKey
+    }
+  );
+}
+
+export async function deleteWorkoutExerciseEntry(input: {
+  sessionId: string;
+  exerciseEntryId: string;
+  request: DeleteWorkoutExerciseEntryRequest;
+  idempotencyKey: string;
+}) {
+  return apiRequest<WorkoutSessionDto, { replayed: boolean }>(
+    `/workout-sessions/${input.sessionId}/exercises/${input.exerciseEntryId}`,
+    {
+      method: "DELETE",
       body: input.request,
       idempotencyKey: input.idempotencyKey
     }

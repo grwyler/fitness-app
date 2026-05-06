@@ -5,6 +5,8 @@ import type { CancelWorkoutSessionUseCase } from "../application/use-cases/cance
 import type { AddCustomWorkoutExerciseUseCase } from "../application/use-cases/add-custom-workout-exercise.use-case.js";
 import type { AddWorkoutSetUseCase } from "../application/use-cases/add-workout-set.use-case.js";
 import type { DeleteWorkoutSetUseCase } from "../application/use-cases/delete-workout-set.use-case.js";
+import type { UpdateWorkoutExerciseEntryUseCase } from "../application/use-cases/update-workout-exercise-entry.use-case.js";
+import type { DeleteWorkoutExerciseEntryUseCase } from "../application/use-cases/delete-workout-exercise-entry.use-case.js";
 import type { FollowProgramUseCase } from "../application/use-cases/follow-program.use-case.js";
 import type { CreateCustomProgramUseCase } from "../application/use-cases/create-custom-program.use-case.js";
 import type { GetCurrentWorkoutSessionUseCase } from "../application/use-cases/get-current-workout-session.use-case.js";
@@ -40,6 +42,8 @@ export function createWorkoutRouter(dependencies: {
   getCurrentWorkoutSessionUseCase: GetCurrentWorkoutSessionUseCase;
   startWorkoutSessionUseCase: StartWorkoutSessionUseCase;
   addCustomWorkoutExerciseUseCase: AddCustomWorkoutExerciseUseCase;
+  updateWorkoutExerciseEntryUseCase: UpdateWorkoutExerciseEntryUseCase;
+  deleteWorkoutExerciseEntryUseCase: DeleteWorkoutExerciseEntryUseCase;
   addWorkoutSetUseCase: AddWorkoutSetUseCase;
   deleteWorkoutSetUseCase: DeleteWorkoutSetUseCase;
   logSetUseCase: LogSetUseCase;
@@ -68,6 +72,8 @@ export function createWorkoutRouter(dependencies: {
   router.get("/workout-sessions/current", handlers.getCurrentWorkoutSession);
   router.post("/workout-sessions/start", handlers.startWorkoutSession);
   router.post("/workout-sessions/:sessionId/exercises", handlers.addCustomWorkoutExercise);
+  router.put("/workout-sessions/:sessionId/exercises/:exerciseEntryId", handlers.updateWorkoutExerciseEntry);
+  router.delete("/workout-sessions/:sessionId/exercises/:exerciseEntryId", handlers.deleteWorkoutExerciseEntry);
   router.post("/workout-sessions/:sessionId/exercises/:exerciseEntryId/sets", handlers.addWorkoutSet);
   router.delete("/sets/:setId", handlers.deleteWorkoutSet);
   router.post("/sets/:setId/log", handlers.logSet);

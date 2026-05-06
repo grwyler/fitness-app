@@ -310,6 +310,12 @@ async function completeSingleExerciseWorkoutScenario(input: {
     async deleteWorkoutSet() {
       throw new Error("Not implemented.");
     },
+    async updateWorkoutExerciseEntry() {
+      throw new Error("Not implemented.");
+    },
+    async deleteWorkoutExerciseEntry() {
+      throw new Error("Not implemented.");
+    },
     async updateLoggedSet() {
       throw new Error("Not implemented.");
     },
@@ -402,6 +408,12 @@ async function completeSingleExerciseWorkoutScenario(input: {
     },
     async findActiveTemplatesByProgramId() {
       return [];
+    },
+    async updateWorkoutTemplateExerciseEntry() {
+      throw new Error("Not implemented.");
+    },
+    async softDeleteWorkoutTemplateExerciseEntry() {
+      throw new Error("Not implemented.");
     }
   } as any;
 
@@ -763,6 +775,12 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         ,
         async appendWorkoutTemplateExerciseEntry() {
           throw new Error("Not implemented.");
+        },
+        async updateWorkoutTemplateExerciseEntry() {
+          throw new Error("Not implemented.");
+        },
+        async softDeleteWorkoutTemplateExerciseEntry() {
+          throw new Error("Not implemented.");
         }
       };
 
@@ -792,6 +810,12 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
           throw new Error("Not implemented.");
         },
         async deleteWorkoutSet() {
+          throw new Error("Not implemented.");
+        },
+        async updateWorkoutExerciseEntry() {
+          throw new Error("Not implemented.");
+        },
+        async deleteWorkoutExerciseEntry() {
           throw new Error("Not implemented.");
         },
         async updateLoggedSet() {
@@ -1106,6 +1130,12 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         async deleteWorkoutSet() {
           throw new Error("Not implemented.");
         },
+        async updateWorkoutExerciseEntry() {
+          throw new Error("Not implemented.");
+        },
+        async deleteWorkoutExerciseEntry() {
+          throw new Error("Not implemented.");
+        },
         async updateLoggedSet() {
           throw new Error("Not implemented.");
         },
@@ -1254,6 +1284,12 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         ,
         async appendWorkoutTemplateExerciseEntry() {
           throw new Error("Not implemented.");
+        },
+        async updateWorkoutTemplateExerciseEntry() {
+          throw new Error("Not implemented.");
+        },
+        async softDeleteWorkoutTemplateExerciseEntry() {
+          throw new Error("Not implemented.");
         }
       };
 
@@ -1326,6 +1362,12 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
           throw new Error("Not implemented.");
         },
         async deleteWorkoutSet() {
+          throw new Error("Not implemented.");
+        },
+        async updateWorkoutExerciseEntry() {
+          throw new Error("Not implemented.");
+        },
+        async deleteWorkoutExerciseEntry() {
           throw new Error("Not implemented.");
         },
         async updateLoggedSet() {
@@ -1406,6 +1448,12 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         ,
         async appendWorkoutTemplateExerciseEntry() {
           throw new Error("Not implemented.");
+        },
+        async updateWorkoutTemplateExerciseEntry() {
+          throw new Error("Not implemented.");
+        },
+        async softDeleteWorkoutTemplateExerciseEntry() {
+          throw new Error("Not implemented.");
         }
       };
 
@@ -1467,6 +1515,12 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
           throw new Error("Not implemented.");
         },
         async deleteWorkoutSet() {
+          throw new Error("Not implemented.");
+        },
+        async updateWorkoutExerciseEntry() {
+          throw new Error("Not implemented.");
+        },
+        async deleteWorkoutExerciseEntry() {
           throw new Error("Not implemented.");
         },
         async updateLoggedSet() {
@@ -1568,6 +1622,12 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         ,
         async appendWorkoutTemplateExerciseEntry() {
           throw new Error("Not implemented.");
+        },
+        async updateWorkoutTemplateExerciseEntry() {
+          throw new Error("Not implemented.");
+        },
+        async softDeleteWorkoutTemplateExerciseEntry() {
+          throw new Error("Not implemented.");
         }
       };
 
@@ -1645,6 +1705,12 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
           throw new Error("Not implemented.");
         },
         async deleteWorkoutSet() {
+          throw new Error("Not implemented.");
+        },
+        async updateWorkoutExerciseEntry() {
+          throw new Error("Not implemented.");
+        },
+        async deleteWorkoutExerciseEntry() {
           throw new Error("Not implemented.");
         },
         async updateLoggedSet() {
@@ -1773,6 +1839,12 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         async deleteWorkoutSet() {
           throw new Error("Not implemented.");
         },
+        async updateWorkoutExerciseEntry() {
+          throw new Error("Not implemented.");
+        },
+        async deleteWorkoutExerciseEntry() {
+          throw new Error("Not implemented.");
+        },
         async updateLoggedSet() {
           return {
             set: updatedGraph.sets[0]!,
@@ -1897,6 +1969,12 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         async deleteWorkoutSet() {
           throw new Error("Not implemented.");
         },
+        async updateWorkoutExerciseEntry() {
+          throw new Error("Not implemented.");
+        },
+        async deleteWorkoutExerciseEntry() {
+          throw new Error("Not implemented.");
+        },
         async updateLoggedSet() {
           return {
             set: updatedGraph.sets[0]!,
@@ -2005,6 +2083,12 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
           throw new Error("Not implemented.");
         },
         async deleteWorkoutSet() {
+          throw new Error("Not implemented.");
+        },
+        async updateWorkoutExerciseEntry() {
+          throw new Error("Not implemented.");
+        },
+        async deleteWorkoutExerciseEntry() {
           throw new Error("Not implemented.");
         },
         async updateLoggedSet() {
@@ -2130,6 +2214,12 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         async deleteWorkoutSet() {
           throw new Error("Not implemented.");
         },
+        async updateWorkoutExerciseEntry() {
+          throw new Error("Not implemented.");
+        },
+        async deleteWorkoutExerciseEntry() {
+          throw new Error("Not implemented.");
+        },
         async updateLoggedSet() {
           return {
             set: updatedGraph.sets[0]!,
@@ -2250,6 +2340,12 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
           throw new Error("Not implemented.");
         },
         async deleteWorkoutSet() {
+          throw new Error("Not implemented.");
+        },
+        async updateWorkoutExerciseEntry() {
+          throw new Error("Not implemented.");
+        },
+        async deleteWorkoutExerciseEntry() {
           throw new Error("Not implemented.");
         },
         async updateLoggedSet() {
@@ -2429,6 +2525,12 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         ,
         async appendWorkoutTemplateExerciseEntry() {
           throw new Error("Not implemented.");
+        },
+        async updateWorkoutTemplateExerciseEntry() {
+          throw new Error("Not implemented.");
+        },
+        async softDeleteWorkoutTemplateExerciseEntry() {
+          throw new Error("Not implemented.");
         }
       };
 
@@ -2591,6 +2693,12 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         async deleteWorkoutSet() {
           throw new Error("Not implemented.");
         },
+        async updateWorkoutExerciseEntry() {
+          throw new Error("Not implemented.");
+        },
+        async deleteWorkoutExerciseEntry() {
+          throw new Error("Not implemented.");
+        },
         async updateLoggedSet() {
           throw new Error("Not implemented.");
         },
@@ -2702,6 +2810,12 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         }
         ,
         async appendWorkoutTemplateExerciseEntry() {
+          throw new Error("Not implemented.");
+        },
+        async updateWorkoutTemplateExerciseEntry() {
+          throw new Error("Not implemented.");
+        },
+        async softDeleteWorkoutTemplateExerciseEntry() {
           throw new Error("Not implemented.");
         }
       };
@@ -2854,6 +2968,12 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         async deleteWorkoutSet() {
           throw new Error("Not implemented.");
         },
+        async updateWorkoutExerciseEntry() {
+          throw new Error("Not implemented.");
+        },
+        async deleteWorkoutExerciseEntry() {
+          throw new Error("Not implemented.");
+        },
         async updateLoggedSet() {
           throw new Error("Not implemented.");
         },
@@ -2953,6 +3073,12 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         }
         ,
         async appendWorkoutTemplateExerciseEntry() {
+          throw new Error("Not implemented.");
+        },
+        async updateWorkoutTemplateExerciseEntry() {
+          throw new Error("Not implemented.");
+        },
+        async softDeleteWorkoutTemplateExerciseEntry() {
           throw new Error("Not implemented.");
         }
       };
@@ -3112,6 +3238,12 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         async deleteWorkoutSet() {
           throw new Error("Not implemented.");
         },
+        async updateWorkoutExerciseEntry() {
+          throw new Error("Not implemented.");
+        },
+        async deleteWorkoutExerciseEntry() {
+          throw new Error("Not implemented.");
+        },
         async updateLoggedSet() {
           throw new Error("Not implemented.");
         },
@@ -3211,6 +3343,12 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
           return [];
         },
         async appendWorkoutTemplateExerciseEntry() {
+          throw new Error("Not implemented.");
+        },
+        async updateWorkoutTemplateExerciseEntry() {
+          throw new Error("Not implemented.");
+        },
+        async softDeleteWorkoutTemplateExerciseEntry() {
           throw new Error("Not implemented.");
         }
       };
@@ -3513,6 +3651,12 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         async deleteWorkoutSet() {
           throw new Error("Not implemented.");
         },
+        async updateWorkoutExerciseEntry() {
+          throw new Error("Not implemented.");
+        },
+        async deleteWorkoutExerciseEntry() {
+          throw new Error("Not implemented.");
+        },
         async updateLoggedSet() {
           throw new Error("Not implemented.");
         },
@@ -3621,6 +3765,12 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         }
         ,
         async appendWorkoutTemplateExerciseEntry() {
+          throw new Error("Not implemented.");
+        },
+        async updateWorkoutTemplateExerciseEntry() {
+          throw new Error("Not implemented.");
+        },
+        async softDeleteWorkoutTemplateExerciseEntry() {
           throw new Error("Not implemented.");
         }
       };
@@ -3755,6 +3905,12 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         async deleteWorkoutSet() {
           throw new Error("Not implemented.");
         },
+        async updateWorkoutExerciseEntry() {
+          throw new Error("Not implemented.");
+        },
+        async deleteWorkoutExerciseEntry() {
+          throw new Error("Not implemented.");
+        },
         async updateLoggedSet() {
           throw new Error("Not implemented.");
         },
@@ -3854,6 +4010,12 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         ,
         async appendWorkoutTemplateExerciseEntry() {
           throw new Error("Not implemented.");
+        },
+        async updateWorkoutTemplateExerciseEntry() {
+          throw new Error("Not implemented.");
+        },
+        async softDeleteWorkoutTemplateExerciseEntry() {
+          throw new Error("Not implemented.");
         }
       };
 
@@ -3928,6 +4090,12 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
           throw new Error("Not implemented.");
         },
         async deleteWorkoutSet() {
+          throw new Error("Not implemented.");
+        },
+        async updateWorkoutExerciseEntry() {
+          throw new Error("Not implemented.");
+        },
+        async deleteWorkoutExerciseEntry() {
           throw new Error("Not implemented.");
         },
         async updateLoggedSet() {
@@ -4043,6 +4211,12 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         }
         ,
         async appendWorkoutTemplateExerciseEntry() {
+          throw new Error("Not implemented.");
+        },
+        async updateWorkoutTemplateExerciseEntry() {
+          throw new Error("Not implemented.");
+        },
+        async softDeleteWorkoutTemplateExerciseEntry() {
           throw new Error("Not implemented.");
         }
       };

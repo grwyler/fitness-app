@@ -469,6 +469,29 @@ export type AddWorkoutSetRequest = Record<string, never>;
 
 export type DeleteWorkoutSetRequest = Record<string, never>;
 
+export type UpdateWorkoutExerciseEntryRequest = {
+  targetSets: number;
+  targetReps?: number | null;
+  targetWeight?: WeightValueDto | null;
+  targetDurationSeconds?: number | null;
+  targetDistanceMeters?: number | null;
+  targetRounds?: number | null;
+  restSeconds?: number | null;
+  /**
+   * When true, also updates the underlying workout template / progression settings (plan)
+   * so the change applies to future sessions.
+   */
+  updatePlan?: boolean;
+};
+
+export type DeleteWorkoutExerciseEntryRequest = {
+  /**
+   * When true, also removes the exercise from the underlying workout template (plan)
+   * so it no longer appears in future sessions of this workout.
+   */
+  updatePlan?: boolean;
+};
+
 export type LogSetRequest = {
   actualReps?: number | null;
   actualWeight?: WeightValueDto | null;
