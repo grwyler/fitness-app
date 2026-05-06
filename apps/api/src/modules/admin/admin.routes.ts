@@ -13,9 +13,11 @@ import {
   progressMetrics,
   programTrainingContexts,
   progressionStates,
+  progressionStatesV2,
   progressionRecommendationEvents,
   programs,
   sets,
+  userExerciseProgressionSettings,
   userProgramEnrollments,
   workoutSessions,
   workoutTemplateExerciseEntries,
@@ -211,6 +213,18 @@ async function resetUserData(database: Pick<DatabaseLike, "transaction">, userId
         .where(eq(progressionStates.userId, userId))
         .returning({ id: progressionStates.id })
     ).length;
+    const deletedProgressionStatesV2 = (
+      await tx
+        .delete(progressionStatesV2)
+        .where(eq(progressionStatesV2.userId, userId))
+        .returning({ id: progressionStatesV2.id })
+    ).length;
+    const deletedExerciseProgressionSettings = (
+      await tx
+        .delete(userExerciseProgressionSettings)
+        .where(eq(userExerciseProgressionSettings.userId, userId))
+        .returning({ id: userExerciseProgressionSettings.id })
+    ).length;
     const deletedWorkoutSessions = await deleteWhereIn(tx, workoutSessions, workoutSessions.id, sessionIds);
     const deletedProgramTrainingContexts = (
       await tx
@@ -245,11 +259,13 @@ async function resetUserData(database: Pick<DatabaseLike, "transaction">, userId
       deletedCustomTemplates,
       deletedEnrollments,
       deletedExerciseEntries,
+      deletedExerciseProgressionSettings,
       deletedIdempotencyRecords,
       deletedProgressMetrics,
       deletedProgramTrainingContexts,
       deletedProgressionRecommendationEvents,
       deletedProgressionStates,
+      deletedProgressionStatesV2,
       deletedSets,
       deletedWorkoutSessions
     };
@@ -516,11 +532,13 @@ export function createAdminRouter(database: DatabaseLike) {
         customTemplates: result.deletedCustomTemplates,
         enrollments: result.deletedEnrollments,
         exerciseEntries: result.deletedExerciseEntries,
+        exerciseProgressionSettings: result.deletedExerciseProgressionSettings,
         idempotencyRecords: result.deletedIdempotencyRecords,
         progressMetrics: result.deletedProgressMetrics,
         programProgress: result.deletedEnrollments,
         progressionRecommendationEvents: result.deletedProgressionRecommendationEvents,
         progression: result.deletedProgressionStates,
+        progressionV2: result.deletedProgressionStatesV2,
         sets: result.deletedSets,
         workoutSessions: result.deletedWorkoutSessions
       };

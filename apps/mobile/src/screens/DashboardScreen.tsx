@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Alert, Platform, ScrollView, StyleSheet, View } from "react-native";
+import type { ProgramDto } from "@fitness/shared";
 import { AppText } from "../components/AppText";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
+import { Input } from "../components/Input";
 import { ModalSheet } from "../components/ModalSheet";
 import { Screen } from "../components/Screen";
 import { LoadingState } from "../components/LoadingState";
@@ -13,6 +15,8 @@ import { FeedbackButton } from "../features/feedback/components/FeedbackButton";
 import { useAppAuth } from "../core/auth/AuthProvider";
 import { useDashboard } from "../features/workout/hooks/useDashboard";
 import { useCancelWorkout } from "../features/workout/hooks/useCancelWorkout";
+import { useFollowProgram } from "../features/workout/hooks/useFollowProgram";
+import { usePrograms } from "../features/workout/hooks/usePrograms";
 import { useStartWorkout } from "../features/workout/hooks/useStartWorkout";
 import {
   getCurrentProgramWorkoutChoices,
@@ -34,11 +38,23 @@ export function DashboardScreen({ navigation }: Props) {
   const [selectedStartingWorkoutId, setSelectedStartingWorkoutId] = useState<string | null>(null);
   const [discardWorkoutPromptVisible, setDiscardWorkoutPromptVisible] = useState(false);
   const [discardWorkoutSessionId, setDiscardWorkoutSessionId] = useState<string | null>(null);
+  const [programPickerVisible, setProgramPickerVisible] = useState(false);
+  const [selectingProgramId, setSelectingProgramId] = useState<string | null>(null);
   const auth = useAppAuth();
   const dashboardQuery = useDashboard();
+  const programsQuery = usePrograms();
   const startWorkoutMutation = useStartWorkout();
   const cancelWorkoutMutation = useCancelWorkout();
+  const followProgramMutation = useFollowProgram();
   const [lastAction, setLastAction] = useState<string | null>(null);
+
+  const customPrograms = useMemo(() => {
+    const programs = programsQuery.data ?? [];
+    return programs
+      .filter((program) => program.source === "custom")
+      .slice()
+      .sort((left, right) => left.name.localeCompare(right.name));
+  }, [programsQuery.data]);
 
   if (dashboardQuery.isLoading) {
     return (
@@ -77,6 +93,11 @@ export function DashboardScreen({ navigation }: Props) {
   function openDiscardWorkoutPrompt(sessionId: string) {
     setDiscardWorkoutSessionId(sessionId);
     setDiscardWorkoutPromptVisible(true);
+  }
+
+  function openProgramPicker() {
+    setLastAction("open_program_picker");
+    setProgramPickerVisible(true);
   }
 
   function startCurrentProgramWorkout(choice: CurrentProgramWorkoutChoice) {
@@ -296,6 +317,14 @@ export function DashboardScreen({ navigation }: Props) {
               navigation.navigate("CreateProgram");
             }}
           />
+          {customPrograms.length > 1 ? (
+            <PrimaryButton
+              label="Switch program"
+              tone="secondary"
+              disabled={Boolean(activeWorkout)}
+              onPress={openProgramPicker}
+            />
+          ) : null}
           <PrimaryButton
             label="Edit Program"
             tone="secondary"
@@ -325,6 +354,14 @@ export function DashboardScreen({ navigation }: Props) {
           <AppText tone="secondary">
             Create your own weekly plan by choosing your days and building workouts.
           </AppText>
+          {customPrograms.length > 0 ? (
+            <PrimaryButton
+              label="Choose a program"
+              tone="secondary"
+              onPress={openProgramPicker}
+              disabled={Boolean(activeWorkout)}
+            />
+          ) : null}
           <PrimaryButton
             label="Create a program"
             variant="primary"
@@ -332,6 +369,38 @@ export function DashboardScreen({ navigation }: Props) {
           />
         </Card>
       ) : null}
+
+      <UserProgramPickerModal
+        activeProgramId={activeProgram?.program.id ?? null}
+        errorMessage={
+          followProgramMutation.error instanceof Error ? followProgramMutation.error.message : null
+        }
+        loadingPrograms={programsQuery.isLoading}
+        programs={customPrograms}
+        selectingProgram={followProgramMutation.isPending}
+        selectingProgramId={selectingProgramId}
+        visible={programPickerVisible}
+        onClose={() => setProgramPickerVisible(false)}
+        onCreateProgram={() => {
+          setProgramPickerVisible(false);
+          navigation.navigate("CreateProgram");
+        }}
+        onEditProgram={(programId) => {
+          setProgramPickerVisible(false);
+          navigation.navigate("CreateProgram", { editProgramId: programId });
+        }}
+        onSelectProgram={(programId) => {
+          setLastAction(`switch_program:${programId}`);
+          setSelectingProgramId(programId);
+          followProgramMutation.mutate(programId, {
+            onSuccess: () => {
+              setProgramPickerVisible(false);
+              setSelectingProgramId(null);
+            },
+            onError: () => setSelectingProgramId(null)
+          });
+        }}
+      />
 
       <Card variant="default" style={styles.card}>
         <AppText variant="caption" tone="accent">
@@ -477,6 +546,110 @@ function CurrentProgramWorkoutPickerModal(props: {
           {props.errorMessage}
         </AppText>
       ) : null}
+    </ModalSheet>
+  );
+}
+
+function UserProgramPickerModal(props: {
+  activeProgramId: string | null;
+  errorMessage: string | null;
+  loadingPrograms: boolean;
+  programs: ProgramDto[];
+  selectingProgram: boolean;
+  selectingProgramId: string | null;
+  visible: boolean;
+  onClose: () => void;
+  onCreateProgram: () => void;
+  onEditProgram: (programId: string) => void;
+  onSelectProgram: (programId: string) => void;
+}) {
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredPrograms = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) {
+      return props.programs;
+    }
+
+    return props.programs.filter((program) => {
+      const workoutNames = program.workouts.map((workout) => workout.name).join(" ");
+      const haystack =
+        `${program.name} ${program.description ?? ""} ${workoutNames} ${program.difficultyLevel} ${program.daysPerWeek}`.toLowerCase();
+      return haystack.includes(query);
+    });
+  }, [props.programs, searchQuery]);
+
+  return (
+    <ModalSheet
+      headerRight={
+        <Button label="Close" onPress={props.onClose} variant="ghost" fullWidth={false} size="sm" />
+      }
+      onClose={props.onClose}
+      subtitle="Your programs"
+      title="Choose a program"
+      visible={props.visible}
+    >
+      <ScrollView contentContainerStyle={styles.programChoiceList}>
+        <View style={styles.searchPanel}>
+          <View style={styles.searchHeaderRow}>
+            <AppText variant="label" tone="accent">
+              Search
+            </AppText>
+          </View>
+          <Input
+            autoCapitalize="words"
+            onChangeText={setSearchQuery}
+            placeholder="Bench, upper/lower, 4-day..."
+            value={searchQuery}
+          />
+        </View>
+
+        {props.loadingPrograms ? (
+          <AppText tone="secondary">Loading programs...</AppText>
+        ) : props.programs.length === 0 ? (
+          <AppText tone="secondary">No custom programs yet. Create one to get started.</AppText>
+        ) : filteredPrograms.length === 0 ? (
+          <AppText tone="secondary">No programs match your search.</AppText>
+        ) : (
+          filteredPrograms.map((program) => {
+            const isCurrentProgram = program.id === props.activeProgramId;
+            const workoutNames = program.workouts.map((workout) => workout.name).join(" / ");
+            const isSelectingThisProgram =
+              props.selectingProgram && props.selectingProgramId === program.id && !isCurrentProgram;
+
+            return (
+              <Card key={program.id} elevated style={styles.programChoice}>
+                <AppText variant="title2">{program.name}</AppText>
+                {program.description ? <AppText tone="secondary">{program.description}</AppText> : null}
+                <AppText variant="meta" tone="secondary">
+                  {program.daysPerWeek} days/week - {program.sessionDurationMinutes} minutes - {program.difficultyLevel}
+                </AppText>
+                {workoutNames ? <AppText tone="secondary">{workoutNames}</AppText> : null}
+                <PrimaryButton
+                  label="Edit program"
+                  disabled={props.selectingProgram}
+                  onPress={() => props.onEditProgram(program.id)}
+                  tone="secondary"
+                />
+                <PrimaryButton
+                  label={isCurrentProgram ? "Current program" : "Switch to this program"}
+                  disabled={isCurrentProgram || props.selectingProgram}
+                  loading={isSelectingThisProgram}
+                  onPress={() => props.onSelectProgram(program.id)}
+                  tone={isCurrentProgram ? "secondary" : "primary"}
+                />
+              </Card>
+            );
+          })
+        )}
+      </ScrollView>
+
+      {props.errorMessage ? (
+        <AppText variant="meta" tone="danger">
+          {props.errorMessage}
+        </AppText>
+      ) : null}
+      <PrimaryButton label="Create a program" tone="secondary" onPress={props.onCreateProgram} />
     </ModalSheet>
   );
 }

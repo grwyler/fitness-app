@@ -55,9 +55,10 @@ export function ExercisePickerModal(props: {
   onSelect: (exercise: ExerciseCatalogItemDto) => void;
 }) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [filtersExpanded, setFiltersExpanded] = useState(false);
+  const [filtersExpanded, setFiltersExpanded] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedMuscleGroup, setSelectedMuscleGroup] = useState<string | null>(null);
+  const [selectedEquipmentType, setSelectedEquipmentType] = useState<string | null>(null);
 
   const categoryOptions = useMemo(
     () => buildTopFilterOptions({ values: props.exercises.map((exercise) => exercise.category), limit: 10 }),
@@ -69,7 +70,12 @@ export function ExercisePickerModal(props: {
     [props.exercises]
   );
 
-  const hasAnyFilter = Boolean(selectedCategory || selectedMuscleGroup);
+  const equipmentOptions = useMemo(
+    () => buildTopFilterOptions({ values: props.exercises.map((exercise) => exercise.equipmentType), limit: 12 }),
+    [props.exercises]
+  );
+
+  const hasAnyFilter = Boolean(selectedCategory || selectedMuscleGroup || selectedEquipmentType);
 
   const filteredExercises = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
@@ -83,20 +89,29 @@ export function ExercisePickerModal(props: {
         return false;
       }
 
+      if (
+        selectedEquipmentType &&
+        normalizeFilterKey(exercise.equipmentType ?? "") !== selectedEquipmentType
+      ) {
+        return false;
+      }
+
       if (!normalizedQuery) {
         return true;
       }
 
+      const aliasText = exercise.aliases?.length ? exercise.aliases.join(" ") : "";
       const haystack = `${exercise.name} ${exercise.category} ${exercise.primaryMuscleGroup ?? ""} ${
         exercise.equipmentType ?? ""
-      }`.toLowerCase();
+      } ${aliasText}`.toLowerCase();
       return haystack.includes(normalizedQuery);
     });
-  }, [props.exercises, searchQuery, selectedCategory, selectedMuscleGroup]);
+  }, [props.exercises, searchQuery, selectedCategory, selectedEquipmentType, selectedMuscleGroup]);
 
   function clearFilters() {
     setSelectedCategory(null);
     setSelectedMuscleGroup(null);
+    setSelectedEquipmentType(null);
   }
 
   function toggleFilter(current: string | null, nextKey: string, setter: (value: string | null) => void) {
@@ -172,6 +187,25 @@ export function ExercisePickerModal(props: {
                 label={option.label}
                 selected={selectedMuscleGroup === option.key}
                 onPress={() => toggleFilter(selectedMuscleGroup, option.key, setSelectedMuscleGroup)}
+              />
+            ))}
+          </ScrollView>
+
+          <ScrollView
+            horizontal
+            keyboardShouldPersistTaps="handled"
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterRow}
+          >
+            <AppText variant="caption" tone="secondary">
+              Equipment
+            </AppText>
+            {equipmentOptions.map((option) => (
+              <Chip
+                key={`equipment:${option.key}`}
+                label={option.label}
+                selected={selectedEquipmentType === option.key}
+                onPress={() => toggleFilter(selectedEquipmentType, option.key, setSelectedEquipmentType)}
               />
             ))}
             {hasAnyFilter ? <Chip label="Clear" variant="muted" onPress={clearFilters} /> : null}
