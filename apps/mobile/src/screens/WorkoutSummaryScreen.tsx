@@ -40,6 +40,9 @@ export function WorkoutSummaryScreen({ navigation, route }: Props) {
       exercise.sets.filter((set) => set.rir !== null || set.failureStatus !== null).length
     );
   }, 0);
+  const hasMixedEffortSignals = summary.progressionUpdates.some((update) =>
+    (update.reasonCodes ?? []).includes("CONFLICTING_EFFORT_SIGNALS")
+  );
 
   return (
     <Screen>
@@ -64,6 +67,11 @@ export function WorkoutSummaryScreen({ navigation, route }: Props) {
         </View>
         {effortSetCount > 0 ? (
           <Text style={styles.successBody}>Effort notes logged on {effortSetCount} set{effortSetCount === 1 ? "" : "s"}.</Text>
+        ) : null}
+        {hasMixedEffortSignals ? (
+          <Text style={styles.mixedEffortWarning}>
+            Effort signals were mixed, so this recommendation is cautious.
+          </Text>
         ) : null}
         <Text style={styles.successBody}>
           Next workout: {summary.nextWorkoutTemplate?.name ?? "No next workout queued"}
@@ -245,6 +253,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
     textTransform: "uppercase"
+  },
+  mixedEffortWarning: {
+    color: colors.warning,
+    fontSize: 14,
+    fontWeight: "600",
+    lineHeight: 20
   },
   statGrid: {
     flexDirection: "row",

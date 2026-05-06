@@ -49,6 +49,11 @@ import type { CreateProgressionRecommendationEventInput } from "../../repositori
 import { errorReporter } from "../../../../lib/observability/error-reporter.js";
 import { logger } from "../../../../lib/observability/logger.js";
 import type { ExerciseWorkoutSetOutcome } from "../../domain/models/progression.js";
+import {
+  resolveEffortFeedbackForProgression,
+  summarizeExerciseEffortFromSets
+} from "../../domain/services/exercise-effort-summary.js";
+import type { EffortConflictReason, ExerciseEffortSummary } from "../../domain/services/exercise-effort-summary.js";
 
 function daysSince(previous: Date, current: Date) {
   const ms = current.getTime() - previous.getTime();
@@ -158,8 +163,15 @@ function buildProgressionExplanation(input: {
   nextWeightLbs: number;
   previousRepGoal: number;
   nextRepGoal: number;
-  effortFeedback: EffortFeedback | null;
+  exerciseEffortFeedback: EffortFeedback | null;
+  effectiveEffortFeedback: EffortFeedback;
   effortFeedbackDefaulted?: boolean;
+  effortHierarchy?: {
+    usedSetLevelEffort: boolean;
+    conflictReason: EffortConflictReason | null;
+  };
+  effortSummary?: ExerciseEffortSummary;
+  topSetRir?: SetRir | null;
   progressionAggressiveness?: ProgressionAggressiveness | null;
   preferRepProgressionBeforeWeight?: boolean | null;
   allowAutoDeload?: boolean | null;
@@ -210,24 +222,33 @@ function buildProgressionExplanation(input: {
   if (input.effortFeedbackDefaulted) {
     reasonCodes.push("EFFORT_DEFAULTED");
     evidence.push("Effort defaulted to just right");
-  } else if (input.effortFeedback) {
+  } else if (input.exerciseEffortFeedback) {
     reasonCodes.push(
-      input.effortFeedback === "too_easy"
+      input.exerciseEffortFeedback === "too_easy"
         ? "EFFORT_TOO_EASY"
-        : input.effortFeedback === "too_hard"
+        : input.exerciseEffortFeedback === "too_hard"
           ? "EFFORT_TOO_HARD"
           : "EFFORT_JUST_RIGHT"
     );
     evidence.push(
-      input.effortFeedback === "too_easy"
+      input.exerciseEffortFeedback === "too_easy"
         ? "Effort marked too easy"
-        : input.effortFeedback === "too_hard"
+        : input.exerciseEffortFeedback === "too_hard"
           ? "Effort marked too hard"
           : "Effort marked just right"
     );
   } else {
     reasonCodes.push("EFFORT_MISSING");
     evidence.push("Effort feedback missing");
+  }
+
+  const usedSetLevelEffort = input.effortHierarchy?.usedSetLevelEffort ?? (input.setEffortSignals?.hasAnyEffort === true);
+  if (usedSetLevelEffort) {
+    reasonCodes.push("SET_LEVEL_EFFORT_USED");
+    evidence.push("Used set-level effort notes (RIR/failure) as the primary signal");
+  } else {
+    reasonCodes.push("EXERCISE_LEVEL_EFFORT_USED");
+    evidence.push("Used exercise-level effort feedback as the primary signal");
   }
 
   if (input.setEffortSignals?.hasAnyEffort) {
@@ -239,13 +260,18 @@ function buildProgressionExplanation(input: {
       reasonCodes.push("SET_MUSCULAR_FAILURE");
       evidence.push("A set was marked failure");
     }
+    if (input.setEffortSignals.hasTechnicalFailure || input.setEffortSignals.hasMuscularFailure) {
+      reasonCodes.push("FAILURE_REPORTED");
+    }
     if (input.setEffortSignals.hasStoppedEarly) {
       reasonCodes.push("SET_STOPPED_EARLY");
+      reasonCodes.push("STOPPED_EARLY_REPORTED");
       evidence.push("A set was marked stopped early");
     }
     if (input.setEffortSignals.hasRir5Plus) {
       reasonCodes.push("SET_RIR_5_PLUS");
-      evidence.push("Reported 5+ reps in reserve on a set");
+      reasonCodes.push("HIGH_RIR_REPORTED");
+      evidence.push(input.topSetRir === "rir_5_plus" ? "Reported 5+ reps in reserve on your top set" : "Reported 5+ reps in reserve on a set");
     } else if (input.setEffortSignals.hasNearFailure) {
       reasonCodes.push("SET_NEAR_FAILURE");
       evidence.push("Reported 0 RIR / near-failure effort on a set");
@@ -253,14 +279,11 @@ function buildProgressionExplanation(input: {
   }
 
   const hasSetEffort = input.setEffortSignals?.hasAnyEffort === true;
-  const conflictingEffortSignals =
-    hasSetEffort &&
-    ((input.setEffortSignals?.hasRir5Plus && input.effortFeedback === "too_hard") ||
-      (input.setEffortSignals?.hasNearFailure && input.effortFeedback === "too_easy"));
+  const conflictingEffortSignals = hasSetEffort && (input.effortSummary?.conflictWithExerciseFeedback === true);
 
   if (conflictingEffortSignals) {
     reasonCodes.push("CONFLICTING_EFFORT_SIGNALS");
-    evidence.push("Exercise-level effort conflicted with set-level effort signals");
+    evidence.push("Your set-level effort and exercise-level feedback conflicted, so confidence was reduced");
   }
 
   if (input.overrideSignals) {
@@ -411,7 +434,9 @@ function buildProgressionExplanation(input: {
     if (input.workoutIsPartial) {
       return "low";
     }
-    if (!input.effortFeedback && !input.effortFeedbackDefaulted) {
+    const hasExerciseEffort = input.exerciseEffortFeedback != null || input.effortFeedbackDefaulted === true;
+    const hasSetLevelEffort = input.effortSummary?.hasSetLevelEffort === true;
+    if (!hasExerciseEffort && !hasSetLevelEffort) {
       return "low";
     }
     if (input.setEffortSignals?.hasTechnicalFailure) {
@@ -429,7 +454,7 @@ function buildProgressionExplanation(input: {
         input.loggedSetCount > 0 &&
         input.loggedSetCount === input.totalSetCount &&
         !input.hasFailedSets &&
-        input.effortFeedback === "too_easy" &&
+        input.effectiveEffortFeedback === "too_easy" &&
         input.setEffortSignals?.hasRir5Plus === true &&
         recoveryState === "fresh";
 
@@ -1043,6 +1068,29 @@ export class CompleteWorkoutSessionUseCase {
           const explicitEffortFeedback = exerciseFeedbackByEntryId[exerciseEntry.id] ?? null;
           const effortFeedback: EffortFeedback = explicitEffortFeedback ?? "just_right";
           const effortFeedbackDefaulted = explicitEffortFeedback === null;
+          const setEffortEntries = relatedSets.map((set) => ({
+            targetReps: set.targetReps,
+            actualReps: set.actualReps,
+            targetWeightLbs: set.targetWeightLbs,
+            actualWeightLbs: set.actualWeightLbs,
+            rir: set.rir ?? null,
+            failureStatus: set.failureStatus ?? null
+          }));
+          const effortSummary = summarizeExerciseEffortFromSets({
+            sets: setEffortEntries,
+            exerciseFeedback: explicitEffortFeedback
+          });
+          const effortHierarchy = resolveEffortFeedbackForProgression({
+            sets: setEffortEntries,
+            exerciseFeedback: effortFeedback,
+            incrementLbs
+          });
+          const topSetRir: SetRir | null = (() => {
+            const loggedByWeight = relatedSets
+              .filter((set) => set.actualWeightLbs !== null)
+              .sort((left, right) => (right.actualWeightLbs ?? 0) - (left.actualWeightLbs ?? 0));
+            return loggedByWeight[0]?.rir ?? null;
+          })();
 
           const loggedSets = relatedSets.filter((set) => set.status === "completed" || set.status === "failed");
           const missingActualWeight = loggedSets.some((set) => set.actualWeightLbs === null);
@@ -1140,8 +1188,15 @@ export class CompleteWorkoutSessionUseCase {
             nextWeightLbs: cappedProgressionResult.nextWeightLbs,
             previousRepGoal: cappedProgressionResult.previousRepGoal,
             nextRepGoal: cappedProgressionResult.nextRepGoal,
-            effortFeedback,
+            exerciseEffortFeedback: explicitEffortFeedback,
+            effectiveEffortFeedback: effortHierarchy.effectiveEffortFeedback,
             effortFeedbackDefaulted,
+            effortHierarchy: {
+              usedSetLevelEffort: effortHierarchy.usedSetLevelEffort,
+              conflictReason: effortHierarchy.conflictReason
+            },
+            effortSummary,
+            topSetRir,
             setEffortSignals: buildSetEffortSignalsFromSets(relatedSets),
             workoutIsPartial: isPartial,
             totalSetCount: relatedSets.length,
@@ -1269,6 +1324,29 @@ export class CompleteWorkoutSessionUseCase {
           const explicitEffortFeedback = exerciseFeedbackByEntryId[exerciseEntry.id] ?? null;
           const effortFeedback: EffortFeedback = explicitEffortFeedback ?? "just_right";
           const effortFeedbackDefaulted = explicitEffortFeedback === null;
+          const setEffortEntries = relatedSets.map((set) => ({
+            targetReps: set.targetReps,
+            actualReps: set.actualReps,
+            targetWeightLbs: set.targetWeightLbs,
+            actualWeightLbs: set.actualWeightLbs,
+            rir: set.rir ?? null,
+            failureStatus: set.failureStatus ?? null
+          }));
+          const effortSummary = summarizeExerciseEffortFromSets({
+            sets: setEffortEntries,
+            exerciseFeedback: explicitEffortFeedback
+          });
+          const effortHierarchy = resolveEffortFeedbackForProgression({
+            sets: setEffortEntries,
+            exerciseFeedback: effortFeedback,
+            incrementLbs
+          });
+          const topSetRir: SetRir | null = (() => {
+            const loggedByWeight = relatedSets
+              .filter((set) => set.actualWeightLbs !== null)
+              .sort((left, right) => (right.actualWeightLbs ?? 0) - (left.actualWeightLbs ?? 0));
+            return loggedByWeight[0]?.rir ?? null;
+          })();
 
           const loggedSets = relatedSets.filter((set) => set.status === "completed" || set.status === "failed");
           const missingActualWeight = loggedSets.some((set) => set.actualWeightLbs === null);
@@ -1324,8 +1402,15 @@ export class CompleteWorkoutSessionUseCase {
             nextWeightLbs: progressionResult.nextWeightLbs,
             previousRepGoal: exerciseEntry.targetReps,
             nextRepGoal: exerciseEntry.targetReps,
-            effortFeedback,
+            exerciseEffortFeedback: explicitEffortFeedback,
+            effectiveEffortFeedback: effortHierarchy.effectiveEffortFeedback,
             effortFeedbackDefaulted,
+            effortHierarchy: {
+              usedSetLevelEffort: effortHierarchy.usedSetLevelEffort,
+              conflictReason: effortHierarchy.conflictReason
+            },
+            effortSummary,
+            topSetRir,
             setEffortSignals: buildSetEffortSignalsFromSets(relatedSets),
             workoutIsPartial: isPartial,
             totalSetCount: relatedSets.length,
@@ -1677,6 +1762,29 @@ export class CompleteWorkoutSessionUseCase {
           const explicitEffortFeedback = exerciseFeedbackByEntryId[exerciseEntry.id] ?? null;
           const effortFeedback: EffortFeedback = explicitEffortFeedback ?? "just_right";
           const effortFeedbackDefaulted = explicitEffortFeedback === null;
+          const setEffortEntries = relatedSets.map((set) => ({
+            targetReps: set.targetReps,
+            actualReps: set.actualReps,
+            targetWeightLbs: set.targetWeightLbs,
+            actualWeightLbs: set.actualWeightLbs,
+            rir: set.rir ?? null,
+            failureStatus: set.failureStatus ?? null
+          }));
+          const effortSummary = summarizeExerciseEffortFromSets({
+            sets: setEffortEntries,
+            exerciseFeedback: explicitEffortFeedback
+          });
+          const effortHierarchy = resolveEffortFeedbackForProgression({
+            sets: setEffortEntries,
+            exerciseFeedback: effortFeedback,
+            incrementLbs
+          });
+          const topSetRir: SetRir | null = (() => {
+            const loggedByWeight = relatedSets
+              .filter((set) => set.actualWeightLbs !== null)
+              .sort((left, right) => (right.actualWeightLbs ?? 0) - (left.actualWeightLbs ?? 0));
+            return loggedByWeight[0]?.rir ?? null;
+          })();
           const recalibrationBlocked =
             userTrainingSettings.allowRecalibration === false &&
             wouldQualifyForRecalibrationEvidence({
@@ -1697,8 +1805,15 @@ export class CompleteWorkoutSessionUseCase {
             nextWeightLbs: progressionResult.nextWeightLbs,
             previousRepGoal: progressionResult.previousRepGoal,
             nextRepGoal: progressionResult.nextRepGoal,
-            effortFeedback,
+            exerciseEffortFeedback: explicitEffortFeedback,
+            effectiveEffortFeedback: effortHierarchy.effectiveEffortFeedback,
             effortFeedbackDefaulted,
+            effortHierarchy: {
+              usedSetLevelEffort: effortHierarchy.usedSetLevelEffort,
+              conflictReason: effortHierarchy.conflictReason
+            },
+            effortSummary,
+            topSetRir,
             progressionAggressiveness: userTrainingSettings.progressionAggressiveness,
             preferRepProgressionBeforeWeight: userTrainingSettings.preferRepProgressionBeforeWeight,
             allowAutoDeload: userTrainingSettings.allowAutoDeload,
@@ -1774,6 +1889,29 @@ export class CompleteWorkoutSessionUseCase {
           const explicitEffortFeedback = exerciseFeedbackByEntryId[exerciseEntry.id] ?? null;
           const effortFeedback: EffortFeedback = explicitEffortFeedback ?? "just_right";
           const effortFeedbackDefaulted = explicitEffortFeedback === null;
+          const setEffortEntries = relatedSets.map((set) => ({
+            targetReps: set.targetReps,
+            actualReps: set.actualReps,
+            targetWeightLbs: set.targetWeightLbs,
+            actualWeightLbs: set.actualWeightLbs,
+            rir: set.rir ?? null,
+            failureStatus: set.failureStatus ?? null
+          }));
+          const effortSummary = summarizeExerciseEffortFromSets({
+            sets: setEffortEntries,
+            exerciseFeedback: explicitEffortFeedback
+          });
+          const effortHierarchy = resolveEffortFeedbackForProgression({
+            sets: setEffortEntries,
+            exerciseFeedback: effortFeedback,
+            incrementLbs
+          });
+          const topSetRir: SetRir | null = (() => {
+            const loggedByWeight = relatedSets
+              .filter((set) => set.actualWeightLbs !== null)
+              .sort((left, right) => (right.actualWeightLbs ?? 0) - (left.actualWeightLbs ?? 0));
+            return loggedByWeight[0]?.rir ?? null;
+          })();
           const progressionState = progressionStateV1ByExerciseId.get(exerciseEntry.exerciseId) ?? null;
           const recalibrationBlocked =
             userTrainingSettings.allowRecalibration === false &&
@@ -1795,8 +1933,15 @@ export class CompleteWorkoutSessionUseCase {
             nextWeightLbs: progressionResult.nextWeightLbs,
             previousRepGoal: exerciseEntry.targetReps,
             nextRepGoal: exerciseEntry.targetReps,
-            effortFeedback,
+            exerciseEffortFeedback: explicitEffortFeedback,
+            effectiveEffortFeedback: effortHierarchy.effectiveEffortFeedback,
             effortFeedbackDefaulted,
+            effortHierarchy: {
+              usedSetLevelEffort: effortHierarchy.usedSetLevelEffort,
+              conflictReason: effortHierarchy.conflictReason
+            },
+            effortSummary,
+            topSetRir,
             progressionAggressiveness: userTrainingSettings.progressionAggressiveness,
             preferRepProgressionBeforeWeight: userTrainingSettings.preferRepProgressionBeforeWeight,
             allowAutoDeload: userTrainingSettings.allowAutoDeload,
@@ -1879,6 +2024,29 @@ export class CompleteWorkoutSessionUseCase {
           const explicitEffortFeedback = exerciseFeedbackByEntryId[exerciseEntry.id] ?? null;
           const effortFeedback: EffortFeedback = explicitEffortFeedback ?? "just_right";
           const effortFeedbackDefaulted = explicitEffortFeedback === null;
+          const setEffortEntries = relatedSets.map((set) => ({
+            targetReps: set.targetReps,
+            actualReps: set.actualReps,
+            targetWeightLbs: set.targetWeightLbs,
+            actualWeightLbs: set.actualWeightLbs,
+            rir: set.rir ?? null,
+            failureStatus: set.failureStatus ?? null
+          }));
+          const effortSummary = summarizeExerciseEffortFromSets({
+            sets: setEffortEntries,
+            exerciseFeedback: explicitEffortFeedback
+          });
+          const effortHierarchy = resolveEffortFeedbackForProgression({
+            sets: setEffortEntries,
+            exerciseFeedback: effortFeedback,
+            incrementLbs: null
+          });
+          const topSetRir: SetRir | null = (() => {
+            const loggedByWeight = relatedSets
+              .filter((set) => set.actualWeightLbs !== null)
+              .sort((left, right) => (right.actualWeightLbs ?? 0) - (left.actualWeightLbs ?? 0));
+            return loggedByWeight[0]?.rir ?? null;
+          })();
           const exerciseSettings = exerciseSettingsByExerciseId.get(exerciseEntry.exerciseId) ?? null;
           const explanation = buildProgressionExplanation({
             result: "skipped",
@@ -1887,8 +2055,15 @@ export class CompleteWorkoutSessionUseCase {
             nextWeightLbs: progressionStateV2.currentWeightLbs,
             previousRepGoal: progressionStateV2.repGoal,
             nextRepGoal: progressionStateV2.repGoal,
-            effortFeedback,
+            exerciseEffortFeedback: explicitEffortFeedback,
+            effectiveEffortFeedback: effortHierarchy.effectiveEffortFeedback,
             effortFeedbackDefaulted,
+            effortHierarchy: {
+              usedSetLevelEffort: effortHierarchy.usedSetLevelEffort,
+              conflictReason: effortHierarchy.conflictReason
+            },
+            effortSummary,
+            topSetRir,
             setEffortSignals: buildSetEffortSignalsFromSets(relatedSets),
             workoutIsPartial: workoutSessionGraph.session.isPartial,
             totalSetCount: relatedSets.length,
@@ -1966,6 +2141,29 @@ export class CompleteWorkoutSessionUseCase {
           const explicitEffortFeedback = exerciseFeedbackByEntryId[exerciseEntry.id] ?? null;
           const effortFeedback: EffortFeedback = explicitEffortFeedback ?? "just_right";
           const effortFeedbackDefaulted = explicitEffortFeedback === null;
+          const setEffortEntries = relatedSets.map((set) => ({
+            targetReps: set.targetReps,
+            actualReps: set.actualReps,
+            targetWeightLbs: set.targetWeightLbs,
+            actualWeightLbs: set.actualWeightLbs,
+            rir: set.rir ?? null,
+            failureStatus: set.failureStatus ?? null
+          }));
+          const effortSummary = summarizeExerciseEffortFromSets({
+            sets: setEffortEntries,
+            exerciseFeedback: explicitEffortFeedback
+          });
+          const effortHierarchy = resolveEffortFeedbackForProgression({
+            sets: setEffortEntries,
+            exerciseFeedback: effortFeedback,
+            incrementLbs: null
+          });
+          const topSetRir: SetRir | null = (() => {
+            const loggedByWeight = relatedSets
+              .filter((set) => set.actualWeightLbs !== null)
+              .sort((left, right) => (right.actualWeightLbs ?? 0) - (left.actualWeightLbs ?? 0));
+            return loggedByWeight[0]?.rir ?? null;
+          })();
           const exerciseSettings = exerciseSettingsByExerciseId.get(exerciseEntry.exerciseId) ?? null;
           const explanation = buildProgressionExplanation({
             result: "skipped",
@@ -1974,8 +2172,15 @@ export class CompleteWorkoutSessionUseCase {
             nextWeightLbs: progressionState.currentWeightLbs,
             previousRepGoal: exerciseEntry.targetReps,
             nextRepGoal: exerciseEntry.targetReps,
-            effortFeedback,
+            exerciseEffortFeedback: explicitEffortFeedback,
+            effectiveEffortFeedback: effortHierarchy.effectiveEffortFeedback,
             effortFeedbackDefaulted,
+            effortHierarchy: {
+              usedSetLevelEffort: effortHierarchy.usedSetLevelEffort,
+              conflictReason: effortHierarchy.conflictReason
+            },
+            effortSummary,
+            topSetRir,
             setEffortSignals: buildSetEffortSignalsFromSets(relatedSets),
             workoutIsPartial: workoutSessionGraph.session.isPartial,
             totalSetCount: relatedSets.length,
@@ -2046,6 +2251,29 @@ export class CompleteWorkoutSessionUseCase {
           const explicitEffortFeedback = exerciseFeedbackByEntryId[exerciseEntry.id] ?? null;
           const effortFeedback: EffortFeedback = explicitEffortFeedback ?? "just_right";
           const effortFeedbackDefaulted = explicitEffortFeedback === null;
+          const setEffortEntries = relatedSets.map((set) => ({
+            targetReps: set.targetReps,
+            actualReps: set.actualReps,
+            targetWeightLbs: set.targetWeightLbs,
+            actualWeightLbs: set.actualWeightLbs,
+            rir: set.rir ?? null,
+            failureStatus: set.failureStatus ?? null
+          }));
+          const effortSummary = summarizeExerciseEffortFromSets({
+            sets: setEffortEntries,
+            exerciseFeedback: explicitEffortFeedback
+          });
+          const effortHierarchy = resolveEffortFeedbackForProgression({
+            sets: setEffortEntries,
+            exerciseFeedback: effortFeedback,
+            incrementLbs: null
+          });
+          const topSetRir: SetRir | null = (() => {
+            const loggedByWeight = relatedSets
+              .filter((set) => set.actualWeightLbs !== null)
+              .sort((left, right) => (right.actualWeightLbs ?? 0) - (left.actualWeightLbs ?? 0));
+            return loggedByWeight[0]?.rir ?? null;
+          })();
           const exerciseSettings = exerciseSettingsByExerciseId.get(exerciseEntry.exerciseId) ?? null;
           const explanation = buildProgressionExplanation({
             result: "skipped",
@@ -2054,8 +2282,15 @@ export class CompleteWorkoutSessionUseCase {
             nextWeightLbs: exerciseEntry.targetWeightLbs,
             previousRepGoal: exerciseEntry.targetReps,
             nextRepGoal: exerciseEntry.targetReps,
-            effortFeedback,
+            exerciseEffortFeedback: explicitEffortFeedback,
+            effectiveEffortFeedback: effortHierarchy.effectiveEffortFeedback,
             effortFeedbackDefaulted,
+            effortHierarchy: {
+              usedSetLevelEffort: effortHierarchy.usedSetLevelEffort,
+              conflictReason: effortHierarchy.conflictReason
+            },
+            effortSummary,
+            topSetRir,
             setEffortSignals: buildSetEffortSignalsFromSets(relatedSets),
             workoutIsPartial: true,
             totalSetCount,

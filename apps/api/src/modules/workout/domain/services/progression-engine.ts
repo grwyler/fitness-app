@@ -17,6 +17,7 @@ import type {
   ExerciseWorkoutOutcome,
   ExerciseWorkoutSetOutcome
 } from "../models/progression.js";
+import { resolveEffortFeedbackForProgression } from "./exercise-effort-summary.js";
 
 const MIN_RECALIBRATION_SET_COUNT = 2;
 const MAX_RECALIBRATION_JUMP_MULTIPLIER = 1.75;
@@ -351,13 +352,30 @@ export class ProgressionEngine {
   }
 
   public calculate(input: ProgressionComputationInput): ProgressionComputationResult {
-    const { exercise, outcome, state } = input;
+    const { exercise, outcome: rawOutcome, state } = input;
     const trainingGoal = resolveTrainingGoal(input.trainingGoal);
     const recoveryState = input.recoveryState ?? null;
     const previousWeightLbs = roundToTwoDecimals(state.currentWeightLbs);
     const lastPerformedAt = state.lastPerformedAt ?? null;
     const performedAt = input.performedAt ?? new Date(0);
     const nextLastPerformedAt = input.performedAt ? performedAt : lastPerformedAt;
+
+    const { effectiveEffortFeedback } = resolveEffortFeedbackForProgression({
+      sets: rawOutcome.sets,
+      exerciseFeedback: rawOutcome.effortFeedback,
+      incrementLbs: exercise.incrementLbs
+    });
+
+    const outcome: ExerciseWorkoutOutcome = {
+      ...rawOutcome,
+      sets: rawOutcome.sets!,
+      effortFeedback: effectiveEffortFeedback
+    };
+
+    const effectiveInput: ProgressionComputationInput = {
+      ...input,
+      outcome
+    };
 
     if (previousWeightLbs < 0) {
       throw new Error("currentWeightLbs must be greater than or equal to 0.");
@@ -402,7 +420,7 @@ export class ProgressionEngine {
     }
 
     if (hasEffectiveFailure(outcome)) {
-      return this.calculateFailureResult(input, previousWeightLbs);
+      return this.calculateFailureResult(effectiveInput, previousWeightLbs);
     }
 
     if (lastPerformedAt) {
@@ -451,17 +469,17 @@ export class ProgressionEngine {
     }
 
     if (input.allowRecalibration !== false) {
-      const recalibrationResult = this.calculateRecalibrationResult(input, previousWeightLbs);
+      const recalibrationResult = this.calculateRecalibrationResult(effectiveInput, previousWeightLbs);
       if (recalibrationResult) {
         return recalibrationResult;
       }
     }
 
-    return this.calculateSuccessResult({ ...input, trainingGoal, recoveryState }, previousWeightLbs);
+    return this.calculateSuccessResult({ ...effectiveInput, trainingGoal, recoveryState }, previousWeightLbs);
   }
 
   public calculateDoubleProgression(input: ProgressionComputationInputV2): ProgressionComputationResultV2 {
-    const { exercise, outcome, state } = input;
+    const { exercise, outcome: rawOutcome, state } = input;
     const trainingGoal = resolveTrainingGoal(input.trainingGoal);
     const recoveryState = input.recoveryState ?? null;
 
@@ -488,15 +506,24 @@ export class ProgressionEngine {
       throw new Error("repGoal must be within the rep range.");
     }
 
-    if (!outcome.sets || outcome.sets.length === 0) {
+    if (!rawOutcome.sets || rawOutcome.sets.length === 0) {
       throw new Error("Double progression requires per-set outcomes.");
     }
 
-    const effortSignals = getSetEffortSignals(outcome.sets);
+    const { effectiveEffortFeedback } = resolveEffortFeedbackForProgression({
+      sets: rawOutcome.sets,
+      exerciseFeedback: rawOutcome.effortFeedback,
+      incrementLbs: exercise.incrementLbs
+    });
+
+    const outcome: ExerciseWorkoutOutcome = {
+      ...rawOutcome,
+      effortFeedback: effectiveEffortFeedback
+    };
+
+    const effortSignals = getSetEffortSignals(outcome.sets!);
     const rirTooEasySignal = shouldTreatRirAsTooEasy(outcome, exercise.incrementLbs);
-    const effectiveEffortFeedback =
-      rirTooEasySignal && outcome.effortFeedback !== "too_easy" ? ("too_easy" as const) : outcome.effortFeedback;
-    const performanceSets = outcome.sets.filter((set) => set.failureStatus !== "stopped_early");
+    const performanceSets = outcome.sets!.filter((set) => set.failureStatus !== "stopped_early");
     if (effortSignals.hasStoppedEarly && performanceSets.length === 0) {
       const nextState: ProgressionStateSnapshotV2 = {
         currentWeightLbs: previousWeightLbs,
@@ -542,7 +569,7 @@ export class ProgressionEngine {
       };
     }
 
-    const setsForProgression = performanceSets.length > 0 ? performanceSets : outcome.sets;
+    const setsForProgression = performanceSets.length > 0 ? performanceSets : outcome.sets!;
     const shouldCapIncreaseSteps = effortSignals.hasNearFailure || effortSignals.hasStoppedEarly;
 
     if (previousWeightLbs < 0) {
@@ -1566,8 +1593,7 @@ export class ProgressionEngine {
 
     const effortSignals = getSetEffortSignals(outcome.sets);
     const rirTooEasySignal = shouldTreatRirAsTooEasy(outcome, exercise.incrementLbs);
-    const effectiveEffortFeedback =
-      rirTooEasySignal && outcome.effortFeedback !== "too_easy" ? ("too_easy" as const) : outcome.effortFeedback;
+    const effectiveEffortFeedback = outcome.effortFeedback;
 
     const performanceSets = (outcome.sets ?? []).filter((set) => set.failureStatus !== "stopped_early");
     if (effortSignals.hasStoppedEarly && performanceSets.length === 0) {
@@ -1606,12 +1632,12 @@ export class ProgressionEngine {
 
     const shouldCapIncreaseSteps = effortSignals.hasNearFailure || effortSignals.hasStoppedEarly;
 
-    if (outcome.effortFeedback === "too_hard") {
+    if (effectiveEffortFeedback === "too_hard") {
       const nextState: ProgressionStateSnapshot = {
         currentWeightLbs: previousWeightLbs,
         lastCompletedWeightLbs: previousWeightLbs,
         consecutiveFailures: 0,
-        lastEffortFeedback: outcome.effortFeedback
+        lastEffortFeedback: effectiveEffortFeedback
       };
 
       return {
@@ -1628,7 +1654,7 @@ export class ProgressionEngine {
         currentWeightLbs: previousWeightLbs,
         lastCompletedWeightLbs: previousWeightLbs,
         consecutiveFailures: 0,
-        lastEffortFeedback: outcome.effortFeedback
+        lastEffortFeedback: effectiveEffortFeedback
       };
 
       return {
