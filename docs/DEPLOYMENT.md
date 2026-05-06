@@ -24,6 +24,11 @@ Optional GitHub variable:
 Optional Vercel environment variable for the UI project:
 
 - `EXPO_PUBLIC_API_BASE_URL` (defaults to the production API URL for Vercel builds)
+- OAuth (if enabled):
+  - `EXPO_PUBLIC_GOOGLE_OAUTH_CLIENT_ID`
+  - `EXPO_PUBLIC_GOOGLE_OAUTH_REDIRECT_URI`
+
+Note: the UI currently only exposes Google OAuth; Facebook support is not enabled in the client yet.
 
 ## API Deployment
 
@@ -47,6 +52,14 @@ Required Vercel environment variables for the API project:
 - `JWT_SECRET`
 - `CORS_ALLOWED_ORIGINS`
 - `NODE_ENV=production`
+
+Optional OAuth environment variables for the API project (if enabled):
+
+- `GOOGLE_OAUTH_CLIENT_ID`
+- `GOOGLE_OAUTH_CLIENT_SECRET`
+- `GOOGLE_OAUTH_REDIRECT_URIS`
+- `OAUTH_STATE_TTL_MINUTES`
+- `OAUTH_REQUIRE_VERIFIED_EMAIL`
 
 ## Database Changes
 

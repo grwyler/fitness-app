@@ -51,6 +51,9 @@ const envSchema = z.object({
   DATABASE_URL: trimmedOptionalString.pipe(z.string().min(1, "DATABASE_URL is required").optional()),
   EMAIL_FROM: trimmedOptionalString,
   EMAIL_PROVIDER: emailProviderSchema,
+  FACEBOOK_OAUTH_CLIENT_ID: trimmedOptionalString,
+  FACEBOOK_OAUTH_CLIENT_SECRET: trimmedOptionalString,
+  FACEBOOK_OAUTH_REDIRECT_URIS: trimmedOptionalString,
   JWT_SECRET: trimmedOptionalString.pipe(z.string().min(32, "JWT_SECRET must be at least 32 characters").optional()),
   NODE_ENV: z
     .preprocess((value) => (typeof value === "string" ? value.trim() : value), z.enum(["development", "test", "production"]))
@@ -61,6 +64,18 @@ const envSchema = z.object({
       z.enum(["true", "false"]).optional()
     )
     .transform((value) => (value === undefined ? undefined : value === "true")),
+  GOOGLE_OAUTH_CLIENT_ID: trimmedOptionalString,
+  GOOGLE_OAUTH_CLIENT_SECRET: trimmedOptionalString,
+  GOOGLE_OAUTH_REDIRECT_URIS: trimmedOptionalString,
+  OAUTH_REQUIRE_VERIFIED_EMAIL: z
+    .preprocess(
+      (value) => (typeof value === "string" ? value.trim() : value),
+      z.enum(["true", "false"]).optional()
+    )
+    .transform((value) => (value === undefined ? undefined : value === "true")),
+  OAUTH_STATE_TTL_MINUTES: trimmedOptionalNumber
+    .pipe(z.number().int().positive().optional())
+    .transform((value) => value ?? 10),
   PORT: z.coerce.number().int().positive().default(4000),
   PASSWORD_RESET_LINK_BASE_URL: trimmedOptionalString,
   PASSWORD_RESET_TOKEN_SECRET: trimmedOptionalString,
@@ -86,6 +101,7 @@ const envSchema = z.object({
 export type AppEnv = z.infer<typeof envSchema> & {
   EMAIL_PROVIDER: "console" | "resend";
   JWT_SECRET: string;
+  OAUTH_STATE_TTL_MINUTES: number;
   PASSWORD_RESET_LINK_BASE_URL: string;
   PASSWORD_RESET_TOKEN_SECRET: string;
 };
@@ -220,6 +236,7 @@ export function parseEnvFrom(values: Record<string, string | undefined>): AppEnv
         ...data,
         EMAIL_PROVIDER: resolvedEmailProvider,
         JWT_SECRET: data.JWT_SECRET ?? "development-only-jwt-secret-change-before-production",
+        OAUTH_STATE_TTL_MINUTES: data.OAUTH_STATE_TTL_MINUTES ?? 10,
         PASSWORD_RESET_LINK_BASE_URL: data.PASSWORD_RESET_LINK_BASE_URL ?? "fitnessapp://reset-password",
         PASSWORD_RESET_TOKEN_SECRET:
           data.PASSWORD_RESET_TOKEN_SECRET ??
@@ -239,9 +256,17 @@ export function parseEnvFromProcess(): AppEnv {
     DATABASE_URL: process.env.DATABASE_URL,
     EMAIL_FROM: process.env.EMAIL_FROM,
     EMAIL_PROVIDER: process.env.EMAIL_PROVIDER,
+    FACEBOOK_OAUTH_CLIENT_ID: process.env.FACEBOOK_OAUTH_CLIENT_ID,
+    FACEBOOK_OAUTH_CLIENT_SECRET: process.env.FACEBOOK_OAUTH_CLIENT_SECRET,
+    FACEBOOK_OAUTH_REDIRECT_URIS: process.env.FACEBOOK_OAUTH_REDIRECT_URIS,
+    GOOGLE_OAUTH_CLIENT_ID: process.env.GOOGLE_OAUTH_CLIENT_ID,
+    GOOGLE_OAUTH_CLIENT_SECRET: process.env.GOOGLE_OAUTH_CLIENT_SECRET,
+    GOOGLE_OAUTH_REDIRECT_URIS: process.env.GOOGLE_OAUTH_REDIRECT_URIS,
     JWT_SECRET: process.env.JWT_SECRET,
     NODE_ENV: process.env.NODE_ENV,
     OBSERVABILITY_ENABLED: process.env.OBSERVABILITY_ENABLED,
+    OAUTH_REQUIRE_VERIFIED_EMAIL: process.env.OAUTH_REQUIRE_VERIFIED_EMAIL,
+    OAUTH_STATE_TTL_MINUTES: process.env.OAUTH_STATE_TTL_MINUTES,
     PORT: process.env.PORT,
     PASSWORD_RESET_LINK_BASE_URL: process.env.PASSWORD_RESET_LINK_BASE_URL,
     PASSWORD_RESET_TOKEN_SECRET: process.env.PASSWORD_RESET_TOKEN_SECRET,

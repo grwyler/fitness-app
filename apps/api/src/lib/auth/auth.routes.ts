@@ -14,6 +14,7 @@ import { issueAuthToken } from "./token.js";
 import type { UserRole } from "../../modules/workout/application/types/request-context.js";
 import { getEnv } from "../../config/env.js";
 import { resolveRoleForEmail } from "./admin-email-allowlist.js";
+import { createOAuthRouter } from "./oauth/oauth.routes.js";
 
 type DatabaseLike = {
   select: (...args: any[]) => any;
@@ -109,6 +110,8 @@ async function findUserById(database: DatabaseLike, userId: string) {
 export function createPublicAuthRouter(database: DatabaseLike) {
   const router = Router();
   const env = getEnv();
+
+  router.use(createOAuthRouter(database));
 
   const signUpRateLimit = createRateLimitMiddleware({
     key: (request) => `auth_signup|email=${normalizeEmailFromBody((request.body as any)?.email) ?? "none"}`,

@@ -28,6 +28,9 @@ The Expo project lives in `apps/mobile` and uses:
 The mobile app reads runtime config from **public Expo env vars** (no secrets):
 
 - `EXPO_PUBLIC_API_BASE_URL` (required): `https://YOUR_API_HOST/api/v1`
+- OAuth (if enabled):
+  - `EXPO_PUBLIC_GOOGLE_OAUTH_CLIENT_ID`
+  - `EXPO_PUBLIC_GOOGLE_OAUTH_REDIRECT_URI`
 - `EXPO_PUBLIC_SENTRY_DSN` (optional)
 - `EXPO_PUBLIC_SENTRY_ENVIRONMENT` (set by `apps/mobile/eas.json`, can override)
 - `EXPO_PUBLIC_SENTRY_RELEASE` (optional)

@@ -28,6 +28,9 @@
       "bundler": "metro",
       "output": "single"
     },
+    "plugins": [
+      "expo-web-browser"
+    ],
     "assetBundlePatterns": [
       "**/*"
     ],

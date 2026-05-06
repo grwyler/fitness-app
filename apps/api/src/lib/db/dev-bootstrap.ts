@@ -247,7 +247,37 @@ const templateEntries = [
 
 const schemaSql = `
 create table if not exists users (id uuid primary key, auth_provider_id text not null unique, email text not null unique, password_hash text, tokens_invalid_before timestamptz, display_name text, role text not null default 'user', timezone text not null default 'America/New_York', unit_system text not null default 'imperial', experience_level text, training_goal text, deleted_at timestamptz, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
- alter table users add column if not exists role text not null default 'user';
+alter table users add column if not exists role text not null default 'user';
+create type oauth_provider as enum ('google', 'facebook');
+
+create table if not exists user_oauth_identities (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references users(id),
+  provider oauth_provider not null,
+  provider_user_id text not null,
+  email text,
+  email_verified boolean not null default false,
+  display_name text,
+  avatar_url text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create unique index if not exists idx_user_oauth_identities_provider_user on user_oauth_identities(provider, provider_user_id);
+create unique index if not exists idx_user_oauth_identities_user_provider on user_oauth_identities(user_id, provider);
+create index if not exists idx_user_oauth_identities_user_id on user_oauth_identities(user_id);
+
+create table if not exists oauth_states (
+  id uuid primary key default gen_random_uuid(),
+  provider oauth_provider not null,
+  intent text,
+  state_hash text not null,
+  expires_at timestamptz not null,
+  consumed_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create unique index if not exists idx_oauth_states_state_hash on oauth_states(state_hash);
+create index if not exists idx_oauth_states_expires_at on oauth_states(expires_at);
+
 create table if not exists user_training_settings (user_id uuid primary key references users(id), progression_aggressiveness text not null default 'balanced', default_barbell_increment_lbs numeric(5,2) not null default 5, default_dumbbell_increment_lbs numeric(5,2) not null default 5, default_machine_increment_lbs numeric(5,2) not null default 10, default_cable_increment_lbs numeric(5,2) not null default 5, use_recovery_adjustments boolean not null default true, default_recovery_state text not null default 'normal', allow_auto_deload boolean not null default true, allow_recalibration boolean not null default true, prefer_rep_progression_before_weight boolean not null default true, minimum_confidence_for_increase text not null default 'medium', created_at timestamptz not null default now(), updated_at timestamptz not null default now());
 alter table users add column if not exists password_hash text;
 create table if not exists password_reset_tokens (id uuid primary key, user_id uuid not null references users(id), token_hash text not null unique, expires_at timestamptz not null, consumed_at timestamptz, created_at timestamptz not null default now());
@@ -324,10 +354,26 @@ export async function bootstrapDevelopmentDatabase(executor: SqlExecutor) {
     .filter((statement) => statement.length > 0);
 
   for (const statement of schemaStatements) {
-    if (executor.exec) {
-      await executor.exec(statement);
-    } else {
-      await executor.query(statement);
+    try {
+      if (executor.exec) {
+        await executor.exec(statement);
+      } else {
+        await executor.query(statement);
+      }
+    } catch (error) {
+      const isOauthProviderType =
+        /^create\s+type\s+oauth_provider\s+as\s+enum/i.test(statement) ||
+        /^create\s+type\s+oauth_provider\b/i.test(statement);
+
+      const code = (error as any)?.code;
+      const message = typeof (error as any)?.message === "string" ? (error as any).message.toLowerCase() : "";
+      const isDuplicateType = code === "42710" || message.includes("already exists") || message.includes("duplicate_object");
+
+      if (isOauthProviderType && isDuplicateType) {
+        continue;
+      }
+
+      throw error;
     }
   }
 

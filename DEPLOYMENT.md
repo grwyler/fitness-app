@@ -76,6 +76,16 @@ Optional override (usually not needed):
 
 - `EXPO_PUBLIC_API_BASE_URL`: defaults to `https://setwiseapi.vercel.app/api/v1` for Vercel builds
 
+OAuth (Google) for the Expo client (public env vars):
+
+- `EXPO_PUBLIC_GOOGLE_OAUTH_CLIENT_ID`
+- `EXPO_PUBLIC_GOOGLE_OAUTH_REDIRECT_URI`
+
+Local development notes:
+
+- Expo reads `EXPO_PUBLIC_*` variables from `apps/mobile/.env.local`, `apps/mobile/.env`, repo-root `.env.local`, or repo-root `.env` via `apps/mobile/app.config.js`.
+- Restart Expo after changes: `npm run dev:mobile -- --clear` (or `cd apps/mobile && npx expo start -c`).
+
 Optional (recommended) observability for mobile/web builds:
 
 - `EXPO_PUBLIC_SENTRY_DSN`: Sentry DSN for the Expo app (web + native)
@@ -114,6 +124,15 @@ Optional:
 - `USE_PGLITE_DEV` should be left unset in production
 - `PASSWORD_RESET_TOKEN_TTL_MINUTES`: token lifetime in minutes (default `30`)
 - `PASSWORD_RESET_TOKEN_SECRET`: optional; defaults to `JWT_SECRET`
+- OAuth (if enabled):
+  - `GOOGLE_OAUTH_CLIENT_ID`
+  - `GOOGLE_OAUTH_CLIENT_SECRET`
+  - `GOOGLE_OAUTH_REDIRECT_URIS`
+  - `FACEBOOK_OAUTH_CLIENT_ID`
+  - `FACEBOOK_OAUTH_CLIENT_SECRET`
+  - `FACEBOOK_OAUTH_REDIRECT_URIS`
+  - `OAUTH_STATE_TTL_MINUTES`
+  - `OAUTH_REQUIRE_VERIFIED_EMAIL`
 
 Optional (recommended) API observability:
 

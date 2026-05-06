@@ -4,12 +4,13 @@ Last audited: 2026-04-28
 
 ## Current Implementation
 
-The app currently uses first-party email/password auth with app-issued bearer tokens.
+The app currently uses first-party email/password auth plus optional Google/Facebook OAuth, with app-issued bearer tokens.
 
 Mobile flow:
 
 - `apps/mobile/src/screens/SignInScreen.tsx` submits email/password to `POST /auth/signin`.
 - `apps/mobile/src/screens/SignUpScreen.tsx` submits email/password to `POST /auth/signup`.
+- Both screens also support Google/Facebook via `apps/mobile/src/core/auth/use-oauth-auth.ts`, exchanging authorization codes via the API.
 - `apps/mobile/src/core/auth/AuthProvider.tsx` stores the returned token, restores a saved token on startup, and calls `GET /auth/me` to confirm the session.
 - `apps/mobile/src/core/auth/token-storage.ts` stores tokens in `expo-secure-store` on native and `localStorage` on web.
 - `apps/mobile/src/api/client.ts` attaches `Authorization: Bearer <token>` to API requests.
@@ -17,6 +18,7 @@ Mobile flow:
 API flow:
 
 - `apps/api/src/lib/auth/auth.routes.ts` exposes `POST /auth/signup`, `POST /auth/signin`, and protected `GET /auth/me`.
+- `apps/api/src/lib/auth/oauth/oauth.routes.ts` exposes `POST /auth/oauth/state` and `POST /auth/oauth/exchange`.
 - Sign-up normalizes email, enforces valid email plus an 8-character minimum password, checks for an existing email, hashes the password, inserts a `users` row, and returns a token.
 - Sign-in normalizes email, looks up the user, verifies the supplied password against `users.password_hash`, and returns a token.
 - `apps/api/src/lib/auth/password.ts` uses salted PBKDF2-SHA256 with 210,000 iterations and timing-safe comparison.
@@ -28,13 +30,17 @@ User model:
 
 - `packages/db/src/schema.ts` defines `users.id`, `auth_provider_id`, unique `email`, nullable `password_hash`, profile fields, and `deleted_at`.
 - `auth_provider_id` is currently mirrored to the generated user id for app-auth signups.
-- There are no email verification, password reset, OAuth account-linking, refresh-token, or session-revocation tables.
+- `packages/db/src/schema.ts` also defines:
+  - `user_oauth_identities` for linking Google/Facebook identities to a `users` row
+  - `oauth_states` for short-lived one-time state validation
+- There are no email verification, refresh-token, or session-revocation tables.
 
 Tests:
 
 - API HTTP tests cover valid bearer-token middleware behavior and the sign-up/sign-in/me happy path.
+- API HTTP tests cover OAuth state validation and Google/Facebook create/link behavior.
 - Mobile tests cover session-status derivation, authorization header attachment, and preserving app state on authenticated 401 responses.
-- Tests do not yet cover invalid password rejection, duplicate sign-up, malformed/expired tokens, missing password hash, password reset, email verification, OAuth, or rate limiting.
+- Tests do not yet cover malformed/expired tokens, missing password hash, email verification, or rate limiting.
 
 ## Secure Today
 
@@ -49,7 +55,7 @@ Tests:
 
 ## Placeholder or Incomplete Behavior
 
-- The auth system is still MVP-grade: no password reset, email verification, OAuth, refresh tokens, token revocation, or session inventory.
+- The auth system is still MVP-grade: no email verification, refresh tokens, token revocation, or session inventory.
 - The token implementation is custom instead of a well-tested JWT library. It works for the current shape but lacks standard issuer/audience validation, key rotation support, and stronger claim validation.
 - Tokens live for 30 days with no refresh-token boundary or server-side revocation.
 - Web stores bearer tokens in `localStorage`, which increases impact from XSS compared with httpOnly cookies.
@@ -68,7 +74,7 @@ Tests:
 - Account quality risk because emails are not verified.
 - Long-lived stolen token risk because there is no refresh/revocation model.
 - Production maintenance risk from custom token code and no key rotation path.
-- Future OAuth migration risk because the user model has only a single `auth_provider_id` instead of a provider-account table.
+- OAuth provider configuration depends on correctly configured redirect URIs (exact match) in both the provider console and the API allowlist.
 
 ## Recommended Implementation Order
 

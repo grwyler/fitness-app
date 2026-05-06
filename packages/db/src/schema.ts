@@ -58,6 +58,7 @@ const idempotencyStatusEnum = pgEnum("idempotency_status", ["pending", "complete
 const progressionConfidenceEnum = pgEnum("progression_confidence", progressionConfidenceLevels);
 const bodyweightProgressionModeEnum = pgEnum("bodyweight_progression_mode", bodyweightProgressionModes);
 const userRoleEnum = pgEnum("user_role", ["user", "admin"]);
+const oauthProviderEnum = pgEnum("oauth_provider", ["google", "facebook"]);
 
 const timestamps = {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -84,6 +85,45 @@ export const users = pgTable(
   (table) => ({
     authProviderIdUnique: uniqueIndex("idx_users_auth_provider_id").on(table.authProviderId),
     emailUnique: uniqueIndex("idx_users_email").on(table.email)
+  })
+);
+
+export const userOauthIdentities = pgTable(
+  "user_oauth_identities",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    provider: oauthProviderEnum("provider").notNull(),
+    providerUserId: text("provider_user_id").notNull(),
+    email: text("email"),
+    emailVerified: boolean("email_verified").notNull().default(false),
+    displayName: text("display_name"),
+    avatarUrl: text("avatar_url"),
+    ...timestamps
+  },
+  (table) => ({
+    providerUserUnique: uniqueIndex("idx_user_oauth_identities_provider_user").on(table.provider, table.providerUserId),
+    userProviderUnique: uniqueIndex("idx_user_oauth_identities_user_provider").on(table.userId, table.provider),
+    userIndex: index("idx_user_oauth_identities_user_id").on(table.userId)
+  })
+);
+
+export const oauthStates = pgTable(
+  "oauth_states",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    provider: oauthProviderEnum("provider").notNull(),
+    intent: text("intent"),
+    stateHash: text("state_hash").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => ({
+    stateHashUnique: uniqueIndex("idx_oauth_states_state_hash").on(table.stateHash),
+    expiresIndex: index("idx_oauth_states_expires_at").on(table.expiresAt)
   })
 );
 

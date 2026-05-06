@@ -167,6 +167,22 @@ module.exports = () => {
     "EXPO_PUBLIC_OBSERVABILITY_ENABLED",
     resolveOptions,
   );
+  const googleClientIdResult = resolveEnvValue(
+    "EXPO_PUBLIC_GOOGLE_OAUTH_CLIENT_ID",
+    resolveOptions,
+  );
+  const googleRedirectUriResult = resolveEnvValue(
+    "EXPO_PUBLIC_GOOGLE_OAUTH_REDIRECT_URI",
+    resolveOptions,
+  );
+  const facebookClientIdResult = resolveEnvValue(
+    "EXPO_PUBLIC_FACEBOOK_OAUTH_CLIENT_ID",
+    resolveOptions,
+  );
+  const facebookRedirectUriResult = resolveEnvValue(
+    "EXPO_PUBLIC_FACEBOOK_OAUTH_REDIRECT_URI",
+    resolveOptions,
+  );
 
   if (isProductionBuild) {
     assertProductionApiBaseUrl(
@@ -191,6 +207,18 @@ module.exports = () => {
     process.env.EXPO_PUBLIC_OBSERVABILITY_ENABLED =
       observabilityEnabledResult.value;
   }
+  if (googleClientIdResult.value) {
+    process.env.EXPO_PUBLIC_GOOGLE_OAUTH_CLIENT_ID = googleClientIdResult.value;
+  }
+  if (googleRedirectUriResult.value) {
+    process.env.EXPO_PUBLIC_GOOGLE_OAUTH_REDIRECT_URI = googleRedirectUriResult.value;
+  }
+  if (facebookClientIdResult.value) {
+    process.env.EXPO_PUBLIC_FACEBOOK_OAUTH_CLIENT_ID = facebookClientIdResult.value;
+  }
+  if (facebookRedirectUriResult.value) {
+    process.env.EXPO_PUBLIC_FACEBOOK_OAUTH_REDIRECT_URI = facebookRedirectUriResult.value;
+  }
 
   process.env.EXPO_PUBLIC_APP_VERSION = appVersion;
 
@@ -201,6 +229,10 @@ module.exports = () => {
       ...expoConfig.extra,
       apiBaseUrl,
       appVersion,
+      googleOAuthClientId: googleClientIdResult.value,
+      googleOAuthRedirectUri: googleRedirectUriResult.value,
+      facebookOAuthClientId: facebookClientIdResult.value,
+      facebookOAuthRedirectUri: facebookRedirectUriResult.value,
     },
   };
 };

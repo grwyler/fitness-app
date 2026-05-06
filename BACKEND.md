@@ -19,6 +19,8 @@ The core backend slice currently supports:
 - `POST /api/v1/workout-sessions/:sessionId/complete`
 - `POST /api/v1/auth/password-reset/request`
 - `POST /api/v1/auth/password-reset/confirm`
+- `POST /api/v1/auth/oauth/state`
+- `POST /api/v1/auth/oauth/exchange`
 - `GET /api/v1/admin/feedback` (admin-only)
 - `POST /api/v1/admin/test-tools/seed-test-account` (admin-only)
 - `POST /api/v1/admin/test-tools/reset-user-data` (admin-only)
@@ -74,6 +76,19 @@ Password reset + email delivery:
   - `PASSWORD_RESET_LINK_BASE_URL`: base deep link / URL used in reset emails
   - `PASSWORD_RESET_TOKEN_TTL_MINUTES`: token lifetime (default `30`)
   - `PASSWORD_RESET_TOKEN_SECRET`: optional; defaults to `JWT_SECRET`
+
+OAuth (Google):
+
+- `GOOGLE_OAUTH_CLIENT_ID`: required to enable Google OAuth
+- `GOOGLE_OAUTH_CLIENT_SECRET`: required if your Google OAuth client uses a secret (recommended for server-side exchange)
+- `GOOGLE_OAUTH_REDIRECT_URIS`: comma-separated list of exact redirect URIs allowed by the API
+- `OAUTH_STATE_TTL_MINUTES`: optional; defaults to `10`
+- `OAUTH_REQUIRE_VERIFIED_EMAIL`: optional; when `true`, rejects provider sign-in attempts without a verified email (default: `false`)
+
+Local development notes:
+
+- The API loads environment variables from (in order): `apps/api/.env.local`, `apps/api/.env`, repo-root `.env.local`, repo-root `.env`.
+- Restart `npm run dev:api` after changing any API OAuth env vars.
 
 Hosted Postgres notes:
 

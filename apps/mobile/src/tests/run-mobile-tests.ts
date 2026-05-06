@@ -14,11 +14,13 @@ import { unitSystemMetricTestCases } from "./unit-system-metric.test.js";
 import { mobileConfigTestCases } from "./mobile-config.test.js";
 import { guidedProgramIntakeTestCases } from "./guided-program-intake.test.js";
 import { releaseNotesTestCases } from "./release-notes.test.js";
+import { oauthConfigTestCases } from "./oauth-config.test.js";
 
 runMobileTestCases([
   ...mobileConfigTestCases,
   ...mobileApiTestCases,
   ...authBehaviorTestCases,
+  ...oauthConfigTestCases,
   ...feedbackTestCases,
   ...progressionScreenTestCases,
   ...setLoggingTestCases,

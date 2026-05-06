@@ -4,11 +4,13 @@ import { workoutHttpTestCases } from "./workout.http.test.js";
 import { feedbackHttpTestCases } from "../../feedback/feedback.http.test.js";
 import { passwordResetHttpTestCases } from "../../../lib/auth/password-reset.http.test.js";
 import { adminUsersHttpTestCases } from "../../admin/admin.users.http.test.js";
+import { oauthHttpTestCases } from "../../../lib/auth/oauth.http.test.js";
 
 await runHttpTestCases([
   ...healthHttpTestCases,
   ...workoutHttpTestCases,
   ...feedbackHttpTestCases,
   ...adminUsersHttpTestCases,
-  ...passwordResetHttpTestCases
+  ...passwordResetHttpTestCases,
+  ...oauthHttpTestCases
 ]);
