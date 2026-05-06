@@ -42,6 +42,9 @@ type ExerciseConfigDraft = {
   targetSetsText: string;
   targetRepsText: string;
   targetWeightText: string;
+  targetDurationText: string;
+  targetDistanceText: string;
+  targetRoundsText: string;
   progressionStrategy: ProgressionStrategy;
 };
 
@@ -104,11 +107,62 @@ function parseRepGoalDraft(value: string) {
   return { repGoal: min, repRangeMin: min, repRangeMax: max };
 }
 
+function parseDurationSecondsDraft(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  if (trimmed.includes(":")) {
+    const [minutesText = "", secondsText = ""] = trimmed.split(":");
+    const minutes = Number(minutesText);
+    const seconds = Number(secondsText);
+    if (!Number.isInteger(minutes) || minutes < 0) return null;
+    if (!Number.isInteger(seconds) || seconds < 0 || seconds >= 60) return null;
+    const total = minutes * 60 + seconds;
+    return total > 0 ? total : null;
+  }
+
+  const seconds = Number(trimmed);
+  return Number.isInteger(seconds) && seconds > 0 ? seconds : null;
+}
+
+function parseDistanceMetersDraft(value: string, unitSystem: UnitSystem) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const distanceValue = Number(trimmed);
+  if (!Number.isFinite(distanceValue) || distanceValue < 0) {
+    return null;
+  }
+
+  return unitSystem === "metric" ? distanceValue * 1000 : distanceValue * 1609.344;
+}
+
+function formatDurationDraft(seconds: number) {
+  const safe = Math.max(0, Math.floor(seconds));
+  const minutes = Math.floor(safe / 60);
+  const remaining = safe % 60;
+  return `${minutes}:${remaining.toString().padStart(2, "0")}`;
+}
+
+function formatDistanceDraft(distanceMeters: number, unitSystem: UnitSystem) {
+  const value = unitSystem === "metric" ? distanceMeters / 1000 : distanceMeters / 1609.344;
+  return value.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+}
+
 function buildDefaultConfig(exercise: ExerciseCatalogItemDto, unitSystem: UnitSystem): ExerciseConfigDraft {
   const sets = exercise.defaultTargetSets ?? CUSTOM_WORKOUT_DEFAULT_TARGET_SETS;
   const reps = exercise.defaultTargetReps ?? CUSTOM_WORKOUT_DEFAULT_TARGET_REPS;
   const weight = exercise.defaultStartingWeight.value;
+  const isRepsModality = exercise.loggingModality === "reps_load" || exercise.loggingModality === "reps_only";
   const progressionStrategy: ProgressionStrategy = (() => {
+    if (!isRepsModality) {
+      return "no_progression";
+    }
+
     if (!exercise.isProgressionEligible) {
       return "no_progression";
     }
@@ -120,11 +174,23 @@ function buildDefaultConfig(exercise: ExerciseCatalogItemDto, unitSystem: UnitSy
     return "double_progression";
   })();
 
+  const defaultDurationText = exercise.loggingModality === "hold" ? "0:30" : "20:00";
+  const usesDuration =
+    exercise.loggingModality === "time" ||
+    exercise.loggingModality === "hold" ||
+    exercise.loggingModality === "time_distance" ||
+    exercise.loggingModality === "distance" ||
+    exercise.loggingModality === "interval";
+  const usesDistance = exercise.loggingModality === "time_distance" || exercise.loggingModality === "distance";
+  const usesRounds = exercise.loggingModality === "interval";
+
   return {
     targetSetsText: String(sets),
-    targetRepsText: String(reps),
+    targetRepsText: isRepsModality ? String(reps) : "",
     targetWeightText:
-      exercise.isWeightOptional && weight === 0
+      !isRepsModality
+        ? ""
+        : exercise.isWeightOptional && weight === 0
         ? ""
         : formatWeightForUser({
             weightLbs: weight,
@@ -132,15 +198,36 @@ function buildDefaultConfig(exercise: ExerciseCatalogItemDto, unitSystem: UnitSy
             includeUnit: false,
             maximumFractionDigits: unitSystem === "metric" ? 1 : 2
           }).text,
+    targetDurationText: usesDuration ? defaultDurationText : "",
+    targetDistanceText: usesDistance ? "" : "",
+    targetRoundsText: usesRounds ? "5" : "",
     progressionStrategy
   };
 }
 
 function buildExerciseMeta(exercise: ExerciseCatalogItemDto) {
-  return [exercise.category, exercise.primaryMuscleGroup, exercise.equipmentType].filter(Boolean).join(" - ");
+  const parts = [exercise.category, exercise.primaryMuscleGroup, exercise.equipmentType]
+    .map((value) => (typeof value === "string" ? value.trim() : value))
+    .filter((value): value is string => Boolean(value));
+
+  const seen = new Set<string>();
+  const deduped: string[] = [];
+  for (const part of parts) {
+    const key = part.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(part);
+  }
+
+  return deduped.join(" - ");
 }
 
 function getAvailableProgressionStrategies(exercise: ExerciseCatalogItemDto): ProgressionStrategy[] {
+  const isRepsModality = exercise.loggingModality === "reps_load" || exercise.loggingModality === "reps_only";
+  if (!isRepsModality) {
+    return ["no_progression"];
+  }
+
   if (!exercise.isProgressionEligible) {
     return ["no_progression"];
   }
@@ -308,10 +395,21 @@ export function CustomExercisePickerModal(props: {
         next[exercise.id] = {
           ...defaults,
           targetSetsText: String(request.targetSets),
-          targetRepsText:
-            request.repRangeMin != null && request.repRangeMax != null && request.repRangeMax > request.repRangeMin
-              ? `${request.repRangeMin}-${request.repRangeMax}`
-              : String(request.targetReps),
+          ...(request.targetReps != null
+            ? {
+                targetRepsText:
+                  request.repRangeMin != null && request.repRangeMax != null && request.repRangeMax > request.repRangeMin
+                    ? `${request.repRangeMin}-${request.repRangeMax}`
+                    : String(request.targetReps)
+              }
+            : { targetRepsText: "" }),
+          ...(request.targetDurationSeconds != null
+            ? { targetDurationText: formatDurationDraft(request.targetDurationSeconds) }
+            : { targetDurationText: defaults.targetDurationText }),
+          ...(request.targetDistanceMeters != null
+            ? { targetDistanceText: formatDistanceDraft(request.targetDistanceMeters, props.unitSystem) }
+            : { targetDistanceText: defaults.targetDistanceText }),
+          ...(request.targetRounds != null ? { targetRoundsText: String(request.targetRounds) } : { targetRoundsText: defaults.targetRoundsText }),
           ...(request.progressionStrategy &&
           (progressionStrategies as readonly string[]).includes(request.progressionStrategy)
             ? { progressionStrategy: request.progressionStrategy }
@@ -466,39 +564,84 @@ export function CustomExercisePickerModal(props: {
       return { ok: false, message: "Sets must be between 1 and 20." };
     }
 
+    const modality = activeExercise.loggingModality;
+
     const repDraft = parseRepGoalDraft(activeExerciseConfig.targetRepsText);
-    if (!repDraft) {
-      return { ok: false, message: "Reps must be a number like 8 or a range like 8-12." };
-    }
-
-    const reps = repDraft.repGoal;
-    const repRangeMin = repDraft.repRangeMin;
-    const repRangeMax = repDraft.repRangeMax;
-
-    if (reps < 1 || reps > 100) {
-      return { ok: false, message: "Target reps must be between 1 and 100." };
-    }
-
-    if (repRangeMin !== null && repRangeMax !== null) {
-      if (repRangeMin < 1 || repRangeMin > 100 || repRangeMax < 1 || repRangeMax > 100) {
-        return { ok: false, message: "Rep ranges must be between 1 and 100." };
-      }
-
-      if (repRangeMax < repRangeMin) {
-        return { ok: false, message: "Rep range max must be greater than or equal to min." };
-      }
-    }
+    const durationSeconds = parseDurationSecondsDraft(activeExerciseConfig.targetDurationText);
+    const distanceMeters = parseDistanceMetersDraft(activeExerciseConfig.targetDistanceText, props.unitSystem);
+    const rounds = parseIntDraft(activeExerciseConfig.targetRoundsText);
 
     const weightLbs =
       activeExerciseConfig.targetWeightText.trim().length > 0
         ? parseWeightInputForUser({ weightText: activeExerciseConfig.targetWeightText, unitSystem: props.unitSystem })
         : null;
+
     if (weightLbs !== null && (weightLbs < 0 || weightLbs > 2000)) {
       return { ok: false, message: "Weight must be between 0 and 2000." };
     }
 
-    if (!activeExercise.isWeightOptional && (weightLbs === null || weightLbs === undefined)) {
-      return { ok: false, message: "Weight is required for this exercise." };
+    if (modality === "reps_load" || modality === "reps_only") {
+      if (!repDraft) {
+        return { ok: false, message: "Reps must be a number like 8 or a range like 8-12." };
+      }
+
+      const reps = repDraft.repGoal;
+      const repRangeMin = repDraft.repRangeMin;
+      const repRangeMax = repDraft.repRangeMax;
+
+      if (reps < 1 || reps > 200) {
+        return { ok: false, message: "Target reps must be between 1 and 200." };
+      }
+
+      if (repRangeMin !== null && repRangeMax !== null) {
+        if (repRangeMin < 1 || repRangeMin > 200 || repRangeMax < 1 || repRangeMax > 200) {
+          return { ok: false, message: "Rep ranges must be between 1 and 200." };
+        }
+
+        if (repRangeMax < repRangeMin) {
+          return { ok: false, message: "Rep range max must be greater than or equal to min." };
+        }
+      }
+
+      if (modality === "reps_load" && !activeExercise.isWeightOptional && (weightLbs === null || weightLbs === undefined)) {
+        return { ok: false, message: "Weight is required for this exercise." };
+      }
+
+      const strategy = activeExerciseConfig.progressionStrategy;
+      if (!(progressionStrategies as readonly string[]).includes(strategy)) {
+        return { ok: false, message: "Choose a valid progression strategy." };
+      }
+
+      return { ok: true as const, sets, reps, repRangeMin, repRangeMax, weightLbs, durationSeconds: null, distanceMeters: null, rounds: null, strategy };
+    }
+
+    if (modality === "time" || modality === "hold") {
+      if (durationSeconds === null) {
+        return { ok: false, message: "Duration must look like 20:00 or 60 (seconds)." };
+      }
+
+      return { ok: true as const, sets, reps: null, repRangeMin: null, repRangeMax: null, weightLbs: null, durationSeconds, distanceMeters: null, rounds: null, strategy: activeExerciseConfig.progressionStrategy };
+    }
+
+    if (modality === "time_distance") {
+      if (durationSeconds === null && distanceMeters === null) {
+        return { ok: false, message: "Enter a duration and/or distance." };
+      }
+
+      return { ok: true as const, sets, reps: null, repRangeMin: null, repRangeMax: null, weightLbs: null, durationSeconds, distanceMeters, rounds: null, strategy: activeExerciseConfig.progressionStrategy };
+    }
+
+    if (modality === "distance") {
+      if (distanceMeters === null) {
+        return { ok: false, message: "Distance is required." };
+      }
+
+      return { ok: true as const, sets, reps: null, repRangeMin: null, repRangeMax: null, weightLbs: null, durationSeconds, distanceMeters, rounds: null, strategy: activeExerciseConfig.progressionStrategy };
+    }
+
+    // interval
+    if (rounds === null || rounds < 1 || rounds > 10_000) {
+      return { ok: false, message: "Rounds must be between 1 and 10,000." };
     }
 
     const strategy = activeExerciseConfig.progressionStrategy;
@@ -506,7 +649,7 @@ export function CustomExercisePickerModal(props: {
       return { ok: false, message: "Choose a valid progression strategy." };
     }
 
-    return { ok: true as const, sets, reps, repRangeMin, repRangeMax, weightLbs, strategy };
+    return { ok: true as const, sets, reps: null, repRangeMin: null, repRangeMax: null, weightLbs: null, durationSeconds, distanceMeters: null, rounds, strategy };
   }
 
   function updateActiveConfig(patch: Partial<ExerciseConfigDraft>) {
@@ -541,25 +684,41 @@ export function CustomExercisePickerModal(props: {
     const requests: CustomExercisePickerRequest[] = selectedExercises.map((exercise) => {
       const config = configByExerciseId[exercise.id] ?? buildDefaultConfig(exercise, props.unitSystem);
       const sets = parseIntDraft(config.targetSetsText) ?? CUSTOM_WORKOUT_DEFAULT_TARGET_SETS;
-      const repDraft = parseRepGoalDraft(config.targetRepsText);
-      const reps = repDraft?.repGoal ?? CUSTOM_WORKOUT_DEFAULT_TARGET_REPS;
-      const repRangeMin = repDraft?.repRangeMin ?? null;
-      const repRangeMax = repDraft?.repRangeMax ?? null;
       const weightLbs =
         config.targetWeightText.trim().length > 0
           ? parseWeightInputForUser({ weightText: config.targetWeightText, unitSystem: props.unitSystem })
           : null;
+      const durationSeconds = parseDurationSecondsDraft(config.targetDurationText);
+      const distanceMeters = parseDistanceMetersDraft(config.targetDistanceText, props.unitSystem);
+      const rounds = parseIntDraft(config.targetRoundsText);
       const workoutTemplateExerciseEntryId = templateEntryIdByExerciseIdRef.current[exercise.id] ?? null;
+
+      const modality = exercise.loggingModality;
+      const repDraft = parseRepGoalDraft(config.targetRepsText);
+      const reps = repDraft?.repGoal ?? CUSTOM_WORKOUT_DEFAULT_TARGET_REPS;
+      const repRangeMin = repDraft?.repRangeMin ?? null;
+      const repRangeMax = repDraft?.repRangeMax ?? null;
 
       return {
         exerciseId: exercise.id,
         ...(workoutTemplateExerciseEntryId ? { workoutTemplateExerciseEntryId } : {}),
         targetSets: sets,
-        targetReps: reps,
-        ...(repRangeMin !== null && repRangeMax !== null && repRangeMax > repRangeMin
-          ? { repRangeMin, repRangeMax }
+        ...(modality === "reps_load" || modality === "reps_only"
+          ? {
+              targetReps: reps,
+              ...(repRangeMin !== null && repRangeMax !== null && repRangeMax > repRangeMin
+                ? { repRangeMin, repRangeMax }
+                : {}),
+              ...(weightLbs !== null ? { targetWeight: { value: weightLbs, unit: "lb" } } : {})
+            }
           : {}),
-        ...(weightLbs !== null ? { targetWeight: { value: weightLbs, unit: "lb" } } : {}),
+        ...(modality === "time" || modality === "hold" || modality === "time_distance" || modality === "distance" || modality === "interval"
+          ? {
+              ...(durationSeconds !== null ? { targetDurationSeconds: durationSeconds } : {}),
+              ...(distanceMeters !== null ? { targetDistanceMeters: distanceMeters } : {}),
+              ...(rounds !== null ? { targetRounds: rounds } : {})
+            }
+          : {}),
         progressionStrategy: config.progressionStrategy
       };
     });
@@ -615,7 +774,7 @@ export function CustomExercisePickerModal(props: {
                     {detailsExpanded && !isHeaderCompact ? (
                       <Card variant="muted" padding="md" contentStyle={styles.detailsCardContent}>
                         <AppText tone="secondary">
-                          Pick exercises, then set sets/reps/weight before adding them.
+                          Pick exercises, then set the targets before adding them.
                         </AppText>
                         {props.mode === "assignToProgramDay" ? (
                           <View style={styles.inputGroup}>
@@ -776,6 +935,21 @@ export function CustomExercisePickerModal(props: {
                 <AppText variant="cardTitle">{activeExercise.name}</AppText>
                 <AppText tone="secondary">{buildExerciseMeta(activeExercise)}</AppText>
                 <View style={styles.configureInputs}>
+                  {(() => {
+                    const modality = activeExercise.loggingModality ?? "reps_load";
+                    const isRepsBased = modality === "reps_load" || modality === "reps_only";
+                    const usesDuration =
+                      modality === "time" ||
+                      modality === "hold" ||
+                      modality === "time_distance" ||
+                      modality === "distance" ||
+                      modality === "interval";
+                    const usesDistance = modality === "time_distance" || modality === "distance";
+                    const usesRounds = modality === "interval";
+                    const distanceUnit = props.unitSystem === "metric" ? "km" : "mi";
+
+                    return (
+                      <>
                   <Input
                     label="Sets"
                     keyboardType="number-pad"
@@ -783,66 +957,121 @@ export function CustomExercisePickerModal(props: {
                     onChangeText={(value) => updateActiveConfig({ targetSetsText: value })}
                     placeholder="3"
                   />
-                  <Input
-                    label="Reps (e.g. 8 or 8-12)"
-                    keyboardType={Platform.OS === "ios" ? "numbers-and-punctuation" : "default"}
-                    value={activeExerciseConfig.targetRepsText}
-                    onChangeText={(value) => updateActiveConfig({ targetRepsText: value })}
-                    placeholder="8"
-                  />
-                  <Input
-                    label={activeExercise.isWeightOptional ? `Weight (${unitLabel}, optional)` : `Weight (${unitLabel})`}
-                    keyboardType="decimal-pad"
-                    value={activeExerciseConfig.targetWeightText}
-                    onChangeText={(value) => updateActiveConfig({ targetWeightText: value })}
-                    placeholder={
-                      activeExercise.isWeightOptional ? "Optional" : props.unitSystem === "metric" ? "60" : "135"
-                    }
-                  />
-                  <View style={styles.inlineInputGroup}>
-                    <AppText variant="sectionLabel" tone="secondary">
-                      Progression method
-                    </AppText>
-                    <AppText variant="caption" tone="tertiary">
-                      Sets how we recommend increases for this exercise.
-                    </AppText>
-                    {!activeExercise.isProgressionEligible ? (
-                      <AppText variant="caption" tone="tertiary">
-                        Progression recommendations are off for this exercise.
-                      </AppText>
-                    ) : null}
-                    <View style={styles.strategyList}>
-                      {getAvailableProgressionStrategies(activeExercise).map((strategy) => {
-                        const selected = activeExerciseConfig.progressionStrategy === strategy;
-                        const option =
-                          strategy === "double_progression"
-                            ? { title: "Reps then weight", subtitle: "Build reps in your range, then add weight." }
-                            : strategy === "fixed_weight"
-                              ? { title: "Weight only", subtitle: "Keep reps steady and add weight over time." }
-                              : strategy === "bodyweight_reps"
-                                ? { title: "Bodyweight reps", subtitle: "Add reps over time. No added load." }
-                                : strategy === "bodyweight_weighted"
-                                  ? { title: "Bodyweight + load", subtitle: "Add load over time (belt/vest)." }
-                                  : { title: "Manual", subtitle: "No recommendations. You control changes manually." };
+                  {isRepsBased ? (
+                    <>
+                      <Input
+                        label="Reps (e.g. 8 or 8-12)"
+                        keyboardType={Platform.OS === "ios" ? "numbers-and-punctuation" : "default"}
+                        value={activeExerciseConfig.targetRepsText}
+                        onChangeText={(value) => updateActiveConfig({ targetRepsText: value })}
+                        placeholder="8"
+                      />
+                      <Input
+                        label={
+                          activeExercise.isWeightOptional
+                            ? `Weight (${unitLabel}, optional)`
+                            : `Weight (${unitLabel})`
+                        }
+                        keyboardType="decimal-pad"
+                        value={activeExerciseConfig.targetWeightText}
+                        onChangeText={(value) => updateActiveConfig({ targetWeightText: value })}
+                        placeholder={
+                          activeExercise.isWeightOptional
+                            ? "Optional"
+                            : props.unitSystem === "metric"
+                              ? "60"
+                              : "135"
+                        }
+                      />
 
-                        return (
-                          <ListRow
-                            key={strategy}
-                            title={option.title}
-                            subtitle={option.subtitle}
-                            onPress={() => updateActiveConfig({ progressionStrategy: strategy })}
-                            right={
-                              selected ? (
-                                <AppText variant="caption" tone="accent">
-                                  Selected
-                                </AppText>
-                              ) : null
-                            }
-                          />
-                        );
-                      })}
-                    </View>
-                  </View>
+                      <View style={styles.inlineInputGroup}>
+                        <AppText variant="sectionLabel" tone="secondary">
+                          Progression method
+                        </AppText>
+                        <AppText variant="caption" tone="tertiary">
+                          Sets how we recommend increases for this exercise.
+                        </AppText>
+                        {!activeExercise.isProgressionEligible ? (
+                          <AppText variant="caption" tone="tertiary">
+                            Progression recommendations are off for this exercise.
+                          </AppText>
+                        ) : null}
+                        <View style={styles.strategyList}>
+                          {getAvailableProgressionStrategies(activeExercise).map((strategy) => {
+                            const selected = activeExerciseConfig.progressionStrategy === strategy;
+                            const option =
+                              strategy === "double_progression"
+                                ? { title: "Reps then weight", subtitle: "Build reps in your range, then add weight." }
+                                : strategy === "fixed_weight"
+                                  ? { title: "Weight only", subtitle: "Keep reps steady and add weight over time." }
+                                  : strategy === "bodyweight_reps"
+                                    ? { title: "Bodyweight reps", subtitle: "Add reps over time. No added load." }
+                                    : strategy === "bodyweight_weighted"
+                                      ? { title: "Bodyweight + load", subtitle: "Add load over time (belt/vest)." }
+                                      : { title: "Manual", subtitle: "No recommendations. You control changes manually." };
+
+                            return (
+                              <ListRow
+                                key={strategy}
+                                title={option.title}
+                                subtitle={option.subtitle}
+                                onPress={() => updateActiveConfig({ progressionStrategy: strategy })}
+                                right={
+                                  selected ? (
+                                    <AppText variant="caption" tone="accent">
+                                      Selected
+                                    </AppText>
+                                  ) : null
+                                }
+                              />
+                            );
+                          })}
+                        </View>
+                      </View>
+                    </>
+                  ) : (
+                    <>
+                      {usesDuration ? (
+                        <Input
+                          label={modality === "hold" ? "Hold duration (mm:ss)" : "Duration (mm:ss)"}
+                          keyboardType={Platform.OS === "ios" ? "numbers-and-punctuation" : "default"}
+                          value={activeExerciseConfig.targetDurationText}
+                          onChangeText={(value) => updateActiveConfig({ targetDurationText: value })}
+                          placeholder="20:00"
+                        />
+                      ) : null}
+                      {usesDistance ? (
+                        <Input
+                          label={`Distance (${distanceUnit})`}
+                          keyboardType="decimal-pad"
+                          value={activeExerciseConfig.targetDistanceText}
+                          onChangeText={(value) => updateActiveConfig({ targetDistanceText: value })}
+                          placeholder={props.unitSystem === "metric" ? "5" : "3.1"}
+                        />
+                      ) : null}
+                      {usesRounds ? (
+                        <Input
+                          label="Rounds"
+                          keyboardType="number-pad"
+                          value={activeExerciseConfig.targetRoundsText}
+                          onChangeText={(value) => updateActiveConfig({ targetRoundsText: value })}
+                          placeholder="5"
+                        />
+                      ) : null}
+
+                      <View style={styles.inlineInputGroup}>
+                        <AppText variant="sectionLabel" tone="secondary">
+                          Progression
+                        </AppText>
+                        <AppText variant="caption" tone="tertiary">
+                          We track what you complete and suggest small increases over time (MVP).
+                        </AppText>
+                      </View>
+                    </>
+                  )}
+                      </>
+                    );
+                  })()}
                 </View>
               </Card>
 

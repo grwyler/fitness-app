@@ -19,6 +19,7 @@ import {
   effortFeedbackValues,
   enrollmentStatuses,
   exerciseCategories,
+  exerciseLoggingModalities,
   programSources,
   programTrainingContextSources,
   progressMetricTypes,
@@ -32,7 +33,8 @@ import {
   unitSystems,
   bodyweightProgressionModes,
   progressionConfidenceLevels,
-  workoutSessionStatuses
+  workoutSessionStatuses,
+  workoutSetTypes
 } from "@fitness/shared";
 
 const unitSystemEnum = pgEnum("unit_system", unitSystems);
@@ -59,6 +61,8 @@ const progressionConfidenceEnum = pgEnum("progression_confidence", progressionCo
 const bodyweightProgressionModeEnum = pgEnum("bodyweight_progression_mode", bodyweightProgressionModes);
 const userRoleEnum = pgEnum("user_role", ["user", "admin"]);
 const oauthProviderEnum = pgEnum("oauth_provider", ["google", "facebook"]);
+const exerciseLoggingModalityEnum = pgEnum("exercise_logging_modality", exerciseLoggingModalities);
+const workoutSetTypeEnum = pgEnum("workout_set_type", workoutSetTypes);
 
 const timestamps = {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -196,6 +200,7 @@ export const exercises = pgTable(
     isBodyweight: boolean("is_bodyweight").notNull().default(false),
     isWeightOptional: boolean("is_weight_optional").notNull().default(false),
     isProgressionEligible: boolean("is_progression_eligible").notNull().default(true),
+    loggingModality: exerciseLoggingModalityEnum("logging_modality").notNull().default("reps_load"),
     isActive: boolean("is_active").notNull().default(true),
     ...timestamps
   },
@@ -383,13 +388,16 @@ export const workoutTemplateExerciseEntries = pgTable(
     exerciseId: uuid("exercise_id").notNull().references(() => exercises.id),
     sequenceOrder: integer("sequence_order").notNull(),
     targetSets: integer("target_sets").notNull(),
-    targetReps: integer("target_reps").notNull(),
+    targetReps: integer("target_reps"),
     repRangeMin: integer("rep_range_min"),
     repRangeMax: integer("rep_range_max"),
     restSeconds: integer("rest_seconds"),
     progressionStrategy: progressionStrategyEnum("progression_strategy"),
     repTargetText: text("rep_target_text"),
     targetWeightLbs: numeric("target_weight_lbs", { precision: 6, scale: 2 }),
+    targetDurationSeconds: integer("target_duration_seconds"),
+    targetDistanceMeters: numeric("target_distance_meters", { precision: 10, scale: 2 }),
+    targetRounds: integer("target_rounds"),
     notes: text("notes"),
     setTargets: jsonb("set_targets").$type<WorkoutSetTargetDto[] | null>(),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
@@ -401,12 +409,16 @@ export const workoutTemplateExerciseEntries = pgTable(
       table.sequenceOrder
     ),
     positiveSets: check("chk_workout_template_target_sets", sql`${table.targetSets} > 0`),
-    positiveReps: check("chk_workout_template_target_reps", sql`${table.targetReps} > 0`),
+    positiveReps: check(
+      "chk_workout_template_target_reps",
+      sql`${table.targetReps} is null or ${table.targetReps} > 0`
+    ),
     validRepRange: check(
       "chk_workout_template_rep_range_valid",
       sql`(
         (${table.repRangeMin} is null and ${table.repRangeMax} is null)
         or (
+          ${table.targetReps} is not null
           ${table.repRangeMin} is not null
           and ${table.repRangeMax} is not null
           and ${table.repRangeMin} > 0
@@ -414,6 +426,22 @@ export const workoutTemplateExerciseEntries = pgTable(
           and ${table.targetReps} between ${table.repRangeMin} and ${table.repRangeMax}
         )
       )`
+    ),
+    validTargetWeight: check(
+      "chk_workout_template_target_weight_nonnegative",
+      sql`${table.targetWeightLbs} is null or ${table.targetWeightLbs} >= 0`
+    ),
+    validTargetDuration: check(
+      "chk_workout_template_target_duration_seconds",
+      sql`${table.targetDurationSeconds} is null or ${table.targetDurationSeconds} > 0`
+    ),
+    validTargetDistance: check(
+      "chk_workout_template_target_distance_meters",
+      sql`${table.targetDistanceMeters} is null or ${table.targetDistanceMeters} >= 0`
+    ),
+    validTargetRounds: check(
+      "chk_workout_template_target_rounds",
+      sql`${table.targetRounds} is null or ${table.targetRounds} > 0`
     )
   })
 );
@@ -458,13 +486,17 @@ export const exerciseEntries = pgTable(
     ),
     sequenceOrder: integer("sequence_order").notNull(),
     targetSets: integer("target_sets").notNull(),
-    targetReps: integer("target_reps").notNull(),
-    targetWeightLbs: numeric("target_weight_lbs", { precision: 6, scale: 2 }).notNull(),
+    targetReps: integer("target_reps"),
+    targetWeightLbs: numeric("target_weight_lbs", { precision: 6, scale: 2 }),
+    targetDurationSeconds: integer("target_duration_seconds"),
+    targetDistanceMeters: numeric("target_distance_meters", { precision: 10, scale: 2 }),
+    targetRounds: integer("target_rounds"),
     restSeconds: integer("rest_seconds"),
     effortFeedback: effortFeedbackEnum("effort_feedback"),
     completedAt: timestamp("completed_at", { withTimezone: true }),
     exerciseNameSnapshot: text("exercise_name_snapshot").notNull(),
     exerciseCategorySnapshot: exerciseCategoryEnum("exercise_category_snapshot").notNull(),
+    loggingModalitySnapshot: exerciseLoggingModalityEnum("logging_modality_snapshot").notNull().default("reps_load"),
     progressionRuleSnapshot: jsonb("progression_rule_snapshot"),
     ...timestamps
   },
@@ -479,8 +511,26 @@ export const exerciseEntries = pgTable(
       table.sequenceOrder
     ),
     positiveSets: check("chk_exercise_entries_target_sets", sql`${table.targetSets} > 0`),
-    positiveReps: check("chk_exercise_entries_target_reps", sql`${table.targetReps} > 0`),
-    validWeight: check("chk_exercise_entries_target_weight", sql`${table.targetWeightLbs} >= 0`)
+    positiveReps: check(
+      "chk_exercise_entries_target_reps",
+      sql`${table.targetReps} is null or ${table.targetReps} > 0`
+    ),
+    validWeight: check(
+      "chk_exercise_entries_target_weight",
+      sql`${table.targetWeightLbs} is null or ${table.targetWeightLbs} >= 0`
+    ),
+    validTargetDuration: check(
+      "chk_exercise_entries_target_duration_seconds",
+      sql`${table.targetDurationSeconds} is null or ${table.targetDurationSeconds} > 0`
+    ),
+    validTargetDistance: check(
+      "chk_exercise_entries_target_distance_meters",
+      sql`${table.targetDistanceMeters} is null or ${table.targetDistanceMeters} >= 0`
+    ),
+    validTargetRounds: check(
+      "chk_exercise_entries_target_rounds",
+      sql`${table.targetRounds} is null or ${table.targetRounds} > 0`
+    )
   })
 );
 
@@ -490,10 +540,17 @@ export const sets = pgTable(
     id: uuid("id").defaultRandom().primaryKey(),
     exerciseEntryId: uuid("exercise_entry_id").notNull().references(() => exerciseEntries.id),
     setNumber: integer("set_number").notNull(),
-    targetReps: integer("target_reps").notNull(),
+    setType: workoutSetTypeEnum("set_type").notNull().default("working"),
+    targetReps: integer("target_reps"),
     actualReps: integer("actual_reps"),
-    targetWeightLbs: numeric("target_weight_lbs", { precision: 6, scale: 2 }).notNull(),
+    targetWeightLbs: numeric("target_weight_lbs", { precision: 6, scale: 2 }),
     actualWeightLbs: numeric("actual_weight_lbs", { precision: 6, scale: 2 }),
+    targetDurationSeconds: integer("target_duration_seconds"),
+    actualDurationSeconds: integer("actual_duration_seconds"),
+    targetDistanceMeters: numeric("target_distance_meters", { precision: 10, scale: 2 }),
+    actualDistanceMeters: numeric("actual_distance_meters", { precision: 10, scale: 2 }),
+    targetRounds: integer("target_rounds"),
+    actualRounds: integer("actual_rounds"),
     status: setStatusEnum("status").notNull().default("pending"),
     rir: setRirEnum("rir"),
     failureStatus: setFailureStatusEnum("failure_status"),
@@ -503,10 +560,40 @@ export const sets = pgTable(
   (table) => ({
     entryIndex: index("idx_sets_exercise_entry_id").on(table.exerciseEntryId),
     entrySetNumberUnique: uniqueIndex("idx_sets_entry_set_number").on(table.exerciseEntryId, table.setNumber),
-    positiveTargetReps: check("chk_sets_target_reps", sql`${table.targetReps} > 0`),
+    positiveTargetReps: check("chk_sets_target_reps", sql`${table.targetReps} is null or ${table.targetReps} > 0`),
     validActualReps: check("chk_sets_actual_reps", sql`${table.actualReps} is null or ${table.actualReps} >= 0`),
-    validTargetWeight: check("chk_sets_target_weight", sql`${table.targetWeightLbs} >= 0`),
-    validActualWeight: check("chk_sets_actual_weight", sql`${table.actualWeightLbs} is null or ${table.actualWeightLbs} >= 0`)
+    validTargetWeight: check(
+      "chk_sets_target_weight",
+      sql`${table.targetWeightLbs} is null or ${table.targetWeightLbs} >= 0`
+    ),
+    validActualWeight: check(
+      "chk_sets_actual_weight",
+      sql`${table.actualWeightLbs} is null or ${table.actualWeightLbs} >= 0`
+    ),
+    validTargetDuration: check(
+      "chk_sets_target_duration_seconds",
+      sql`${table.targetDurationSeconds} is null or ${table.targetDurationSeconds} > 0`
+    ),
+    validActualDuration: check(
+      "chk_sets_actual_duration_seconds",
+      sql`${table.actualDurationSeconds} is null or ${table.actualDurationSeconds} > 0`
+    ),
+    validTargetDistance: check(
+      "chk_sets_target_distance_meters",
+      sql`${table.targetDistanceMeters} is null or ${table.targetDistanceMeters} >= 0`
+    ),
+    validActualDistance: check(
+      "chk_sets_actual_distance_meters",
+      sql`${table.actualDistanceMeters} is null or ${table.actualDistanceMeters} >= 0`
+    ),
+    validTargetRounds: check(
+      "chk_sets_target_rounds",
+      sql`${table.targetRounds} is null or ${table.targetRounds} > 0`
+    ),
+    validActualRounds: check(
+      "chk_sets_actual_rounds",
+      sql`${table.actualRounds} is null or ${table.actualRounds} > 0`
+    )
   })
 );
 

@@ -179,6 +179,12 @@ export class DrizzleProgramRepository implements ProgramRepository {
             progressionStrategy: exercise.progressionStrategy ?? null,
             repTargetText: exercise.repTargetText ?? null,
             targetWeightLbs: exercise.targetWeight ? String(exercise.targetWeight.value) : null,
+            targetDurationSeconds: exercise.targetDurationSeconds ?? null,
+            targetDistanceMeters:
+              exercise.targetDistanceMeters === null || exercise.targetDistanceMeters === undefined
+                ? null
+                : String(exercise.targetDistanceMeters),
+            targetRounds: exercise.targetRounds ?? null,
             notes: exercise.notes ?? null,
             setTargets: exercise.setTargets ?? null,
             createdAt: input.createdAt,
@@ -314,9 +320,12 @@ export class DrizzleProgramRepository implements ProgramRepository {
         id: string;
         sequenceOrder: number;
         targetSets: number;
-        targetReps: number;
+        targetReps: number | null;
         repRangeMin: number | null;
         repRangeMax: number | null;
+        targetDurationSeconds: number | null;
+        targetDistanceMeters: number | null;
+        targetRounds: number | null;
         restSeconds: number | null;
         progressionStrategy: string | null;
         repTargetText: string | null;
@@ -360,6 +369,9 @@ export class DrizzleProgramRepository implements ProgramRepository {
             targetReps: exercise.targetReps,
             repRangeMin: exercise.repRangeMin ?? null,
             repRangeMax: exercise.repRangeMax ?? null,
+            targetDurationSeconds: exercise.targetDurationSeconds ?? null,
+            targetDistanceMeters: exercise.targetDistanceMeters ?? null,
+            targetRounds: exercise.targetRounds ?? null,
             restSeconds: exercise.restSeconds,
             progressionStrategy: exercise.progressionStrategy ?? null,
             repTargetText: exercise.repTargetText ?? null,
@@ -395,6 +407,9 @@ export class DrizzleProgramRepository implements ProgramRepository {
             targetReps: exercise.targetReps,
             repRangeMin: exercise.repRangeMin ?? null,
             repRangeMax: exercise.repRangeMax ?? null,
+            targetDurationSeconds: exercise.targetDurationSeconds ?? null,
+            targetDistanceMeters: exercise.targetDistanceMeters ?? null,
+            targetRounds: exercise.targetRounds ?? null,
             restSeconds: exercise.restSeconds,
             progressionStrategy: exercise.progressionStrategy ?? null,
             repTargetText: exercise.repTargetText ?? null,
@@ -414,6 +429,12 @@ export class DrizzleProgramRepository implements ProgramRepository {
           targetReps: exercise.targetReps,
           repRangeMin: exercise.repRangeMin ?? null,
           repRangeMax: exercise.repRangeMax ?? null,
+          targetDurationSeconds: exercise.targetDurationSeconds ?? null,
+          targetDistanceMeters:
+            exercise.targetDistanceMeters === null || exercise.targetDistanceMeters === undefined
+              ? null
+              : String(exercise.targetDistanceMeters),
+          targetRounds: exercise.targetRounds ?? null,
           restSeconds: exercise.restSeconds,
           progressionStrategy: exercise.progressionStrategy ?? null,
           repTargetText: exercise.repTargetText ?? null,
@@ -463,6 +484,12 @@ export class DrizzleProgramRepository implements ProgramRepository {
             targetReps: update.targetReps,
             repRangeMin: update.repRangeMin,
             repRangeMax: update.repRangeMax,
+            targetDurationSeconds: update.targetDurationSeconds,
+            targetDistanceMeters:
+              update.targetDistanceMeters === null || update.targetDistanceMeters === undefined
+                ? null
+                : String(update.targetDistanceMeters),
+            targetRounds: update.targetRounds,
             restSeconds: update.restSeconds,
             progressionStrategy: update.progressionStrategy,
             repTargetText: update.repTargetText ?? null,
@@ -587,15 +614,22 @@ export class DrizzleProgramRepository implements ProgramRepository {
         exerciseId: row.exercise.id,
         exerciseName: row.exercise.name,
         category: row.exercise.category,
+        loggingModality: row.exercise.loggingModality,
         movementPattern: row.exercise.movementPattern ?? null,
         primaryMuscleGroup: row.exercise.primaryMuscleGroup ?? null,
         equipmentType: row.exercise.equipmentType ?? null,
         isBodyweight: Boolean(row.exercise.isBodyweight),
         sequenceOrder: row.templateExercise.sequenceOrder,
         targetSets: row.templateExercise.targetSets,
-        targetReps: row.templateExercise.targetReps,
+        targetReps: row.templateExercise.targetReps ?? null,
         repRangeMin: row.templateExercise.repRangeMin ?? null,
         repRangeMax: row.templateExercise.repRangeMax ?? null,
+        targetDurationSeconds: row.templateExercise.targetDurationSeconds ?? null,
+        targetDistanceMeters:
+          row.templateExercise.targetDistanceMeters === null || row.templateExercise.targetDistanceMeters === undefined
+            ? null
+            : Number(row.templateExercise.targetDistanceMeters),
+        targetRounds: row.templateExercise.targetRounds ?? null,
         restSeconds: row.templateExercise.restSeconds,
         progressionStrategy: row.templateExercise.progressionStrategy ?? null,
         repTargetText: row.templateExercise.repTargetText ?? null,

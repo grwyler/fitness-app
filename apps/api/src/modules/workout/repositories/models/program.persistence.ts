@@ -1,6 +1,7 @@
 import type {
   DifficultyLevel,
   ExerciseCategory,
+  ExerciseLoggingModality,
   PredefinedWorkoutCategory,
   ProgramSource,
   ProgressionStrategy,
@@ -31,15 +32,19 @@ export type ProgramTemplateExerciseRecord = {
   exerciseId: string;
   exerciseName: string;
   category: ExerciseCategory;
+  loggingModality: ExerciseLoggingModality;
   movementPattern: string | null;
   primaryMuscleGroup: string | null;
   equipmentType: string | null;
   isBodyweight: boolean;
   sequenceOrder: number;
   targetSets: number;
-  targetReps: number;
+  targetReps: number | null;
   repRangeMin?: number | null;
   repRangeMax?: number | null;
+  targetDurationSeconds?: number | null;
+  targetDistanceMeters?: number | null;
+  targetRounds?: number | null;
   restSeconds: number | null;
   progressionStrategy?: ProgressionStrategy | null;
   repTargetText?: string | null;
@@ -74,9 +79,12 @@ export type CreateCustomProgramExerciseInput = {
   exerciseId: string;
   workoutTemplateExerciseEntryId?: string | null;
   targetSets: number;
-  targetReps: number;
+  targetReps: number | null;
   repRangeMin?: number | null;
   repRangeMax?: number | null;
+  targetDurationSeconds?: number | null;
+  targetDistanceMeters?: number | null;
+  targetRounds?: number | null;
   restSeconds: number | null;
   progressionStrategy?: ProgressionStrategy | null;
   repTargetText?: string | null;

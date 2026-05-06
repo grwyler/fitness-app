@@ -42,15 +42,26 @@ function toWeightValueDto(value: number): WeightValueDto {
   };
 }
 
+function toNullableWeightValueDto(value: number | null): WeightValueDto | null {
+  return value === null ? null : toWeightValueDto(value);
+}
+
 function mapSetDto(set: SetRecord) {
   return {
     id: set.id,
     exerciseEntryId: set.exerciseEntryId,
     setNumber: set.setNumber,
+    setType: set.setType,
     targetReps: set.targetReps,
     actualReps: set.actualReps,
-    targetWeight: toWeightValueDto(set.targetWeightLbs),
-    actualWeight: set.actualWeightLbs === null ? null : toWeightValueDto(set.actualWeightLbs),
+    targetWeight: toNullableWeightValueDto(set.targetWeightLbs),
+    actualWeight: toNullableWeightValueDto(set.actualWeightLbs),
+    targetDurationSeconds: set.targetDurationSeconds ?? null,
+    actualDurationSeconds: set.actualDurationSeconds ?? null,
+    targetDistanceMeters: set.targetDistanceMeters ?? null,
+    actualDistanceMeters: set.actualDistanceMeters ?? null,
+    targetRounds: set.targetRounds ?? null,
+    actualRounds: set.actualRounds ?? null,
     status: set.status,
     rir: set.rir ?? null,
     failureStatus: set.failureStatus ?? null,
@@ -65,12 +76,16 @@ function mapExerciseEntryDto(exerciseEntry: ExerciseEntryRecord, sets: SetRecord
     workoutTemplateExerciseEntryId: exerciseEntry.workoutTemplateExerciseEntryId,
     exerciseName: exerciseEntry.exerciseNameSnapshot,
     category: exerciseEntry.exerciseCategorySnapshot,
+    loggingModality: exerciseEntry.loggingModalitySnapshot,
     sequenceOrder: exerciseEntry.sequenceOrder,
     targetSets: exerciseEntry.targetSets,
     targetReps: exerciseEntry.targetReps,
-    repRangeMin: exerciseEntry.repRangeMin ?? exerciseEntry.targetReps,
-    repRangeMax: exerciseEntry.repRangeMax ?? exerciseEntry.targetReps,
-    targetWeight: toWeightValueDto(exerciseEntry.targetWeightLbs),
+    repRangeMin: exerciseEntry.targetReps === null ? null : (exerciseEntry.repRangeMin ?? exerciseEntry.targetReps),
+    repRangeMax: exerciseEntry.targetReps === null ? null : (exerciseEntry.repRangeMax ?? exerciseEntry.targetReps),
+    targetWeight: toNullableWeightValueDto(exerciseEntry.targetWeightLbs),
+    targetDurationSeconds: exerciseEntry.targetDurationSeconds ?? null,
+    targetDistanceMeters: exerciseEntry.targetDistanceMeters ?? null,
+    targetRounds: exerciseEntry.targetRounds ?? null,
     restSeconds: exerciseEntry.restSeconds,
     effortFeedback: exerciseEntry.effortFeedback,
     completedAt: toIsoString(exerciseEntry.completedAt),
@@ -168,11 +183,15 @@ export function mapProgramDto(definition: ProgramDefinition): ProgramDto {
             exerciseId: exercise.exerciseId,
             exerciseName: exercise.exerciseName,
             category: exercise.category,
+            loggingModality: exercise.loggingModality,
             sequenceOrder: exercise.sequenceOrder,
             targetSets: exercise.targetSets,
             targetReps: exercise.targetReps,
             ...(exercise.repRangeMin != null ? { repRangeMin: exercise.repRangeMin } : {}),
             ...(exercise.repRangeMax != null ? { repRangeMax: exercise.repRangeMax } : {}),
+            ...(exercise.targetDurationSeconds != null ? { targetDurationSeconds: exercise.targetDurationSeconds } : {}),
+            ...(exercise.targetDistanceMeters != null ? { targetDistanceMeters: exercise.targetDistanceMeters } : {}),
+            ...(exercise.targetRounds != null ? { targetRounds: exercise.targetRounds } : {}),
             restSeconds: exercise.restSeconds,
             ...(exercise.progressionStrategy != null ? { progressionStrategy: exercise.progressionStrategy } : {}),
             ...(exercise.repTargetText != null ? { repTargetText: exercise.repTargetText } : {}),
@@ -285,7 +304,8 @@ export function mapExerciseCatalogItemDto(record: ExerciseRecord): ExerciseCatal
     aliases: record.aliases ?? [],
     isBodyweight: record.isBodyweight,
     isWeightOptional: record.isWeightOptional,
-    isProgressionEligible: record.isProgressionEligible
+    isProgressionEligible: record.isProgressionEligible,
+    loggingModality: record.loggingModality
   };
 }
 

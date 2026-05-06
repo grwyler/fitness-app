@@ -16,6 +16,7 @@ function createSet(overrides: Partial<SetDto> = {}): SetDto {
     id: "set-1",
     exerciseEntryId: "entry-1",
     setNumber: 1,
+    setType: "working",
     targetReps: 8,
     actualReps: null,
     targetWeight: {
@@ -23,6 +24,12 @@ function createSet(overrides: Partial<SetDto> = {}): SetDto {
       unit: "lb"
     },
     actualWeight: null,
+    targetDurationSeconds: null,
+    actualDurationSeconds: null,
+    targetDistanceMeters: null,
+    actualDistanceMeters: null,
+    targetRounds: null,
+    actualRounds: null,
     status: "pending",
     rir: null,
     failureStatus: null,
@@ -50,10 +57,14 @@ function createWorkout(): WorkoutSessionDto {
         exerciseId: "exercise-1",
         exerciseName: "Bench Press",
         category: "compound",
+        loggingModality: "reps_load",
         sequenceOrder: 1,
         targetSets: 2,
         targetReps: 8,
         targetWeight: { value: 135, unit: "lb" },
+        targetDurationSeconds: null,
+        targetDistanceMeters: null,
+        targetRounds: null,
         restSeconds: 120,
         effortFeedback: "just_right",
         completedAt: "2026-04-24T10:20:00.000Z",
@@ -62,10 +73,17 @@ function createWorkout(): WorkoutSessionDto {
             id: "set-1",
             exerciseEntryId: "entry-1",
             setNumber: 1,
+            setType: "working",
             targetReps: 8,
             actualReps: 8,
             targetWeight: { value: 135, unit: "lb" },
             actualWeight: { value: 135, unit: "lb" },
+            targetDurationSeconds: null,
+            actualDurationSeconds: null,
+            targetDistanceMeters: null,
+            actualDistanceMeters: null,
+            targetRounds: null,
+            actualRounds: null,
             status: "completed",
             rir: null,
             failureStatus: null,
@@ -75,10 +93,17 @@ function createWorkout(): WorkoutSessionDto {
             id: "set-2",
             exerciseEntryId: "entry-1",
             setNumber: 2,
+            setType: "working",
             targetReps: 8,
             actualReps: 7,
             targetWeight: { value: 135, unit: "lb" },
             actualWeight: { value: 135, unit: "lb" },
+            targetDurationSeconds: null,
+            actualDurationSeconds: null,
+            targetDistanceMeters: null,
+            actualDistanceMeters: null,
+            targetRounds: null,
+            actualRounds: null,
             status: "failed",
             rir: null,
             failureStatus: null,
@@ -107,6 +132,7 @@ export const unitSystemMetricTestCases: MobileTestCase[] = [
     run: () => {
       assert.equal(
         formatExerciseTargetSummary({
+          modality: "reps_load",
           targetSets: 3,
           targetReps: 8,
           repRangeMin: null,
@@ -121,7 +147,10 @@ export const unitSystemMetricTestCases: MobileTestCase[] = [
   {
     name: "Set logging converts metric kg input to canonical lbs for API requests",
     run: () => {
-      const request = buildLogSetRequestFromDraft({ repsText: "8", weightText: "60" }, { unitSystem: "metric" });
+      const request = buildLogSetRequestFromDraft(
+        { repsText: "8", weightText: "60", durationText: "", distanceText: "", roundsText: "", setType: "working" },
+        { unitSystem: "metric", modality: "reps_load" }
+      );
       assert.ok(request);
       assert.equal(request?.actualReps, 8);
       assert.equal(request?.actualWeight?.unit, "lb");
@@ -131,7 +160,7 @@ export const unitSystemMetricTestCases: MobileTestCase[] = [
   {
     name: "Set logging defaults show previous/prescribed load in kg for metric users",
     run: () => {
-      const draft = getSetLogDefaultDraft({ set: createSet(), unitSystem: "metric" });
+      const draft = getSetLogDefaultDraft({ set: createSet(), unitSystem: "metric", modality: "reps_load" });
       assert.equal(draft.weightText, "61.2");
     }
   },

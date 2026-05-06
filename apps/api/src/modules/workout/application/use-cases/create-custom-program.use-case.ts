@@ -31,9 +31,12 @@ function buildCreateCustomProgramFingerprint(request: CreateCustomProgramRequest
       exercises: workout.exercises.map((exercise) => ({
         exerciseId: exercise.exerciseId,
         targetSets: exercise.targetSets,
-        targetReps: exercise.targetReps,
+        targetReps: exercise.targetReps ?? null,
         repRangeMin: exercise.repRangeMin ?? null,
         repRangeMax: exercise.repRangeMax ?? null,
+        targetDurationSeconds: exercise.targetDurationSeconds ?? null,
+        targetDistanceMeters: exercise.targetDistanceMeters ?? null,
+        targetRounds: exercise.targetRounds ?? null,
         restSeconds: exercise.restSeconds ?? null,
         progressionStrategy: exercise.progressionStrategy ?? null,
         repTargetText: normalizeOptionalShortText(exercise.repTargetText) ?? null,
@@ -81,8 +84,11 @@ function validateCreateCustomProgramRequest(request: CreateCustomProgramRequest)
           throw new WorkoutApplicationError("VALIDATION_ERROR", "Sets must be a positive number.");
         }
 
-        if (!Number.isInteger(exercise.targetReps) || exercise.targetReps <= 0) {
-          throw new WorkoutApplicationError("VALIDATION_ERROR", "Reps must be a positive number.");
+        const targetReps = exercise.targetReps ?? null;
+        if (targetReps !== null) {
+          if (!Number.isInteger(targetReps) || targetReps <= 0) {
+            throw new WorkoutApplicationError("VALIDATION_ERROR", "Reps must be a positive number.");
+          }
         }
 
         const repRangeMin = exercise.repRangeMin ?? null;
@@ -92,6 +98,9 @@ function validateCreateCustomProgramRequest(request: CreateCustomProgramRequest)
             "VALIDATION_ERROR",
             "Both repRangeMin and repRangeMax are required when using a rep range."
           );
+        }
+        if ((repRangeMin !== null || repRangeMax !== null) && targetReps === null) {
+          throw new WorkoutApplicationError("VALIDATION_ERROR", "targetReps is required when using a rep range.");
         }
         if (repRangeMin !== null && repRangeMax !== null) {
           if (!Number.isInteger(repRangeMin) || repRangeMin <= 0) {
@@ -106,7 +115,7 @@ function validateCreateCustomProgramRequest(request: CreateCustomProgramRequest)
               "repRangeMax must be greater than or equal to repRangeMin."
             );
           }
-          if (exercise.targetReps < repRangeMin || exercise.targetReps > repRangeMax) {
+          if (targetReps! < repRangeMin || targetReps! > repRangeMax) {
             throw new WorkoutApplicationError(
               "VALIDATION_ERROR",
               "targetReps must be within the rep range."
@@ -118,6 +127,27 @@ function validateCreateCustomProgramRequest(request: CreateCustomProgramRequest)
         const notes = normalizeOptionalDescription(exercise.notes);
         const setTargets = exercise.setTargets?.length ? exercise.setTargets : null;
 
+        const targetDurationSeconds = exercise.targetDurationSeconds ?? null;
+        if (targetDurationSeconds !== null) {
+          if (!Number.isInteger(targetDurationSeconds) || targetDurationSeconds <= 0) {
+            throw new WorkoutApplicationError("VALIDATION_ERROR", "targetDurationSeconds must be a positive number.");
+          }
+        }
+
+        const targetDistanceMeters = exercise.targetDistanceMeters ?? null;
+        if (targetDistanceMeters !== null) {
+          if (typeof targetDistanceMeters !== "number" || !Number.isFinite(targetDistanceMeters) || targetDistanceMeters < 0) {
+            throw new WorkoutApplicationError("VALIDATION_ERROR", "targetDistanceMeters must be a valid number.");
+          }
+        }
+
+        const targetRounds = exercise.targetRounds ?? null;
+        if (targetRounds !== null) {
+          if (!Number.isInteger(targetRounds) || targetRounds <= 0) {
+            throw new WorkoutApplicationError("VALIDATION_ERROR", "targetRounds must be a positive number.");
+          }
+        }
+
         if (setTargets && setTargets.length !== exercise.targetSets) {
           throw new WorkoutApplicationError(
             "VALIDATION_ERROR",
@@ -128,9 +158,12 @@ function validateCreateCustomProgramRequest(request: CreateCustomProgramRequest)
         return {
           exerciseId: exercise.exerciseId,
           targetSets: exercise.targetSets,
-          targetReps: exercise.targetReps,
+          targetReps,
           repRangeMin,
           repRangeMax,
+          targetDurationSeconds,
+          targetDistanceMeters,
+          targetRounds,
           restSeconds: exercise.restSeconds ?? null,
           progressionStrategy: exercise.progressionStrategy ?? null,
           ...(repTargetText ? { repTargetText } : {}),

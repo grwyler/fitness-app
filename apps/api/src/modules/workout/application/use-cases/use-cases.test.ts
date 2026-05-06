@@ -64,12 +64,16 @@ function createBaseWorkoutSessionGraph(): WorkoutSessionGraph {
         sequenceOrder: 1,
         targetSets: 3,
         targetReps: 8,
+        targetDurationSeconds: null,
+        targetDistanceMeters: null,
+        targetRounds: null,
         targetWeightLbs: 135,
         restSeconds: 120,
         effortFeedback: null,
         completedAt: null,
         exerciseNameSnapshot: "Bench Press",
         exerciseCategorySnapshot: "compound",
+        loggingModalitySnapshot: "reps_load",
         progressionRuleSnapshot: { incrementLbs: 5 },
         createdAt: new Date("2026-04-24T10:00:00.000Z"),
         updatedAt: new Date("2026-04-24T10:00:00.000Z")
@@ -80,10 +84,17 @@ function createBaseWorkoutSessionGraph(): WorkoutSessionGraph {
         id: "set-1",
         exerciseEntryId: "entry-1",
         setNumber: 1,
+        setType: "working",
         targetReps: 8,
         actualReps: null,
         targetWeightLbs: 135,
         actualWeightLbs: null,
+        targetDurationSeconds: null,
+        actualDurationSeconds: null,
+        targetDistanceMeters: null,
+        actualDistanceMeters: null,
+        targetRounds: null,
+        actualRounds: null,
         status: "pending",
         rir: null,
         failureStatus: null,
@@ -95,10 +106,17 @@ function createBaseWorkoutSessionGraph(): WorkoutSessionGraph {
         id: "set-2",
         exerciseEntryId: "entry-1",
         setNumber: 2,
+        setType: "working",
         targetReps: 8,
         actualReps: null,
         targetWeightLbs: 135,
         actualWeightLbs: null,
+        targetDurationSeconds: null,
+        actualDurationSeconds: null,
+        targetDistanceMeters: null,
+        actualDistanceMeters: null,
+        targetRounds: null,
+        actualRounds: null,
         status: "pending",
         rir: null,
         failureStatus: null,
@@ -110,10 +128,17 @@ function createBaseWorkoutSessionGraph(): WorkoutSessionGraph {
         id: "set-3",
         exerciseEntryId: "entry-1",
         setNumber: 3,
+        setType: "working",
         targetReps: 8,
         actualReps: null,
         targetWeightLbs: 135,
         actualWeightLbs: null,
+        targetDurationSeconds: null,
+        actualDurationSeconds: null,
+        targetDistanceMeters: null,
+        actualDistanceMeters: null,
+        targetRounds: null,
+        actualRounds: null,
         status: "pending",
         rir: null,
         failureStatus: null,
@@ -522,6 +547,7 @@ function createProgramDefinition(): ProgramDefinition {
             exerciseId: "exercise-1",
             exerciseName: "Bench Press",
             category: "compound" as const,
+            loggingModality: "reps_load",
             movementPattern: null,
             primaryMuscleGroup: null,
             equipmentType: "barbell",
@@ -931,6 +957,7 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
                 exerciseId: exercise.exerciseId,
                 exerciseName: exercise.exerciseId === "exercise-1" ? "Bench Press" : "Row",
                 category: "compound",
+                loggingModality: "reps_load",
                 movementPattern: null,
                 primaryMuscleGroup: null,
                 equipmentType: "barbell",
@@ -1192,6 +1219,7 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
                   isBodyweight: false,
                   isWeightOptional: false,
                   isProgressionEligible: true,
+                  loggingModality: "reps_load",
                   isActive: true,
                   createdAt: new Date("2026-04-01T00:00:00.000Z"),
                   updatedAt: new Date("2026-04-01T00:00:00.000Z")
@@ -1672,6 +1700,486 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
       assert.equal(result.data.set.status, "completed");
       assert.equal(result.data.exerciseEntry.completedSetCount, 1);
       assert.equal(result.meta.replayed, false);
+    }
+  },
+  {
+    name: "LogSetUseCase supports reps_only logging (bodyweight reps)",
+    run: async () => {
+      const idempotency = createMockIdempotencyRepository();
+      const base = createBaseWorkoutSessionGraph();
+
+      const workoutGraph: WorkoutSessionGraph = {
+        ...base,
+        exerciseEntries: [
+          {
+            ...base.exerciseEntries[0]!,
+            exerciseNameSnapshot: "Push-Up",
+            loggingModalitySnapshot: "reps_only",
+            targetReps: 12,
+            targetWeightLbs: null
+          }
+        ],
+        sets: base.sets.map((set) => ({
+          ...set,
+          targetReps: 12,
+          targetWeightLbs: null
+        }))
+      };
+
+      const updatedGraph: WorkoutSessionGraph = {
+        ...workoutGraph,
+        sets: workoutGraph.sets.map((set) =>
+          set.id === "set-1"
+            ? {
+                ...set,
+                actualReps: 12,
+                actualWeightLbs: 0,
+                status: "completed",
+                completedAt: new Date("2026-04-24T10:05:00.000Z")
+              }
+            : set
+        )
+      };
+
+      const workoutSessionRepository: WorkoutSessionRepository = {
+        async findInProgressByUserId() {
+          return null;
+        },
+        async findOwnedById() {
+          return null;
+        },
+        async findOwnedSessionGraphById() {
+          return updatedGraph;
+        },
+        async findOwnedSetForLogging() {
+          return {
+            set: workoutGraph.sets[0]!,
+            exerciseEntry: workoutGraph.exerciseEntries[0]!,
+            workoutSession: workoutGraph.session
+          };
+        },
+        async createSessionGraph() {
+          throw new Error("Not implemented.");
+        },
+        async appendCustomExercise() {
+          throw new Error("Not implemented.");
+        },
+        async updateWorkoutNameSnapshotIfDefault() {
+          return false;
+        },
+        async appendWorkoutSet() {
+          throw new Error("Not implemented.");
+        },
+        async deleteWorkoutSet() {
+          throw new Error("Not implemented.");
+        },
+        async updateLoggedSet() {
+          return {
+            set: updatedGraph.sets[0]!,
+            exerciseEntry: updatedGraph.exerciseEntries[0]!,
+            workoutSession: updatedGraph.session
+          };
+        },
+        async persistExerciseEntryFeedback() {},
+        async skipPendingWorkoutSets() {
+          return 0;
+        },
+        async completeSession() {
+          throw new Error("Not implemented.");
+        },
+        async cancelSession() {
+          throw new Error("Not implemented.");
+        },
+        async listRecentCompletedByUserId() {
+          return [];
+        },
+        async countCompletedByUserIdWithinRange() {
+          return 0;
+        },
+        async countCompletedByUserId() {
+          return 0;
+        },
+        async countCompletedByUserIdAndProgramId() {
+          return 0;
+        },
+        async listCompletedProgressionByUserId() {
+          return [];
+        }
+      };
+
+      const useCase = new LogSetUseCase(
+        workoutSessionRepository,
+        new MockTransactionManager(),
+        idempotency.repository
+      );
+
+      const result = await useCase.execute({
+        context: { userId: "user-1", unitSystem: "imperial" },
+        setId: "set-1",
+        request: { actualReps: 12 },
+        idempotencyKey: "log-key-reps-only"
+      });
+
+      assert.equal(result.data.set.status, "completed");
+      assert.equal(result.data.set.actualReps, 12);
+      assert.equal(result.data.set.actualWeight?.value ?? 0, 0);
+    }
+  },
+  {
+    name: "LogSetUseCase supports hold/time logging (durationSeconds)",
+    run: async () => {
+      const idempotency = createMockIdempotencyRepository();
+      const base = createBaseWorkoutSessionGraph();
+
+      const workoutGraph: WorkoutSessionGraph = {
+        ...base,
+        exerciseEntries: [
+          {
+            ...base.exerciseEntries[0]!,
+            exerciseNameSnapshot: "Plank",
+            loggingModalitySnapshot: "hold",
+            targetReps: null,
+            targetWeightLbs: null,
+            targetDurationSeconds: 30
+          }
+        ],
+        sets: base.sets.map((set) => ({
+          ...set,
+          targetReps: null,
+          targetWeightLbs: null,
+          targetDurationSeconds: 30
+        }))
+      };
+
+      const updatedGraph: WorkoutSessionGraph = {
+        ...workoutGraph,
+        sets: workoutGraph.sets.map((set) =>
+          set.id === "set-1"
+            ? {
+                ...set,
+                actualDurationSeconds: 45,
+                status: "completed",
+                completedAt: new Date("2026-04-24T10:05:00.000Z")
+              }
+            : set
+        )
+      };
+
+      const workoutSessionRepository: WorkoutSessionRepository = {
+        async findInProgressByUserId() {
+          return null;
+        },
+        async findOwnedById() {
+          return null;
+        },
+        async findOwnedSessionGraphById() {
+          return updatedGraph;
+        },
+        async findOwnedSetForLogging() {
+          return {
+            set: workoutGraph.sets[0]!,
+            exerciseEntry: workoutGraph.exerciseEntries[0]!,
+            workoutSession: workoutGraph.session
+          };
+        },
+        async createSessionGraph() {
+          throw new Error("Not implemented.");
+        },
+        async appendCustomExercise() {
+          throw new Error("Not implemented.");
+        },
+        async updateWorkoutNameSnapshotIfDefault() {
+          return false;
+        },
+        async appendWorkoutSet() {
+          throw new Error("Not implemented.");
+        },
+        async deleteWorkoutSet() {
+          throw new Error("Not implemented.");
+        },
+        async updateLoggedSet() {
+          return {
+            set: updatedGraph.sets[0]!,
+            exerciseEntry: updatedGraph.exerciseEntries[0]!,
+            workoutSession: updatedGraph.session
+          };
+        },
+        async persistExerciseEntryFeedback() {},
+        async skipPendingWorkoutSets() {
+          return 0;
+        },
+        async completeSession() {
+          throw new Error("Not implemented.");
+        },
+        async cancelSession() {
+          throw new Error("Not implemented.");
+        },
+        async listRecentCompletedByUserId() {
+          return [];
+        },
+        async countCompletedByUserIdWithinRange() {
+          return 0;
+        },
+        async countCompletedByUserId() {
+          return 0;
+        },
+        async countCompletedByUserIdAndProgramId() {
+          return 0;
+        },
+        async listCompletedProgressionByUserId() {
+          return [];
+        }
+      };
+
+      const useCase = new LogSetUseCase(
+        workoutSessionRepository,
+        new MockTransactionManager(),
+        idempotency.repository
+      );
+
+      const result = await useCase.execute({
+        context: { userId: "user-1", unitSystem: "imperial" },
+        setId: "set-1",
+        request: { durationSeconds: 45 },
+        idempotencyKey: "log-key-hold"
+      });
+
+      assert.equal(result.data.set.status, "completed");
+      assert.equal(result.data.set.actualDurationSeconds, 45);
+      assert.equal(result.data.set.actualReps, null);
+    }
+  },
+  {
+    name: "LogSetUseCase rejects invalid payloads for hold/time modality",
+    run: async () => {
+      const idempotency = createMockIdempotencyRepository();
+      const base = createBaseWorkoutSessionGraph();
+
+      const workoutGraph: WorkoutSessionGraph = {
+        ...base,
+        exerciseEntries: [
+          {
+            ...base.exerciseEntries[0]!,
+            exerciseNameSnapshot: "Plank",
+            loggingModalitySnapshot: "hold",
+            targetReps: null,
+            targetWeightLbs: null,
+            targetDurationSeconds: 30
+          }
+        ],
+        sets: base.sets.map((set) => ({
+          ...set,
+          targetReps: null,
+          targetWeightLbs: null,
+          targetDurationSeconds: 30
+        }))
+      };
+
+      const workoutSessionRepository: WorkoutSessionRepository = {
+        async findInProgressByUserId() {
+          return null;
+        },
+        async findOwnedById() {
+          return null;
+        },
+        async findOwnedSessionGraphById() {
+          return workoutGraph;
+        },
+        async findOwnedSetForLogging() {
+          return {
+            set: workoutGraph.sets[0]!,
+            exerciseEntry: workoutGraph.exerciseEntries[0]!,
+            workoutSession: workoutGraph.session
+          };
+        },
+        async createSessionGraph() {
+          throw new Error("Not implemented.");
+        },
+        async appendCustomExercise() {
+          throw new Error("Not implemented.");
+        },
+        async updateWorkoutNameSnapshotIfDefault() {
+          return false;
+        },
+        async appendWorkoutSet() {
+          throw new Error("Not implemented.");
+        },
+        async deleteWorkoutSet() {
+          throw new Error("Not implemented.");
+        },
+        async updateLoggedSet() {
+          throw new Error("Not implemented.");
+        },
+        async persistExerciseEntryFeedback() {},
+        async skipPendingWorkoutSets() {
+          return 0;
+        },
+        async completeSession() {
+          throw new Error("Not implemented.");
+        },
+        async cancelSession() {
+          throw new Error("Not implemented.");
+        },
+        async listRecentCompletedByUserId() {
+          return [];
+        },
+        async countCompletedByUserIdWithinRange() {
+          return 0;
+        },
+        async countCompletedByUserId() {
+          return 0;
+        },
+        async countCompletedByUserIdAndProgramId() {
+          return 0;
+        },
+        async listCompletedProgressionByUserId() {
+          return [];
+        }
+      };
+
+      const useCase = new LogSetUseCase(
+        workoutSessionRepository,
+        new MockTransactionManager(),
+        idempotency.repository
+      );
+
+      await assert.rejects(
+        () =>
+          useCase.execute({
+            context: { userId: "user-1", unitSystem: "imperial" },
+            setId: "set-1",
+            request: { actualReps: 5 },
+            idempotencyKey: "log-key-hold-invalid"
+          }),
+        (error: unknown) => error instanceof WorkoutApplicationError && error.code === "VALIDATION_ERROR"
+      );
+    }
+  },
+  {
+    name: "LogSetUseCase supports time_distance logging (durationSeconds + distanceMeters)",
+    run: async () => {
+      const idempotency = createMockIdempotencyRepository();
+      const base = createBaseWorkoutSessionGraph();
+
+      const workoutGraph: WorkoutSessionGraph = {
+        ...base,
+        exerciseEntries: [
+          {
+            ...base.exerciseEntries[0]!,
+            exerciseNameSnapshot: "Treadmill Run",
+            loggingModalitySnapshot: "time_distance",
+            targetReps: null,
+            targetWeightLbs: null,
+            targetDurationSeconds: 1200,
+            targetDistanceMeters: 3218.688
+          }
+        ],
+        sets: base.sets.map((set) => ({
+          ...set,
+          targetReps: null,
+          targetWeightLbs: null,
+          targetDurationSeconds: 1200,
+          targetDistanceMeters: 3218.688
+        }))
+      };
+
+      const updatedGraph: WorkoutSessionGraph = {
+        ...workoutGraph,
+        sets: workoutGraph.sets.map((set) =>
+          set.id === "set-1"
+            ? {
+                ...set,
+                actualDurationSeconds: 1500,
+                actualDistanceMeters: 4023.36,
+                status: "completed",
+                completedAt: new Date("2026-04-24T10:25:00.000Z")
+              }
+            : set
+        )
+      };
+
+      const workoutSessionRepository: WorkoutSessionRepository = {
+        async findInProgressByUserId() {
+          return null;
+        },
+        async findOwnedById() {
+          return null;
+        },
+        async findOwnedSessionGraphById() {
+          return updatedGraph;
+        },
+        async findOwnedSetForLogging() {
+          return {
+            set: workoutGraph.sets[0]!,
+            exerciseEntry: workoutGraph.exerciseEntries[0]!,
+            workoutSession: workoutGraph.session
+          };
+        },
+        async createSessionGraph() {
+          throw new Error("Not implemented.");
+        },
+        async appendCustomExercise() {
+          throw new Error("Not implemented.");
+        },
+        async updateWorkoutNameSnapshotIfDefault() {
+          return false;
+        },
+        async appendWorkoutSet() {
+          throw new Error("Not implemented.");
+        },
+        async deleteWorkoutSet() {
+          throw new Error("Not implemented.");
+        },
+        async updateLoggedSet() {
+          return {
+            set: updatedGraph.sets[0]!,
+            exerciseEntry: updatedGraph.exerciseEntries[0]!,
+            workoutSession: updatedGraph.session
+          };
+        },
+        async persistExerciseEntryFeedback() {},
+        async skipPendingWorkoutSets() {
+          return 0;
+        },
+        async completeSession() {
+          throw new Error("Not implemented.");
+        },
+        async cancelSession() {
+          throw new Error("Not implemented.");
+        },
+        async listRecentCompletedByUserId() {
+          return [];
+        },
+        async countCompletedByUserIdWithinRange() {
+          return 0;
+        },
+        async countCompletedByUserId() {
+          return 0;
+        },
+        async countCompletedByUserIdAndProgramId() {
+          return 0;
+        },
+        async listCompletedProgressionByUserId() {
+          return [];
+        }
+      };
+
+      const useCase = new LogSetUseCase(
+        workoutSessionRepository,
+        new MockTransactionManager(),
+        idempotency.repository
+      );
+
+      const result = await useCase.execute({
+        context: { userId: "user-1", unitSystem: "imperial" },
+        setId: "set-1",
+        request: { durationSeconds: 1500, distanceMeters: 4023.36 },
+        idempotencyKey: "log-key-time-distance"
+      });
+
+      assert.equal(result.data.set.status, "completed");
+      assert.equal(result.data.set.actualDurationSeconds, 1500);
+      assert.equal(result.data.set.actualDistanceMeters, 4023.36);
     }
   },
   {

@@ -24,6 +24,7 @@ function createSet(overrides: Partial<SetDto> = {}): SetDto {
     id: "set-1",
     exerciseEntryId: "entry-1",
     setNumber: 1,
+    setType: "working",
     targetReps: 8,
     actualReps: null,
     targetWeight: {
@@ -31,6 +32,12 @@ function createSet(overrides: Partial<SetDto> = {}): SetDto {
       unit: "lb"
     },
     actualWeight: null,
+    targetDurationSeconds: null,
+    actualDurationSeconds: null,
+    targetDistanceMeters: null,
+    actualDistanceMeters: null,
+    targetRounds: null,
+    actualRounds: null,
     status: "pending",
     rir: null,
     failureStatus: null,
@@ -62,9 +69,13 @@ export const setLoggingTestCases: MobileTestCase[] = [
         }
       });
 
-      assert.deepEqual(getSetLogDefaultDraft({ set: nextSet, previousSet }), {
+      assert.deepEqual(getSetLogDefaultDraft({ set: nextSet, previousSet, modality: "reps_load", unitSystem: "imperial" }), {
         repsText: "7",
-        weightText: "132.5"
+        weightText: "132.5",
+        durationText: "",
+        distanceText: "",
+        roundsText: "",
+        setType: "working"
       });
     }
   },
@@ -110,21 +121,96 @@ export const setLoggingTestCases: MobileTestCase[] = [
   {
     name: "Set logging builds valid requests and rejects invalid drafts",
     run: () => {
-      const validRequest = buildLogSetRequestFromDraft({
+      const validRequest = buildLogSetRequestFromDraft(
+        {
         repsText: "8",
-        weightText: "135"
-      });
+        weightText: "135",
+        durationText: "",
+        distanceText: "",
+        roundsText: "",
+        setType: "working"
+        },
+        { modality: "reps_load", unitSystem: "imperial" }
+      );
 
       assert.deepEqual(validRequest, {
         actualReps: 8,
         actualWeight: {
           value: 135,
           unit: "lb"
-        }
+        },
+        setType: "working"
       });
-      assert.equal(validateSetLogDraft({ repsText: "", weightText: "135" }).error, "Enter reps as a whole number.");
-      assert.equal(validateSetLogDraft({ repsText: "8", weightText: "" }).error, "Enter a valid load.");
-      assert.equal(buildLogSetRequestFromDraft({ repsText: "", weightText: "135" }), null);
+      assert.equal(
+        validateSetLogDraft(
+          { repsText: "", weightText: "135", durationText: "", distanceText: "", roundsText: "", setType: "working" },
+          { modality: "reps_load", unitSystem: "imperial" }
+        ).error,
+        "Enter reps as a whole number."
+      );
+      assert.equal(
+        validateSetLogDraft(
+          { repsText: "8", weightText: "", durationText: "", distanceText: "", roundsText: "", setType: "working" },
+          { modality: "reps_load", unitSystem: "imperial" }
+        ).error,
+        "Enter a valid load."
+      );
+      assert.equal(
+        buildLogSetRequestFromDraft(
+          { repsText: "", weightText: "135", durationText: "", distanceText: "", roundsText: "", setType: "working" },
+          { modality: "reps_load", unitSystem: "imperial" }
+        ),
+        null
+      );
+    }
+  },
+  {
+    name: "Set logging supports reps_only, hold, and time_distance modalities",
+    run: () => {
+      assert.deepEqual(
+        buildLogSetRequestFromDraft(
+          {
+            repsText: "12",
+            weightText: "",
+            durationText: "",
+            distanceText: "",
+            roundsText: "",
+            setType: "working"
+          },
+          { modality: "reps_only", unitSystem: "imperial" }
+        ),
+        { actualReps: 12, setType: "working" }
+      );
+
+      assert.equal(
+        validateSetLogDraft(
+          { repsText: "", weightText: "", durationText: "", distanceText: "", roundsText: "", setType: "working" },
+          { modality: "hold", unitSystem: "imperial" }
+        ).error,
+        "Enter a duration (mm:ss)."
+      );
+      assert.deepEqual(
+        buildLogSetRequestFromDraft(
+          { repsText: "", weightText: "", durationText: "0:45", distanceText: "", roundsText: "", setType: "working" },
+          { modality: "hold", unitSystem: "imperial" }
+        ),
+        { durationSeconds: 45, setType: "working" }
+      );
+
+      assert.equal(
+        validateSetLogDraft(
+          { repsText: "", weightText: "", durationText: "", distanceText: "", roundsText: "", setType: "working" },
+          { modality: "time_distance", unitSystem: "imperial" }
+        ).error,
+        "Enter a duration and/or distance."
+      );
+      assert.deepEqual(
+        buildLogSetRequestFromDraft(
+          { repsText: "", weightText: "", durationText: "20:00", distanceText: "2.5", roundsText: "", setType: "working" },
+          { modality: "time_distance", unitSystem: "imperial" }
+        ),
+        { durationSeconds: 1200, distanceMeters: 4023.36, setType: "working" }
+      );
     }
   },
   {
@@ -162,7 +248,14 @@ export const setLoggingTestCases: MobileTestCase[] = [
   {
     name: "Set effort categories map to consistent rir/failure fields",
     run: () => {
-      const baseDraft = { repsText: "8", weightText: "135" as string };
+      const baseDraft = {
+        repsText: "8",
+        weightText: "135" as string,
+        durationText: "",
+        distanceText: "",
+        roundsText: "",
+        setType: "working" as const
+      };
 
       assert.equal(getSetEffortCategory({ rir: "rir_5_plus", failureStatus: null }), "very_easy");
       assert.equal(getSetEffortCategory({ rir: "rir_2", failureStatus: null }), "good");
@@ -196,12 +289,19 @@ export const setLoggingTestCases: MobileTestCase[] = [
         failureStatus: "stopped_early"
       });
 
-      assert.deepEqual(buildLogSetRequestFromDraft(applySetEffortCategory(baseDraft, "stopped_early")), {
-        actualReps: 8,
-        actualWeight: { value: 135, unit: "lb" },
-        rir: null,
-        failureStatus: "stopped_early"
-      });
+      assert.deepEqual(
+        buildLogSetRequestFromDraft(applySetEffortCategory(baseDraft, "stopped_early"), {
+          modality: "reps_load",
+          unitSystem: "imperial"
+        }),
+        {
+          actualReps: 8,
+          actualWeight: { value: 135, unit: "lb" },
+          setType: "working",
+          rir: null,
+          failureStatus: "stopped_early"
+        }
+      );
     }
   },
   {

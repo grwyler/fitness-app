@@ -2,6 +2,7 @@ import {
   formatWeightForUser,
   type EffortFeedback,
   type ExerciseEntryDto,
+  type LogSetRequest,
   type SetDto,
   type SetFailureStatus,
   type SetRir,
@@ -55,6 +56,157 @@ function formatFeedbackLabel(feedback: EffortFeedback) {
   }
 }
 
+function formatDurationSecondsCompact(seconds: number | null | undefined) {
+  if (seconds == null || !Number.isFinite(seconds) || seconds <= 0) {
+    return null;
+  }
+
+  const safe = Math.floor(seconds);
+  const minutes = Math.floor(safe / 60);
+  const remaining = safe % 60;
+  return `${minutes}:${remaining.toString().padStart(2, "0")}`;
+}
+
+function formatDistanceCompact(distanceMeters: number | null | undefined, unitSystem: UnitSystem) {
+  if (distanceMeters == null || !Number.isFinite(distanceMeters) || distanceMeters < 0) {
+    return null;
+  }
+
+  const value = unitSystem === "metric" ? distanceMeters / 1000 : distanceMeters / 1609.344;
+  const unit = unitSystem === "metric" ? "km" : "mi";
+  const text = value.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+  return `${text} ${unit}`;
+}
+
+function formatSetTargetLine(input: { set: SetDto; modality: ExerciseEntryDto["loggingModality"]; unitSystem: UnitSystem }) {
+  const { set, modality, unitSystem } = input;
+
+  if (modality === "reps_load") {
+    const reps = set.targetReps ?? null;
+    const weight = set.targetWeight?.value ?? null;
+    if (reps == null || weight == null) {
+      return null;
+    }
+    return `Target ${reps} reps at ${formatWeightForUser({ weightLbs: weight, unitSystem }).text}`;
+  }
+
+  if (modality === "reps_only") {
+    const reps = set.targetReps ?? null;
+    const weight = set.targetWeight?.value ?? null;
+    if (reps == null && (weight == null || weight <= 0)) {
+      return null;
+    }
+    const parts: string[] = [];
+    if (reps != null) parts.push(`Target ${reps} reps`);
+    if (weight != null && weight > 0) parts.push(`@ ${formatWeightForUser({ weightLbs: weight, unitSystem }).text}`);
+    return parts.join(" ");
+  }
+
+  if (modality === "time" || modality === "hold") {
+    const duration = formatDurationSecondsCompact(set.targetDurationSeconds ?? null);
+    return duration ? `Target ${duration}` : null;
+  }
+
+  if (modality === "time_distance") {
+    const duration = formatDurationSecondsCompact(set.targetDurationSeconds ?? null);
+    const distance = formatDistanceCompact(set.targetDistanceMeters ?? null, unitSystem);
+    if (!duration && !distance) return null;
+    return `Target ${[duration, distance].filter(Boolean).join(" · ")}`;
+  }
+
+  if (modality === "distance") {
+    const distance = formatDistanceCompact(set.targetDistanceMeters ?? null, unitSystem);
+    return distance ? `Target ${distance}` : null;
+  }
+
+  // interval
+  const rounds = set.targetRounds ?? null;
+  const duration = formatDurationSecondsCompact(set.targetDurationSeconds ?? null);
+  if (!rounds && !duration) return null;
+  return `Target ${[rounds ? `${rounds} rounds` : null, duration].filter(Boolean).join(" · ")}`;
+}
+
+function normalizeDurationInput(value: string) {
+  const cleaned = value.replace(/[^\d:]/g, "");
+  const parts = cleaned.split(":").slice(0, 2);
+  const minutes = parts[0]?.replace(/^0+(?=\d)/, "") ?? "";
+  const seconds = (parts[1] ?? "").slice(0, 2);
+  return parts.length === 1 ? minutes.slice(0, 3) : `${minutes.slice(0, 3) || "0"}:${seconds}`;
+}
+
+function formatSetSubmitLabel(input: {
+  verb: "Log" | "Update";
+  request: LogSetRequest;
+  set: SetDto;
+  modality: ExerciseEntryDto["loggingModality"];
+  unitSystem: UnitSystem;
+}) {
+  const { verb, request, modality, unitSystem, set } = input;
+
+  if (modality === "reps_load") {
+    const weightLbs = request.actualWeight?.value ?? set.targetWeight?.value ?? 0;
+    return `${verb} ${request.actualReps ?? 0} @ ${formatWeightForUser({ weightLbs, unitSystem }).text}`;
+  }
+
+  if (modality === "reps_only") {
+    const reps = request.actualReps ?? 0;
+    const load = request.actualWeight?.value ?? null;
+    return load != null && load > 0
+      ? `${verb} ${reps} reps @ ${formatWeightForUser({ weightLbs: load, unitSystem }).text}`
+      : `${verb} ${reps} reps`;
+  }
+
+  const duration = request.durationSeconds != null ? formatDurationSecondsCompact(request.durationSeconds) : null;
+  const distance = request.distanceMeters != null ? formatDistanceCompact(request.distanceMeters, unitSystem) : null;
+  const rounds = request.rounds != null ? `${request.rounds} rounds` : null;
+
+  if (modality === "time" || modality === "hold") {
+    return `${verb} ${duration ?? "duration"}`;
+  }
+
+  if (modality === "time_distance" || modality === "distance") {
+    if (distance && duration) return `${verb} ${distance} in ${duration}`;
+    return `${verb} ${distance ?? duration ?? "set"}`;
+  }
+
+  // interval
+  const parts = [rounds, duration].filter(Boolean);
+  return `${verb} ${parts.join(" · ") || "set"}`;
+}
+
+function formatLoggedSetSummary(input: { set: SetDto; modality: ExerciseEntryDto["loggingModality"]; unitSystem: UnitSystem }) {
+  const { set, modality, unitSystem } = input;
+
+  if (modality === "reps_load") {
+    const weightLbs = set.actualWeight?.value ?? set.targetWeight?.value ?? 0;
+    return `Logged ${set.actualReps ?? 0} reps at ${formatWeightForUser({ weightLbs, unitSystem }).text}`;
+  }
+
+  if (modality === "reps_only") {
+    const reps = set.actualReps ?? 0;
+    const load = set.actualWeight?.value ?? null;
+    return load != null && load > 0
+      ? `Logged ${reps} reps @ ${formatWeightForUser({ weightLbs: load, unitSystem }).text}`
+      : `Logged ${reps} reps`;
+  }
+
+  const duration = set.actualDurationSeconds != null ? formatDurationSecondsCompact(set.actualDurationSeconds) : null;
+  const distance = set.actualDistanceMeters != null ? formatDistanceCompact(set.actualDistanceMeters, unitSystem) : null;
+  const rounds = set.actualRounds != null ? `${set.actualRounds} rounds` : null;
+
+  if (modality === "time" || modality === "hold") {
+    return `Logged ${duration ?? "duration"}`;
+  }
+
+  if (modality === "time_distance" || modality === "distance") {
+    if (distance && duration) return `Logged ${distance} in ${duration}`;
+    return `Logged ${distance ?? duration ?? "set"}`;
+  }
+
+  const parts = [rounds, duration].filter(Boolean);
+  return `Logged ${parts.join(" · ") || "set"}`;
+}
+
 export function WorkoutExerciseCard(props: {
   exercise: ExerciseEntryDto;
   unitSystem: UnitSystem;
@@ -97,11 +249,15 @@ export function WorkoutExerciseCard(props: {
         <AppText variant="cardTitle">{props.exercise.exerciseName}</AppText>
         <AppText tone="secondary">
           {formatExerciseTargetSummary({
+            modality: props.exercise.loggingModality,
             targetSets: props.exercise.targetSets,
             targetReps: props.exercise.targetReps,
             repRangeMin: props.exercise.repRangeMin,
             repRangeMax: props.exercise.repRangeMax,
-            targetWeightLbs: props.exercise.targetWeight.value,
+            targetWeightLbs: props.exercise.targetWeight?.value ?? null,
+            targetDurationSeconds: props.exercise.targetDurationSeconds ?? null,
+            targetDistanceMeters: props.exercise.targetDistanceMeters ?? null,
+            targetRounds: props.exercise.targetRounds ?? null,
             unitSystem: props.unitSystem
           })}
         </AppText>
@@ -126,24 +282,30 @@ export function WorkoutExerciseCard(props: {
             setNumber: set.setNumber
           });
           const draft =
-            props.setLogDraftsBySetId[set.id] ?? getSetLogDefaultDraft({ set, previousSet, unitSystem: props.unitSystem });
-          const validation = validateSetLogDraft(draft, { unitSystem: props.unitSystem });
-          const request = buildLogSetRequestFromDraft(draft, { unitSystem: props.unitSystem });
-          const outcomeText = getSetOutcomeText({
-            actualReps: validation.actualReps,
-            targetReps: set.targetReps,
-            actualWeightValue: validation.actualWeight?.value ?? null,
-            targetWeightValue: set.targetWeight.value
-          });
+            props.setLogDraftsBySetId[set.id] ??
+            getSetLogDefaultDraft({ set, previousSet, unitSystem: props.unitSystem, modality: props.exercise.loggingModality });
+          const validation = validateSetLogDraft(draft, { unitSystem: props.unitSystem, modality: props.exercise.loggingModality });
+          const request = buildLogSetRequestFromDraft(draft, { unitSystem: props.unitSystem, modality: props.exercise.loggingModality });
+          const outcomeText =
+            props.exercise.loggingModality === "reps_load" || props.exercise.loggingModality === "reps_only"
+              ? getSetOutcomeText({
+                  actualReps: validation.actualReps,
+                  targetReps: set.targetReps ?? 0,
+                  actualWeightValue: validation.actualWeight?.value ?? null,
+                  targetWeightValue: set.targetWeight?.value ?? null
+                })
+              : "Ready";
           const canSubmit = (isPending || isEditing) && request !== null && !isLogging && !readOnly;
           const previousWeight = previousSet?.actualWeight?.value ?? null;
           const loggedOutcomeText = !isPending
-            ? getSetOutcomeText({
-                actualReps: set.actualReps ?? null,
-                targetReps: set.targetReps,
-                actualWeightValue: set.actualWeight?.value ?? null,
-                targetWeightValue: set.targetWeight.value
-              })
+            ? props.exercise.loggingModality === "reps_load" || props.exercise.loggingModality === "reps_only"
+              ? getSetOutcomeText({
+                  actualReps: set.actualReps ?? null,
+                  targetReps: set.targetReps ?? 0,
+                  actualWeightValue: set.actualWeight?.value ?? null,
+                  targetWeightValue: set.targetWeight?.value ?? null
+                })
+              : null
             : null;
           const outcomeTone =
             loggedOutcomeText === "Meets target"
@@ -202,219 +364,456 @@ export function WorkoutExerciseCard(props: {
                     ) : null}
                   </View>
                 </View>
-                <AppText variant="caption" tone="secondary">
-                  Target {set.targetReps} reps at{" "}
-                  {formatWeightForUser({ weightLbs: set.targetWeight.value, unitSystem: props.unitSystem }).text}
-                </AppText>
+                {(() => {
+                  const targetLine = formatSetTargetLine({
+                    set,
+                    modality: props.exercise.loggingModality,
+                    unitSystem: props.unitSystem
+                  });
+                  return targetLine ? (
+                    <AppText variant="caption" tone="secondary">
+                      {targetLine}
+                    </AppText>
+                  ) : null;
+                })()}
               </View>
 
               {isPending || isEditing ? (
                 <View style={styles.pendingSetBody}>
                   <View style={styles.inputGrid}>
-                    <SetMetricInput
-                      label="Reps"
-                      accessibilityLabel={`Set ${set.setNumber} reps`}
-                      disabled={isLogging || readOnly}
-                      error={Boolean(validation.error)}
-                      inputMode="numeric"
-                      keyboardType="number-pad"
-                      maxLength={3}
-                      onChangeText={(value) =>
-                        props.onChangeSetLogDraft(set.id, {
-                          ...draft,
-                          repsText: normalizeRepsInput(value)
-                        })
-                      }
-                      onSubmitEditing={() => {
-                        if (canSubmit) {
-                          if (isPending) {
-                            props.onLogSet(props.exercise, set, draft);
-                          } else {
-                            props.onUpdateLoggedSet(props.exercise, set, draft);
-                          }
-                        }
-                      }}
-                      returnKeyType="done"
-                      selectTextOnFocus
-                      stepper={{
-                        onDecrement: () => {
-                          const nextReps = Math.max(0, (validation.actualReps ?? 0) - 1);
-                          props.onChangeSetLogDraft(set.id, {
-                            ...draft,
-                            repsText: nextReps.toString()
-                          });
-                        },
-                        onIncrement: () => {
-                          const nextReps = (validation.actualReps ?? 0) + 1;
-                          props.onChangeSetLogDraft(set.id, {
-                            ...draft,
-                            repsText: nextReps.toString()
-                          });
-                        }
-                      }}
-                      value={draft.repsText}
-                    />
-                    <SetMetricInput
-                      label={`Load (${unitLabel})`}
-                      accessibilityLabel={`Set ${set.setNumber} load`}
-                      disabled={isLogging || readOnly}
-                      error={Boolean(validation.error)}
-                      helperRight={
-                        previousWeight !== null ? (
-                          <AppText variant="caption" tone="secondary" style={styles.previousValue}>
-                            Previous {formatWeightForUser({ weightLbs: previousWeight, unitSystem: props.unitSystem }).text}
+                    {props.exercise.loggingModality === "reps_load" || props.exercise.loggingModality === "reps_only" ? (
+                      <>
+                        <View style={styles.setTypeRow}>
+                          <AppText variant="caption" tone="secondary">
+                            Set type
                           </AppText>
-                        ) : null
-                      }
-                      inputMode="decimal"
-                      keyboardType="decimal-pad"
-                      maxLength={7}
-                      onChangeText={(value) =>
-                        props.onChangeSetLogDraft(set.id, {
-                          ...draft,
-                          weightText: normalizeWeightInput(value)
-                        })
-                      }
-                      onSubmitEditing={() => {
-                        if (canSubmit) {
-                          if (isPending) {
-                            props.onLogSet(props.exercise, set, draft);
-                          } else {
-                            props.onUpdateLoggedSet(props.exercise, set, draft);
-                          }
-                        }
-                      }}
-                      returnKeyType="done"
-                      selectTextOnFocus
-                      textAlign="left"
-                      value={draft.weightText}
-                    />
-                    <View style={styles.weightAdjustRow}>
-                      {weightAdjustments.map((delta) => (
-                        <Pressable
-                          key={delta}
-                          accessibilityRole="button"
+                          <View style={styles.setTypeChips}>
+                            <Chip
+                              label="Working"
+                              selected={draft.setType === "working"}
+                              variant={draft.setType === "working" ? "selected" : "muted"}
+                              disabled={isLogging || readOnly}
+                              onPress={() => props.onChangeSetLogDraft(set.id, { ...draft, setType: "working" })}
+                            />
+                            <Chip
+                              label="Warmup"
+                              selected={draft.setType === "warmup"}
+                              variant={draft.setType === "warmup" ? "selected" : "muted"}
+                              disabled={isLogging || readOnly}
+                              onPress={() => props.onChangeSetLogDraft(set.id, { ...draft, setType: "warmup" })}
+                            />
+                          </View>
+                        </View>
+
+                        <SetMetricInput
+                          label="Reps"
+                          accessibilityLabel={`Set ${set.setNumber} reps`}
                           disabled={isLogging || readOnly}
-                          onPress={() =>
+                          error={Boolean(validation.error)}
+                          inputMode="numeric"
+                          keyboardType="number-pad"
+                          maxLength={3}
+                          onChangeText={(value) =>
                             props.onChangeSetLogDraft(set.id, {
                               ...draft,
-                              weightText: adjustWeightText({
-                                weightText: draft.weightText,
-                                delta
-                              })
+                              repsText: normalizeRepsInput(value)
                             })
                           }
-                          style={({ pressed }) => [
-                            styles.adjustButton,
-                            isLogging || readOnly ? styles.disabled : null,
-                            pressed && !(isLogging || readOnly) ? styles.adjustButtonPressed : null
-                          ]}
-                        >
-                          <AppText variant="meta" tone="secondary" style={styles.adjustButtonLabel}>
-                            {delta > 0 ? `+${delta}` : String(delta)}
-                          </AppText>
-                        </Pressable>
-                      ))}
-                    </View>
+                          onSubmitEditing={() => {
+                            if (canSubmit) {
+                              if (isPending) {
+                                props.onLogSet(props.exercise, set, draft);
+                              } else {
+                                props.onUpdateLoggedSet(props.exercise, set, draft);
+                              }
+                            }
+                          }}
+                          returnKeyType="done"
+                          selectTextOnFocus
+                          stepper={{
+                            onDecrement: () => {
+                              const nextReps = Math.max(0, (validation.actualReps ?? 0) - 1);
+                              props.onChangeSetLogDraft(set.id, {
+                                ...draft,
+                                repsText: nextReps.toString()
+                              });
+                            },
+                            onIncrement: () => {
+                              const nextReps = (validation.actualReps ?? 0) + 1;
+                              props.onChangeSetLogDraft(set.id, {
+                                ...draft,
+                                repsText: nextReps.toString()
+                              });
+                            }
+                          }}
+                          value={draft.repsText}
+                        />
+
+                        <SetMetricInput
+                          label={`Load (${unitLabel})${props.exercise.loggingModality === "reps_only" ? " (optional)" : ""}`}
+                          accessibilityLabel={`Set ${set.setNumber} load`}
+                          disabled={isLogging || readOnly}
+                          error={Boolean(validation.error)}
+                          helperRight={
+                            previousWeight !== null ? (
+                              <AppText variant="caption" tone="secondary" style={styles.previousValue}>
+                                Previous {formatWeightForUser({ weightLbs: previousWeight, unitSystem: props.unitSystem }).text}
+                              </AppText>
+                            ) : null
+                          }
+                          inputMode="decimal"
+                          keyboardType="decimal-pad"
+                          maxLength={7}
+                          onChangeText={(value) =>
+                            props.onChangeSetLogDraft(set.id, {
+                              ...draft,
+                              weightText: normalizeWeightInput(value)
+                            })
+                          }
+                          onSubmitEditing={() => {
+                            if (canSubmit) {
+                              if (isPending) {
+                                props.onLogSet(props.exercise, set, draft);
+                              } else {
+                                props.onUpdateLoggedSet(props.exercise, set, draft);
+                              }
+                            }
+                          }}
+                          returnKeyType="done"
+                          selectTextOnFocus
+                          textAlign="left"
+                          value={draft.weightText}
+                        />
+
+                        {props.exercise.loggingModality === "reps_load" ? (
+                          <View style={styles.weightAdjustRow}>
+                            {weightAdjustments.map((delta) => (
+                              <Pressable
+                                key={delta}
+                                accessibilityRole="button"
+                                disabled={isLogging || readOnly}
+                                onPress={() =>
+                                  props.onChangeSetLogDraft(set.id, {
+                                    ...draft,
+                                    weightText: adjustWeightText({
+                                      weightText: draft.weightText,
+                                      delta
+                                    })
+                                  })
+                                }
+                                style={({ pressed }) => [
+                                  styles.adjustButton,
+                                  isLogging || readOnly ? styles.disabled : null,
+                                  pressed && !(isLogging || readOnly) ? styles.adjustButtonPressed : null
+                                ]}
+                              >
+                                <AppText variant="meta" tone="secondary" style={styles.adjustButtonLabel}>
+                                  {delta > 0 ? `+${delta}` : String(delta)}
+                                </AppText>
+                              </Pressable>
+                            ))}
+                          </View>
+                        ) : null}
+                      </>
+                    ) : null}
+
+                    {props.exercise.loggingModality === "time" || props.exercise.loggingModality === "hold" ? (
+                      <SetMetricInput
+                        label="Duration (mm:ss)"
+                        accessibilityLabel={`Set ${set.setNumber} duration`}
+                        disabled={isLogging || readOnly}
+                        error={Boolean(validation.error)}
+                        keyboardType="numbers-and-punctuation"
+                        maxLength={7}
+                        onChangeText={(value) =>
+                          props.onChangeSetLogDraft(set.id, {
+                            ...draft,
+                            durationText: normalizeDurationInput(value)
+                          })
+                        }
+                        onSubmitEditing={() => {
+                          if (canSubmit) {
+                            if (isPending) props.onLogSet(props.exercise, set, draft);
+                            else props.onUpdateLoggedSet(props.exercise, set, draft);
+                          }
+                        }}
+                        returnKeyType="done"
+                        selectTextOnFocus
+                        value={draft.durationText}
+                      />
+                    ) : null}
+
+                    {props.exercise.loggingModality === "time_distance" ? (
+                      <>
+                        <SetMetricInput
+                          label="Duration (mm:ss)"
+                          accessibilityLabel={`Set ${set.setNumber} duration`}
+                          disabled={isLogging || readOnly}
+                          error={Boolean(validation.error)}
+                          keyboardType="numbers-and-punctuation"
+                          maxLength={7}
+                          onChangeText={(value) =>
+                            props.onChangeSetLogDraft(set.id, {
+                              ...draft,
+                              durationText: normalizeDurationInput(value)
+                            })
+                          }
+                          returnKeyType="next"
+                          selectTextOnFocus
+                          value={draft.durationText}
+                        />
+                        <SetMetricInput
+                          label={`Distance (${props.unitSystem === "metric" ? "km" : "mi"})`}
+                          accessibilityLabel={`Set ${set.setNumber} distance`}
+                          disabled={isLogging || readOnly}
+                          error={Boolean(validation.error)}
+                          inputMode="decimal"
+                          keyboardType="decimal-pad"
+                          maxLength={7}
+                          onChangeText={(value) =>
+                            props.onChangeSetLogDraft(set.id, {
+                              ...draft,
+                              distanceText: normalizeWeightInput(value)
+                            })
+                          }
+                          onSubmitEditing={() => {
+                            if (canSubmit) {
+                              if (isPending) props.onLogSet(props.exercise, set, draft);
+                              else props.onUpdateLoggedSet(props.exercise, set, draft);
+                            }
+                          }}
+                          returnKeyType="done"
+                          selectTextOnFocus
+                          value={draft.distanceText}
+                        />
+                      </>
+                    ) : null}
+
+                    {props.exercise.loggingModality === "distance" ? (
+                      <>
+                        <SetMetricInput
+                          label={`Distance (${props.unitSystem === "metric" ? "km" : "mi"})`}
+                          accessibilityLabel={`Set ${set.setNumber} distance`}
+                          disabled={isLogging || readOnly}
+                          error={Boolean(validation.error)}
+                          inputMode="decimal"
+                          keyboardType="decimal-pad"
+                          maxLength={7}
+                          onChangeText={(value) =>
+                            props.onChangeSetLogDraft(set.id, {
+                              ...draft,
+                              distanceText: normalizeWeightInput(value)
+                            })
+                          }
+                          returnKeyType="next"
+                          selectTextOnFocus
+                          value={draft.distanceText}
+                        />
+                        <SetMetricInput
+                          label="Duration (optional)"
+                          accessibilityLabel={`Set ${set.setNumber} duration`}
+                          disabled={isLogging || readOnly}
+                          error={Boolean(validation.error)}
+                          keyboardType="numbers-and-punctuation"
+                          maxLength={7}
+                          onChangeText={(value) =>
+                            props.onChangeSetLogDraft(set.id, {
+                              ...draft,
+                              durationText: normalizeDurationInput(value)
+                            })
+                          }
+                          onSubmitEditing={() => {
+                            if (canSubmit) {
+                              if (isPending) props.onLogSet(props.exercise, set, draft);
+                              else props.onUpdateLoggedSet(props.exercise, set, draft);
+                            }
+                          }}
+                          returnKeyType="done"
+                          selectTextOnFocus
+                          value={draft.durationText}
+                        />
+                      </>
+                    ) : null}
+
+                    {props.exercise.loggingModality === "interval" ? (
+                      <>
+                        <SetMetricInput
+                          label="Rounds"
+                          accessibilityLabel={`Set ${set.setNumber} rounds`}
+                          disabled={isLogging || readOnly}
+                          error={Boolean(validation.error)}
+                          inputMode="numeric"
+                          keyboardType="number-pad"
+                          maxLength={5}
+                          onChangeText={(value) =>
+                            props.onChangeSetLogDraft(set.id, {
+                              ...draft,
+                              roundsText: normalizeRepsInput(value)
+                            })
+                          }
+                          returnKeyType="next"
+                          selectTextOnFocus
+                          value={draft.roundsText}
+                        />
+                        <SetMetricInput
+                          label="Duration (optional)"
+                          accessibilityLabel={`Set ${set.setNumber} duration`}
+                          disabled={isLogging || readOnly}
+                          error={Boolean(validation.error)}
+                          keyboardType="numbers-and-punctuation"
+                          maxLength={7}
+                          onChangeText={(value) =>
+                            props.onChangeSetLogDraft(set.id, {
+                              ...draft,
+                              durationText: normalizeDurationInput(value)
+                            })
+                          }
+                          onSubmitEditing={() => {
+                            if (canSubmit) {
+                              if (isPending) props.onLogSet(props.exercise, set, draft);
+                              else props.onUpdateLoggedSet(props.exercise, set, draft);
+                            }
+                          }}
+                          returnKeyType="done"
+                          selectTextOnFocus
+                          value={draft.durationText}
+                        />
+                      </>
+                    ) : null}
                   </View>
                   <AppText variant={validation.error ? "error" : "caption"} tone={validation.error ? "danger" : "secondary"}>
                     {validation.error ?? outcomeText}
                   </AppText>
 
-                  <View style={styles.effortSection}>
-                    <AppText variant="caption" tone="secondary">
-                      Reps in reserve (optional)
-                    </AppText>
+                  {props.exercise.loggingModality === "reps_load" || props.exercise.loggingModality === "reps_only" ? (
+                    <View style={styles.effortSection}>
+                      <AppText variant="caption" tone="secondary">
+                        Reps in reserve (optional)
+                      </AppText>
 
-                    <View style={styles.effortChipsRow}>
-                      {setRirOptions.map((option) => {
-                        const selected =
-                          (draft.rir ?? null) === option.value && (draft.failureStatus ?? null) !== "stopped_early";
+                      <View style={styles.effortChipsRow}>
+                        {setRirOptions.map((option) => {
+                          const selected =
+                            (draft.rir ?? null) === option.value && (draft.failureStatus ?? null) !== "stopped_early";
 
-                        return (
-                          <Chip
-                            key={option.value}
-                            label={option.label}
-                            onPress={() => {
-                              const nextRir = selected ? null : option.value;
-                              const clearsFailure = nextRir !== null && nextRir !== "rir_0";
+                          return (
+                            <Chip
+                              key={option.value}
+                              label={option.label}
+                              onPress={() => {
+                                const nextRir = selected ? null : option.value;
+                                const clearsFailure = nextRir !== null && nextRir !== "rir_0";
 
-                              props.onChangeSetLogDraft(set.id, {
-                                ...draft,
-                                rir: nextRir,
-                                ...(draft.failureStatus === "stopped_early" ? { failureStatus: null } : {}),
-                                ...(clearsFailure ? { failureStatus: null } : {})
-                              });
-                            }}
-                            selected={selected}
-                            variant={selected ? "selected" : "muted"}
-                            disabled={isLogging || readOnly}
-                          />
-                        );
-                      })}
-                      <Chip
-                        label="Stopped early"
-                        onPress={() => {
-                          const selected = (draft.failureStatus ?? null) === "stopped_early";
-                          props.onChangeSetLogDraft(set.id, {
-                            ...draft,
-                            failureStatus: selected ? null : "stopped_early",
-                            rir: null
-                          });
-                        }}
-                        selected={(draft.failureStatus ?? null) === "stopped_early"}
-                        variant={(draft.failureStatus ?? null) === "stopped_early" ? "selected" : "muted"}
-                        disabled={isLogging || readOnly}
-                      />
-                    </View>
-
-                    <AppText variant="caption" tone="tertiary" style={styles.effortHelper}>
-                      How many reps you could still do. 0 = max effort.
-                    </AppText>
-
-                    {draft.rir === "rir_0" ? (
-                      <View style={styles.effortRow}>
-                        <AppText variant="caption" tone="secondary" style={styles.effortLabel}>
-                          Failure type
-                        </AppText>
-                        <View style={styles.effortChips}>
-                          {maxFailureOptions.map((option) => {
-                            const selected = (draft.failureStatus ?? null) === option.value;
-                            return (
-                              <Chip
-                                key={option.label}
-                                label={option.label}
-                                onPress={() => {
-                                  props.onChangeSetLogDraft(set.id, {
-                                    ...draft,
-                                    failureStatus: selected ? null : option.value,
-                                    rir: "rir_0"
-                                  });
-                                }}
-                                selected={selected}
-                                variant={selected ? "selected" : "muted"}
-                                disabled={isLogging || readOnly}
-                              />
-                            );
-                          })}
-                        </View>
+                                props.onChangeSetLogDraft(set.id, {
+                                  ...draft,
+                                  rir: nextRir,
+                                  ...(draft.failureStatus === "stopped_early" ? { failureStatus: null } : {}),
+                                  ...(clearsFailure ? { failureStatus: null } : {})
+                                });
+                              }}
+                              selected={selected}
+                              variant={selected ? "selected" : "muted"}
+                              disabled={isLogging || readOnly}
+                            />
+                          );
+                        })}
+                        <Chip
+                          label="Stopped early"
+                          onPress={() => {
+                            const selected = (draft.failureStatus ?? null) === "stopped_early";
+                            props.onChangeSetLogDraft(set.id, {
+                              ...draft,
+                              failureStatus: selected ? null : "stopped_early",
+                              rir: null
+                            });
+                          }}
+                          selected={(draft.failureStatus ?? null) === "stopped_early"}
+                          variant={(draft.failureStatus ?? null) === "stopped_early" ? "selected" : "muted"}
+                          disabled={isLogging || readOnly}
+                        />
                       </View>
-                    ) : null}
-                  </View>
+
+                      <AppText variant="caption" tone="tertiary" style={styles.effortHelper}>
+                        How many reps you could still do. 0 = max effort.
+                      </AppText>
+
+                      {draft.rir === "rir_0" ? (
+                        <View style={styles.effortRow}>
+                          <AppText variant="caption" tone="secondary" style={styles.effortLabel}>
+                            Failure type
+                          </AppText>
+                          <View style={styles.effortChips}>
+                            {maxFailureOptions.map((option) => {
+                              const selected = (draft.failureStatus ?? null) === option.value;
+                              return (
+                                <Chip
+                                  key={option.label}
+                                  label={option.label}
+                                  onPress={() => {
+                                    props.onChangeSetLogDraft(set.id, {
+                                      ...draft,
+                                      failureStatus: selected ? null : option.value,
+                                      rir: "rir_0"
+                                    });
+                                  }}
+                                  selected={selected}
+                                  variant={selected ? "selected" : "muted"}
+                                  disabled={isLogging || readOnly}
+                                />
+                              );
+                            })}
+                          </View>
+                        </View>
+                      ) : null}
+                    </View>
+                  ) : (
+                    <View style={styles.effortSection}>
+                      <AppText variant="caption" tone="secondary">
+                        Set status (optional)
+                      </AppText>
+
+                      <View style={styles.effortChipsRow}>
+                        <Chip
+                          label="Stopped early"
+                          onPress={() => {
+                            const selected = (draft.failureStatus ?? null) === "stopped_early";
+                            props.onChangeSetLogDraft(set.id, {
+                              ...draft,
+                              failureStatus: selected ? null : "stopped_early",
+                              rir: null
+                            });
+                          }}
+                          selected={(draft.failureStatus ?? null) === "stopped_early"}
+                          variant={(draft.failureStatus ?? null) === "stopped_early" ? "selected" : "muted"}
+                          disabled={isLogging || readOnly}
+                        />
+                      </View>
+
+                      <AppText variant="caption" tone="tertiary" style={styles.effortHelper}>
+                        Use this if you cut the set short.
+                      </AppText>
+                    </View>
+                  )}
                   <PrimaryButton
                     label={
                       isLogging
                         ? "Saving..."
                         : request
                           ? isPending
-                            ? `Log ${request.actualReps} @ ${formatWeightForUser({
-                                weightLbs: request.actualWeight?.value ?? set.targetWeight.value,
+                            ? formatSetSubmitLabel({
+                                verb: "Log",
+                                request,
+                                set,
+                                modality: props.exercise.loggingModality,
                                 unitSystem: props.unitSystem
-                              }).text}`
-                            : `Update ${request.actualReps} @ ${formatWeightForUser({
-                                weightLbs: request.actualWeight?.value ?? set.targetWeight.value,
+                              })
+                            : formatSetSubmitLabel({
+                                verb: "Update",
+                                request,
+                                set,
+                                modality: props.exercise.loggingModality,
                                 unitSystem: props.unitSystem
-                              }).text}`
+                              })
                           : isPending
                             ? "Log set"
                             : "Update set"
@@ -431,11 +830,11 @@ export function WorkoutExerciseCard(props: {
               ) : (
                 <View style={styles.loggedSummaryRow}>
                   <AppText variant="caption" tone="secondary" style={styles.loggedSummary}>
-                    Logged {set.actualReps ?? 0} reps at{" "}
-                    {formatWeightForUser({
-                      weightLbs: set.actualWeight?.value ?? set.targetWeight.value,
+                    {formatLoggedSetSummary({
+                      set,
+                      modality: props.exercise.loggingModality,
                       unitSystem: props.unitSystem
-                    }).text}
+                    })}
                     {formatSetEffortSummaryText({ rir: set.rir, failureStatus: set.failureStatus })
                       ? ` - ${formatSetEffortSummaryText({ rir: set.rir, failureStatus: set.failureStatus })}`
                       : ""}
@@ -585,6 +984,16 @@ const styles = StyleSheet.create({
   },
   inputGrid: {
     gap: spacing.sm
+  },
+  setTypeRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between"
+  },
+  setTypeChips: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.xs
   },
   previousValue: {
     textAlign: "right"

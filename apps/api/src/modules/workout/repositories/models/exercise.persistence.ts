@@ -1,5 +1,6 @@
 import type {
   ExerciseCategory,
+  ExerciseLoggingModality,
   PredefinedWorkoutCategory,
   ProgressionStrategy,
   WorkoutSetTargetDto
@@ -20,6 +21,7 @@ export type ExerciseRecord = {
   isBodyweight: boolean;
   isWeightOptional: boolean;
   isProgressionEligible: boolean;
+  loggingModality: ExerciseLoggingModality;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -44,9 +46,12 @@ export type WorkoutTemplateExerciseRecord = {
   exerciseId: string;
   sequenceOrder: number;
   targetSets: number;
-  targetReps: number;
+  targetReps: number | null;
   repRangeMin?: number | null;
   repRangeMax?: number | null;
+  targetDurationSeconds?: number | null;
+  targetDistanceMeters?: number | null;
+  targetRounds?: number | null;
   restSeconds: number | null;
   progressionStrategy?: ProgressionStrategy | null;
   repTargetText?: string | null;

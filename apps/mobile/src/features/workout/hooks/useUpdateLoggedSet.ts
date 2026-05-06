@@ -27,19 +27,57 @@ function applyUpdatedSet(
             return set;
           }
 
-          const actualWeight = input.request.actualWeight ?? set.actualWeight ?? set.targetWeight;
-          const isOverperformanceSet = isMaterialOverperformanceLog({
-            actualReps: input.request.actualReps,
-            actualWeightValue: actualWeight.value,
-            targetWeightValue: set.targetWeight.value
-          });
+          const modality = exercise.loggingModality;
+          const completedAt = input.request.completedAt ?? set.completedAt ?? input.completedAt;
+          const setType = input.request.setType ?? set.setType;
+
+          if (modality === "reps_load" || modality === "reps_only") {
+            const actualReps = input.request.actualReps ?? set.actualReps ?? null;
+            const actualWeight = input.request.actualWeight ?? set.actualWeight ?? set.targetWeight ?? null;
+
+            const targetReps = set.targetReps ?? null;
+            const targetWeightValue = set.targetWeight?.value ?? null;
+            const actualWeightValue = actualWeight?.value ?? null;
+
+            const isOverperformanceSet =
+              modality === "reps_load" &&
+              typeof actualReps === "number" &&
+              actualWeightValue !== null &&
+              targetWeightValue !== null
+                ? isMaterialOverperformanceLog({
+                    actualReps,
+                    actualWeightValue,
+                    targetWeightValue
+                  })
+                : false;
+
+            const status =
+              targetReps === null || actualReps === null
+                ? "completed"
+                : actualReps >= targetReps || isOverperformanceSet
+                  ? "completed"
+                  : "failed";
+
+            return {
+              ...set,
+              setType,
+              actualReps,
+              actualWeight,
+              completedAt,
+              status
+            };
+          }
 
           return {
             ...set,
-            actualReps: input.request.actualReps,
-            actualWeight,
-            completedAt: input.request.completedAt ?? set.completedAt ?? input.completedAt,
-            status: input.request.actualReps >= set.targetReps || isOverperformanceSet ? "completed" : "failed"
+            setType,
+            actualReps: null,
+            actualWeight: null,
+            actualDurationSeconds: input.request.durationSeconds ?? set.actualDurationSeconds ?? null,
+            actualDistanceMeters: input.request.distanceMeters ?? set.actualDistanceMeters ?? null,
+            actualRounds: input.request.rounds ?? set.actualRounds ?? null,
+            completedAt,
+            status: "completed"
           };
         })
       }))
@@ -100,4 +138,3 @@ export function useUpdateLoggedSet() {
     }
   });
 }
-

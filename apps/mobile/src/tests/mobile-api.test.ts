@@ -538,7 +538,10 @@ export const mobileApiTestCases: MobileTestCase[] = [
         };
       });
 
-      const request = buildLogSetRequestFromDraft({ repsText: "8", weightText: "60" }, { unitSystem: "metric" });
+      const request = buildLogSetRequestFromDraft(
+        { repsText: "8", weightText: "60", durationText: "", distanceText: "", roundsText: "", setType: "working" },
+        { unitSystem: "metric", modality: "reps_load" }
+      );
       assert.ok(request);
 
       await logSet({

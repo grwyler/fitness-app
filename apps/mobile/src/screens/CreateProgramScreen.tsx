@@ -199,17 +199,55 @@ export function CreateProgramScreen({ navigation, route }: Props) {
           } satisfies ProgramWorkoutTemplateDto);
 
         const normalized = ensureNormalizedExercises(baseWorkout.exercises);
+        const modality = input.exercise.loggingModality ?? "reps_load";
+        const isRepsBased = modality === "reps_load" || modality === "reps_only";
+        const defaultTargets = (() => {
+          if (modality === "hold") {
+            return { targetSets: 3, targetDurationSeconds: 30, targetDistanceMeters: null, targetRounds: null };
+          }
+
+          if (modality === "time") {
+            return { targetSets: 1, targetDurationSeconds: 20 * 60, targetDistanceMeters: null, targetRounds: null };
+          }
+
+          if (modality === "time_distance") {
+            return {
+              targetSets: 1,
+              targetDurationSeconds: 20 * 60,
+              targetDistanceMeters: null,
+              targetRounds: null
+            };
+          }
+
+          if (modality === "distance") {
+            const distanceMeters = unitSystem === "metric" ? 2000 : 1609.344;
+            return { targetSets: 1, targetDurationSeconds: null, targetDistanceMeters: distanceMeters, targetRounds: null };
+          }
+
+          if (modality === "interval") {
+            return { targetSets: 1, targetDurationSeconds: null, targetDistanceMeters: null, targetRounds: 5 };
+          }
+
+          return { targetSets: null as number | null, targetDurationSeconds: null, targetDistanceMeters: null, targetRounds: null };
+        })();
+
         const nextEntry: ProgramWorkoutExerciseDto = {
           id: `${CUSTOM_WORKOUT_BUILDER_PREFIX}${input.exercise.id}:${Date.now()}`,
           exerciseId: input.exercise.id,
           exerciseName: input.exercise.name,
           category: input.exercise.category,
+          loggingModality: modality,
           sequenceOrder: normalized.length + 1,
-          targetSets: input.exercise.defaultTargetSets ?? CUSTOM_WORKOUT_DEFAULT_TARGET_SETS,
-          targetReps: input.exercise.defaultTargetReps ?? CUSTOM_WORKOUT_DEFAULT_TARGET_REPS,
-          repTargetText: String(input.exercise.defaultTargetReps ?? CUSTOM_WORKOUT_DEFAULT_TARGET_REPS),
+          targetSets: defaultTargets.targetSets ?? input.exercise.defaultTargetSets ?? CUSTOM_WORKOUT_DEFAULT_TARGET_SETS,
+          targetReps: isRepsBased ? (input.exercise.defaultTargetReps ?? CUSTOM_WORKOUT_DEFAULT_TARGET_REPS) : null,
+          ...(defaultTargets.targetDurationSeconds !== null ? { targetDurationSeconds: defaultTargets.targetDurationSeconds } : {}),
+          ...(defaultTargets.targetDistanceMeters !== null ? { targetDistanceMeters: defaultTargets.targetDistanceMeters } : {}),
+          ...(defaultTargets.targetRounds !== null ? { targetRounds: defaultTargets.targetRounds } : {}),
+          ...(isRepsBased
+            ? { repTargetText: String(input.exercise.defaultTargetReps ?? CUSTOM_WORKOUT_DEFAULT_TARGET_REPS) }
+            : {}),
           restSeconds: null,
-          progressionStrategy: getDefaultProgressionStrategy(input.exercise)
+          progressionStrategy: isRepsBased ? getDefaultProgressionStrategy(input.exercise) : ("no_progression" as const)
         };
 
         const nextEntries = [...normalized, nextEntry];

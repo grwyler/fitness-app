@@ -77,6 +77,24 @@ function buildSetEffortSignalsFromSets(sets: Array<{ rir: string | null; failure
   };
 }
 
+function buildSetEffortEntry(set: {
+  targetReps: number | null;
+  actualReps: number | null;
+  targetWeightLbs: number | null;
+  actualWeightLbs: number | null;
+  rir: SetRir | null;
+  failureStatus: SetFailureStatus | null;
+}) {
+  return {
+    ...(set.targetReps !== null ? { targetReps: set.targetReps } : {}),
+    actualReps: set.actualReps,
+    ...(set.targetWeightLbs !== null ? { targetWeightLbs: set.targetWeightLbs } : {}),
+    actualWeightLbs: set.actualWeightLbs,
+    rir: set.rir ?? null,
+    failureStatus: set.failureStatus ?? null
+  };
+}
+
 const TARGET_WEIGHT_TOLERANCE_RELATIVE = 0.02;
 const MIN_RECALIBRATION_SET_COUNT = 2;
 
@@ -815,6 +833,27 @@ export class CompleteWorkoutSessionUseCase {
 
         const progressionEligibleExerciseEntries = fullyLoggedExerciseEntries.filter((exerciseEntry) => {
           const progressionSeed = progressionSeedByExerciseId.get(exerciseEntry.exerciseId);
+          const modality = exerciseEntry.loggingModalitySnapshot ?? "reps_load";
+          const isRepsBased = modality === "reps_load" || modality === "reps_only";
+          if (!isRepsBased) {
+            return false;
+          }
+
+          const relatedSets = workoutSessionGraph.sets.filter((set) => set.exerciseEntryId === exerciseEntry.id);
+          const hasValidRepsTargets = relatedSets.length > 0 && relatedSets.every((set) => typeof set.targetReps === "number" && set.targetReps > 0);
+          if (!hasValidRepsTargets) {
+            return false;
+          }
+
+          if (modality === "reps_load") {
+            const hasValidWeightTargets = relatedSets.every(
+              (set) => typeof set.targetWeightLbs === "number" && Number.isFinite(set.targetWeightLbs) && set.targetWeightLbs >= 0
+            );
+            if (!hasValidWeightTargets) {
+              return false;
+            }
+          }
+
           return progressionSeed?.isProgressionEligible ?? true;
         });
 
@@ -915,15 +954,20 @@ export class CompleteWorkoutSessionUseCase {
             }
 
             const v1State = progressionStateV1ByExerciseId.get(exerciseEntry.exerciseId) ?? null;
-            const repRangeMin = exerciseEntry.targetReps;
-            const repRangeMax = exerciseEntry.targetReps;
+            const relatedSets = workoutSessionGraph.sets.filter((set) => set.exerciseEntryId === exerciseEntry.id);
+            const repGoalSeed =
+              relatedSets.find((set) => typeof set.targetReps === "number" && set.targetReps > 0)?.targetReps ??
+              exerciseEntry.targetReps ??
+              8;
+            const repRangeMin = repGoalSeed;
+            const repRangeMax = repGoalSeed;
 
             return {
               userId: input.context.userId,
               workoutTemplateExerciseEntryId: row.workoutTemplateExerciseEntryId,
               currentWeightLbs: v1State?.currentWeightLbs ?? progressionSeed.defaultStartingWeightLbs,
               lastCompletedWeightLbs: v1State?.lastCompletedWeightLbs ?? null,
-              repGoal: repRangeMin,
+              repGoal: repGoalSeed,
               repRangeMin,
               repRangeMax,
               consecutiveFailures: v1State?.consecutiveFailures ?? 0,
@@ -1068,14 +1112,7 @@ export class CompleteWorkoutSessionUseCase {
           const explicitEffortFeedback = exerciseFeedbackByEntryId[exerciseEntry.id] ?? null;
           const effortFeedback: EffortFeedback = explicitEffortFeedback ?? "just_right";
           const effortFeedbackDefaulted = explicitEffortFeedback === null;
-          const setEffortEntries = relatedSets.map((set) => ({
-            targetReps: set.targetReps,
-            actualReps: set.actualReps,
-            targetWeightLbs: set.targetWeightLbs,
-            actualWeightLbs: set.actualWeightLbs,
-            rir: set.rir ?? null,
-            failureStatus: set.failureStatus ?? null
-          }));
+          const setEffortEntries = relatedSets.map((set) => buildSetEffortEntry(set));
           const effortSummary = summarizeExerciseEffortFromSets({
             sets: setEffortEntries,
             exerciseFeedback: explicitEffortFeedback
@@ -1126,9 +1163,9 @@ export class CompleteWorkoutSessionUseCase {
               effortFeedbackDefaulted,
               hasFailure,
               sets: relatedSets.map((set) => ({
-                targetReps: set.targetReps,
+                targetReps: set.targetReps!,
                 actualReps: set.actualReps,
-                targetWeightLbs: set.targetWeightLbs,
+                targetWeightLbs: set.targetWeightLbs ?? 0,
                 actualWeightLbs: set.actualWeightLbs,
                 rir: set.rir,
                 failureStatus: set.failureStatus
@@ -1324,14 +1361,7 @@ export class CompleteWorkoutSessionUseCase {
           const explicitEffortFeedback = exerciseFeedbackByEntryId[exerciseEntry.id] ?? null;
           const effortFeedback: EffortFeedback = explicitEffortFeedback ?? "just_right";
           const effortFeedbackDefaulted = explicitEffortFeedback === null;
-          const setEffortEntries = relatedSets.map((set) => ({
-            targetReps: set.targetReps,
-            actualReps: set.actualReps,
-            targetWeightLbs: set.targetWeightLbs,
-            actualWeightLbs: set.actualWeightLbs,
-            rir: set.rir ?? null,
-            failureStatus: set.failureStatus ?? null
-          }));
+          const setEffortEntries = relatedSets.map((set) => buildSetEffortEntry(set));
           const effortSummary = summarizeExerciseEffortFromSets({
             sets: setEffortEntries,
             exerciseFeedback: explicitEffortFeedback
@@ -1378,9 +1408,9 @@ export class CompleteWorkoutSessionUseCase {
               effortFeedbackDefaulted,
               hasFailure,
               sets: relatedSets.map((set) => ({
-                targetReps: set.targetReps,
+                targetReps: set.targetReps!,
                 actualReps: set.actualReps,
-                targetWeightLbs: set.targetWeightLbs,
+                targetWeightLbs: set.targetWeightLbs ?? 0,
                 actualWeightLbs: set.actualWeightLbs,
                 rir: set.rir,
                 failureStatus: set.failureStatus
@@ -1400,8 +1430,8 @@ export class CompleteWorkoutSessionUseCase {
             reason: progressionResult.reason,
             previousWeightLbs: progressionResult.previousWeightLbs,
             nextWeightLbs: progressionResult.nextWeightLbs,
-            previousRepGoal: exerciseEntry.targetReps,
-            nextRepGoal: exerciseEntry.targetReps,
+            previousRepGoal: relatedSets[0]?.targetReps ?? 0,
+            nextRepGoal: relatedSets[0]?.targetReps ?? 0,
             exerciseEffortFeedback: explicitEffortFeedback,
             effectiveEffortFeedback: effortHierarchy.effectiveEffortFeedback,
             effortFeedbackDefaulted,
@@ -1636,6 +1666,100 @@ export class CompleteWorkoutSessionUseCase {
           await this.progressionStateRepository.updateMany(progressionUpdatesV1, { tx });
         }
 
+        const formatDurationCompact = (durationSeconds: number) => {
+          const safe = Math.max(0, Math.floor(durationSeconds));
+          const minutes = Math.floor(safe / 60);
+          const remaining = safe % 60;
+          return `${minutes}:${remaining.toString().padStart(2, "0")}`;
+        };
+
+        const formatDistanceKm = (distanceMeters: number) => {
+          const km = distanceMeters / 1000;
+          const text = km.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+          return `${text} km`;
+        };
+
+        const nonStrengthMetricInputs = await (async () => {
+          const nonStrengthEntries = workoutSessionGraph.exerciseEntries.filter((exerciseEntry) => {
+            const modality = exerciseEntry.loggingModalitySnapshot ?? "reps_load";
+            const isRepsBased = modality === "reps_load" || modality === "reps_only";
+            return !isRepsBased;
+          });
+
+          const inputs = await Promise.all(
+            nonStrengthEntries.map(async (exerciseEntry) => {
+              const relatedSets = workoutSessionGraph.sets.filter((set) => set.exerciseEntryId === exerciseEntry.id);
+              const completedSets = relatedSets.filter((set) => set.status === "completed" || set.status === "failed");
+
+              const durationSeconds = completedSets.reduce((sum, set) => sum + (set.actualDurationSeconds ?? 0), 0) || null;
+              const distanceMeters = completedSets.reduce((sum, set) => sum + (set.actualDistanceMeters ?? 0), 0) || null;
+              const rounds = completedSets.reduce((sum, set) => sum + (set.actualRounds ?? 0), 0) || null;
+
+              if (durationSeconds === null && distanceMeters === null && rounds === null) {
+                return null;
+              }
+
+              const previous = this.workoutSessionRepository.findMostRecentCompletedNonStrengthTotals
+                ? await this.workoutSessionRepository.findMostRecentCompletedNonStrengthTotals(
+                    {
+                      userId: input.context.userId,
+                      exerciseId: exerciseEntry.exerciseId,
+                      excludeWorkoutSessionId: workoutSessionGraph.session.id
+                    },
+                    { tx }
+                  )
+                : null;
+
+              const modality = exerciseEntry.loggingModalitySnapshot ?? "reps_load";
+              const parts: string[] = [];
+              if (rounds !== null) parts.push(`${rounds} rounds`);
+              if (distanceMeters !== null) parts.push(formatDistanceKm(distanceMeters));
+              if (durationSeconds !== null) parts.push(`${formatDurationCompact(durationSeconds)}`);
+              const summaryText = parts.join(" · ");
+
+              const previousParts: string[] = [];
+              if (previous?.rounds != null) previousParts.push(`${previous.rounds} rounds`);
+              if (previous?.distanceMeters != null) previousParts.push(formatDistanceKm(previous.distanceMeters));
+              if (previous?.durationSeconds != null) previousParts.push(`${formatDurationCompact(previous.durationSeconds)}`);
+              const previousText = previousParts.length > 0 ? previousParts.join(" · ") : null;
+
+              const suggestion = (() => {
+                if (modality === "interval" && rounds !== null) {
+                  return `Next time: aim for ${rounds + 1} rounds.`;
+                }
+
+                if (distanceMeters !== null) {
+                  const next = Math.max(distanceMeters + 100, distanceMeters * 1.05);
+                  return `Next time: aim for ${formatDistanceKm(next)}.`;
+                }
+
+                if (durationSeconds !== null) {
+                  const next = Math.max(durationSeconds + 30, Math.round(durationSeconds * 1.05));
+                  return `Next time: aim for ${formatDurationCompact(next)}.`;
+                }
+
+                return null;
+              })();
+
+              const displayText = `${exerciseEntry.exerciseNameSnapshot}: ${summaryText}${
+                previousText ? ` (last ${previousText})` : ""
+              }${suggestion ? ` ${suggestion}` : ""}`;
+
+              return {
+                userId: input.context.userId,
+                exerciseId: exerciseEntry.exerciseId,
+                workoutSessionId: workoutSessionGraph.session.id,
+                metricType: "personal_best" as const,
+                metricValue: null,
+                displayText,
+                recordedAt: completedAt
+              };
+            })
+          );
+
+          return inputs.filter((value): value is NonNullable<typeof value> => value !== null);
+        })();
+
         const progressMetricInputs = [
           ...computedProgressionUpdatesV2
             .filter(
@@ -1673,6 +1797,7 @@ export class CompleteWorkoutSessionUseCase {
                   : `+${progressionResult.nextWeightLbs - progressionResult.previousWeightLbs} lbs on ${exerciseEntry.exerciseNameSnapshot}`,
               recordedAt: completedAt
             })),
+          ...nonStrengthMetricInputs,
           {
             userId: input.context.userId,
             exerciseId: null,
@@ -1762,14 +1887,7 @@ export class CompleteWorkoutSessionUseCase {
           const explicitEffortFeedback = exerciseFeedbackByEntryId[exerciseEntry.id] ?? null;
           const effortFeedback: EffortFeedback = explicitEffortFeedback ?? "just_right";
           const effortFeedbackDefaulted = explicitEffortFeedback === null;
-          const setEffortEntries = relatedSets.map((set) => ({
-            targetReps: set.targetReps,
-            actualReps: set.actualReps,
-            targetWeightLbs: set.targetWeightLbs,
-            actualWeightLbs: set.actualWeightLbs,
-            rir: set.rir ?? null,
-            failureStatus: set.failureStatus ?? null
-          }));
+          const setEffortEntries = relatedSets.map((set) => buildSetEffortEntry(set));
           const effortSummary = summarizeExerciseEffortFromSets({
             sets: setEffortEntries,
             exerciseFeedback: explicitEffortFeedback
@@ -1789,9 +1907,9 @@ export class CompleteWorkoutSessionUseCase {
             userTrainingSettings.allowRecalibration === false &&
             wouldQualifyForRecalibrationEvidence({
               sets: relatedSets.map((set) => ({
-                targetReps: set.targetReps,
+                targetReps: set.targetReps!,
                 actualReps: set.actualReps,
-                targetWeightLbs: set.targetWeightLbs,
+                targetWeightLbs: set.targetWeightLbs ?? 0,
                 actualWeightLbs: set.actualWeightLbs,
                 rir: set.rir ?? null,
                 failureStatus: set.failureStatus ?? null
@@ -1889,14 +2007,7 @@ export class CompleteWorkoutSessionUseCase {
           const explicitEffortFeedback = exerciseFeedbackByEntryId[exerciseEntry.id] ?? null;
           const effortFeedback: EffortFeedback = explicitEffortFeedback ?? "just_right";
           const effortFeedbackDefaulted = explicitEffortFeedback === null;
-          const setEffortEntries = relatedSets.map((set) => ({
-            targetReps: set.targetReps,
-            actualReps: set.actualReps,
-            targetWeightLbs: set.targetWeightLbs,
-            actualWeightLbs: set.actualWeightLbs,
-            rir: set.rir ?? null,
-            failureStatus: set.failureStatus ?? null
-          }));
+          const setEffortEntries = relatedSets.map((set) => buildSetEffortEntry(set));
           const effortSummary = summarizeExerciseEffortFromSets({
             sets: setEffortEntries,
             exerciseFeedback: explicitEffortFeedback
@@ -1917,9 +2028,9 @@ export class CompleteWorkoutSessionUseCase {
             userTrainingSettings.allowRecalibration === false &&
             wouldQualifyForRecalibrationEvidence({
               sets: relatedSets.map((set) => ({
-                targetReps: set.targetReps,
+                targetReps: set.targetReps!,
                 actualReps: set.actualReps,
-                targetWeightLbs: set.targetWeightLbs,
+                targetWeightLbs: set.targetWeightLbs ?? 0,
                 actualWeightLbs: set.actualWeightLbs,
                 rir: set.rir ?? null,
                 failureStatus: set.failureStatus ?? null
@@ -1931,8 +2042,8 @@ export class CompleteWorkoutSessionUseCase {
             reason: progressionResult.reason,
             previousWeightLbs: progressionResult.previousWeightLbs,
             nextWeightLbs: progressionResult.nextWeightLbs,
-            previousRepGoal: exerciseEntry.targetReps,
-            nextRepGoal: exerciseEntry.targetReps,
+            previousRepGoal: relatedSets[0]?.targetReps ?? 0,
+            nextRepGoal: relatedSets[0]?.targetReps ?? 0,
             exerciseEffortFeedback: explicitEffortFeedback,
             effectiveEffortFeedback: effortHierarchy.effectiveEffortFeedback,
             effortFeedbackDefaulted,
@@ -1978,8 +2089,8 @@ export class CompleteWorkoutSessionUseCase {
               exerciseName: exerciseEntry.exerciseNameSnapshot,
               previousWeightLbs: progressionResult.previousWeightLbs,
               nextWeightLbs: progressionResult.nextWeightLbs,
-              previousRepGoal: exerciseEntry.targetReps,
-              nextRepGoal: exerciseEntry.targetReps,
+              previousRepGoal: relatedSets[0]?.targetReps ?? 0,
+              nextRepGoal: relatedSets[0]?.targetReps ?? 0,
               result: progressionResult.result,
               reason: progressionResult.reason,
               confidence: explanation.confidence,
@@ -1997,8 +2108,8 @@ export class CompleteWorkoutSessionUseCase {
               exerciseEntryId: exerciseEntry.id,
               previousWeightLbs: progressionResult.previousWeightLbs,
               nextWeightLbs: progressionResult.nextWeightLbs,
-              previousRepGoal: exerciseEntry.targetReps,
-              nextRepGoal: exerciseEntry.targetReps,
+              previousRepGoal: relatedSets[0]?.targetReps ?? 0,
+              nextRepGoal: relatedSets[0]?.targetReps ?? 0,
               result: progressionResult.result,
               reason: progressionResult.reason,
               confidence: explanation.confidence,
@@ -2024,14 +2135,7 @@ export class CompleteWorkoutSessionUseCase {
           const explicitEffortFeedback = exerciseFeedbackByEntryId[exerciseEntry.id] ?? null;
           const effortFeedback: EffortFeedback = explicitEffortFeedback ?? "just_right";
           const effortFeedbackDefaulted = explicitEffortFeedback === null;
-          const setEffortEntries = relatedSets.map((set) => ({
-            targetReps: set.targetReps,
-            actualReps: set.actualReps,
-            targetWeightLbs: set.targetWeightLbs,
-            actualWeightLbs: set.actualWeightLbs,
-            rir: set.rir ?? null,
-            failureStatus: set.failureStatus ?? null
-          }));
+          const setEffortEntries = relatedSets.map((set) => buildSetEffortEntry(set));
           const effortSummary = summarizeExerciseEffortFromSets({
             sets: setEffortEntries,
             exerciseFeedback: explicitEffortFeedback
@@ -2141,14 +2245,7 @@ export class CompleteWorkoutSessionUseCase {
           const explicitEffortFeedback = exerciseFeedbackByEntryId[exerciseEntry.id] ?? null;
           const effortFeedback: EffortFeedback = explicitEffortFeedback ?? "just_right";
           const effortFeedbackDefaulted = explicitEffortFeedback === null;
-          const setEffortEntries = relatedSets.map((set) => ({
-            targetReps: set.targetReps,
-            actualReps: set.actualReps,
-            targetWeightLbs: set.targetWeightLbs,
-            actualWeightLbs: set.actualWeightLbs,
-            rir: set.rir ?? null,
-            failureStatus: set.failureStatus ?? null
-          }));
+          const setEffortEntries = relatedSets.map((set) => buildSetEffortEntry(set));
           const effortSummary = summarizeExerciseEffortFromSets({
             sets: setEffortEntries,
             exerciseFeedback: explicitEffortFeedback
@@ -2170,8 +2267,8 @@ export class CompleteWorkoutSessionUseCase {
             reason,
             previousWeightLbs: progressionState.currentWeightLbs,
             nextWeightLbs: progressionState.currentWeightLbs,
-            previousRepGoal: exerciseEntry.targetReps,
-            nextRepGoal: exerciseEntry.targetReps,
+            previousRepGoal: relatedSets[0]?.targetReps ?? 0,
+            nextRepGoal: relatedSets[0]?.targetReps ?? 0,
             exerciseEffortFeedback: explicitEffortFeedback,
             effectiveEffortFeedback: effortHierarchy.effectiveEffortFeedback,
             effortFeedbackDefaulted,
@@ -2212,8 +2309,8 @@ export class CompleteWorkoutSessionUseCase {
               exerciseName: exerciseEntry.exerciseNameSnapshot,
               previousWeightLbs: progressionState.currentWeightLbs,
               nextWeightLbs: progressionState.currentWeightLbs,
-              previousRepGoal: exerciseEntry.targetReps,
-              nextRepGoal: exerciseEntry.targetReps,
+              previousRepGoal: relatedSets[0]?.targetReps ?? 0,
+              nextRepGoal: relatedSets[0]?.targetReps ?? 0,
               result: "skipped",
               reason,
               confidence: explanation.confidence,
@@ -2231,8 +2328,8 @@ export class CompleteWorkoutSessionUseCase {
               exerciseEntryId: exerciseEntry.id,
               previousWeightLbs: progressionState.currentWeightLbs,
               nextWeightLbs: progressionState.currentWeightLbs,
-              previousRepGoal: exerciseEntry.targetReps,
-              nextRepGoal: exerciseEntry.targetReps,
+              previousRepGoal: relatedSets[0]?.targetReps ?? 0,
+              nextRepGoal: relatedSets[0]?.targetReps ?? 0,
               result: "skipped",
               reason,
               confidence: explanation.confidence,
@@ -2245,20 +2342,22 @@ export class CompleteWorkoutSessionUseCase {
 
         for (const exerciseEntry of partialExerciseEntries) {
           const relatedSets = workoutSessionGraph.sets.filter((set) => set.exerciseEntryId === exerciseEntry.id);
+          const progressionSeed = progressionSeedByExerciseId.get(exerciseEntry.exerciseId) ?? null;
+          const modality = exerciseEntry.loggingModalitySnapshot ?? "reps_load";
+          const isRepsBased = modality === "reps_load" || modality === "reps_only";
+          if (!isRepsBased || (progressionSeed?.isProgressionEligible ?? true) === false) {
+            continue;
+          }
+
           const loggedSetCount = relatedSets.filter((set) => set.status === "completed" || set.status === "failed").length;
           const totalSetCount = relatedSets.length;
           const reason = `No progression update because this exercise was only partially completed (${loggedSetCount} of ${totalSetCount} sets logged; unlogged sets were skipped).`;
+          const repGoal = relatedSets.find((set) => typeof set.targetReps === "number" && set.targetReps > 0)?.targetReps ?? 0;
+          const weightGoal = exerciseEntry.targetWeightLbs ?? relatedSets.find((set) => typeof set.targetWeightLbs === "number")?.targetWeightLbs ?? 0;
           const explicitEffortFeedback = exerciseFeedbackByEntryId[exerciseEntry.id] ?? null;
           const effortFeedback: EffortFeedback = explicitEffortFeedback ?? "just_right";
           const effortFeedbackDefaulted = explicitEffortFeedback === null;
-          const setEffortEntries = relatedSets.map((set) => ({
-            targetReps: set.targetReps,
-            actualReps: set.actualReps,
-            targetWeightLbs: set.targetWeightLbs,
-            actualWeightLbs: set.actualWeightLbs,
-            rir: set.rir ?? null,
-            failureStatus: set.failureStatus ?? null
-          }));
+          const setEffortEntries = relatedSets.map((set) => buildSetEffortEntry(set));
           const effortSummary = summarizeExerciseEffortFromSets({
             sets: setEffortEntries,
             exerciseFeedback: explicitEffortFeedback
@@ -2278,10 +2377,10 @@ export class CompleteWorkoutSessionUseCase {
           const explanation = buildProgressionExplanation({
             result: "skipped",
             reason,
-            previousWeightLbs: exerciseEntry.targetWeightLbs,
-            nextWeightLbs: exerciseEntry.targetWeightLbs,
-            previousRepGoal: exerciseEntry.targetReps,
-            nextRepGoal: exerciseEntry.targetReps,
+            previousWeightLbs: weightGoal,
+            nextWeightLbs: weightGoal,
+            previousRepGoal: repGoal,
+            nextRepGoal: repGoal,
             exerciseEffortFeedback: explicitEffortFeedback,
             effectiveEffortFeedback: effortHierarchy.effectiveEffortFeedback,
             effortFeedbackDefaulted,
@@ -2325,10 +2424,10 @@ export class CompleteWorkoutSessionUseCase {
             mapProgressionUpdateDto({
               exerciseId: exerciseEntry.exerciseId,
               exerciseName: exerciseEntry.exerciseNameSnapshot,
-              previousWeightLbs: exerciseEntry.targetWeightLbs,
-              nextWeightLbs: exerciseEntry.targetWeightLbs,
-              previousRepGoal: exerciseEntry.targetReps,
-              nextRepGoal: exerciseEntry.targetReps,
+              previousWeightLbs: weightGoal,
+              nextWeightLbs: weightGoal,
+              previousRepGoal: repGoal,
+              nextRepGoal: repGoal,
               result: "skipped",
               reason,
               confidence: explanation.confidence,
@@ -2344,10 +2443,10 @@ export class CompleteWorkoutSessionUseCase {
               workoutTemplateExerciseEntryId,
               workoutSessionId: workoutSessionGraph.session.id,
               exerciseEntryId: exerciseEntry.id,
-              previousWeightLbs: exerciseEntry.targetWeightLbs,
-              nextWeightLbs: exerciseEntry.targetWeightLbs,
-              previousRepGoal: exerciseEntry.targetReps,
-              nextRepGoal: exerciseEntry.targetReps,
+              previousWeightLbs: weightGoal,
+              nextWeightLbs: weightGoal,
+              previousRepGoal: repGoal,
+              nextRepGoal: repGoal,
               result: "skipped",
               reason,
               confidence: explanation.confidence,

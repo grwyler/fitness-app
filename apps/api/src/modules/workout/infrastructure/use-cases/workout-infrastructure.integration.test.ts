@@ -422,7 +422,7 @@ export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[]
 
         const [row] = await context.db.select().from(progressionStatesV2);
 
-        assert.equal(result.data.exercises[0]?.targetWeight.value, 150);
+        assert.equal(result.data.exercises[0]!.targetWeight!.value, 150);
         assert.equal(String(row?.currentWeightLbs), "150.00");
         assert.equal(String(row?.lastCompletedWeightLbs), "145.00");
       } finally {
@@ -599,7 +599,7 @@ export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[]
         });
 
         assert.equal(started.data.exercises[0]!.workoutTemplateExerciseEntryId, templateEntryId);
-        assert.equal(started.data.exercises[0]!.targetWeight.value, 140);
+        assert.equal(started.data.exercises[0]!.targetWeight!.value, 140);
       } finally {
         await disposeWorkoutInfrastructureTestContext(context);
       }
@@ -716,11 +716,11 @@ export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[]
         });
 
         assert.equal(startedAfterAdd.data.exercises[0]!.exerciseId, "exercise-2");
-        assert.equal(startedAfterAdd.data.exercises[0]!.targetWeight.value, weightB);
+        assert.equal(startedAfterAdd.data.exercises[0]!.targetWeight!.value, weightB);
         assert.equal(startedAfterAdd.data.exercises[1]!.exerciseId, "exercise-1");
-        assert.equal(startedAfterAdd.data.exercises[1]!.targetWeight.value, weightA);
+        assert.equal(startedAfterAdd.data.exercises[1]!.targetWeight!.value, weightA);
         assert.equal(startedAfterAdd.data.exercises[2]!.exerciseId, "exercise-3");
-        assert.equal(startedAfterAdd.data.exercises[2]!.targetWeight.value, 25);
+        assert.equal(startedAfterAdd.data.exercises[2]!.targetWeight!.value, 25);
 
         await context.db
           .update(workoutSessions)
@@ -859,9 +859,9 @@ export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[]
         });
 
         assert.equal(restarted.data.exercises[0]!.workoutTemplateExerciseEntryId, secondEntryId);
-        assert.equal(restarted.data.exercises[0]!.targetWeight.value, 222);
+        assert.equal(restarted.data.exercises[0]!.targetWeight!.value, 222);
         assert.equal(restarted.data.exercises[1]!.workoutTemplateExerciseEntryId, firstEntryId);
-        assert.equal(restarted.data.exercises[1]!.targetWeight.value, 111);
+        assert.equal(restarted.data.exercises[1]!.targetWeight!.value, 111);
       } finally {
         await disposeWorkoutInfrastructureTestContext(context);
       }

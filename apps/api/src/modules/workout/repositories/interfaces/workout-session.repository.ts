@@ -116,4 +116,21 @@ export interface WorkoutSessionRepository {
     limit: number,
     options?: RepositoryOptions
   ): Promise<CompletedWorkoutProgressionRecord[]>;
+
+  findMostRecentCompletedNonStrengthTotals?(
+    input: {
+      userId: string;
+      exerciseId: string;
+      excludeWorkoutSessionId?: string;
+    },
+    options?: RepositoryOptions
+  ): Promise<
+    | {
+        completedAt: Date | null;
+        durationSeconds: number | null;
+        distanceMeters: number | null;
+        rounds: number | null;
+      }
+    | null
+  >;
 }

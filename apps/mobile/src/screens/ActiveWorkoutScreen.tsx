@@ -304,7 +304,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
       return;
     }
 
-    const request = buildLogSetRequestFromDraft(draft, { unitSystem });
+    const request = buildLogSetRequestFromDraft(draft, { unitSystem, modality: exercise.loggingModality });
     if (!request) {
       return;
     }
@@ -314,17 +314,28 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
       ...current,
       [set.id]: true
     }));
-    const loggedWeightValue = request.actualWeight?.value ?? set.targetWeight.value;
-    const isOverperformanceSet = isMaterialOverperformanceLog({
-      actualReps: request.actualReps,
-      actualWeightValue: loggedWeightValue,
-      targetWeightValue: set.targetWeight.value
-    });
-    setLastAction(
-      request.actualReps >= set.targetReps || isOverperformanceSet
-        ? `completed_set:${set.id}`
-        : `missed_set:${set.id}`
-    );
+    if (exercise.loggingModality === "reps_load" || exercise.loggingModality === "reps_only") {
+      const actualReps = request.actualReps ?? 0;
+      const targetReps = set.targetReps ?? null;
+      const targetWeightValue = set.targetWeight?.value ?? null;
+      const loggedWeightValue = request.actualWeight?.value ?? set.targetWeight?.value ?? null;
+      const isOverperformanceSet =
+        exercise.loggingModality === "reps_load" &&
+        typeof request.actualReps === "number" &&
+        loggedWeightValue !== null &&
+        targetWeightValue !== null
+          ? isMaterialOverperformanceLog({
+              actualReps: request.actualReps,
+              actualWeightValue: loggedWeightValue,
+              targetWeightValue
+            })
+          : false;
+
+      const completed = targetReps === null ? true : actualReps >= targetReps || isOverperformanceSet;
+      setLastAction(completed ? `completed_set:${set.id}` : `missed_set:${set.id}`);
+    } else {
+      setLastAction(`completed_set:${set.id}`);
+    }
     const hasAnotherPendingSet = exercise.sets.some(
       (candidate) => candidate.setNumber > set.setNumber && candidate.status === "pending"
     );
@@ -389,7 +400,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
       return;
     }
 
-    const request = buildLogSetRequestFromDraft(draft, { unitSystem });
+    const request = buildLogSetRequestFromDraft(draft, { unitSystem, modality: exercise.loggingModality });
     if (!request) {
       return;
     }
@@ -400,17 +411,28 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
       [set.id]: true
     }));
 
-    const loggedWeightValue = request.actualWeight?.value ?? set.targetWeight.value;
-    const isOverperformanceSet = isMaterialOverperformanceLog({
-      actualReps: request.actualReps,
-      actualWeightValue: loggedWeightValue,
-      targetWeightValue: set.targetWeight.value
-    });
-    setLastAction(
-      request.actualReps >= set.targetReps || isOverperformanceSet
-        ? `edited_completed_set:${set.id}`
-        : `edited_missed_set:${set.id}`
-    );
+    if (exercise.loggingModality === "reps_load" || exercise.loggingModality === "reps_only") {
+      const actualReps = request.actualReps ?? 0;
+      const targetReps = set.targetReps ?? null;
+      const targetWeightValue = set.targetWeight?.value ?? null;
+      const loggedWeightValue = request.actualWeight?.value ?? set.targetWeight?.value ?? null;
+      const isOverperformanceSet =
+        exercise.loggingModality === "reps_load" &&
+        typeof request.actualReps === "number" &&
+        loggedWeightValue !== null &&
+        targetWeightValue !== null
+          ? isMaterialOverperformanceLog({
+              actualReps: request.actualReps,
+              actualWeightValue: loggedWeightValue,
+              targetWeightValue
+            })
+          : false;
+
+      const completed = targetReps === null ? true : actualReps >= targetReps || isOverperformanceSet;
+      setLastAction(completed ? `edited_completed_set:${set.id}` : `edited_missed_set:${set.id}`);
+    } else {
+      setLastAction(`edited_completed_set:${set.id}`);
+    }
 
     updateLoggedSetMutation.mutate(
       {

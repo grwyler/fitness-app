@@ -13,6 +13,64 @@ export type BuildWorkoutSessionGraphInput = {
 };
 
 export class WorkoutSessionFactory {
+  private applyDefaultTargets(input: {
+    modality: CreateWorkoutSessionGraphInput["exerciseEntries"][number]["loggingModalitySnapshot"];
+    targetDurationSeconds: number | null;
+    targetDistanceMeters: number | null;
+    targetRounds: number | null;
+  }) {
+    const modality = input.modality;
+
+    if (modality === "hold") {
+      return {
+        targetDurationSeconds: input.targetDurationSeconds ?? 30,
+        targetDistanceMeters: input.targetDistanceMeters,
+        targetRounds: input.targetRounds
+      };
+    }
+
+    if (modality === "time") {
+      return {
+        targetDurationSeconds: input.targetDurationSeconds ?? 20 * 60,
+        targetDistanceMeters: input.targetDistanceMeters,
+        targetRounds: input.targetRounds
+      };
+    }
+
+    if (modality === "time_distance") {
+      return {
+        targetDurationSeconds:
+          input.targetDurationSeconds === null && input.targetDistanceMeters === null
+            ? 20 * 60
+            : input.targetDurationSeconds,
+        targetDistanceMeters: input.targetDistanceMeters,
+        targetRounds: input.targetRounds
+      };
+    }
+
+    if (modality === "distance") {
+      return {
+        targetDurationSeconds: input.targetDurationSeconds,
+        targetDistanceMeters: input.targetDistanceMeters ?? 2000,
+        targetRounds: input.targetRounds
+      };
+    }
+
+    if (modality === "interval") {
+      return {
+        targetDurationSeconds: input.targetDurationSeconds,
+        targetDistanceMeters: input.targetDistanceMeters,
+        targetRounds: input.targetRounds ?? 5
+      };
+    }
+
+    return {
+      targetDurationSeconds: input.targetDurationSeconds,
+      targetDistanceMeters: input.targetDistanceMeters,
+      targetRounds: input.targetRounds
+    };
+  }
+
   public build(input: BuildWorkoutSessionGraphInput): CreateWorkoutSessionGraphInput {
     const progressionStateByTemplateEntryId = new Map(
       input.progressionStatesV2.map((progressionState) => [
@@ -38,10 +96,30 @@ export class WorkoutSessionFactory {
 
     const exerciseEntries: CreateWorkoutSessionGraphInput["exerciseEntries"] =
       input.workoutTemplateDefinition.exercises.map(({ exercise, templateExercise }) => {
-        const progressionState = progressionStateByTemplateEntryId.get(templateExercise.id);
-        if (!progressionState) {
+        const shouldUseProgression =
+          exercise.isProgressionEligible &&
+          (exercise.loggingModality === "reps_load" || exercise.loggingModality === "reps_only");
+
+        const progressionState = progressionStateByTemplateEntryId.get(templateExercise.id) ?? null;
+        if (shouldUseProgression && !progressionState) {
           throw new Error(`Missing progression state for template exercise entry ${templateExercise.id}.`);
         }
+
+        const entryLevelTarget =
+          templateExercise.setTargets && templateExercise.setTargets.length === 1
+            ? templateExercise.setTargets[0] ?? null
+            : null;
+
+        const baseTargets = {
+          targetDurationSeconds: entryLevelTarget?.durationSeconds ?? templateExercise.targetDurationSeconds ?? null,
+          targetDistanceMeters: entryLevelTarget?.distanceMeters ?? templateExercise.targetDistanceMeters ?? null,
+          targetRounds: templateExercise.targetRounds ?? null
+        };
+
+        const normalizedTargets = this.applyDefaultTargets({
+          modality: exercise.loggingModality,
+          ...baseTargets
+        });
 
         return {
           workoutSessionId: "__SESSION__",
@@ -49,13 +127,19 @@ export class WorkoutSessionFactory {
           workoutTemplateExerciseEntryId: templateExercise.id,
           sequenceOrder: templateExercise.sequenceOrder,
           targetSets: templateExercise.targetSets,
-          targetReps: progressionState.repGoal,
-          targetWeightLbs: progressionState.currentWeightLbs,
+          targetReps: shouldUseProgression ? progressionState!.repGoal : (templateExercise.targetReps ?? null),
+          targetWeightLbs: shouldUseProgression
+            ? progressionState!.currentWeightLbs
+            : (templateExercise.targetWeightLbs ?? null),
+          targetDurationSeconds: normalizedTargets.targetDurationSeconds,
+          targetDistanceMeters: normalizedTargets.targetDistanceMeters,
+          targetRounds: normalizedTargets.targetRounds,
           restSeconds: templateExercise.restSeconds,
           effortFeedback: null,
           completedAt: null,
           exerciseNameSnapshot: exercise.name,
           exerciseCategorySnapshot: exercise.category,
+          loggingModalitySnapshot: exercise.loggingModality,
           progressionRuleSnapshot: {
             incrementLbs: exercise.defaultIncrementLbs,
             progressionStrategy: templateExercise.progressionStrategy ?? null
@@ -64,19 +148,34 @@ export class WorkoutSessionFactory {
       });
 
     const sets: CreateWorkoutSessionGraphInput["sets"] = exerciseEntries.flatMap(
-      (exerciseEntry, exerciseEntryIndex) =>
-        Array.from({ length: exerciseEntry.targetSets }, (_, setIndex) => ({
-          exerciseEntryId: `__EXERCISE_ENTRY_${exerciseEntryIndex}__`,
-          setNumber: setIndex + 1,
-          targetReps: exerciseEntry.targetReps,
-          actualReps: null,
-          targetWeightLbs: exerciseEntry.targetWeightLbs,
-          actualWeightLbs: null,
-          status: "pending" as const,
-          rir: null,
-          failureStatus: null,
-          completedAt: null
-        }))
+      (exerciseEntry, exerciseEntryIndex) => {
+        const templateExercise =
+          input.workoutTemplateDefinition.exercises[exerciseEntryIndex]?.templateExercise ?? null;
+
+        return Array.from({ length: exerciseEntry.targetSets }, (_, setIndex) => {
+          const setTarget = templateExercise?.setTargets?.[setIndex] ?? null;
+
+          return {
+            exerciseEntryId: `__EXERCISE_ENTRY_${exerciseEntryIndex}__`,
+            setNumber: setIndex + 1,
+            setType: "working" as const,
+            targetReps: exerciseEntry.targetReps,
+            actualReps: null,
+            targetWeightLbs: exerciseEntry.targetWeightLbs,
+            actualWeightLbs: null,
+            targetDurationSeconds: setTarget?.durationSeconds ?? exerciseEntry.targetDurationSeconds ?? null,
+            actualDurationSeconds: null,
+            targetDistanceMeters: setTarget?.distanceMeters ?? exerciseEntry.targetDistanceMeters ?? null,
+            actualDistanceMeters: null,
+            targetRounds: exerciseEntry.targetRounds ?? null,
+            actualRounds: null,
+            status: "pending" as const,
+            rir: null,
+            failureStatus: null,
+            completedAt: null
+          };
+        });
+      }
     );
 
     return {

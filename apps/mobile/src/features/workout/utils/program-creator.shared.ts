@@ -161,6 +161,9 @@ export function buildAssignedProgramRequest(input: {
                 : {}),
               targetSets: exercise.targetSets,
               targetReps: exercise.targetReps,
+              ...(exercise.targetDurationSeconds != null ? { targetDurationSeconds: exercise.targetDurationSeconds } : {}),
+              ...(exercise.targetDistanceMeters != null ? { targetDistanceMeters: exercise.targetDistanceMeters } : {}),
+              ...(exercise.targetRounds != null ? { targetRounds: exercise.targetRounds } : {}),
               ...(exercise.repRangeMin != null && exercise.repRangeMax != null && exercise.repRangeMax > exercise.repRangeMin
                 ? { repRangeMin: exercise.repRangeMin, repRangeMax: exercise.repRangeMax }
                 : {}),
@@ -205,9 +208,13 @@ export function buildProgramDayWorkoutFromCustomSession(input: {
         exerciseId: exercise.exerciseId,
         exerciseName: exercise.exerciseName,
         category: exercise.category,
+        loggingModality: exercise.loggingModality,
         sequenceOrder: exercise.sequenceOrder,
         targetSets: exercise.targetSets,
         targetReps: exercise.targetReps,
+        ...(exercise.targetDurationSeconds != null ? { targetDurationSeconds: exercise.targetDurationSeconds } : {}),
+        ...(exercise.targetDistanceMeters != null ? { targetDistanceMeters: exercise.targetDistanceMeters } : {}),
+        ...(exercise.targetRounds != null ? { targetRounds: exercise.targetRounds } : {}),
         ...(exercise.repRangeMin != null && exercise.repRangeMax != null && exercise.repRangeMax > exercise.repRangeMin
           ? { repRangeMin: exercise.repRangeMin, repRangeMax: exercise.repRangeMax }
           : {}),
@@ -236,9 +243,26 @@ export function buildProgramDayWorkoutFromExerciseSelection(input: {
       exerciseId: exercise.id,
       exerciseName: exercise.name,
       category: exercise.category,
+      loggingModality: exercise.loggingModality,
       sequenceOrder: index + 1,
-      targetSets: input.targetSets,
-      targetReps: input.targetReps,
+      targetSets:
+        exercise.loggingModality === "hold"
+          ? 3
+          : exercise.loggingModality === "time" ||
+              exercise.loggingModality === "time_distance" ||
+              exercise.loggingModality === "distance" ||
+              exercise.loggingModality === "interval"
+            ? 1
+            : input.targetSets,
+      targetReps:
+        exercise.loggingModality === "reps_load" || exercise.loggingModality === "reps_only"
+          ? input.targetReps
+          : null,
+      ...(exercise.loggingModality === "hold" ? { targetDurationSeconds: 30 } : {}),
+      ...(exercise.loggingModality === "time" ? { targetDurationSeconds: 20 * 60 } : {}),
+      ...(exercise.loggingModality === "time_distance" ? { targetDurationSeconds: 20 * 60 } : {}),
+      ...(exercise.loggingModality === "distance" ? { targetDistanceMeters: 2000 } : {}),
+      ...(exercise.loggingModality === "interval" ? { targetRounds: 5 } : {}),
       restSeconds: null
     }))
   };
@@ -258,6 +282,9 @@ export function buildCustomWorkoutExerciseRequestsFromProgramWorkout(
       workoutTemplateExerciseEntryId: exercise.id,
       targetSets: exercise.targetSets,
       targetReps: exercise.targetReps,
+      ...(exercise.targetDurationSeconds != null ? { targetDurationSeconds: exercise.targetDurationSeconds } : {}),
+      ...(exercise.targetDistanceMeters != null ? { targetDistanceMeters: exercise.targetDistanceMeters } : {}),
+      ...(exercise.targetRounds != null ? { targetRounds: exercise.targetRounds } : {}),
       ...(exercise.repRangeMin != null && exercise.repRangeMax != null && exercise.repRangeMax > exercise.repRangeMin
         ? { repRangeMin: exercise.repRangeMin, repRangeMax: exercise.repRangeMax }
         : {}),

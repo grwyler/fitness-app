@@ -1,5 +1,4 @@
-import type { AddCustomWorkoutExerciseRequest, WorkoutSessionDto } from "@fitness/shared";
-import { generateCustomWorkoutNameFromExercises } from "@fitness/shared";
+import { generateCustomWorkoutNameFromExercises, type AddCustomWorkoutExerciseRequest, type WorkoutSessionDto } from "@fitness/shared";
 import { CUSTOM_WORKOUT_TEMPLATE_NAME, isCustomWorkoutProgramId } from "../../domain/models/custom-workout.js";
 import type { ProgramRepository } from "../../repositories/interfaces/program.repository.js";
 import type { ExerciseRepository } from "../../repositories/interfaces/exercise.repository.js";
@@ -21,10 +20,13 @@ function buildAddCustomExerciseFingerprint(
     sessionId,
     exerciseId: request.exerciseId,
     targetSets: request.targetSets,
-    targetReps: request.targetReps,
+    targetReps: request.targetReps ?? null,
     repRangeMin: request.repRangeMin ?? null,
     repRangeMax: request.repRangeMax ?? null,
     targetWeight: request.targetWeight?.value ?? null,
+    targetDurationSeconds: request.targetDurationSeconds ?? null,
+    targetDistanceMeters: request.targetDistanceMeters ?? null,
+    targetRounds: request.targetRounds ?? null,
     restSeconds: request.restSeconds ?? null,
     progressionStrategy: request.progressionStrategy ?? null,
     updatePlan: request.updatePlan ?? false
@@ -79,62 +81,80 @@ export class AddCustomWorkoutExerciseUseCase {
           throw new WorkoutApplicationError("EXERCISE_NOT_FOUND", "The selected exercise could not be found.");
         }
 
-        const progressionSeed = (
-          await this.exerciseRepository.findProgressionSeedsByExerciseIds([exercise.id], { tx })
-        )[0];
-        if (!progressionSeed) {
+        const shouldUseProgression =
+          exercise.isProgressionEligible &&
+          (exercise.loggingModality === "reps_load" || exercise.loggingModality === "reps_only");
+
+        const targetReps = input.request.targetReps ?? null;
+        if (shouldUseProgression && targetReps === null) {
+          throw new WorkoutApplicationError(
+            "VALIDATION_ERROR",
+            "targetReps is required for this exercise."
+          );
+        }
+
+        const progressionSeed = shouldUseProgression
+          ? (await this.exerciseRepository.findProgressionSeedsByExerciseIds([exercise.id], { tx }))[0] ?? null
+          : null;
+        if (shouldUseProgression && !progressionSeed) {
           throw new WorkoutApplicationError(
             "PROGRESSION_SEED_NOT_FOUND",
             "Progression defaults could not be loaded for the selected exercise."
           );
         }
 
-        let progressionState = (
-          await this.progressionStateRepository.findByUserIdAndExerciseIds(
-            input.context.userId,
-            [exercise.id],
-            { tx }
-          )
-        )[0];
+        let progressionState = shouldUseProgression
+          ? (
+              await this.progressionStateRepository.findByUserIdAndExerciseIds(
+                input.context.userId,
+                [exercise.id],
+                { tx }
+              )
+            )[0] ?? null
+          : null;
 
-        if (!progressionState) {
-          progressionState = (
-            await this.progressionStateRepository.createMany(
-              [
-                {
-                  userId: input.context.userId,
-                  exerciseId: exercise.id,
-                  currentWeightLbs: progressionSeed.defaultStartingWeightLbs,
-                  lastCompletedWeightLbs: null,
-                  consecutiveFailures: 0,
-                  lastEffortFeedback: null,
-                  lastPerformedAt: null
-                }
-              ],
-              { tx }
-            )
-          )[0];
+        if (shouldUseProgression && !progressionState) {
+          progressionState =
+            (
+              await this.progressionStateRepository.createMany(
+                [
+                  {
+                    userId: input.context.userId,
+                    exerciseId: exercise.id,
+                    currentWeightLbs: progressionSeed!.defaultStartingWeightLbs,
+                    lastCompletedWeightLbs: null,
+                    consecutiveFailures: 0,
+                    lastEffortFeedback: null,
+                    lastPerformedAt: null
+                  }
+                ],
+                { tx }
+              )
+            )[0] ?? null;
         }
 
-        if (!progressionState) {
+        if (shouldUseProgression && !progressionState) {
           throw new WorkoutApplicationError(
             "PROGRESSION_STATE_NOT_FOUND",
             "A progression state could not be created for the selected exercise."
           );
         }
 
-        const targetWeightLbs = input.request.targetWeight?.value ?? progressionState.currentWeightLbs;
-        if (input.request.targetWeight?.value !== undefined && progressionSeed.isProgressionEligible) {
+        const targetWeightLbs = shouldUseProgression
+          ? (input.request.targetWeight?.value ?? progressionState!.currentWeightLbs)
+          : (input.request.targetWeight?.value ?? null);
+
+        if (shouldUseProgression && input.request.targetWeight?.value !== undefined && progressionSeed!.isProgressionEligible) {
           await this.progressionStateRepository.updateMany(
             [
               {
                 userId: input.context.userId,
                 exerciseId: exercise.id,
-                currentWeightLbs: targetWeightLbs,
-                lastCompletedWeightLbs: progressionState.lastCompletedWeightLbs,
-                consecutiveFailures: progressionState.consecutiveFailures,
-                lastEffortFeedback: progressionState.lastEffortFeedback,
-                lastPerformedAt: progressionState.lastPerformedAt
+                currentWeightLbs: targetWeightLbs ?? progressionState!.currentWeightLbs,
+                lastCompletedWeightLbs: progressionState!.lastCompletedWeightLbs,
+                consecutiveFailures: progressionState!.consecutiveFailures,
+                lastEffortFeedback: progressionState!.lastEffortFeedback,
+                lastPerformedAt: progressionState!.lastPerformedAt
               }
             ],
             { tx }
@@ -204,7 +224,16 @@ export class AddCustomWorkoutExerciseUseCase {
                   exerciseId: exercise.id,
                   sequenceOrder: nextTemplateSequenceOrder,
                   targetSets: input.request.targetSets,
-                  targetReps: input.request.targetReps,
+                  targetReps,
+                  ...(input.request.targetDurationSeconds !== undefined
+                    ? { targetDurationSeconds: input.request.targetDurationSeconds ?? null }
+                    : {}),
+                  ...(input.request.targetDistanceMeters !== undefined
+                    ? { targetDistanceMeters: input.request.targetDistanceMeters ?? null }
+                    : {}),
+                  ...(input.request.targetRounds !== undefined
+                    ? { targetRounds: input.request.targetRounds ?? null }
+                    : {}),
                   restSeconds: input.request.restSeconds ?? null,
                   ...(input.request.repRangeMin !== undefined
                     ? { repRangeMin: input.request.repRangeMin }
@@ -229,23 +258,34 @@ export class AddCustomWorkoutExerciseUseCase {
               workoutTemplateExerciseEntryId,
               sequenceOrder: nextSequenceOrder,
               targetSets: input.request.targetSets,
-              targetReps: input.request.targetReps,
+              targetReps,
               targetWeightLbs,
+              targetDurationSeconds: input.request.targetDurationSeconds ?? null,
+              targetDistanceMeters: input.request.targetDistanceMeters ?? null,
+              targetRounds: input.request.targetRounds ?? null,
               restSeconds: input.request.restSeconds ?? null,
               effortFeedback: null,
               completedAt: null,
               exerciseNameSnapshot: exercise.name,
               exerciseCategorySnapshot: exercise.category,
+              loggingModalitySnapshot: exercise.loggingModality,
               progressionRuleSnapshot: {
                 incrementLbs: exercise.defaultIncrementLbs
               }
             },
             sets: Array.from({ length: input.request.targetSets }, (_, index) => ({
               setNumber: index + 1,
-              targetReps: input.request.targetReps,
+              setType: "working",
+              targetReps,
               actualReps: null,
               targetWeightLbs,
               actualWeightLbs: null,
+              targetDurationSeconds: input.request.targetDurationSeconds ?? null,
+              actualDurationSeconds: null,
+              targetDistanceMeters: input.request.targetDistanceMeters ?? null,
+              actualDistanceMeters: null,
+              targetRounds: input.request.targetRounds ?? null,
+              actualRounds: null,
               status: "pending",
               rir: null,
               failureStatus: null,

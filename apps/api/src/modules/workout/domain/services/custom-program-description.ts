@@ -5,7 +5,7 @@ type ExerciseMeta = {
 };
 
 type TemplateExercise = {
-  targetReps: number;
+  targetReps: number | null;
   exercise: ExerciseMeta;
 };
 
@@ -114,8 +114,9 @@ function computeTrainingFocus(templates: Template[]) {
   const reps: number[] = [];
   for (const template of templates) {
     for (const exercise of template.exercises) {
-      if (Number.isFinite(exercise.targetReps) && exercise.targetReps > 0) {
-        reps.push(exercise.targetReps);
+      const targetReps = exercise.targetReps ?? null;
+      if (typeof targetReps === "number" && Number.isFinite(targetReps) && targetReps > 0) {
+        reps.push(targetReps);
       }
     }
   }

@@ -32,6 +32,7 @@ const predefinedWorkout: ProgramWorkoutTemplateDto = {
       exerciseId: "exercise-1",
       exerciseName: "Bench Press",
       category: "compound",
+      loggingModality: "reps_load",
       sequenceOrder: 1,
       targetSets: 3,
       targetReps: 5,
@@ -52,6 +53,7 @@ const customWorkout: ProgramWorkoutTemplateDto = {
       exerciseId: "exercise-2",
       exerciseName: "Row",
       category: "compound",
+      loggingModality: "reps_load",
       sequenceOrder: 1,
       targetSets: 4,
       targetReps: 8,
@@ -100,6 +102,7 @@ const customWorkoutSession: WorkoutSessionDto = {
       exerciseId: "exercise-row",
       exerciseName: "Barbell Row",
       category: "compound",
+      loggingModality: "reps_load",
       sequenceOrder: 2,
       targetSets: 3,
       targetReps: 8,
@@ -107,6 +110,9 @@ const customWorkoutSession: WorkoutSessionDto = {
         value: 95,
         unit: "lb"
       },
+      targetDurationSeconds: null,
+      targetDistanceMeters: null,
+      targetRounds: null,
       restSeconds: null,
       effortFeedback: null,
       completedAt: null,
@@ -117,6 +123,7 @@ const customWorkoutSession: WorkoutSessionDto = {
       exerciseId: "exercise-bench",
       exerciseName: "Bench Press",
       category: "compound",
+      loggingModality: "reps_load",
       sequenceOrder: 1,
       targetSets: 3,
       targetReps: 8,
@@ -124,6 +131,9 @@ const customWorkoutSession: WorkoutSessionDto = {
         value: 135,
         unit: "lb"
       },
+      targetDurationSeconds: null,
+      targetDistanceMeters: null,
+      targetRounds: null,
       restSeconds: null,
       effortFeedback: null,
       completedAt: null,
@@ -146,7 +156,8 @@ const selectedExercises: ExerciseCatalogItemDto[] = [
     aliases: [],
     isBodyweight: false,
     isWeightOptional: false,
-    isProgressionEligible: true
+    isProgressionEligible: true,
+    loggingModality: "reps_load"
   },
   {
     id: "exercise-row",
@@ -161,7 +172,8 @@ const selectedExercises: ExerciseCatalogItemDto[] = [
     aliases: [],
     isBodyweight: false,
     isWeightOptional: false,
-    isProgressionEligible: true
+    isProgressionEligible: true,
+    loggingModality: "reps_load"
   },
   {
     id: "exercise-split-squat",
@@ -176,7 +188,8 @@ const selectedExercises: ExerciseCatalogItemDto[] = [
     aliases: [],
     isBodyweight: false,
     isWeightOptional: false,
-    isProgressionEligible: true
+    isProgressionEligible: true,
+    loggingModality: "reps_load"
   }
 ];
 

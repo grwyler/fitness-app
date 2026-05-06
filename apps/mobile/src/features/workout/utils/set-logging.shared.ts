@@ -2,17 +2,23 @@ import {
   MATERIAL_OVERPERFORMANCE_MULTIPLIER,
   formatWeightForUser,
   parseWeightInputForUser,
+  type ExerciseLoggingModality,
   type LogSetRequest,
   type SetFailureStatus,
   type SetRir,
   type SetDto,
   type UnitSystem,
+  type WorkoutSetType,
   type WeightValueDto
 } from "@fitness/shared";
 
 export type SetLogDraft = {
   repsText: string;
   weightText: string;
+  durationText: string;
+  distanceText: string;
+  roundsText: string;
+  setType: WorkoutSetType;
   rir?: SetRir | null;
   failureStatus?: SetFailureStatus | null;
 };
@@ -22,8 +28,72 @@ export type SetEffortCategory = "very_easy" | "good" | "hard" | "max" | "stopped
 export type SetLogValidation = {
   actualReps: number | null;
   actualWeight: WeightValueDto | null;
+  durationSeconds: number | null;
+  distanceMeters: number | null;
+  rounds: number | null;
+  setType: WorkoutSetType;
   error: string | null;
 };
+
+function parseDurationTextToSeconds(value: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  if (trimmed.includes(":")) {
+    const parts = trimmed.split(":").map((part) => part.trim());
+    if (parts.length !== 2) {
+      return null;
+    }
+
+    const minutes = Number(parts[0]);
+    const seconds = Number(parts[1]);
+    if (!Number.isInteger(minutes) || minutes < 0) return null;
+    if (!Number.isInteger(seconds) || seconds < 0 || seconds >= 60) return null;
+
+    const total = minutes * 60 + seconds;
+    return total > 0 ? total : null;
+  }
+
+  const seconds = Number(trimmed);
+  if (!Number.isInteger(seconds) || seconds <= 0) {
+    return null;
+  }
+
+  return seconds;
+}
+
+function formatDurationSeconds(seconds: number): string {
+  const safe = Math.max(0, Math.floor(seconds));
+  const minutes = Math.floor(safe / 60);
+  const remaining = safe % 60;
+  return `${minutes}:${remaining.toString().padStart(2, "0")}`;
+}
+
+function metersToDistanceValueForUser(distanceMeters: number, unitSystem: UnitSystem): number {
+  if (!Number.isFinite(distanceMeters)) {
+    return 0;
+  }
+
+  return unitSystem === "metric" ? distanceMeters / 1000 : distanceMeters / 1609.344;
+}
+
+function distanceValueToMetersForUser(distanceValue: number, unitSystem: UnitSystem): number {
+  return unitSystem === "metric" ? distanceValue * 1000 : distanceValue * 1609.344;
+}
+
+function formatDistanceValue(value: number) {
+  if (!Number.isFinite(value)) {
+    return "";
+  }
+
+  if (Math.abs(value) >= 100) {
+    return value.toFixed(1).replace(/0+$/, "").replace(/\.$/, "");
+  }
+
+  return value.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+}
 
 export function formatSetWeightValue(value: number) {
   return Number.isInteger(value) ? value.toString() : value.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
@@ -53,24 +123,50 @@ export function getSetLogDefaultDraft(input: {
   set: SetDto;
   previousSet?: SetDto | null;
   unitSystem?: UnitSystem;
+  modality?: ExerciseLoggingModality;
 }): SetLogDraft {
   const previousSet = input.previousSet;
+  const modality = input.modality ?? "reps_load";
   const sourceReps =
     previousSet?.actualReps !== null && previousSet?.actualReps !== undefined
       ? previousSet.actualReps
-      : input.set.actualReps ?? input.set.targetReps;
+      : input.set.actualReps ?? input.set.targetReps ?? 0;
   const sourceWeight =
-    previousSet?.actualWeight?.value ?? input.set.actualWeight?.value ?? input.set.targetWeight.value;
+    previousSet?.actualWeight?.value ?? input.set.actualWeight?.value ?? input.set.targetWeight?.value ?? 0;
+  const sourceDurationSeconds =
+    previousSet?.actualDurationSeconds ?? input.set.actualDurationSeconds ?? input.set.targetDurationSeconds ?? null;
+  const sourceDistanceMeters =
+    previousSet?.actualDistanceMeters ?? input.set.actualDistanceMeters ?? input.set.targetDistanceMeters ?? null;
+  const sourceRounds =
+    previousSet?.actualRounds ?? input.set.actualRounds ?? input.set.targetRounds ?? null;
   const unitSystem = input.unitSystem ?? "imperial";
+  const isRepsModality = modality === "reps_load" || modality === "reps_only";
+  const supportsDuration =
+    modality === "time" ||
+    modality === "hold" ||
+    modality === "time_distance" ||
+    modality === "interval" ||
+    modality === "distance";
+  const supportsDistance = modality === "time_distance" || modality === "distance";
+  const supportsRounds = modality === "interval";
 
   return {
-    repsText: sourceReps.toString(),
-    weightText: formatWeightForUser({
-      weightLbs: sourceWeight,
-      unitSystem,
-      includeUnit: false,
-      maximumFractionDigits: unitSystem === "metric" ? 1 : 2
-    }).text,
+    repsText: isRepsModality ? sourceReps.toString() : "",
+    weightText: isRepsModality
+      ? formatWeightForUser({
+          weightLbs: sourceWeight,
+          unitSystem,
+          includeUnit: false,
+          maximumFractionDigits: unitSystem === "metric" ? 1 : 2
+        }).text
+      : "",
+    durationText: supportsDuration && sourceDurationSeconds !== null ? formatDurationSeconds(sourceDurationSeconds) : "",
+    distanceText:
+      supportsDistance && sourceDistanceMeters !== null
+        ? formatDistanceValue(metersToDistanceValueForUser(sourceDistanceMeters, unitSystem))
+        : "",
+    roundsText: supportsRounds && sourceRounds !== null ? sourceRounds.toString() : "",
+    setType: input.set.setType ?? "working",
     ...(input.set.rir ? { rir: input.set.rir } : {}),
     ...(input.set.failureStatus ? { failureStatus: input.set.failureStatus } : {})
   };
@@ -92,48 +188,109 @@ export function normalizeWeightInput(value: string) {
   return `${whole.replace(/^0+(?=\d)/, "") || "0"}.${fraction}`;
 }
 
-export function validateSetLogDraft(draft: SetLogDraft, input?: { unitSystem?: UnitSystem }): SetLogValidation {
+export function validateSetLogDraft(
+  draft: SetLogDraft,
+  input: { unitSystem?: UnitSystem; modality: ExerciseLoggingModality }
+): SetLogValidation {
+  const unitSystem = input.unitSystem ?? "imperial";
+  const modality = input.modality;
+
   const trimmedReps = draft.repsText.trim();
   const trimmedWeight = draft.weightText.trim();
-  const actualReps = trimmedReps.length > 0 ? Number(trimmedReps) : null;
-  const unitSystem = input?.unitSystem ?? "imperial";
+  const trimmedDuration = draft.durationText.trim();
+  const trimmedDistance = draft.distanceText.trim();
+  const trimmedRounds = draft.roundsText.trim();
+
+  const actualReps = trimmedReps.length === 0 ? null : Number(trimmedReps);
   const weightValueLbs =
-    trimmedWeight.length > 0 ? parseWeightInputForUser({ weightText: trimmedWeight, unitSystem }) : null;
+    trimmedWeight.length === 0 ? null : parseWeightInputForUser({ weightText: trimmedWeight, unitSystem });
+  const durationSeconds = parseDurationTextToSeconds(trimmedDuration);
+  const distanceValue = trimmedDistance.length === 0 ? null : Number(trimmedDistance);
+  const distanceMeters =
+    distanceValue === null || !Number.isFinite(distanceValue) || distanceValue < 0
+      ? null
+      : distanceValueToMetersForUser(distanceValue, unitSystem);
+  const roundsRaw = trimmedRounds.length === 0 ? null : Number(trimmedRounds);
+  const rounds =
+    roundsRaw === null || !Number.isFinite(roundsRaw) ? null : Math.floor(roundsRaw);
+  const setType = draft.setType ?? "working";
 
-  if (actualReps === null || !Number.isInteger(actualReps) || actualReps < 0) {
-    return {
-      actualReps: null,
-      actualWeight: null,
-      error: "Enter reps as a whole number."
-    };
-  }
-
-  if (weightValueLbs === null || !Number.isFinite(weightValueLbs) || weightValueLbs < 0) {
-    return {
-      actualReps,
-      actualWeight: null,
-      error: "Enter a valid load."
-    };
-  }
-
-  return {
-    actualReps,
-    actualWeight: {
-      value: weightValueLbs,
-      unit: "lb"
-    },
-    error: null
+  const base: Omit<SetLogValidation, "error"> = {
+    actualReps: actualReps !== null && Number.isFinite(actualReps) ? actualReps : null,
+    actualWeight: weightValueLbs === null ? null : { value: weightValueLbs, unit: "lb" },
+    durationSeconds,
+    distanceMeters,
+    rounds,
+    setType
   };
+
+  if (modality === "reps_load") {
+    if (base.actualReps === null || !Number.isInteger(base.actualReps) || base.actualReps < 0) {
+      return { ...base, actualReps: null, actualWeight: null, error: "Enter reps as a whole number." };
+    }
+
+    if (weightValueLbs === null || !Number.isFinite(weightValueLbs) || weightValueLbs < 0) {
+      return { ...base, actualReps: base.actualReps, actualWeight: null, error: "Enter a valid load." };
+    }
+
+    return { ...base, actualWeight: { value: weightValueLbs, unit: "lb" }, error: null };
+  }
+
+  if (modality === "reps_only") {
+    if (base.actualReps === null || !Number.isInteger(base.actualReps) || base.actualReps < 0) {
+      return { ...base, actualReps: null, error: "Enter reps as a whole number." };
+    }
+
+    if (weightValueLbs !== null && (!Number.isFinite(weightValueLbs) || weightValueLbs < 0)) {
+      return { ...base, actualWeight: null, error: "Enter a valid load." };
+    }
+
+    return { ...base, error: null };
+  }
+
+  if (modality === "time" || modality === "hold") {
+    if (durationSeconds === null) {
+      return { ...base, error: "Enter a duration (mm:ss)." };
+    }
+
+    return { ...base, error: null };
+  }
+
+  if (modality === "time_distance") {
+    if (durationSeconds === null && distanceMeters === null) {
+      return { ...base, error: "Enter a duration and/or distance." };
+    }
+
+    return { ...base, error: null };
+  }
+
+  if (modality === "distance") {
+    if (distanceMeters === null) {
+      return { ...base, error: "Enter a distance." };
+    }
+
+    return { ...base, error: null };
+  }
+
+  // interval
+  if (durationSeconds === null && (rounds === null || !Number.isInteger(rounds) || rounds <= 0)) {
+    return { ...base, error: "Enter rounds and/or duration." };
+  }
+
+  return { ...base, error: null };
 }
 
 export function buildLogSetRequestFromDraft(
   draft: SetLogDraft,
-  input?: { unitSystem?: UnitSystem }
+  input: { unitSystem?: UnitSystem; modality: ExerciseLoggingModality }
 ): LogSetRequest | null {
+  const modality = input.modality;
   const validation = validateSetLogDraft(draft, input);
-  if (validation.error || validation.actualReps === null || validation.actualWeight === null) {
+  if (validation.error) {
     return null;
   }
+
+  const setType = validation.setType;
 
   const hasRirField = "rir" in draft;
   const hasFailureStatusField = "failureStatus" in draft;
@@ -154,9 +311,60 @@ export function buildLogSetRequestFromDraft(
     return hasRirField ? (draft.rir ?? null) : undefined;
   })();
 
+  if (modality === "reps_load") {
+    return {
+      actualReps: validation.actualReps!,
+      actualWeight: validation.actualWeight!,
+      setType,
+      ...(hasRirField || hasFailureStatusField ? { rir: normalizedRir ?? null } : {}),
+      ...(hasFailureStatusField ? { failureStatus: normalizedFailureStatus ?? null } : {})
+    };
+  }
+
+  if (modality === "reps_only") {
+    return {
+      actualReps: validation.actualReps!,
+      ...(validation.actualWeight ? { actualWeight: validation.actualWeight } : {}),
+      setType,
+      ...(hasRirField || hasFailureStatusField ? { rir: normalizedRir ?? null } : {}),
+      ...(hasFailureStatusField ? { failureStatus: normalizedFailureStatus ?? null } : {})
+    };
+  }
+
+  if (modality === "time" || modality === "hold") {
+    return {
+      durationSeconds: validation.durationSeconds!,
+      setType,
+      ...(hasRirField || hasFailureStatusField ? { rir: normalizedRir ?? null } : {}),
+      ...(hasFailureStatusField ? { failureStatus: normalizedFailureStatus ?? null } : {})
+    };
+  }
+
+  if (modality === "time_distance") {
+    return {
+      ...(validation.durationSeconds !== null ? { durationSeconds: validation.durationSeconds } : {}),
+      ...(validation.distanceMeters !== null ? { distanceMeters: validation.distanceMeters } : {}),
+      setType,
+      ...(hasRirField || hasFailureStatusField ? { rir: normalizedRir ?? null } : {}),
+      ...(hasFailureStatusField ? { failureStatus: normalizedFailureStatus ?? null } : {})
+    };
+  }
+
+  if (modality === "distance") {
+    return {
+      distanceMeters: validation.distanceMeters!,
+      ...(validation.durationSeconds !== null ? { durationSeconds: validation.durationSeconds } : {}),
+      setType,
+      ...(hasRirField || hasFailureStatusField ? { rir: normalizedRir ?? null } : {}),
+      ...(hasFailureStatusField ? { failureStatus: normalizedFailureStatus ?? null } : {})
+    };
+  }
+
+  // interval
   return {
-    actualReps: validation.actualReps,
-    actualWeight: validation.actualWeight,
+    ...(validation.rounds !== null ? { rounds: validation.rounds } : {}),
+    ...(validation.durationSeconds !== null ? { durationSeconds: validation.durationSeconds } : {}),
+    setType,
     ...(hasRirField || hasFailureStatusField ? { rir: normalizedRir ?? null } : {}),
     ...(hasFailureStatusField ? { failureStatus: normalizedFailureStatus ?? null } : {})
   };

@@ -1,5 +1,5 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { formatWeightForUser } from "@fitness/shared";
+import { formatWeightForUser, type ExerciseLoggingModality, type UnitSystem } from "@fitness/shared";
 import { StyleSheet, Text, View } from "react-native";
 import { ErrorState } from "../components/ErrorState";
 import { LoadingState } from "../components/LoadingState";
@@ -72,6 +72,176 @@ function formatSetEffort(input: { rir: string | null; failureStatus: string | nu
     parts.push(input.rir === "rir_5_plus" ? "RIR 5+" : `RIR ${input.rir.replace("rir_", "")}`);
   }
   return parts.length > 0 ? parts.join(" · ") : null;
+}
+
+function formatDurationSecondsCompact(durationSeconds: number) {
+  const safe = Math.max(0, Math.floor(durationSeconds));
+  const minutes = Math.floor(safe / 60);
+  const remaining = safe % 60;
+  return `${minutes}:${remaining.toString().padStart(2, "0")}`;
+}
+
+function formatDistanceCompact(distanceMeters: number, unitSystem: UnitSystem) {
+  const raw = unitSystem === "metric" ? distanceMeters / 1000 : distanceMeters / 1609.344;
+  const value = Number.isFinite(raw) ? raw : 0;
+  const text = value.toFixed(value >= 100 ? 1 : 2).replace(/0+$/, "").replace(/\.$/, "");
+  return `${text} ${unitSystem === "metric" ? "km" : "mi"}`;
+}
+
+function formatExercisePrescriptionLine(input: {
+  modality: ExerciseLoggingModality;
+  exercise: {
+    targetSets: number;
+    targetReps: number | null;
+    targetWeight: { value: number } | null;
+    targetDurationSeconds?: number | null;
+    targetDistanceMeters?: number | null;
+    targetRounds?: number | null;
+  };
+  unitSystem: UnitSystem;
+}) {
+  const { exercise, modality, unitSystem } = input;
+  const targetWeightText =
+    exercise.targetWeight?.value != null
+      ? formatWeightForUser({ weightLbs: exercise.targetWeight.value, unitSystem }).text
+      : null;
+
+  if (modality === "reps_load") {
+    return `${exercise.targetSets} x ${exercise.targetReps ?? "—"} at ${targetWeightText ?? "—"}`;
+  }
+
+  if (modality === "reps_only") {
+    const weightSuffix = targetWeightText && exercise.targetWeight?.value ? ` + ${targetWeightText}` : "";
+    return `${exercise.targetSets} x ${exercise.targetReps ?? "—"} reps${weightSuffix}`;
+  }
+
+  if (modality === "time" || modality === "hold") {
+    const duration =
+      exercise.targetDurationSeconds != null
+        ? formatDurationSecondsCompact(exercise.targetDurationSeconds)
+        : "—";
+    return `${exercise.targetSets} x ${duration}`;
+  }
+
+  if (modality === "time_distance") {
+    const duration =
+      exercise.targetDurationSeconds != null
+        ? formatDurationSecondsCompact(exercise.targetDurationSeconds)
+        : null;
+    const distance =
+      exercise.targetDistanceMeters != null
+        ? formatDistanceCompact(exercise.targetDistanceMeters, unitSystem)
+        : null;
+    const parts = [distance, duration].filter(Boolean).join(" in ");
+    return `${exercise.targetSets} x ${parts || "—"}`;
+  }
+
+  if (modality === "distance") {
+    const distance =
+      exercise.targetDistanceMeters != null
+        ? formatDistanceCompact(exercise.targetDistanceMeters, unitSystem)
+        : "—";
+    return `${exercise.targetSets} x ${distance}`;
+  }
+
+  // interval
+  const rounds = exercise.targetRounds != null ? `${exercise.targetRounds} rounds` : null;
+  const duration =
+    exercise.targetDurationSeconds != null ? formatDurationSecondsCompact(exercise.targetDurationSeconds) : null;
+  const parts = [rounds, duration].filter(Boolean).join(" · ");
+  return `${exercise.targetSets} x ${parts || "—"}`;
+}
+
+function formatSetSummaryLine(input: {
+  modality: ExerciseLoggingModality;
+  set: {
+    status: string;
+    targetReps: number | null;
+    actualReps: number | null;
+    targetWeight: { value: number } | null;
+    actualWeight: { value: number } | null;
+    targetDurationSeconds?: number | null;
+    actualDurationSeconds?: number | null;
+    targetDistanceMeters?: number | null;
+    actualDistanceMeters?: number | null;
+    targetRounds?: number | null;
+    actualRounds?: number | null;
+  };
+  unitSystem: UnitSystem;
+}) {
+  const { set, modality, unitSystem } = input;
+  const isLogged = set.status !== "pending";
+
+  if (modality === "reps_load") {
+    const planned = `planned ${set.targetReps ?? "—"} reps at ${formatWeightForUser({
+      weightLbs: set.targetWeight?.value ?? 0,
+      unitSystem
+    }).text}`;
+    if (!isLogged) return `Not logged - ${planned}`;
+
+    return `${set.actualReps ?? 0} reps at ${formatWeightForUser({
+      weightLbs: set.actualWeight?.value ?? set.targetWeight?.value ?? 0,
+      unitSystem
+    }).text}`;
+  }
+
+  if (modality === "reps_only") {
+    const plannedWeight = set.targetWeight?.value
+      ? ` + ${formatWeightForUser({ weightLbs: set.targetWeight.value, unitSystem }).text}`
+      : "";
+    const planned = `planned ${set.targetReps ?? "—"} reps${plannedWeight}`;
+    if (!isLogged) return `Not logged - ${planned}`;
+
+    const actualWeightSuffix = set.actualWeight?.value
+      ? ` + ${formatWeightForUser({ weightLbs: set.actualWeight.value, unitSystem }).text}`
+      : "";
+    return `${set.actualReps ?? 0} reps${actualWeightSuffix}`;
+  }
+
+  if (modality === "time" || modality === "hold") {
+    const planned =
+      set.targetDurationSeconds != null ? formatDurationSecondsCompact(set.targetDurationSeconds) : "—";
+    if (!isLogged) return `Not logged - planned ${planned}`;
+
+    const actual = set.actualDurationSeconds != null ? formatDurationSecondsCompact(set.actualDurationSeconds) : planned;
+    return actual;
+  }
+
+  if (modality === "time_distance") {
+    const plannedDuration =
+      set.targetDurationSeconds != null ? formatDurationSecondsCompact(set.targetDurationSeconds) : null;
+    const plannedDistance =
+      set.targetDistanceMeters != null ? formatDistanceCompact(set.targetDistanceMeters, unitSystem) : null;
+    const plannedParts = [plannedDistance, plannedDuration].filter(Boolean).join(" in ");
+    if (!isLogged) return `Not logged - planned ${plannedParts || "—"}`;
+
+    const duration = set.actualDurationSeconds != null ? formatDurationSecondsCompact(set.actualDurationSeconds) : null;
+    const distance = set.actualDistanceMeters != null ? formatDistanceCompact(set.actualDistanceMeters, unitSystem) : null;
+    const actualParts = [distance, duration].filter(Boolean).join(" in ");
+    return actualParts || plannedParts || "—";
+  }
+
+  if (modality === "distance") {
+    const plannedDistance =
+      set.targetDistanceMeters != null ? formatDistanceCompact(set.targetDistanceMeters, unitSystem) : "—";
+    if (!isLogged) return `Not logged - planned ${plannedDistance}`;
+
+    const actualDistance =
+      set.actualDistanceMeters != null ? formatDistanceCompact(set.actualDistanceMeters, unitSystem) : plannedDistance;
+    const duration = set.actualDurationSeconds != null ? ` in ${formatDurationSecondsCompact(set.actualDurationSeconds)}` : "";
+    return `${actualDistance}${duration}`;
+  }
+
+  // interval
+  const plannedRounds = set.targetRounds != null ? `${set.targetRounds} rounds` : null;
+  const plannedDuration =
+    set.targetDurationSeconds != null ? formatDurationSecondsCompact(set.targetDurationSeconds) : null;
+  const planned = [plannedRounds, plannedDuration].filter(Boolean).join(" · ") || "—";
+  if (!isLogged) return `Not logged - planned ${planned}`;
+
+  const rounds = set.actualRounds != null ? `${set.actualRounds} rounds` : null;
+  const duration = set.actualDurationSeconds != null ? formatDurationSecondsCompact(set.actualDurationSeconds) : null;
+  return [rounds, duration].filter(Boolean).join(" · ") || planned;
 }
 
 export function WorkoutHistoryDetailScreen({ route, navigation }: Props) {
@@ -190,6 +360,7 @@ export function WorkoutHistoryDetailScreen({ route, navigation }: Props) {
       {workout.exercises.map((exercise) => {
         const highlight = progressHighlightsByEntryId[exercise.id];
         const exerciseVolume = exercise.sets.reduce((sum, set) => sum + getCompletedSetVolume(set), 0);
+        const modality = exercise.loggingModality ?? "reps_load";
 
         return (
           <View key={exercise.id} style={styles.exerciseCard}>
@@ -199,8 +370,7 @@ export function WorkoutHistoryDetailScreen({ route, navigation }: Props) {
                 {highlight ? <Text style={styles.exerciseHighlight}>{highlight}</Text> : null}
               </View>
               <Text style={styles.exerciseMeta}>
-                {exercise.targetSets} x {exercise.targetReps} at{" "}
-                {formatWeightForUser({ weightLbs: exercise.targetWeight.value, unitSystem }).text}
+                {formatExercisePrescriptionLine({ modality, exercise, unitSystem })}
               </Text>
               <Text style={styles.exerciseMeta}>
                 {formatWeightForUser({
@@ -217,15 +387,7 @@ export function WorkoutHistoryDetailScreen({ route, navigation }: Props) {
               <View key={set.id} style={styles.setRow}>
                 <Text style={styles.setTitle}>Set {set.setNumber}</Text>
                 <Text style={styles.setMeta}>
-                  {set.status === "pending"
-                    ? `Not logged - planned ${set.targetReps} reps at ${formatWeightForUser({
-                        weightLbs: set.targetWeight.value,
-                        unitSystem
-                      }).text}`
-                    : `${set.actualReps ?? 0} reps at ${formatWeightForUser({
-                        weightLbs: set.actualWeight?.value ?? set.targetWeight.value,
-                        unitSystem
-                      }).text}`}
+                  {formatSetSummaryLine({ modality, set, unitSystem })}
                   {formatSetEffort({ rir: set.rir, failureStatus: set.failureStatus })
                     ? ` \u2022 ${formatSetEffort({ rir: set.rir, failureStatus: set.failureStatus })}`
                     : ""}

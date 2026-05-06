@@ -1,10 +1,12 @@
 import type {
   EffortFeedback,
   ExerciseCategory,
+  ExerciseLoggingModality,
   RecoveryState,
   SetFailureStatus,
   SetRir,
   SetStatus,
+  WorkoutSetType,
   WorkoutSessionStatus
 } from "@fitness/shared";
 
@@ -33,15 +35,19 @@ export type ExerciseEntryRecord = {
   workoutTemplateExerciseEntryId: string | null;
   sequenceOrder: number;
   targetSets: number;
-  targetReps: number;
-  repRangeMin?: number;
-  repRangeMax?: number;
-  targetWeightLbs: number;
+  targetReps: number | null;
+  repRangeMin?: number | null;
+  repRangeMax?: number | null;
+  targetWeightLbs: number | null;
+  targetDurationSeconds?: number | null;
+  targetDistanceMeters?: number | null;
+  targetRounds?: number | null;
   restSeconds: number | null;
   effortFeedback: EffortFeedback | null;
   completedAt: Date | null;
   exerciseNameSnapshot: string;
   exerciseCategorySnapshot: ExerciseCategory;
+  loggingModalitySnapshot: ExerciseLoggingModality;
   progressionRuleSnapshot: Record<string, unknown> | null;
   createdAt: Date;
   updatedAt: Date;
@@ -51,10 +57,17 @@ export type SetRecord = {
   id: string;
   exerciseEntryId: string;
   setNumber: number;
-  targetReps: number;
+  setType: WorkoutSetType;
+  targetReps: number | null;
   actualReps: number | null;
-  targetWeightLbs: number;
+  targetWeightLbs: number | null;
   actualWeightLbs: number | null;
+  targetDurationSeconds?: number | null;
+  actualDurationSeconds?: number | null;
+  targetDistanceMeters?: number | null;
+  actualDistanceMeters?: number | null;
+  targetRounds?: number | null;
+  actualRounds?: number | null;
   status: SetStatus;
   rir: SetRir | null;
   failureStatus: SetFailureStatus | null;
@@ -101,8 +114,12 @@ export type DeleteWorkoutSetInput = {
 
 export type UpdateLoggedSetInput = {
   setId: string;
-  actualReps: number;
-  actualWeightLbs: number;
+  actualReps: number | null;
+  actualWeightLbs: number | null;
+  actualDurationSeconds?: number | null;
+  actualDistanceMeters?: number | null;
+  actualRounds?: number | null;
+  setType?: WorkoutSetType;
   status: SetStatus;
   completedAt: Date;
   rir?: SetRir | null;

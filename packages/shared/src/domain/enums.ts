@@ -4,8 +4,19 @@ export type UnitSystem = (typeof unitSystems)[number];
 export const experienceLevels = ["beginner", "intermediate", "advanced"] as const;
 export type ExperienceLevel = (typeof experienceLevels)[number];
 
-export const exerciseCategories = ["compound", "accessory"] as const;
+export const exerciseCategories = ["compound", "accessory", "cardio"] as const;
 export type ExerciseCategory = (typeof exerciseCategories)[number];
+
+export const exerciseLoggingModalities = [
+  "reps_load",
+  "reps_only",
+  "time",
+  "time_distance",
+  "distance",
+  "interval",
+  "hold"
+] as const;
+export type ExerciseLoggingModality = (typeof exerciseLoggingModalities)[number];
 
 export const movementPatterns = [
   "push",
@@ -41,6 +52,9 @@ export type EffortFeedback = (typeof effortFeedbackValues)[number];
 
 export const setStatuses = ["pending", "completed", "skipped", "failed"] as const;
 export type SetStatus = (typeof setStatuses)[number];
+
+export const workoutSetTypes = ["working", "warmup"] as const;
+export type WorkoutSetType = (typeof workoutSetTypes)[number];
 
 // Optional per-set effort logging (MVP).
 // RIR is stored as an enum to support a "5+" bucket without awkward sentinel integers.

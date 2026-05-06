@@ -12,8 +12,12 @@ import type { UseCaseResult } from "../types/use-case-result.js";
 function buildUpdateLoggedSetFingerprint(setId: string, request: LogSetRequest) {
   return JSON.stringify({
     setId,
-    actualReps: request.actualReps,
+    actualReps: request.actualReps ?? null,
     actualWeight: request.actualWeight ?? null,
+    durationSeconds: request.durationSeconds ?? null,
+    distanceMeters: request.distanceMeters ?? null,
+    rounds: request.rounds ?? null,
+    setType: request.setType ?? null,
     completedAt: request.completedAt ?? null,
     rir: request.rir ?? null,
     failureStatus: request.failureStatus ?? null
@@ -97,37 +101,169 @@ export class UpdateLoggedSetUseCase {
           throw new WorkoutApplicationError("SET_NOT_EDITABLE", "Skipped sets cannot be edited yet.");
         }
 
-        const actualWeightLbs =
-          input.request.actualWeight?.value ??
-          setForUpdate.set.actualWeightLbs ??
-          setForUpdate.set.targetWeightLbs;
-
-        const isOverperformanceSet = isMaterialOverperformanceSet({
-          targetReps: setForUpdate.set.targetReps,
-          actualReps: input.request.actualReps,
-          targetWeightLbs: setForUpdate.set.targetWeightLbs,
-          actualWeightLbs
-        });
-        const status =
-          input.request.actualReps >= setForUpdate.set.targetReps || isOverperformanceSet
-            ? "completed"
-            : "failed";
-
+        const modality = setForUpdate.exerciseEntry.loggingModalitySnapshot;
         const completedAt = input.request.completedAt
           ? new Date(input.request.completedAt)
           : setForUpdate.set.completedAt ?? new Date();
+        const nextSetType = input.request.setType ?? setForUpdate.set.setType;
 
-        const updatedLoggedSet = await this.workoutSessionRepository.updateLoggedSet(
-          {
-            setId: input.setId,
-            actualReps: input.request.actualReps,
-            actualWeightLbs,
-            status,
-            completedAt,
-            ...normalizeSetEffortForPersistence(input.request)
-          },
-          { tx }
-        );
+        const requireNumber = (value: unknown, message: string): number => {
+          if (typeof value !== "number" || !Number.isFinite(value)) {
+            throw new WorkoutApplicationError("VALIDATION_ERROR", message);
+          }
+          return value;
+        };
+
+        const resolveUpdate = (): { update: Parameters<WorkoutSessionRepository["updateLoggedSet"]>[0] } => {
+          if (modality === "reps_load" || modality === "reps_only") {
+            const actualReps = requireNumber(
+              input.request.actualReps ?? setForUpdate.set.actualReps ?? null,
+              "actualReps is required."
+            );
+
+            const targetReps = setForUpdate.set.targetReps ?? null;
+            const targetWeightLbs = setForUpdate.set.targetWeightLbs ?? null;
+
+            const actualWeightLbs =
+              input.request.actualWeight?.value ??
+              setForUpdate.set.actualWeightLbs ??
+              setForUpdate.set.targetWeightLbs ??
+              (modality === "reps_only" ? 0 : null);
+
+            if (modality === "reps_load" && (targetReps === null || targetWeightLbs === null || actualWeightLbs === null)) {
+              throw new WorkoutApplicationError(
+                "VALIDATION_ERROR",
+                "This set requires reps and load targets but they were missing."
+              );
+            }
+
+            const isOverperformanceSet =
+              modality === "reps_load" && targetReps !== null && targetWeightLbs !== null && actualWeightLbs !== null
+                ? isMaterialOverperformanceSet({
+                    targetReps,
+                    actualReps,
+                    targetWeightLbs,
+                    actualWeightLbs
+                  })
+                : false;
+
+            const status =
+              targetReps === null ? "completed" : actualReps >= targetReps || isOverperformanceSet ? "completed" : "failed";
+
+            return {
+              update: {
+                setId: input.setId,
+                actualReps,
+                actualWeightLbs,
+                actualDurationSeconds: null,
+                actualDistanceMeters: null,
+                actualRounds: null,
+                setType: nextSetType,
+                status,
+                completedAt,
+                ...normalizeSetEffortForPersistence(input.request)
+              }
+            };
+          }
+
+          if (modality === "time" || modality === "hold") {
+            const durationSeconds = requireNumber(
+              input.request.durationSeconds ?? setForUpdate.set.actualDurationSeconds ?? null,
+              "durationSeconds is required."
+            );
+
+            return {
+              update: {
+                setId: input.setId,
+                actualReps: null,
+                actualWeightLbs: null,
+                actualDurationSeconds: Math.floor(durationSeconds),
+                actualDistanceMeters: null,
+                actualRounds: null,
+                setType: nextSetType,
+                status: "completed",
+                completedAt,
+                ...normalizeSetEffortForPersistence(input.request)
+              }
+            };
+          }
+
+          if (modality === "time_distance") {
+            const durationSeconds = input.request.durationSeconds ?? setForUpdate.set.actualDurationSeconds ?? null;
+            const distanceMeters = input.request.distanceMeters ?? setForUpdate.set.actualDistanceMeters ?? null;
+            if (durationSeconds === null && distanceMeters === null) {
+              throw new WorkoutApplicationError(
+                "VALIDATION_ERROR",
+                "durationSeconds and/or distanceMeters is required."
+              );
+            }
+
+            return {
+              update: {
+                setId: input.setId,
+                actualReps: null,
+                actualWeightLbs: null,
+                actualDurationSeconds: durationSeconds === null ? null : Math.floor(requireNumber(durationSeconds, "Invalid durationSeconds.")),
+                actualDistanceMeters: distanceMeters === null ? null : requireNumber(distanceMeters, "Invalid distanceMeters."),
+                actualRounds: null,
+                setType: nextSetType,
+                status: "completed",
+                completedAt,
+                ...normalizeSetEffortForPersistence(input.request)
+              }
+            };
+          }
+
+          if (modality === "distance") {
+            const distanceMeters = requireNumber(
+              input.request.distanceMeters ?? setForUpdate.set.actualDistanceMeters ?? null,
+              "distanceMeters is required."
+            );
+
+            const durationSeconds = input.request.durationSeconds ?? setForUpdate.set.actualDurationSeconds ?? null;
+            return {
+              update: {
+                setId: input.setId,
+                actualReps: null,
+                actualWeightLbs: null,
+                actualDurationSeconds: durationSeconds === null ? null : Math.floor(requireNumber(durationSeconds, "Invalid durationSeconds.")),
+                actualDistanceMeters: distanceMeters,
+                actualRounds: null,
+                setType: nextSetType,
+                status: "completed",
+                completedAt,
+                ...normalizeSetEffortForPersistence(input.request)
+              }
+            };
+          }
+
+          const rounds = input.request.rounds ?? setForUpdate.set.actualRounds ?? null;
+          const durationSeconds = input.request.durationSeconds ?? setForUpdate.set.actualDurationSeconds ?? null;
+          if (rounds === null && durationSeconds === null) {
+            throw new WorkoutApplicationError(
+              "VALIDATION_ERROR",
+              "rounds and/or durationSeconds is required."
+            );
+          }
+
+          return {
+            update: {
+              setId: input.setId,
+              actualReps: null,
+              actualWeightLbs: null,
+              actualDurationSeconds: durationSeconds === null ? null : Math.floor(requireNumber(durationSeconds, "Invalid durationSeconds.")),
+              actualDistanceMeters: null,
+              actualRounds: rounds === null ? null : Math.floor(requireNumber(rounds, "Invalid rounds.")),
+              setType: nextSetType,
+              status: "completed",
+              completedAt,
+              ...normalizeSetEffortForPersistence(input.request)
+            }
+          };
+        };
+
+        const { update } = resolveUpdate();
+        const updatedLoggedSet = await this.workoutSessionRepository.updateLoggedSet(update, { tx });
 
         const workoutSessionGraph = await this.workoutSessionRepository.findOwnedSessionGraphById(
           input.context.userId,

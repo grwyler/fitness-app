@@ -34,6 +34,7 @@ function createWorkout(overrides?: {
         exerciseId: "exercise-1",
         exerciseName: "Bench Press",
         category: "compound",
+        loggingModality: "reps_load",
         sequenceOrder: 1,
         targetSets: 3,
         targetReps: 8,
@@ -41,6 +42,9 @@ function createWorkout(overrides?: {
           value: 135,
           unit: "lb"
         },
+        targetDurationSeconds: null,
+        targetDistanceMeters: null,
+        targetRounds: null,
         restSeconds: 120,
         effortFeedback: null,
         completedAt: null,
@@ -48,6 +52,7 @@ function createWorkout(overrides?: {
           id: `set-${index + 1}`,
           exerciseEntryId: "entry-1",
           setNumber: index + 1,
+          setType: "working",
           targetReps: 8,
           actualReps: status === "pending" ? null : 8,
           targetWeight: {
@@ -61,6 +66,12 @@ function createWorkout(overrides?: {
                   value: 135,
                   unit: "lb"
                 },
+          targetDurationSeconds: null,
+          actualDurationSeconds: null,
+          targetDistanceMeters: null,
+          actualDistanceMeters: null,
+          targetRounds: null,
+          actualRounds: null,
           status,
           rir: null,
           failureStatus: null,

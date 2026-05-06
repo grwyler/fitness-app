@@ -85,6 +85,10 @@ export function formatRepTargetFromExercise(exercise: ProgramWorkoutExerciseDto)
     return `${exercise.repRangeMin}-${exercise.repRangeMax}`;
   }
 
+  if (exercise.targetReps == null) {
+    return "";
+  }
+
   return String(exercise.targetReps);
 }
 
@@ -122,19 +126,85 @@ export function buildCustomSetTargetsSummary(setTargets: WorkoutSetTargetDto[]) 
   return `${setTargets.length} custom sets`;
 }
 
+function isRepsModality(modality: ProgramWorkoutExerciseDto["loggingModality"]) {
+  return modality === "reps_load" || modality === "reps_only";
+}
+
+function formatDurationSecondsCompact(seconds: number) {
+  const safe = Math.max(0, Math.floor(seconds));
+  const minutes = Math.floor(safe / 60);
+  const remaining = safe % 60;
+  return `${minutes}:${remaining.toString().padStart(2, "0")}`;
+}
+
+function formatDistanceCompact(distanceMeters: number, unitSystem: UnitSystem) {
+  if (!Number.isFinite(distanceMeters) || distanceMeters < 0) {
+    return null;
+  }
+
+  const value = unitSystem === "metric" ? distanceMeters / 1000 : distanceMeters / 1609.344;
+  const unit = unitSystem === "metric" ? "km" : "mi";
+  const text = value.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+  return `${text} ${unit}`;
+}
+
 export function formatExercisePrescriptionSummary(input: {
   exercise: ProgramWorkoutExerciseDto;
   unitSystem: UnitSystem;
 }) {
-  const setTargets = input.exercise.setTargets ?? null;
+  const exercise = input.exercise;
+  const modality = exercise.loggingModality;
+
+  const setTargets = exercise.setTargets ?? null;
   if (setTargets && setTargets.length > 0) {
-    return buildCustomSetTargetsSummary(setTargets);
+    return isRepsModality(modality) ? buildCustomSetTargetsSummary(setTargets) : `${setTargets.length} custom sets`;
   }
 
-  const repTarget = formatRepTargetFromExercise(input.exercise);
-  const base = `${input.exercise.targetSets} \u00d7 ${repTarget}`;
-  const weight = input.exercise.targetWeight ? formatWeightShort({ weight: input.exercise.targetWeight, unitSystem: input.unitSystem }) : null;
+  if (modality === "reps_load" || modality === "reps_only") {
+    const repTarget = formatRepTargetFromExercise(exercise);
+    const base = `${exercise.targetSets} \u00d7 ${repTarget || "reps"}`;
+    const weight = exercise.targetWeight ? formatWeightShort({ weight: exercise.targetWeight, unitSystem: input.unitSystem }) : null;
+    return weight ? `${base} \u00b7 ${weight}` : base;
+  }
 
-  return weight ? `${base} \u00b7 ${weight}` : base;
+  if (modality === "time" || modality === "hold") {
+    const duration =
+      exercise.targetDurationSeconds != null ? formatDurationSecondsCompact(exercise.targetDurationSeconds) : null;
+    return duration
+      ? `${exercise.targetSets} \u00d7 ${duration}`
+      : `${exercise.targetSets} set${exercise.targetSets === 1 ? "" : "s"}`;
+  }
+
+  if (modality === "time_distance") {
+    const duration =
+      exercise.targetDurationSeconds != null ? formatDurationSecondsCompact(exercise.targetDurationSeconds) : null;
+    const distance =
+      exercise.targetDistanceMeters != null ? formatDistanceCompact(exercise.targetDistanceMeters, input.unitSystem) : null;
+    if (duration && distance) return `${distance} \u00b7 ${duration}`;
+    if (distance) return distance;
+    if (duration) return duration;
+    return `${exercise.targetSets} set${exercise.targetSets === 1 ? "" : "s"}`;
+  }
+
+  if (modality === "distance") {
+    const distance =
+      exercise.targetDistanceMeters != null ? formatDistanceCompact(exercise.targetDistanceMeters, input.unitSystem) : null;
+    return distance ?? `${exercise.targetSets} set${exercise.targetSets === 1 ? "" : "s"}`;
+  }
+
+  // interval
+  const rounds = exercise.targetRounds ?? null;
+  const duration =
+    exercise.targetDurationSeconds != null ? formatDurationSecondsCompact(exercise.targetDurationSeconds) : null;
+
+  if (rounds != null && duration) {
+    return `${rounds} rounds \u00b7 ${duration}`;
+  }
+
+  if (rounds != null) {
+    return `${rounds} rounds`;
+  }
+
+  return duration ?? `${exercise.targetSets} set${exercise.targetSets === 1 ? "" : "s"}`;
 }
 

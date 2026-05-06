@@ -119,6 +119,8 @@ export class StartWorkoutSessionUseCase {
 
           return {
             exerciseId: exercise.id,
+            isProgressionEligible: exercise.isProgressionEligible,
+            loggingModality: exercise.loggingModality,
             templateExerciseEntryId: templateExercise.id,
             templateTargetReps: templateExercise.targetReps,
             templateRepRangeMin: repRangeMin,
@@ -175,7 +177,23 @@ export class StartWorkoutSessionUseCase {
           progressionSeeds.map((progressionSeed) => [progressionSeed.exerciseId, progressionSeed])
         );
 
-        const templateEntryIds = templateExercises.map((row) => row.templateExerciseEntryId);
+        const progressionEligibleTemplateExercises = templateExercises.filter((row) => {
+          if (!row.isProgressionEligible) {
+            return false;
+          }
+
+          if (row.loggingModality !== "reps_load" && row.loggingModality !== "reps_only") {
+            return false;
+          }
+
+          if (typeof row.templateRepRangeMin !== "number" || typeof row.templateRepRangeMax !== "number") {
+            return false;
+          }
+
+          return row.templateRepRangeMin > 0 && row.templateRepRangeMax >= row.templateRepRangeMin;
+        });
+
+        const templateEntryIds = progressionEligibleTemplateExercises.map((row) => row.templateExerciseEntryId);
         const existingV2States = await this.progressionStateV2Repository.findByUserIdAndTemplateEntryIds(
           input.context.userId,
           templateEntryIds,
@@ -186,15 +204,15 @@ export class StartWorkoutSessionUseCase {
           existingV2States.map((state) => [state.workoutTemplateExerciseEntryId, state])
         );
 
-        const rangeUpdateInputs = templateExercises
+        const rangeUpdateInputs = progressionEligibleTemplateExercises
           .map((row) => {
             const existing = v2StateByTemplateEntryId.get(row.templateExerciseEntryId);
             if (!existing) {
               return null;
             }
 
-            const nextRepRangeMin = row.templateRepRangeMin;
-            const nextRepRangeMax = row.templateRepRangeMax;
+            const nextRepRangeMin = row.templateRepRangeMin!;
+            const nextRepRangeMax = row.templateRepRangeMax!;
             const nextRepGoal = Math.min(nextRepRangeMax, Math.max(nextRepRangeMin, existing.repGoal));
 
             const needsUpdate =
@@ -228,7 +246,7 @@ export class StartWorkoutSessionUseCase {
           v2StateByTemplateEntryId.set(updated.workoutTemplateExerciseEntryId, updated);
         }
 
-        const missingV2Inputs = templateExercises
+        const missingV2Inputs = progressionEligibleTemplateExercises
           .filter((row) => !v2StateByTemplateEntryId.has(row.templateExerciseEntryId))
           .map((row) => {
             const v1State = progressionStateByExerciseId.get(row.exerciseId) ?? null;
@@ -240,8 +258,8 @@ export class StartWorkoutSessionUseCase {
               );
             }
 
-            const repRangeMin = row.templateRepRangeMin;
-            const repRangeMax = row.templateRepRangeMax;
+            const repRangeMin = row.templateRepRangeMin!;
+            const repRangeMax = row.templateRepRangeMax!;
             const repGoal = repRangeMin;
 
             return {

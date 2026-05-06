@@ -32,6 +32,9 @@ type SimpleEditState =
       setsText: string;
       repsText: string;
       weightText: string;
+      durationText: string;
+      distanceText: string;
+      roundsText: string;
       notesText: string;
       error: string | null;
     }
@@ -62,6 +65,65 @@ function parseIntDraft(value: string) {
 
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function isRepsModality(modality: ProgramWorkoutExerciseDto["loggingModality"]) {
+  return modality === "reps_load" || modality === "reps_only";
+}
+
+function supportsDuration(modality: ProgramWorkoutExerciseDto["loggingModality"]) {
+  return modality === "time" || modality === "hold" || modality === "time_distance" || modality === "interval";
+}
+
+function supportsDistance(modality: ProgramWorkoutExerciseDto["loggingModality"]) {
+  return modality === "distance" || modality === "time_distance";
+}
+
+function supportsRounds(modality: ProgramWorkoutExerciseDto["loggingModality"]) {
+  return modality === "interval";
+}
+
+function parseDurationTextToSeconds(value: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  if (trimmed.includes(":")) {
+    const parts = trimmed.split(":").map((part) => part.trim());
+    if (parts.length !== 2) {
+      return null;
+    }
+
+    const minutes = Number(parts[0]);
+    const seconds = Number(parts[1]);
+    if (!Number.isInteger(minutes) || minutes < 0) return null;
+    if (!Number.isInteger(seconds) || seconds < 0 || seconds >= 60) return null;
+
+    const total = minutes * 60 + seconds;
+    return total > 0 ? total : null;
+  }
+
+  const seconds = Number(trimmed);
+  if (!Number.isInteger(seconds) || seconds <= 0) {
+    return null;
+  }
+
+  return seconds;
+}
+
+function parseDistanceDraftToMeters(value: string, unitSystem: UnitSystem): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const distanceValue = Number(trimmed);
+  if (!Number.isFinite(distanceValue) || distanceValue < 0) {
+    return null;
+  }
+
+  return unitSystem === "metric" ? distanceValue * 1000 : distanceValue * 1609.344;
 }
 
 function normalizeWorkoutExercises(exercises: ProgramWorkoutExerciseDto[]) {
@@ -117,20 +179,32 @@ export function ProgramDayWorkoutBuilderCard(props: {
   }
 
   function startEdit(entry: ProgramWorkoutExerciseDto) {
-    const repText = formatRepTargetFromExercise(entry);
-    const weightText = entry.targetWeight
-      ? formatWeightShort({ weight: entry.targetWeight, unitSystem: props.unitSystem }).replace(
-          /\s*(lb|kg)$/i,
-          ""
-        )
-      : "";
+    const repText = isRepsModality(entry.loggingModality) ? formatRepTargetFromExercise(entry) : "";
+    const weightText =
+      isRepsModality(entry.loggingModality) && entry.targetWeight
+        ? formatWeightShort({ weight: entry.targetWeight, unitSystem: props.unitSystem }).replace(
+            /\s*(lb|kg)$/i,
+            ""
+          )
+        : "";
 
     setEdit({
       entryId: entry.id,
-      mode: entry.setTargets && entry.setTargets.length > 0 ? "by_set" : "simple",
+      mode:
+        isRepsModality(entry.loggingModality) && entry.setTargets && entry.setTargets.length > 0
+          ? "by_set"
+          : "simple",
       setsText: String(entry.targetSets),
       repsText: repText,
       weightText,
+      durationText: entry.targetDurationSeconds != null ? String(entry.targetDurationSeconds) : "",
+      distanceText:
+        entry.targetDistanceMeters != null
+          ? String(
+              props.unitSystem === "metric" ? entry.targetDistanceMeters / 1000 : entry.targetDistanceMeters / 1609.344
+            )
+          : "",
+      roundsText: entry.targetRounds != null ? String(entry.targetRounds) : "",
       notesText: entry.notes?.trim() ?? "",
       error: null
     });
@@ -153,28 +227,92 @@ export function ProgramDayWorkoutBuilderCard(props: {
       return;
     }
 
-    const repDraft = parseRepTargetText(edit.repsText);
-    if (!repDraft) {
-      setEdit((current) =>
-        current ? { ...current, error: "Reps must be something like 8, 8-12, AMRAP, or failure." } : current
-      );
-      return;
-    }
-
-    const derivedReps = repDraft.targetReps ?? entry.targetReps;
-    const repRangeMin = repDraft.repRangeMin;
-    const repRangeMax = repDraft.repRangeMax;
-
-    const weightLbs =
-      edit.weightText.trim().length > 0
-        ? parseWeightDraft({ weightText: edit.weightText, unitSystem: props.unitSystem })
-        : null;
-    if (edit.weightText.trim().length > 0 && weightLbs === null) {
-      setEdit((current) => (current ? { ...current, error: "Weight must be a valid number." } : current));
-      return;
-    }
-
     const notes = edit.notesText.trim().replace(/\s+/g, " ");
+    const modality = entry.loggingModality;
+
+    if (isRepsModality(modality)) {
+      const repDraft = parseRepTargetText(edit.repsText);
+      if (!repDraft) {
+        setEdit((current) =>
+          current ? { ...current, error: "Reps must be something like 8, 8-12, AMRAP, or failure." } : current
+        );
+        return;
+      }
+
+      const derivedReps = repDraft.targetReps ?? entry.targetReps;
+      const repRangeMin = repDraft.repRangeMin;
+      const repRangeMax = repDraft.repRangeMax;
+
+      const weightLbs =
+        edit.weightText.trim().length > 0
+          ? parseWeightDraft({ weightText: edit.weightText, unitSystem: props.unitSystem })
+          : null;
+      if (edit.weightText.trim().length > 0 && weightLbs === null) {
+        setEdit((current) => (current ? { ...current, error: "Weight must be a valid number." } : current));
+        return;
+      }
+
+      const nextWorkout: ProgramWorkoutTemplateDto = {
+        ...workout,
+        exercises: workout.exercises.map((candidate) =>
+          candidate.id === entry.id
+            ? {
+                ...candidate,
+                targetSets: sets,
+                targetReps: derivedReps,
+                repTargetText: normalizeRepTargetText(repDraft.repTargetText),
+                ...(repRangeMin !== null && repRangeMax !== null && repRangeMax > repRangeMin
+                  ? { repRangeMin, repRangeMax }
+                  : { repRangeMin: undefined, repRangeMax: undefined }),
+                ...(weightLbs !== null
+                  ? { targetWeight: { value: weightLbs, unit: "lb" } }
+                  : { targetWeight: undefined }),
+                ...(notes ? { notes } : { notes: undefined }),
+                setTargets: null
+              }
+            : candidate
+        )
+      };
+
+      updateWorkout(nextWorkout);
+      setEdit(null);
+      setEditingEntryId(null);
+      return;
+    }
+
+    const durationSeconds = parseDurationTextToSeconds(edit.durationText);
+    const distanceMeters = parseDistanceDraftToMeters(edit.distanceText, props.unitSystem);
+    const rounds = parseIntDraft(edit.roundsText);
+
+    if (modality === "time" || modality === "hold") {
+      if (durationSeconds === null) {
+        setEdit((current) =>
+          current ? { ...current, error: "Duration must look like 20:00 or 60 (seconds)." } : current
+        );
+        return;
+      }
+    }
+
+    if (modality === "time_distance") {
+      if (durationSeconds === null && distanceMeters === null) {
+        setEdit((current) => (current ? { ...current, error: "Enter a duration and/or distance." } : current));
+        return;
+      }
+    }
+
+    if (modality === "distance") {
+      if (distanceMeters === null) {
+        setEdit((current) => (current ? { ...current, error: "Enter a distance." } : current));
+        return;
+      }
+    }
+
+    if (modality === "interval") {
+      if (rounds === null || rounds < 1 || rounds > 10_000) {
+        setEdit((current) => (current ? { ...current, error: "Rounds must be a whole number." } : current));
+        return;
+      }
+    }
 
     const nextWorkout: ProgramWorkoutTemplateDto = {
       ...workout,
@@ -183,14 +321,14 @@ export function ProgramDayWorkoutBuilderCard(props: {
           ? {
               ...candidate,
               targetSets: sets,
-              targetReps: derivedReps,
-              repTargetText: normalizeRepTargetText(repDraft.repTargetText),
-              ...(repRangeMin !== null && repRangeMax !== null && repRangeMax > repRangeMin
-                ? { repRangeMin, repRangeMax }
-                : { repRangeMin: undefined, repRangeMax: undefined }),
-              ...(weightLbs !== null
-                ? { targetWeight: { value: weightLbs, unit: "lb" } }
-                : { targetWeight: undefined }),
+              targetReps: null,
+              repTargetText: null,
+              repRangeMin: undefined,
+              repRangeMax: undefined,
+              targetWeight: undefined,
+              targetDurationSeconds: durationSeconds,
+              targetDistanceMeters: distanceMeters,
+              targetRounds: rounds,
               ...(notes ? { notes } : { notes: undefined }),
               setTargets: null
             }
@@ -261,6 +399,10 @@ export function ProgramDayWorkoutBuilderCard(props: {
       return;
     }
 
+    if (!isRepsModality(entry.loggingModality)) {
+      return;
+    }
+
     const first = entry.setTargets?.[0] ?? null;
     const repText = first?.repTargetText?.trim() ?? "";
     const repDraft = repText ? parseRepTargetText(repText) : null;
@@ -289,6 +431,10 @@ export function ProgramDayWorkoutBuilderCard(props: {
   }
 
   function openCustomize(entry: ProgramWorkoutExerciseDto) {
+    if (!isRepsModality(entry.loggingModality)) {
+      return;
+    }
+
     const baseRepText = formatRepTargetFromExercise(entry);
     const baseWeightText = entry.targetWeight
       ? formatWeightShort({ weight: entry.targetWeight, unitSystem: props.unitSystem }).replace(/\s*(lb|kg)$/i, "")
@@ -397,7 +543,7 @@ export function ProgramDayWorkoutBuilderCard(props: {
       >
         {editingEntry && edit ? (
           <View style={styles.editSheetBody}>
-            {edit.mode === "by_set" ? (
+            {edit.mode === "by_set" && isRepsModality(editingEntry.loggingModality) ? (
               <Card padding="md" variant="muted" contentStyle={styles.customModeCard}>
                 <AppText variant="bodyStrong">Customized by set</AppText>
                 <AppText variant="caption" tone="secondary">
@@ -433,27 +579,78 @@ export function ProgramDayWorkoutBuilderCard(props: {
                     }
                     placeholder="3"
                   />
-                  <Input
-                    label="Reps"
-                    containerStyle={styles.editorInput}
-                    value={edit.repsText}
-                    onChangeText={(value) =>
-                      setEdit((current) => (current ? { ...current, repsText: value, error: null } : current))
-                    }
-                    placeholder="8, 8-12, AMRAP..."
-                  />
+                  {isRepsModality(editingEntry.loggingModality) ? (
+                    <Input
+                      label="Reps"
+                      containerStyle={styles.editorInput}
+                      value={edit.repsText}
+                      onChangeText={(value) =>
+                        setEdit((current) => (current ? { ...current, repsText: value, error: null } : current))
+                      }
+                      placeholder="8, 8-12, AMRAP..."
+                    />
+                  ) : supportsRounds(editingEntry.loggingModality) ? (
+                    <Input
+                      label="Rounds"
+                      keyboardType="number-pad"
+                      containerStyle={styles.editorInput}
+                      value={edit.roundsText}
+                      onChangeText={(value) =>
+                        setEdit((current) => (current ? { ...current, roundsText: value, error: null } : current))
+                      }
+                      placeholder="5"
+                    />
+                  ) : supportsDuration(editingEntry.loggingModality) ? (
+                    <Input
+                      label="Duration"
+                      containerStyle={styles.editorInput}
+                      value={edit.durationText}
+                      onChangeText={(value) =>
+                        setEdit((current) => (current ? { ...current, durationText: value, error: null } : current))
+                      }
+                      placeholder={editingEntry.loggingModality === "hold" ? "0:30" : "20:00"}
+                    />
+                  ) : supportsDistance(editingEntry.loggingModality) ? (
+                    <Input
+                      label={`Distance (${props.unitSystem === "metric" ? "km" : "mi"})`}
+                      keyboardType="decimal-pad"
+                      containerStyle={styles.editorInput}
+                      value={edit.distanceText}
+                      onChangeText={(value) =>
+                        setEdit((current) => (current ? { ...current, distanceText: value, error: null } : current))
+                      }
+                      placeholder="2.5"
+                    />
+                  ) : (
+                    <View style={styles.editorInput} />
+                  )}
                 </View>
                 <View style={styles.editRow}>
-                  <Input
-                    label="Load (optional)"
-                    keyboardType="decimal-pad"
-                    containerStyle={styles.editorInput}
-                    value={edit.weightText}
-                    onChangeText={(value) =>
-                      setEdit((current) => (current ? { ...current, weightText: value, error: null } : current))
-                    }
-                    placeholder={props.unitSystem === "metric" ? "60" : "135"}
-                  />
+                  {isRepsModality(editingEntry.loggingModality) ? (
+                    <Input
+                      label="Load (optional)"
+                      keyboardType="decimal-pad"
+                      containerStyle={styles.editorInput}
+                      value={edit.weightText}
+                      onChangeText={(value) =>
+                        setEdit((current) => (current ? { ...current, weightText: value, error: null } : current))
+                      }
+                      placeholder={props.unitSystem === "metric" ? "60" : "135"}
+                    />
+                  ) : editingEntry.loggingModality === "time_distance" ? (
+                    <Input
+                      label={`Distance (${props.unitSystem === "metric" ? "km" : "mi"})`}
+                      keyboardType="decimal-pad"
+                      containerStyle={styles.editorInput}
+                      value={edit.distanceText}
+                      onChangeText={(value) =>
+                        setEdit((current) => (current ? { ...current, distanceText: value, error: null } : current))
+                      }
+                      placeholder="2.5"
+                    />
+                  ) : (
+                    <View style={styles.editorInput} />
+                  )}
                   <Input
                     label="Notes (optional)"
                     containerStyle={styles.editorInput}
@@ -465,13 +662,15 @@ export function ProgramDayWorkoutBuilderCard(props: {
                   />
                 </View>
                 <View style={styles.editActionsRow}>
-                  <Button
-                    label="Customize by set"
-                    onPress={() => openCustomize(editingEntry)}
-                    variant="secondary"
-                    fullWidth={false}
-                    size="sm"
-                  />
+                  {isRepsModality(editingEntry.loggingModality) ? (
+                    <Button
+                      label="Customize by set"
+                      onPress={() => openCustomize(editingEntry)}
+                      variant="secondary"
+                      fullWidth={false}
+                      size="sm"
+                    />
+                  ) : null}
                 </View>
               </>
             )}

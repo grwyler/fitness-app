@@ -20,7 +20,8 @@ import {
   guidedRecoveryTolerances,
   guidedEquipmentTypes,
   setFailureStatusValues,
-  setRirValues
+  setRirValues,
+  workoutSetTypes
 } from "@fitness/shared";
 
 const weightValueSchema = z.object({
@@ -120,9 +121,12 @@ const createCustomProgramExerciseSchema = z.object({
   exerciseId: z.string().min(1),
   workoutTemplateExerciseEntryId: z.string().min(1).optional(),
   targetSets: z.number().int().min(1).max(20),
-  targetReps: z.number().int().min(1).max(100),
+  targetReps: z.number().int().min(1).max(200).nullable().optional(),
   repRangeMin: z.number().int().min(1).max(100).nullable().optional(),
   repRangeMax: z.number().int().min(1).max(100).nullable().optional(),
+  targetDurationSeconds: z.number().int().min(1).max(86_400).nullable().optional(),
+  targetDistanceMeters: z.number().finite().min(0).max(200_000).nullable().optional(),
+  targetRounds: z.number().int().min(1).max(10_000).nullable().optional(),
   restSeconds: z.number().int().min(0).max(1800).nullable().optional(),
   progressionStrategy: z.enum(progressionStrategies).nullable().optional(),
   repTargetText: z.string().trim().min(1).max(24).nullable().optional(),
@@ -145,8 +149,17 @@ const createCustomProgramExerciseSchema = z.object({
 }).superRefine((value, ctx) => {
   const min = value.repRangeMin ?? null;
   const max = value.repRangeMax ?? null;
+  const targetReps = value.targetReps ?? null;
 
   if (min === null && max === null) {
+    return;
+  }
+
+  if (targetReps === null) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "repRangeMin/repRangeMax can only be used with targetReps."
+    });
     return;
   }
 
@@ -165,7 +178,7 @@ const createCustomProgramExerciseSchema = z.object({
     });
   }
 
-  if (value.targetReps < min || value.targetReps > max) {
+  if (targetReps < min || targetReps > max) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: "targetReps must be within the rep range."
@@ -202,18 +215,30 @@ export const startWorkoutSessionBodySchema = z.object({
 export const addCustomWorkoutExerciseBodySchema = z.object({
   exerciseId: z.string().min(1),
   targetSets: z.number().int().min(1).max(20),
-  targetReps: z.number().int().min(1).max(100),
+  targetReps: z.number().int().min(1).max(200).nullable().optional(),
   repRangeMin: z.number().int().min(1).max(100).optional(),
   repRangeMax: z.number().int().min(1).max(100).optional(),
   targetWeight: weightValueSchema.optional(),
+  targetDurationSeconds: z.number().int().min(1).max(86_400).nullable().optional(),
+  targetDistanceMeters: z.number().finite().min(0).max(200_000).nullable().optional(),
+  targetRounds: z.number().int().min(1).max(10_000).nullable().optional(),
   restSeconds: z.number().int().min(0).max(1800).nullable().optional(),
   progressionStrategy: z.enum(progressionStrategies).optional(),
   updatePlan: z.boolean().optional()
 }).superRefine((value, ctx) => {
   const min = value.repRangeMin ?? null;
   const max = value.repRangeMax ?? null;
+  const targetReps = value.targetReps ?? null;
 
   if (min === null && max === null) {
+    return;
+  }
+
+  if (targetReps === null) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "repRangeMin/repRangeMax can only be used with targetReps."
+    });
     return;
   }
 
@@ -233,7 +258,7 @@ export const addCustomWorkoutExerciseBodySchema = z.object({
     return;
   }
 
-  if (value.targetReps < min || value.targetReps > max) {
+  if (targetReps < min || targetReps > max) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: "targetReps must be within the provided rep range."
@@ -243,8 +268,12 @@ export const addCustomWorkoutExerciseBodySchema = z.object({
 
 export const logSetBodySchema = z
   .object({
-    actualReps: z.number().int().min(0),
-    actualWeight: weightValueSchema.optional(),
+    actualReps: z.number().int().min(0).nullable().optional(),
+    actualWeight: weightValueSchema.nullable().optional(),
+    durationSeconds: z.number().int().min(1).max(86_400).nullable().optional(),
+    distanceMeters: z.number().finite().min(0).max(200_000).nullable().optional(),
+    rounds: z.number().int().min(1).max(10_000).nullable().optional(),
+    setType: z.enum(workoutSetTypes).nullable().optional(),
     completedAt: isoDateTimeSchema.optional(),
     rir: z.enum(setRirValues).nullable().optional(),
     failureStatus: z.enum(setFailureStatusValues).nullable().optional()

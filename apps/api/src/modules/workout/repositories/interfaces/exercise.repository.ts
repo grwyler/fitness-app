@@ -42,9 +42,12 @@ export interface ExerciseRepository {
       exerciseId: string;
       sequenceOrder: number;
       targetSets: number;
-      targetReps: number;
+      targetReps: number | null;
       repRangeMin?: number;
       repRangeMax?: number;
+      targetDurationSeconds?: number | null;
+      targetDistanceMeters?: number | null;
+      targetRounds?: number | null;
       restSeconds: number | null;
       progressionStrategy?: ProgressionStrategy;
     },

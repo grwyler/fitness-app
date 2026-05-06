@@ -144,7 +144,7 @@ export function createWorkoutHandlers(dependencies: {
           exercises: workout.exercises.map((exercise) => ({
             exerciseId: exercise.exerciseId,
             targetSets: exercise.targetSets,
-            targetReps: exercise.targetReps,
+            targetReps: exercise.targetReps ?? null,
             ...(exercise.repRangeMin != null ? { repRangeMin: exercise.repRangeMin } : {}),
             ...(exercise.repRangeMax != null ? { repRangeMax: exercise.repRangeMax } : {}),
             ...(exercise.progressionStrategy != null ? { progressionStrategy: exercise.progressionStrategy } : {}),
@@ -190,7 +190,7 @@ export function createWorkoutHandlers(dependencies: {
               ? { workoutTemplateExerciseEntryId: exercise.workoutTemplateExerciseEntryId }
               : {}),
             targetSets: exercise.targetSets,
-            targetReps: exercise.targetReps,
+            targetReps: exercise.targetReps ?? null,
             ...(exercise.repRangeMin != null ? { repRangeMin: exercise.repRangeMin } : {}),
             ...(exercise.repRangeMax != null ? { repRangeMax: exercise.repRangeMax } : {}),
             ...(exercise.progressionStrategy != null ? { progressionStrategy: exercise.progressionStrategy } : {}),
@@ -317,10 +317,13 @@ export function createWorkoutHandlers(dependencies: {
       const useCaseRequest: AddCustomWorkoutExerciseRequest = {
         exerciseId: body.exerciseId,
         targetSets: body.targetSets,
-        targetReps: body.targetReps,
+        ...(body.targetReps !== undefined ? { targetReps: body.targetReps } : {}),
         ...(body.repRangeMin !== undefined ? { repRangeMin: body.repRangeMin } : {}),
         ...(body.repRangeMax !== undefined ? { repRangeMax: body.repRangeMax } : {}),
         ...(body.targetWeight !== undefined ? { targetWeight: body.targetWeight } : {}),
+        ...(body.targetDurationSeconds !== undefined ? { targetDurationSeconds: body.targetDurationSeconds } : {}),
+        ...(body.targetDistanceMeters !== undefined ? { targetDistanceMeters: body.targetDistanceMeters } : {}),
+        ...(body.targetRounds !== undefined ? { targetRounds: body.targetRounds } : {}),
         ...(body.restSeconds !== undefined ? { restSeconds: body.restSeconds } : {}),
         ...(body.progressionStrategy !== undefined ? { progressionStrategy: body.progressionStrategy } : {}),
         ...(body.updatePlan !== undefined ? { updatePlan: body.updatePlan } : {})
@@ -375,8 +378,12 @@ export function createWorkoutHandlers(dependencies: {
       const body = validateBody(logSetBodySchema, request);
       const idempotencyKey = requireIdempotencyKey(request);
       const useCaseRequest: LogSetRequest = {
-        actualReps: body.actualReps,
-        ...(body.actualWeight ? { actualWeight: body.actualWeight } : {}),
+        ...(body.actualReps !== undefined ? { actualReps: body.actualReps } : {}),
+        ...(body.actualWeight !== undefined ? { actualWeight: body.actualWeight } : {}),
+        ...(body.durationSeconds !== undefined ? { durationSeconds: body.durationSeconds } : {}),
+        ...(body.distanceMeters !== undefined ? { distanceMeters: body.distanceMeters } : {}),
+        ...(body.rounds !== undefined ? { rounds: body.rounds } : {}),
+        ...(body.setType != null ? { setType: body.setType } : {}),
         ...(body.completedAt ? { completedAt: body.completedAt } : {}),
         ...(body.rir !== undefined ? { rir: body.rir } : {}),
         ...(body.failureStatus !== undefined ? { failureStatus: body.failureStatus } : {})
@@ -398,8 +405,12 @@ export function createWorkoutHandlers(dependencies: {
       const body = validateBody(logSetBodySchema, request);
       const idempotencyKey = requireIdempotencyKey(request);
       const useCaseRequest: LogSetRequest = {
-        actualReps: body.actualReps,
-        ...(body.actualWeight ? { actualWeight: body.actualWeight } : {}),
+        ...(body.actualReps !== undefined ? { actualReps: body.actualReps } : {}),
+        ...(body.actualWeight !== undefined ? { actualWeight: body.actualWeight } : {}),
+        ...(body.durationSeconds !== undefined ? { durationSeconds: body.durationSeconds } : {}),
+        ...(body.distanceMeters !== undefined ? { distanceMeters: body.distanceMeters } : {}),
+        ...(body.rounds !== undefined ? { rounds: body.rounds } : {}),
+        ...(body.setType != null ? { setType: body.setType } : {}),
         ...(body.completedAt ? { completedAt: body.completedAt } : {}),
         ...(body.rir !== undefined ? { rir: body.rir } : {}),
         ...(body.failureStatus !== undefined ? { failureStatus: body.failureStatus } : {})

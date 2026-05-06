@@ -96,13 +96,17 @@ function mapExerciseEntryRecord(row: typeof exerciseEntries.$inferSelect): Exerc
     workoutTemplateExerciseEntryId: row.workoutTemplateExerciseEntryId ?? null,
     sequenceOrder: row.sequenceOrder,
     targetSets: row.targetSets,
-    targetReps: row.targetReps,
-    targetWeightLbs: normalizeNumeric(row.targetWeightLbs),
+    targetReps: row.targetReps ?? null,
+    targetWeightLbs: normalizeNullableNumeric(row.targetWeightLbs),
+    targetDurationSeconds: row.targetDurationSeconds ?? null,
+    targetDistanceMeters: normalizeNullableNumeric(row.targetDistanceMeters),
+    targetRounds: row.targetRounds ?? null,
     restSeconds: row.restSeconds,
     effortFeedback: row.effortFeedback,
     completedAt: row.completedAt,
     exerciseNameSnapshot: row.exerciseNameSnapshot,
     exerciseCategorySnapshot: row.exerciseCategorySnapshot,
+    loggingModalitySnapshot: row.loggingModalitySnapshot,
     progressionRuleSnapshot: (row.progressionRuleSnapshot as Record<string, unknown> | null) ?? null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt
@@ -114,10 +118,17 @@ function mapSetRecord(row: typeof sets.$inferSelect): SetRecord {
     id: row.id,
     exerciseEntryId: row.exerciseEntryId,
     setNumber: row.setNumber,
-    targetReps: row.targetReps,
+    setType: row.setType,
+    targetReps: row.targetReps ?? null,
     actualReps: row.actualReps,
-    targetWeightLbs: normalizeNumeric(row.targetWeightLbs),
+    targetWeightLbs: normalizeNullableNumeric(row.targetWeightLbs),
     actualWeightLbs: normalizeNullableNumeric(row.actualWeightLbs),
+    targetDurationSeconds: row.targetDurationSeconds ?? null,
+    actualDurationSeconds: row.actualDurationSeconds ?? null,
+    targetDistanceMeters: normalizeNullableNumeric(row.targetDistanceMeters),
+    actualDistanceMeters: normalizeNullableNumeric(row.actualDistanceMeters),
+    targetRounds: row.targetRounds ?? null,
+    actualRounds: row.actualRounds ?? null,
     status: row.status,
     rir: row.rir ?? null,
     failureStatus: row.failureStatus ?? null,
@@ -133,8 +144,8 @@ export class DrizzleWorkoutSessionRepository implements WorkoutSessionRepository
   private applyRepRangeDefaults(exerciseEntries: ExerciseEntryRecord[]): ExerciseEntryRecord[] {
     return exerciseEntries.map((entry) => ({
       ...entry,
-      repRangeMin: entry.targetReps,
-      repRangeMax: entry.targetReps
+      repRangeMin: entry.targetReps ?? null,
+      repRangeMax: entry.targetReps ?? null
     }));
   }
 
@@ -312,7 +323,12 @@ export class DrizzleWorkoutSessionRepository implements WorkoutSessionRepository
           id: randomUUID(),
           ...exerciseEntryInput,
           workoutSessionId: sessionRow.id,
-          targetWeightLbs: exerciseEntryInput.targetWeightLbs.toString()
+          targetWeightLbs:
+            exerciseEntryInput.targetWeightLbs === null ? null : exerciseEntryInput.targetWeightLbs.toString(),
+          targetDistanceMeters:
+            exerciseEntryInput.targetDistanceMeters === null || exerciseEntryInput.targetDistanceMeters === undefined
+              ? null
+              : exerciseEntryInput.targetDistanceMeters.toString()
         })
         .returning();
 
@@ -332,8 +348,16 @@ export class DrizzleWorkoutSessionRepository implements WorkoutSessionRepository
           id: randomUUID(),
           ...setInput,
           exerciseEntryId: entryIdByPlaceholder.get(setInput.exerciseEntryId) ?? setInput.exerciseEntryId,
-          targetWeightLbs: setInput.targetWeightLbs.toString(),
-          actualWeightLbs: setInput.actualWeightLbs === null ? null : setInput.actualWeightLbs.toString()
+          targetWeightLbs: setInput.targetWeightLbs === null ? null : setInput.targetWeightLbs.toString(),
+          actualWeightLbs: setInput.actualWeightLbs === null ? null : setInput.actualWeightLbs.toString(),
+          targetDistanceMeters:
+            setInput.targetDistanceMeters === null || setInput.targetDistanceMeters === undefined
+              ? null
+              : setInput.targetDistanceMeters.toString(),
+          actualDistanceMeters:
+            setInput.actualDistanceMeters === null || setInput.actualDistanceMeters === undefined
+              ? null
+              : setInput.actualDistanceMeters.toString()
         })
         .returning();
 
@@ -399,7 +423,12 @@ export class DrizzleWorkoutSessionRepository implements WorkoutSessionRepository
         id: randomUUID(),
         workoutSessionId: input.sessionId,
         ...input.exerciseEntry,
-        targetWeightLbs: input.exerciseEntry.targetWeightLbs.toString()
+        targetWeightLbs:
+          input.exerciseEntry.targetWeightLbs === null ? null : input.exerciseEntry.targetWeightLbs.toString(),
+        targetDistanceMeters:
+          input.exerciseEntry.targetDistanceMeters === null || input.exerciseEntry.targetDistanceMeters === undefined
+            ? null
+            : input.exerciseEntry.targetDistanceMeters.toString()
       })
       .returning();
 
@@ -412,8 +441,16 @@ export class DrizzleWorkoutSessionRepository implements WorkoutSessionRepository
         id: randomUUID(),
         exerciseEntryId: exerciseEntryRow.id,
         ...setInput,
-        targetWeightLbs: setInput.targetWeightLbs.toString(),
-        actualWeightLbs: setInput.actualWeightLbs === null ? null : setInput.actualWeightLbs.toString()
+        targetWeightLbs: setInput.targetWeightLbs === null ? null : setInput.targetWeightLbs.toString(),
+        actualWeightLbs: setInput.actualWeightLbs === null ? null : setInput.actualWeightLbs.toString(),
+        targetDistanceMeters:
+          setInput.targetDistanceMeters === null || setInput.targetDistanceMeters === undefined
+            ? null
+            : setInput.targetDistanceMeters.toString(),
+        actualDistanceMeters:
+          setInput.actualDistanceMeters === null || setInput.actualDistanceMeters === undefined
+            ? null
+            : setInput.actualDistanceMeters.toString()
       });
     }
 
@@ -462,8 +499,16 @@ export class DrizzleWorkoutSessionRepository implements WorkoutSessionRepository
         id: randomUUID(),
         exerciseEntryId: input.exerciseEntryId,
         ...input.set,
-        targetWeightLbs: input.set.targetWeightLbs.toString(),
-        actualWeightLbs: input.set.actualWeightLbs === null ? null : input.set.actualWeightLbs.toString()
+        targetWeightLbs: input.set.targetWeightLbs === null ? null : input.set.targetWeightLbs.toString(),
+        actualWeightLbs: input.set.actualWeightLbs === null ? null : input.set.actualWeightLbs.toString(),
+        targetDistanceMeters:
+          input.set.targetDistanceMeters === null || input.set.targetDistanceMeters === undefined
+            ? null
+            : input.set.targetDistanceMeters.toString(),
+        actualDistanceMeters:
+          input.set.actualDistanceMeters === null || input.set.actualDistanceMeters === undefined
+            ? null
+            : input.set.actualDistanceMeters.toString()
       })
       .returning();
 
@@ -536,7 +581,13 @@ export class DrizzleWorkoutSessionRepository implements WorkoutSessionRepository
       .update(sets)
       .set({
         actualReps: input.actualReps,
-        actualWeightLbs: input.actualWeightLbs.toString(),
+        actualWeightLbs: input.actualWeightLbs === null ? null : input.actualWeightLbs.toString(),
+        ...(input.actualDurationSeconds !== undefined ? { actualDurationSeconds: input.actualDurationSeconds } : {}),
+        ...(input.actualDistanceMeters !== undefined
+          ? { actualDistanceMeters: input.actualDistanceMeters === null ? null : input.actualDistanceMeters.toString() }
+          : {}),
+        ...(input.actualRounds !== undefined ? { actualRounds: input.actualRounds } : {}),
+        ...(input.setType !== undefined ? { setType: input.setType } : {}),
         status: input.status,
         completedAt: input.completedAt,
         ...(input.rir !== undefined ? { rir: input.rir } : {}),
@@ -841,5 +892,68 @@ export class DrizzleWorkoutSessionRepository implements WorkoutSessionRepository
         actualWeightLbs: normalizeNullableNumeric(row.actualWeightLbs),
         setStatus: row.setStatus
       }));
+  }
+
+  public async findMostRecentCompletedNonStrengthTotals(
+    input: {
+      userId: string;
+      exerciseId: string;
+      excludeWorkoutSessionId?: string;
+    },
+    options?: RepositoryOptions
+  ): Promise<
+    | {
+        completedAt: Date | null;
+        durationSeconds: number | null;
+        distanceMeters: number | null;
+        rounds: number | null;
+      }
+    | null
+  > {
+    const executor = resolveExecutor(this.db, options);
+    const excludeWorkoutSessionId = input.excludeWorkoutSessionId ?? null;
+
+    const [latest] = await executor
+      .select({
+        exerciseEntryId: exerciseEntries.id,
+        completedAt: workoutSessions.completedAt
+      })
+      .from(exerciseEntries)
+      .innerJoin(workoutSessions, eq(exerciseEntries.workoutSessionId, workoutSessions.id))
+      .where(
+        and(
+          eq(workoutSessions.userId, input.userId),
+          eq(workoutSessions.status, "completed"),
+          eq(exerciseEntries.exerciseId, input.exerciseId),
+          excludeWorkoutSessionId ? sql`${workoutSessions.id} <> ${excludeWorkoutSessionId}` : sql`true`
+        )
+      )
+      .orderBy(desc(workoutSessions.completedAt))
+      .limit(1);
+
+    if (!latest?.exerciseEntryId) {
+      return null;
+    }
+
+    const [totals] = await executor
+      .select({
+        durationSeconds: sql<number | null>`sum(${sets.actualDurationSeconds})`,
+        distanceMeters: sql<any>`sum(${sets.actualDistanceMeters})`,
+        rounds: sql<number | null>`sum(${sets.actualRounds})`
+      })
+      .from(sets)
+      .where(
+        and(
+          eq(sets.exerciseEntryId, latest.exerciseEntryId),
+          inArray(sets.status, ["completed", "failed"])
+        )
+      );
+
+    return {
+      completedAt: latest.completedAt ?? null,
+      durationSeconds: totals?.durationSeconds === null || totals?.durationSeconds === undefined ? null : Number(totals.durationSeconds),
+      distanceMeters: normalizeNullableNumeric(totals?.distanceMeters),
+      rounds: totals?.rounds === null || totals?.rounds === undefined ? null : Number(totals.rounds)
+    };
   }
 }

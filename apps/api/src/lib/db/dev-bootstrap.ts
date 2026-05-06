@@ -264,6 +264,8 @@ const schemaSql = `
 create table if not exists users (id uuid primary key, auth_provider_id text not null unique, email text not null unique, password_hash text, tokens_invalid_before timestamptz, display_name text, role text not null default 'user', timezone text not null default 'America/New_York', unit_system text not null default 'imperial', experience_level text, training_goal text, deleted_at timestamptz, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
 alter table users add column if not exists role text not null default 'user';
 create type oauth_provider as enum ('google', 'facebook');
+create type exercise_logging_modality as enum ('reps_load','reps_only','time','time_distance','distance','interval','hold');
+create type workout_set_type as enum ('working','warmup');
 
 create table if not exists user_oauth_identities (
   id uuid primary key default gen_random_uuid(),
@@ -311,6 +313,7 @@ alter table exercises add column if not exists default_starting_weight_lbs numer
 alter table exercises add column if not exists is_bodyweight boolean not null default false;
 alter table exercises add column if not exists is_weight_optional boolean not null default false;
 alter table exercises add column if not exists is_progression_eligible boolean not null default true;
+alter table exercises add column if not exists logging_modality exercise_logging_modality not null default 'reps_load';
 create table if not exists programs (id uuid primary key, user_id uuid references users(id), source text not null default 'predefined', name text not null, description text, days_per_week integer not null, session_duration_minutes integer not null, difficulty_level text not null, training_goal text, is_active boolean not null default true, deleted_at timestamptz, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
 alter table programs add column if not exists user_id uuid references users(id);
 alter table programs add column if not exists source text not null default 'predefined';
@@ -329,6 +332,7 @@ create index if not exists idx_program_training_contexts_program_id on program_t
 create index if not exists idx_program_training_contexts_enrollment_id on program_training_contexts(enrollment_id);
 create index if not exists idx_program_training_contexts_user_program on program_training_contexts(user_id, program_id);
 create table if not exists workout_template_exercise_entries (id uuid primary key, workout_template_id uuid not null references workout_templates(id), exercise_id uuid not null references exercises(id), sequence_order integer not null, target_sets integer not null, target_reps integer not null, rep_range_min integer, rep_range_max integer, rest_seconds integer, progression_strategy text, rep_target_text text, target_weight_lbs numeric(6,2), notes text, set_targets jsonb, deleted_at timestamptz, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
+alter table workout_template_exercise_entries alter column target_reps drop not null;
 alter table workout_template_exercise_entries add column if not exists progression_strategy text;
 alter table workout_template_exercise_entries add column if not exists deleted_at timestamptz;
 create index if not exists idx_workout_template_exercise_entries_active_template on workout_template_exercise_entries(workout_template_id) where deleted_at is null;
@@ -337,6 +341,9 @@ alter table workout_template_exercise_entries add column if not exists rep_range
 alter table workout_template_exercise_entries add column if not exists progression_strategy text;
 alter table workout_template_exercise_entries add column if not exists rep_target_text text;
 alter table workout_template_exercise_entries add column if not exists target_weight_lbs numeric(6,2);
+alter table workout_template_exercise_entries add column if not exists target_duration_seconds integer;
+alter table workout_template_exercise_entries add column if not exists target_distance_meters numeric(10,2);
+alter table workout_template_exercise_entries add column if not exists target_rounds integer;
 alter table workout_template_exercise_entries add column if not exists notes text;
 alter table workout_template_exercise_entries add column if not exists set_targets jsonb;
 create unique index if not exists idx_workout_template_entry_sequence on workout_template_exercise_entries(workout_template_id, sequence_order);
@@ -344,10 +351,25 @@ create table if not exists workout_sessions (id uuid primary key, user_id uuid n
 alter table workout_sessions add column if not exists is_partial boolean not null default false;
 create unique index if not exists idx_one_in_progress_workout_per_user on workout_sessions(user_id) where status = 'in_progress';
 create table if not exists exercise_entries (id uuid primary key, workout_session_id uuid not null references workout_sessions(id), exercise_id uuid not null references exercises(id), sequence_order integer not null, target_sets integer not null, target_reps integer not null, target_weight_lbs numeric(6,2) not null, rest_seconds integer, effort_feedback text, completed_at timestamptz, exercise_name_snapshot text not null, exercise_category_snapshot text not null, progression_rule_snapshot jsonb, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
+alter table exercise_entries add column if not exists logging_modality_snapshot exercise_logging_modality not null default 'reps_load';
+alter table exercise_entries alter column target_reps drop not null;
+alter table exercise_entries alter column target_weight_lbs drop not null;
+alter table exercise_entries add column if not exists target_duration_seconds integer;
+alter table exercise_entries add column if not exists target_distance_meters numeric(10,2);
+alter table exercise_entries add column if not exists target_rounds integer;
 alter table exercise_entries add column if not exists workout_template_exercise_entry_id uuid references workout_template_exercise_entries(id);
 create unique index if not exists idx_exercise_entries_session_sequence on exercise_entries(workout_session_id, sequence_order);
 create index if not exists idx_exercise_entries_template_entry_id on exercise_entries(workout_template_exercise_entry_id);
 create table if not exists sets (id uuid primary key, exercise_entry_id uuid not null references exercise_entries(id), set_number integer not null, target_reps integer not null, actual_reps integer, target_weight_lbs numeric(6,2) not null, actual_weight_lbs numeric(6,2), status text not null default 'pending', rir text, failure_status text, completed_at timestamptz, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
+alter table sets add column if not exists set_type workout_set_type not null default 'working';
+alter table sets alter column target_reps drop not null;
+alter table sets alter column target_weight_lbs drop not null;
+alter table sets add column if not exists target_duration_seconds integer;
+alter table sets add column if not exists actual_duration_seconds integer;
+alter table sets add column if not exists target_distance_meters numeric(10,2);
+alter table sets add column if not exists actual_distance_meters numeric(10,2);
+alter table sets add column if not exists target_rounds integer;
+alter table sets add column if not exists actual_rounds integer;
 create unique index if not exists idx_sets_entry_set_number on sets(exercise_entry_id, set_number);
 alter table sets add column if not exists rir text;
 alter table sets add column if not exists failure_status text;
@@ -384,15 +406,17 @@ export async function bootstrapDevelopmentDatabase(executor: SqlExecutor) {
         await executor.query(statement);
       }
     } catch (error) {
-      const isOauthProviderType =
+      const isEnumTypeCreate =
         /^create\s+type\s+oauth_provider\s+as\s+enum/i.test(statement) ||
-        /^create\s+type\s+oauth_provider\b/i.test(statement);
+        /^create\s+type\s+oauth_provider\b/i.test(statement) ||
+        /^create\s+type\s+exercise_logging_modality\b/i.test(statement) ||
+        /^create\s+type\s+workout_set_type\b/i.test(statement);
 
       const code = (error as any)?.code;
       const message = typeof (error as any)?.message === "string" ? (error as any).message.toLowerCase() : "";
       const isDuplicateType = code === "42710" || message.includes("already exists") || message.includes("duplicate_object");
 
-      if (isOauthProviderType && isDuplicateType) {
+      if (isEnumTypeCreate && isDuplicateType) {
         continue;
       }
 
@@ -523,10 +547,10 @@ export async function syncPredefinedProgramCatalog(executor: SqlExecutor) {
 
   for (const exercise of catalogSeedExercises) {
     await executor.query(
-      `insert into exercises (id, name, category, movement_pattern, primary_muscle_group, equipment_type, default_target_sets, default_target_reps, default_starting_weight_lbs, default_increment_lbs, is_bodyweight, is_weight_optional, is_progression_eligible, is_active)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      `insert into exercises (id, name, category, movement_pattern, primary_muscle_group, equipment_type, default_target_sets, default_target_reps, default_starting_weight_lbs, default_increment_lbs, is_bodyweight, is_weight_optional, is_progression_eligible, logging_modality, is_active)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
        on conflict (id) do update
-       set name = excluded.name, category = excluded.category, movement_pattern = excluded.movement_pattern, primary_muscle_group = excluded.primary_muscle_group, equipment_type = excluded.equipment_type, default_target_sets = excluded.default_target_sets, default_target_reps = excluded.default_target_reps, default_starting_weight_lbs = excluded.default_starting_weight_lbs, default_increment_lbs = excluded.default_increment_lbs, is_bodyweight = excluded.is_bodyweight, is_weight_optional = excluded.is_weight_optional, is_progression_eligible = excluded.is_progression_eligible, is_active = excluded.is_active, updated_at = now()`,
+       set name = excluded.name, category = excluded.category, movement_pattern = excluded.movement_pattern, primary_muscle_group = excluded.primary_muscle_group, equipment_type = excluded.equipment_type, default_target_sets = excluded.default_target_sets, default_target_reps = excluded.default_target_reps, default_starting_weight_lbs = excluded.default_starting_weight_lbs, default_increment_lbs = excluded.default_increment_lbs, is_bodyweight = excluded.is_bodyweight, is_weight_optional = excluded.is_weight_optional, is_progression_eligible = excluded.is_progression_eligible, logging_modality = excluded.logging_modality, is_active = excluded.is_active, updated_at = now()`,
       [
         EXERCISE_IDS[exercise.slug] ?? stableUuid("exercise", exercise.slug),
         exercise.name,
@@ -541,6 +565,7 @@ export async function syncPredefinedProgramCatalog(executor: SqlExecutor) {
         exercise.isBodyweight ?? exercise.equipmentType === "bodyweight",
         exercise.isWeightOptional ?? exercise.equipmentType === "bodyweight",
         exercise.isProgressionEligible ?? true,
+        (exercise as any).loggingModality ?? ((exercise.isBodyweight ?? exercise.equipmentType === "bodyweight") ? "reps_only" : "reps_load"),
         true
       ]
     );

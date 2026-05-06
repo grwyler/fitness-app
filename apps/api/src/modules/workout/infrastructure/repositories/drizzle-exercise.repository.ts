@@ -20,6 +20,7 @@ import {
   asc,
   eq,
   inArray,
+  normalizeNullableNumeric,
   normalizeNumeric,
   resolveExecutor,
   sql
@@ -40,6 +41,7 @@ function mapExerciseRecord(row: typeof exercises.$inferSelect): ExerciseRecord {
     isBodyweight: row.isBodyweight,
     isWeightOptional: row.isWeightOptional,
     isProgressionEligible: row.isProgressionEligible,
+    loggingModality: row.loggingModality,
     isActive: row.isActive,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt
@@ -144,7 +146,25 @@ export class DrizzleExerciseRepository implements ExerciseRepository {
       template: mapWorkoutTemplateRecord(templateRow),
       exercises: exerciseRows.map((row: any) => ({
         templateExercise: {
-          ...row.templateExercise
+          id: row.templateExercise.id,
+          workoutTemplateId: row.templateExercise.workoutTemplateId,
+          exerciseId: row.templateExercise.exerciseId,
+          sequenceOrder: row.templateExercise.sequenceOrder,
+          targetSets: row.templateExercise.targetSets,
+          targetReps: row.templateExercise.targetReps ?? null,
+          repRangeMin: row.templateExercise.repRangeMin ?? null,
+          repRangeMax: row.templateExercise.repRangeMax ?? null,
+          targetDurationSeconds: row.templateExercise.targetDurationSeconds ?? null,
+          targetDistanceMeters: normalizeNullableNumeric(row.templateExercise.targetDistanceMeters),
+          targetRounds: row.templateExercise.targetRounds ?? null,
+          restSeconds: row.templateExercise.restSeconds,
+          progressionStrategy: row.templateExercise.progressionStrategy ?? null,
+          repTargetText: row.templateExercise.repTargetText ?? null,
+          targetWeightLbs: normalizeNullableNumeric(row.templateExercise.targetWeightLbs),
+          notes: row.templateExercise.notes ?? null,
+          setTargets: row.templateExercise.setTargets ?? null,
+          createdAt: row.templateExercise.createdAt,
+          updatedAt: row.templateExercise.updatedAt
         },
         exercise: mapExerciseRecord(row.exercise)
       }))
@@ -264,9 +284,12 @@ export class DrizzleExerciseRepository implements ExerciseRepository {
       exerciseId: string;
       sequenceOrder: number;
       targetSets: number;
-      targetReps: number;
+      targetReps: number | null;
       repRangeMin?: number;
       repRangeMax?: number;
+      targetDurationSeconds?: number | null;
+      targetDistanceMeters?: number | null;
+      targetRounds?: number | null;
       restSeconds: number | null;
       progressionStrategy?: ProgressionStrategy;
     },
@@ -285,6 +308,12 @@ export class DrizzleExerciseRepository implements ExerciseRepository {
         targetReps: input.targetReps,
         repRangeMin: input.repRangeMin ?? null,
         repRangeMax: input.repRangeMax ?? null,
+        targetDurationSeconds: input.targetDurationSeconds ?? null,
+        targetDistanceMeters:
+          input.targetDistanceMeters === null || input.targetDistanceMeters === undefined
+            ? null
+            : String(input.targetDistanceMeters),
+        targetRounds: input.targetRounds ?? null,
         restSeconds: input.restSeconds,
         progressionStrategy: input.progressionStrategy ?? null,
         deletedAt: null,

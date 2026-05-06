@@ -48,6 +48,7 @@ function toProgramDefinition(programName: string): ProgramDefinition {
           exerciseId: entry.exerciseSlug,
           exerciseName: exercise.name,
           category: exercise.category,
+          loggingModality: exercise.loggingModality ?? "reps_load",
           movementPattern: exercise.movementPattern,
           primaryMuscleGroup: exercise.primaryMuscleGroup,
           equipmentType: exercise.equipmentType,

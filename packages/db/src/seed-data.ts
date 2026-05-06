@@ -1,6 +1,7 @@
 import type {
   DifficultyLevel,
   ExerciseCategory,
+  ExerciseLoggingModality,
   PredefinedWorkoutCategory,
   TrainingGoal,
   ProgressionStrategy,
@@ -14,13 +15,14 @@ type SeedExercise = {
   movementPattern: string;
   primaryMuscleGroup: string;
   equipmentType: string;
-  defaultTargetSets: number;
-  defaultTargetReps: number;
+  defaultTargetSets: number | null;
+  defaultTargetReps: number | null;
   defaultStartingWeightLbs: number;
   defaultIncrementLbs: number;
   isBodyweight?: boolean;
   isWeightOptional?: boolean;
   isProgressionEligible?: boolean;
+  loggingModality?: ExerciseLoggingModality;
 };
 
 type SeedWorkoutExercise = {
@@ -1976,11 +1978,124 @@ export const seedExercises: SeedExercise[] = [
     primaryMuscleGroup: "core",
     equipmentType: "bodyweight",
     defaultTargetSets: 3,
-    defaultTargetReps: 30,
+    defaultTargetReps: null,
     defaultStartingWeightLbs: 0,
     defaultIncrementLbs: 2.5,
     isBodyweight: true,
     isWeightOptional: true,
+    loggingModality: "hold",
+    isProgressionEligible: false
+  },
+  {
+    slug: "treadmill-run",
+    name: "Treadmill Run",
+    category: "cardio",
+    movementPattern: "cardio",
+    primaryMuscleGroup: "conditioning",
+    equipmentType: "machine",
+    defaultTargetSets: 1,
+    defaultTargetReps: null,
+    defaultStartingWeightLbs: 0,
+    defaultIncrementLbs: 0,
+    loggingModality: "time_distance",
+    isProgressionEligible: false
+  },
+  {
+    slug: "outdoor-run",
+    name: "Outdoor Run",
+    category: "cardio",
+    movementPattern: "cardio",
+    primaryMuscleGroup: "conditioning",
+    equipmentType: "bodyweight",
+    defaultTargetSets: 1,
+    defaultTargetReps: null,
+    defaultStartingWeightLbs: 0,
+    defaultIncrementLbs: 0,
+    loggingModality: "time_distance",
+    isProgressionEligible: false
+  },
+  {
+    slug: "incline-walk",
+    name: "Incline Walk",
+    category: "cardio",
+    movementPattern: "cardio",
+    primaryMuscleGroup: "conditioning",
+    equipmentType: "machine",
+    defaultTargetSets: 1,
+    defaultTargetReps: null,
+    defaultStartingWeightLbs: 0,
+    defaultIncrementLbs: 0,
+    loggingModality: "time_distance",
+    isProgressionEligible: false
+  },
+  {
+    slug: "bike",
+    name: "Bike",
+    category: "cardio",
+    movementPattern: "cardio",
+    primaryMuscleGroup: "conditioning",
+    equipmentType: "machine",
+    defaultTargetSets: 1,
+    defaultTargetReps: null,
+    defaultStartingWeightLbs: 0,
+    defaultIncrementLbs: 0,
+    loggingModality: "time_distance",
+    isProgressionEligible: false
+  },
+  {
+    slug: "rowing-machine",
+    name: "Rowing Machine",
+    category: "cardio",
+    movementPattern: "cardio",
+    primaryMuscleGroup: "conditioning",
+    equipmentType: "machine",
+    defaultTargetSets: 1,
+    defaultTargetReps: null,
+    defaultStartingWeightLbs: 0,
+    defaultIncrementLbs: 0,
+    loggingModality: "time_distance",
+    isProgressionEligible: false
+  },
+  {
+    slug: "elliptical",
+    name: "Elliptical",
+    category: "cardio",
+    movementPattern: "cardio",
+    primaryMuscleGroup: "conditioning",
+    equipmentType: "machine",
+    defaultTargetSets: 1,
+    defaultTargetReps: null,
+    defaultStartingWeightLbs: 0,
+    defaultIncrementLbs: 0,
+    loggingModality: "time_distance",
+    isProgressionEligible: false
+  },
+  {
+    slug: "jump-rope",
+    name: "Jump Rope",
+    category: "cardio",
+    movementPattern: "cardio",
+    primaryMuscleGroup: "conditioning",
+    equipmentType: "bodyweight",
+    defaultTargetSets: 1,
+    defaultTargetReps: null,
+    defaultStartingWeightLbs: 0,
+    defaultIncrementLbs: 0,
+    loggingModality: "time",
+    isProgressionEligible: false
+  },
+  {
+    slug: "conditioning-intervals",
+    name: "Conditioning Intervals",
+    category: "cardio",
+    movementPattern: "cardio",
+    primaryMuscleGroup: "conditioning",
+    equipmentType: "bodyweight",
+    defaultTargetSets: 1,
+    defaultTargetReps: null,
+    defaultStartingWeightLbs: 0,
+    defaultIncrementLbs: 0,
+    loggingModality: "interval",
     isProgressionEligible: false
   }
 ];

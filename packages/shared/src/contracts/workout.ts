@@ -1,6 +1,7 @@
 import type {
   EffortFeedback,
   ExerciseCategory,
+  ExerciseLoggingModality,
   ExperienceLevel,
   DifficultyLevel,
   RecoveryState,
@@ -11,6 +12,7 @@ import type {
   ProgressionAggressiveness,
   ProgressionStrategy,
   BodyweightProgressionMode,
+  WorkoutSetType,
   TrainingGoal,
   GuidedGoalType,
   GuidedEquipmentAccessLevel,
@@ -68,10 +70,17 @@ export type SetDto = {
   id: UUID;
   exerciseEntryId: UUID;
   setNumber: number;
-  targetReps: number;
+  setType: WorkoutSetType;
+  targetReps: number | null;
   actualReps: number | null;
-  targetWeight: WeightValueDto;
+  targetWeight: WeightValueDto | null;
   actualWeight: WeightValueDto | null;
+  targetDurationSeconds?: number | null;
+  actualDurationSeconds?: number | null;
+  targetDistanceMeters?: number | null;
+  actualDistanceMeters?: number | null;
+  targetRounds?: number | null;
+  actualRounds?: number | null;
   status: SetStatus;
   rir: SetRir | null;
   failureStatus: SetFailureStatus | null;
@@ -84,12 +93,16 @@ export type ExerciseEntryDto = {
   workoutTemplateExerciseEntryId?: UUID | null;
   exerciseName: string;
   category: ExerciseCategory;
+  loggingModality: ExerciseLoggingModality;
   sequenceOrder: number;
   targetSets: number;
-  targetReps: number;
-  repRangeMin?: number;
-  repRangeMax?: number;
-  targetWeight: WeightValueDto;
+  targetReps: number | null;
+  repRangeMin?: number | null;
+  repRangeMax?: number | null;
+  targetWeight: WeightValueDto | null;
+  targetDurationSeconds?: number | null;
+  targetDistanceMeters?: number | null;
+  targetRounds?: number | null;
   restSeconds: number | null;
   /**
    * Optional label for the rep target. Useful for prescriptions like "AMRAP" or "failure".
@@ -150,6 +163,7 @@ export type ExerciseCatalogItemDto = {
   isBodyweight: boolean;
   isWeightOptional: boolean;
   isProgressionEligible: boolean;
+  loggingModality: ExerciseLoggingModality;
 };
 
 export type ProgramWorkoutExerciseDto = {
@@ -157,11 +171,15 @@ export type ProgramWorkoutExerciseDto = {
   exerciseId: UUID;
   exerciseName: string;
   category: ExerciseCategory;
+  loggingModality: ExerciseLoggingModality;
   sequenceOrder: number;
   targetSets: number;
-  targetReps: number;
+  targetReps: number | null;
   repRangeMin?: number;
   repRangeMax?: number;
+  targetDurationSeconds?: number | null;
+  targetDistanceMeters?: number | null;
+  targetRounds?: number | null;
   restSeconds: number | null;
   progressionStrategy?: ProgressionStrategy;
   repTargetText?: string | null;
@@ -292,11 +310,14 @@ export type CreateCustomProgramExerciseRequest = {
   exerciseId: UUID;
   workoutTemplateExerciseEntryId?: UUID;
   targetSets: number;
-  targetReps: number;
-  repRangeMin?: number;
-  repRangeMax?: number;
+  targetReps?: number | null;
+  repRangeMin?: number | null;
+  repRangeMax?: number | null;
+  targetDurationSeconds?: number | null;
+  targetDistanceMeters?: number | null;
+  targetRounds?: number | null;
   restSeconds?: number | null;
-  progressionStrategy?: ProgressionStrategy;
+  progressionStrategy?: ProgressionStrategy | null;
   repTargetText?: string | null;
   targetWeight?: WeightValueDto;
   setTargets?: WorkoutSetTargetDto[] | null;
@@ -428,10 +449,13 @@ export type StartWorkoutSessionRequest = {
 export type AddCustomWorkoutExerciseRequest = {
   exerciseId: UUID;
   targetSets: number;
-  targetReps: number;
+  targetReps?: number | null;
   repRangeMin?: number;
   repRangeMax?: number;
   targetWeight?: WeightValueDto;
+  targetDurationSeconds?: number | null;
+  targetDistanceMeters?: number | null;
+  targetRounds?: number | null;
   restSeconds?: number | null;
   progressionStrategy?: ProgressionStrategy;
   /**
@@ -446,8 +470,12 @@ export type AddWorkoutSetRequest = Record<string, never>;
 export type DeleteWorkoutSetRequest = Record<string, never>;
 
 export type LogSetRequest = {
-  actualReps: number;
-  actualWeight?: WeightValueDto;
+  actualReps?: number | null;
+  actualWeight?: WeightValueDto | null;
+  durationSeconds?: number | null;
+  distanceMeters?: number | null;
+  rounds?: number | null;
+  setType?: WorkoutSetType;
   completedAt?: ISODateTime;
   rir?: SetRir | null;
   failureStatus?: SetFailureStatus | null;
