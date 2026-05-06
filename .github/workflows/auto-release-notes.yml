@@ -23,12 +23,15 @@ jobs:
     permissions:
       contents: write
       actions: write
+    env:
+      RELEASE_AUTOMATION_TOKEN: ${{ secrets.RELEASE_AUTOMATION_TOKEN || github.token }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ env.RELEASE_AUTOMATION_TOKEN }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -67,19 +70,19 @@ jobs:
 
       - name: Trigger production deployments
         env:
-          GITHUB_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
         run: |
+          set -euo pipefail
           payload='{"ref":"main"}'
 
-          curl -sS -X POST \
-            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+          curl -fsSL -X POST \
+            -H "Authorization: Bearer ${RELEASE_AUTOMATION_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/${REPO}/actions/workflows/vercel-production.yml/dispatches" \
             -d "${payload}"
 
-          curl -sS -X POST \
-            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+          curl -fsSL -X POST \
+            -H "Authorization: Bearer ${RELEASE_AUTOMATION_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/${REPO}/actions/workflows/vercel-api-production.yml/dispatches" \
             -d "${payload}"
