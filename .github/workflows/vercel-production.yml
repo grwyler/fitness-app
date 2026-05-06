@@ -13,6 +13,9 @@ concurrency:
 jobs:
   deploy:
     name: Production deploy
+    # Avoid double-deploys: `auto-release-notes.yml` pushes a release commit to `main`.
+    # Only deploy on that release commit (or when manually dispatched).
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && startsWith(github.event.head_commit.message, 'chore(release):'))
     runs-on: ubuntu-latest
     env:
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}

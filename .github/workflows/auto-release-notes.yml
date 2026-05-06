@@ -68,22 +68,3 @@ jobs:
           git push origin HEAD:main
           git push origin "v${{ steps.version.outputs.version }}"
 
-      - name: Trigger production deployments
-        env:
-          REPO: ${{ github.repository }}
-        run: |
-          set -euo pipefail
-          payload='{"ref":"main"}'
-
-          curl -fsSL -X POST \
-            -H "Authorization: Bearer ${RELEASE_AUTOMATION_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${REPO}/actions/workflows/vercel-production.yml/dispatches" \
-            -d "${payload}"
-
-          curl -fsSL -X POST \
-            -H "Authorization: Bearer ${RELEASE_AUTOMATION_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${REPO}/actions/workflows/vercel-api-production.yml/dispatches" \
-            -d "${payload}"
-
