@@ -143,6 +143,7 @@ const selectedExercises: ExerciseCatalogItemDto[] = [
     defaultTargetSets: 3,
     defaultTargetReps: 8,
     defaultStartingWeight: { value: 95, unit: "lb" },
+    aliases: [],
     isBodyweight: false,
     isWeightOptional: false,
     isProgressionEligible: true
@@ -157,6 +158,7 @@ const selectedExercises: ExerciseCatalogItemDto[] = [
     defaultTargetSets: 3,
     defaultTargetReps: 8,
     defaultStartingWeight: { value: 95, unit: "lb" },
+    aliases: [],
     isBodyweight: false,
     isWeightOptional: false,
     isProgressionEligible: true
@@ -171,6 +173,7 @@ const selectedExercises: ExerciseCatalogItemDto[] = [
     defaultTargetSets: 3,
     defaultTargetReps: 10,
     defaultStartingWeight: { value: 25, unit: "lb" },
+    aliases: [],
     isBodyweight: false,
     isWeightOptional: false,
     isProgressionEligible: true

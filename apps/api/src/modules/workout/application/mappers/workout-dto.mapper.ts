@@ -282,6 +282,7 @@ export function mapExerciseCatalogItemDto(record: ExerciseRecord): ExerciseCatal
     defaultTargetSets: record.defaultTargetSets,
     defaultTargetReps: record.defaultTargetReps,
     defaultStartingWeight: toWeightValueDto(record.defaultStartingWeightLbs),
+    aliases: record.aliases ?? [],
     isBodyweight: record.isBodyweight,
     isWeightOptional: record.isWeightOptional,
     isProgressionEligible: record.isProgressionEligible

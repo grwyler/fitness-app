@@ -12,6 +12,7 @@ import { PrimaryButton } from "../components/PrimaryButton";
 import { FeedbackButton } from "../features/feedback/components/FeedbackButton";
 import { useAppAuth } from "../core/auth/AuthProvider";
 import { useDashboard } from "../features/workout/hooks/useDashboard";
+import { useCancelWorkout } from "../features/workout/hooks/useCancelWorkout";
 import { useStartWorkout } from "../features/workout/hooks/useStartWorkout";
 import {
   getCurrentProgramWorkoutChoices,
@@ -31,9 +32,12 @@ type Props = NativeStackScreenProps<RootStackParamList, "Dashboard">;
 export function DashboardScreen({ navigation }: Props) {
   const [isCurrentProgramWorkoutPickerOpen, setIsCurrentProgramWorkoutPickerOpen] = useState(false);
   const [selectedStartingWorkoutId, setSelectedStartingWorkoutId] = useState<string | null>(null);
+  const [discardWorkoutPromptVisible, setDiscardWorkoutPromptVisible] = useState(false);
+  const [discardWorkoutSessionId, setDiscardWorkoutSessionId] = useState<string | null>(null);
   const auth = useAppAuth();
   const dashboardQuery = useDashboard();
   const startWorkoutMutation = useStartWorkout();
+  const cancelWorkoutMutation = useCancelWorkout();
   const [lastAction, setLastAction] = useState<string | null>(null);
 
   if (dashboardQuery.isLoading) {
@@ -70,6 +74,11 @@ export function DashboardScreen({ navigation }: Props) {
   const isStartingRecommendedWorkout =
     startWorkoutMutation.isPending && selectedStartingWorkoutId === nextWorkout?.id;
 
+  function openDiscardWorkoutPrompt(sessionId: string) {
+    setDiscardWorkoutSessionId(sessionId);
+    setDiscardWorkoutPromptVisible(true);
+  }
+
   function startCurrentProgramWorkout(choice: CurrentProgramWorkoutChoice) {
     setLastAction(`start_current_program_workout:${choice.workout.id}`);
     setSelectedStartingWorkoutId(choice.workout.id);
@@ -105,9 +114,77 @@ export function DashboardScreen({ navigation }: Props) {
               setLastAction("resume_workout");
               navigation.navigate("ActiveWorkout");
             }}
+            disabled={cancelWorkoutMutation.isPending}
           />
+          <PrimaryButton
+            label="Discard workout"
+            tone="danger"
+            onPress={() => openDiscardWorkoutPrompt(activeWorkout.id)}
+            disabled={cancelWorkoutMutation.isPending}
+            loading={cancelWorkoutMutation.isPending}
+          />
+          {cancelWorkoutMutation.error instanceof Error ? (
+            <AppText variant="meta" tone="danger">
+              {cancelWorkoutMutation.error.message}
+            </AppText>
+          ) : null}
         </Card>
       ) : null}
+
+      <ModalSheet
+        headerRight={
+          <Button
+            label="Close"
+            onPress={() => setDiscardWorkoutPromptVisible(false)}
+            variant="ghost"
+            fullWidth={false}
+            size="sm"
+          />
+        }
+        onClose={() => setDiscardWorkoutPromptVisible(false)}
+        subtitle="Active workout"
+        title="Discard workout?"
+        visible={discardWorkoutPromptVisible}
+      >
+        <View style={styles.actions}>
+          <AppText tone="secondary">
+            This workout will not be saved and your program will not advance.
+          </AppText>
+          {cancelWorkoutMutation.error instanceof Error ? (
+            <AppText variant="meta" tone="danger">
+              {cancelWorkoutMutation.error.message}
+            </AppText>
+          ) : null}
+          <PrimaryButton
+            label="Keep workout"
+            variant="secondary"
+            onPress={() => setDiscardWorkoutPromptVisible(false)}
+            disabled={cancelWorkoutMutation.isPending}
+          />
+          <PrimaryButton
+            label="Discard"
+            variant="danger"
+            onPress={() => {
+              if (!discardWorkoutSessionId) {
+                return;
+              }
+
+              setLastAction("discard_workout_from_dashboard");
+              cancelWorkoutMutation.mutate(
+                { sessionId: discardWorkoutSessionId },
+                {
+                  onSuccess: () => {
+                    setDiscardWorkoutPromptVisible(false);
+                    setDiscardWorkoutSessionId(null);
+                  }
+                }
+              );
+            }}
+            disabled={cancelWorkoutMutation.isPending || !discardWorkoutSessionId}
+            loading={cancelWorkoutMutation.isPending}
+          />
+        </View>
+      </ModalSheet>
 
       {activeProgram && !activeWorkout ? (
         <Card variant="hero" style={styles.card}>

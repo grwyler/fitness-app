@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { cancelWorkoutSession } from "../../../api/workouts";
 import { useActiveWorkoutStore } from "../store/active-workout-store";
 import { workoutQueryKeys } from "./query-keys";
+import type { DashboardDto } from "@fitness/shared";
 
 export function useCancelWorkout() {
   const queryClient = useQueryClient();
@@ -25,6 +26,9 @@ export function useCancelWorkout() {
     onSuccess(result) {
       resetForDiscardedWorkout();
       clearMutationKey(result.scope);
+      queryClient.setQueryData<DashboardDto | undefined>(workoutQueryKeys.dashboard, (current) =>
+        current ? { ...current, activeWorkoutSession: null } : current
+      );
       queryClient.setQueryData(workoutQueryKeys.currentWorkout, {
         activeWorkoutSession: null
       });

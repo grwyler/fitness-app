@@ -158,6 +158,36 @@ function normalizeFilterKey(value: string) {
   return value.trim().toLowerCase();
 }
 
+function normalizeSearchText(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function buildEquipmentSearchText(equipmentType: string | null | undefined) {
+  const raw = equipmentType?.trim() ?? "";
+  if (!raw) {
+    return "";
+  }
+
+  const normalized = normalizeSearchText(raw);
+  const synonyms: Record<string, string[]> = {
+    barbell: ["bb", "bar bell"],
+    dumbbell: ["db", "dumb bell"],
+    kettlebell: ["kb", "kettle bell"],
+    cable: ["cables"],
+    machine: ["machines"],
+    smith_machine: ["smith", "smith machine"],
+    trap_bar: ["hex", "hex bar", "trap bar"]
+  };
+
+  const extra = (synonyms[normalized] ?? []).join(" ");
+  return [raw, normalized, extra].filter(Boolean).join(" ");
+}
+
 function buildTopFilterOptions(input: { values: Array<string | null | undefined>; limit: number }): FilterOption[] {
   const counts = new Map<string, { label: string; count: number }>();
 
@@ -203,7 +233,7 @@ export function CustomExercisePickerModal(props: {
   const [validationError, setValidationError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearchFocused, setIsSearchFocused] = useState(false);
-  const [filtersExpanded, setFiltersExpanded] = useState(false);
+  const [filtersExpanded, setFiltersExpanded] = useState(true);
   const [detailsExpanded, setDetailsExpanded] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedMuscleGroup, setSelectedMuscleGroup] = useState<string | null>(null);
@@ -224,7 +254,7 @@ export function CustomExercisePickerModal(props: {
     setStep("select");
     setSearchQuery("");
     setIsSearchFocused(false);
-    setFiltersExpanded(false);
+    setFiltersExpanded(true);
     setDetailsExpanded(false);
     setSelectedCategory(null);
     setSelectedMuscleGroup(null);
@@ -330,7 +360,7 @@ export function CustomExercisePickerModal(props: {
   const isHeaderCompact = step === "select" && isSearchFocused;
 
   const filteredExercises = useMemo(() => {
-    const normalizedQuery = searchQuery.trim().toLowerCase();
+    const normalizedQuery = normalizeSearchText(searchQuery);
 
     return props.exercises.filter((exercise) => {
       if (selectedCategory && normalizeFilterKey(exercise.category) !== selectedCategory) {
@@ -355,9 +385,11 @@ export function CustomExercisePickerModal(props: {
         return true;
       }
 
-      const haystack = `${exercise.name} ${exercise.category} ${exercise.primaryMuscleGroup ?? ""} ${
-        exercise.equipmentType ?? ""
-      }`.toLowerCase();
+      const aliasText = exercise.aliases?.length ? exercise.aliases.join(" ") : "";
+      const equipmentText = buildEquipmentSearchText(exercise.equipmentType);
+      const haystack = normalizeSearchText(
+        `${exercise.name} ${exercise.category} ${exercise.primaryMuscleGroup ?? ""} ${equipmentText} ${aliasText}`
+      );
       return haystack.includes(normalizedQuery);
     });
   }, [props.exercises, searchQuery, selectedCategory, selectedEquipmentType, selectedMuscleGroup]);

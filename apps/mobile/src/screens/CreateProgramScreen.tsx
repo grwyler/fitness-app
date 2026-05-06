@@ -141,26 +141,36 @@ export function CreateProgramScreen({ navigation, route }: Props) {
     entries: ProgramWorkoutExerciseDto[];
     exercises: ExerciseCatalogItemDto[];
   }) {
-    const exercisesById = new Map(input.exercises.map((exercise) => [exercise.id, exercise]));
+    const resolved =
+      input.exercises.length > 0
+        ? (() => {
+            const exercisesById = new Map(input.exercises.map((exercise) => [exercise.id, exercise]));
+            return input.entries
+              .map((entry) => exercisesById.get(entry.exerciseId) ?? null)
+              .filter(Boolean) as ExerciseCatalogItemDto[];
+          })()
+        : [];
 
-    const resolved = input.entries
-      .map((entry) => exercisesById.get(entry.exerciseId) ?? null)
-      .filter(Boolean) as ExerciseCatalogItemDto[];
+    const nameInput =
+      resolved.length > 0
+        ? resolved.map((exercise) => ({
+            name: exercise.name,
+            primaryMuscleGroup: exercise.primaryMuscleGroup,
+            movementPattern: exercise.movementPattern,
+            category: exercise.category
+          }))
+        : input.entries.map((entry) => ({
+            name: entry.exerciseName,
+            primaryMuscleGroup: null,
+            movementPattern: null,
+            category: entry.category
+          }));
 
-    if (resolved.length === 0) {
+    if (nameInput.length === 0) {
       return null;
     }
 
-    return (
-      generateCustomWorkoutNameFromExercises(
-        resolved.map((exercise) => ({
-          name: exercise.name,
-          primaryMuscleGroup: exercise.primaryMuscleGroup,
-          movementPattern: exercise.movementPattern,
-          category: exercise.category
-        }))
-      ) ?? null
-    );
+    return generateCustomWorkoutNameFromExercises(nameInput) ?? null;
   }
 
   function ensureNormalizedExercises(exercises: ProgramWorkoutExerciseDto[]) {
@@ -370,7 +380,57 @@ export function CreateProgramScreen({ navigation, route }: Props) {
                 onChangeWorkout={(workout) => {
                   setDays((current) =>
                     current.map((candidate) =>
-                      candidate.dayNumber === day.dayNumber ? { ...candidate, workout } : candidate
+                      candidate.dayNumber === day.dayNumber
+                        ? (() => {
+                            if (!workout) {
+                              return { ...candidate, workout: null };
+                            }
+
+                            const previousWorkout = candidate.workout;
+                            const previousName = previousWorkout?.name?.trim() ?? "";
+                            const nextName = workout.name.trim();
+                            const exercisesCatalog = exercisesQuery.data ?? [];
+
+                            const previousSuggested =
+                              previousWorkout?.exercises?.length
+                                ? buildSuggestedWorkoutName({
+                                    entries: previousWorkout.exercises,
+                                    exercises: exercisesCatalog
+                                  })
+                                : null;
+                            const nextSuggested = workout.exercises.length
+                              ? buildSuggestedWorkoutName({ entries: workout.exercises, exercises: exercisesCatalog })
+                              : null;
+
+                            const previousWasAuto =
+                              !previousName ||
+                              previousName === "Workout" ||
+                              (previousSuggested !== null && previousName === previousSuggested);
+
+                            const nextNeedsDefault = !nextName || nextName === "Workout";
+                            const carriedForward = previousName.length > 0 && nextName === previousName;
+
+                            const updatedName = (() => {
+                              if (nextNeedsDefault) {
+                                return nextSuggested ?? workout.name;
+                              }
+
+                              if (previousWasAuto && carriedForward && nextSuggested) {
+                                return nextSuggested;
+                              }
+
+                              return workout.name;
+                            })();
+
+                            return {
+                              ...candidate,
+                              workout: {
+                                ...workout,
+                                name: updatedName
+                              }
+                            };
+                          })()
+                        : candidate
                     )
                   );
                   setSavedProgramId(null);

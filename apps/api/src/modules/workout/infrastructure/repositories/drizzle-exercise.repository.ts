@@ -1,4 +1,5 @@
 import {
+  exerciseAliases,
   exercises,
   programs,
   workoutTemplateExerciseEntries,
@@ -71,7 +72,30 @@ export class DrizzleExerciseRepository implements ExerciseRepository {
       .where(eq(exercises.isActive, true))
       .orderBy(asc(exercises.name));
 
-    return rows.map(mapExerciseRecord);
+    const exerciseIds = rows.map((row: any) => row.id).filter(Boolean);
+    if (exerciseIds.length === 0) {
+      return [];
+    }
+
+    const aliasRows = await executor
+      .select({
+        exerciseId: exerciseAliases.exerciseId,
+        alias: exerciseAliases.alias
+      })
+      .from(exerciseAliases)
+      .where(inArray(exerciseAliases.exerciseId, exerciseIds));
+
+    const aliasesByExerciseId = new Map<string, string[]>();
+    for (const row of aliasRows) {
+      const list = aliasesByExerciseId.get(row.exerciseId) ?? [];
+      list.push(row.alias);
+      aliasesByExerciseId.set(row.exerciseId, list);
+    }
+
+    return rows.map((row: any) => ({
+      ...mapExerciseRecord(row),
+      aliases: aliasesByExerciseId.get(row.id) ?? []
+    }));
   }
 
   public async findTemplateDefinitionById(

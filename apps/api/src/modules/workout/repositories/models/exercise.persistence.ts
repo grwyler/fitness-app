@@ -8,6 +8,7 @@ import type {
 export type ExerciseRecord = {
   id: string;
   name: string;
+  aliases?: string[];
   category: ExerciseCategory;
   movementPattern: string | null;
   primaryMuscleGroup: string | null;

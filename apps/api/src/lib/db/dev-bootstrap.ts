@@ -1,4 +1,8 @@
-import { seedExercises as catalogSeedExercises, seedPrograms as catalogSeedPrograms } from "@fitness/db";
+import {
+  seedExerciseAliases as catalogSeedExerciseAliases,
+  seedExercises as catalogSeedExercises,
+  seedPrograms as catalogSeedPrograms
+} from "@fitness/db";
 import { createHash } from "node:crypto";
 import { hashPassword } from "../auth/password.js";
 
@@ -93,6 +97,17 @@ function resolvePredefinedTemplateId(input: { programName: string; templateOrder
   }
 
   return stableUuid("predefined_template", `${input.programName}:${input.templateOrder}:${input.templateName}`);
+}
+
+function normalizeExerciseAlias(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[_/]+/g, " ")
+    .replace(/[’'`]/g, "")
+    .replace(/[^a-z0-9\\s-]/g, " ")
+    .replace(/\\s+/g, " ")
+    .trim();
 }
 
 function createSeedEntryId(index: number) {
@@ -284,6 +299,10 @@ create table if not exists password_reset_tokens (id uuid primary key, user_id u
 create index if not exists idx_password_reset_tokens_user_id on password_reset_tokens(user_id);
 create index if not exists idx_password_reset_tokens_expires_at on password_reset_tokens(expires_at);
 create table if not exists exercises (id uuid primary key, name text not null unique, category text not null, movement_pattern text, primary_muscle_group text, equipment_type text, default_target_sets integer, default_target_reps integer, default_starting_weight_lbs numeric(6,2) not null, default_increment_lbs numeric(5,2) not null, is_bodyweight boolean not null default false, is_weight_optional boolean not null default false, is_progression_eligible boolean not null default true, is_active boolean not null default true, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
+create table if not exists exercise_aliases (id uuid primary key default gen_random_uuid(), exercise_id uuid not null references exercises(id), alias text not null, alias_normalized text not null, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
+create index if not exists idx_exercise_aliases_exercise_id on exercise_aliases(exercise_id);
+create index if not exists idx_exercise_aliases_alias_normalized on exercise_aliases(alias_normalized);
+create unique index if not exists idx_exercise_aliases_exercise_normalized_unique on exercise_aliases(exercise_id, alias_normalized);
 create table if not exists user_exercise_progression_settings (id uuid primary key, user_id uuid not null references users(id), exercise_id uuid not null references exercises(id), progression_strategy text, rep_range_min integer, rep_range_max integer, increment_override_lbs numeric(5,2), max_jump_per_session_lbs numeric(6,2), bodyweight_progression_mode text, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
 create unique index if not exists idx_user_exercise_progression_unique on user_exercise_progression_settings(user_id, exercise_id);
 alter table exercises add column if not exists default_target_sets integer;
@@ -524,6 +543,27 @@ export async function syncPredefinedProgramCatalog(executor: SqlExecutor) {
         exercise.isProgressionEligible ?? true,
         true
       ]
+    );
+  }
+
+  for (const alias of catalogSeedExerciseAliases) {
+    const normalized = normalizeExerciseAlias(alias.alias);
+    if (!normalized) {
+      continue;
+    }
+
+    const exerciseId = EXERCISE_IDS[alias.exerciseSlug] ?? stableUuid("exercise", alias.exerciseSlug);
+    const aliasId = stableUuid("exercise_alias", `${alias.exerciseSlug}:${normalized}`);
+
+    await executor.query(
+      `insert into exercise_aliases (id, exercise_id, alias, alias_normalized)
+       values ($1, $2, $3, $4)
+       on conflict (id) do update
+       set exercise_id = excluded.exercise_id,
+           alias = excluded.alias,
+           alias_normalized = excluded.alias_normalized,
+           updated_at = now()`,
+      [aliasId, exerciseId, alias.alias, normalized]
     );
   }
 

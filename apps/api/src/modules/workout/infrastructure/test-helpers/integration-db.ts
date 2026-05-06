@@ -102,6 +102,18 @@ create table exercises (
   updated_at timestamptz not null default now()
 );
 
+create table exercise_aliases (
+  id text primary key,
+  exercise_id text not null references exercises(id),
+  alias text not null,
+  alias_normalized text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index idx_exercise_aliases_exercise_id on exercise_aliases(exercise_id);
+create index idx_exercise_aliases_alias_normalized on exercise_aliases(alias_normalized);
+create unique index idx_exercise_aliases_exercise_normalized_unique on exercise_aliases(exercise_id, alias_normalized);
+
 create table user_exercise_progression_settings (
   id text primary key,
   user_id text not null references users(id),

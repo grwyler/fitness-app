@@ -146,6 +146,7 @@ export type ExerciseCatalogItemDto = {
   defaultTargetSets: number | null;
   defaultTargetReps: number | null;
   defaultStartingWeight: WeightValueDto;
+  aliases: string[];
   isBodyweight: boolean;
   isWeightOptional: boolean;
   isProgressionEligible: boolean;

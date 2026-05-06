@@ -218,6 +218,27 @@ export const exercises = pgTable(
   })
 );
 
+export const exerciseAliases = pgTable(
+  "exercise_aliases",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    exerciseId: uuid("exercise_id")
+      .notNull()
+      .references(() => exercises.id),
+    alias: text("alias").notNull(),
+    aliasNormalized: text("alias_normalized").notNull(),
+    ...timestamps
+  },
+  (table) => ({
+    exerciseIndex: index("idx_exercise_aliases_exercise_id").on(table.exerciseId),
+    normalizedIndex: index("idx_exercise_aliases_alias_normalized").on(table.aliasNormalized),
+    exerciseNormalizedUnique: uniqueIndex("idx_exercise_aliases_exercise_normalized_unique").on(
+      table.exerciseId,
+      table.aliasNormalized
+    )
+  })
+);
+
 export const userExerciseProgressionSettings = pgTable(
   "user_exercise_progression_settings",
   {
