@@ -3,14 +3,17 @@
 -- Add 'cardio' to exercise_category enum (used by exercises + snapshots).
 do $$
 begin
-  if not exists (
-    select 1
-    from pg_enum e
-    join pg_type t on t.oid = e.enumtypid
-    where t.typname = 'exercise_category'
-      and e.enumlabel = 'cardio'
-  ) then
-    alter type exercise_category add value 'cardio';
+  -- Some environments may still have `exercises.category` as text (no enum type yet).
+  -- In that case, skip the enum update rather than failing the migration.
+  if to_regtype('exercise_category') is not null then
+    if not exists (
+      select 1
+      from pg_enum e
+      where e.enumtypid = to_regtype('exercise_category')
+        and e.enumlabel = 'cardio'
+    ) then
+      alter type exercise_category add value 'cardio';
+    end if;
   end if;
 end $$;
 
@@ -40,4 +43,3 @@ alter table workout_template_exercise_entries
 alter table workout_template_exercise_entries
   add constraint chk_workout_template_target_rounds
   check (target_rounds is null or target_rounds > 0);
-
