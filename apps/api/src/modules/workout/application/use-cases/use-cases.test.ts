@@ -2552,8 +2552,24 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
           return inputs.map((input, index) => ({
             id: `event-${index + 1}`,
             ...input,
+            resolutionType: "unresolved",
+            resolvedByUserId: null,
+            resolvedAt: null,
+            resolutionNote: null,
+            resolutionOriginalSnapshot: null,
+            resolutionFinalSnapshot: null,
+            resolutionRelatedSetIds: null,
             createdAt: new Date()
           }));
+        },
+        async findOwnedById() {
+          return null;
+        },
+        async listBySessionId() {
+          return [];
+        },
+        async resolveOwnedEvent() {
+          throw new Error("Not implemented.");
         },
         async listRecentByUserId() {
           return [];
@@ -2834,8 +2850,24 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
           return inputs.map((input, index) => ({
             id: `event-${index + 1}`,
             ...input,
+            resolutionType: "unresolved",
+            resolvedByUserId: null,
+            resolvedAt: null,
+            resolutionNote: null,
+            resolutionOriginalSnapshot: null,
+            resolutionFinalSnapshot: null,
+            resolutionRelatedSetIds: null,
             createdAt: new Date()
           }));
+        },
+        async findOwnedById() {
+          return null;
+        },
+        async listBySessionId() {
+          return [];
+        },
+        async resolveOwnedEvent() {
+          throw new Error("Not implemented.");
         },
         async listRecentByUserId() {
           return [];
@@ -3097,8 +3129,24 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
           return inputs.map((input, index) => ({
             id: `event-${index + 1}`,
             ...input,
+            resolutionType: "unresolved",
+            resolvedByUserId: null,
+            resolvedAt: null,
+            resolutionNote: null,
+            resolutionOriginalSnapshot: null,
+            resolutionFinalSnapshot: null,
+            resolutionRelatedSetIds: null,
             createdAt: new Date()
           }));
+        },
+        async findOwnedById() {
+          return null;
+        },
+        async listBySessionId() {
+          return [];
+        },
+        async resolveOwnedEvent() {
+          throw new Error("Not implemented.");
         },
         async listRecentByUserId() {
           return [];
@@ -3367,8 +3415,24 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
           return inputs.map((input, index) => ({
             id: `event-${index + 1}`,
             ...input,
+            resolutionType: "unresolved",
+            resolvedByUserId: null,
+            resolvedAt: null,
+            resolutionNote: null,
+            resolutionOriginalSnapshot: null,
+            resolutionFinalSnapshot: null,
+            resolutionRelatedSetIds: null,
             createdAt: new Date()
           }));
+        },
+        async findOwnedById() {
+          return null;
+        },
+        async listBySessionId() {
+          return [];
+        },
+        async resolveOwnedEvent() {
+          throw new Error("Not implemented.");
         },
         async listRecentByUserId() {
           return [];
@@ -3792,8 +3856,24 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
           return inputs.map((input, index) => ({
             id: `event-${index + 1}`,
             ...input,
+            resolutionType: "unresolved",
+            resolvedByUserId: null,
+            resolvedAt: null,
+            resolutionNote: null,
+            resolutionOriginalSnapshot: null,
+            resolutionFinalSnapshot: null,
+            resolutionRelatedSetIds: null,
             createdAt: new Date()
           }));
+        },
+        async findOwnedById() {
+          return null;
+        },
+        async listBySessionId() {
+          return [];
+        },
+        async resolveOwnedEvent() {
+          throw new Error("Not implemented.");
         },
         async listRecentByUserId() {
           return [];

@@ -22,6 +22,8 @@ import type {
   FollowProgramRequest,
   RecommendGuidedProgramResponse,
   GuidedProgramAnswers,
+  ResolveProgressionRecommendationRequest,
+  ResolveProgressionRecommendationResponse,
   StartWorkoutSessionRequest,
   UpdateCustomProgramRequest,
   UpdateCustomProgramResponse,
@@ -260,6 +262,20 @@ export async function cancelWorkoutSession(input: {
       method: "POST",
       body: {},
       idempotencyKey: input.idempotencyKey
+    }
+  );
+}
+
+export async function resolveProgressionRecommendation(input: {
+  sessionId: string;
+  eventId: string;
+  request: ResolveProgressionRecommendationRequest;
+}) {
+  return apiRequest<ResolveProgressionRecommendationResponse>(
+    `/workout-sessions/${input.sessionId}/progression-events/${input.eventId}/resolve`,
+    {
+      method: "POST",
+      body: input.request
     }
   );
 }

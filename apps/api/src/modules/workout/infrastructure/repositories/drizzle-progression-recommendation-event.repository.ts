@@ -6,7 +6,7 @@ import type {
   CreateProgressionRecommendationEventInput,
   ProgressionRecommendationEventRecord
 } from "../../repositories/models/progression-recommendation-event.persistence.js";
-import { desc, eq, normalizeNumeric, resolveExecutor } from "../db/drizzle-helpers.js";
+import { and, desc, eq, normalizeNumeric, resolveExecutor } from "../db/drizzle-helpers.js";
 
 function mapProgressionRecommendationEventRecord(
   row: typeof progressionRecommendationEvents.$inferSelect
@@ -28,6 +28,13 @@ function mapProgressionRecommendationEventRecord(
     reasonCodes: (row.reasonCodes as string[]) ?? [],
     evidence: (row.evidence as string[]) ?? [],
     inputSnapshot: (row.inputSnapshot as Record<string, unknown>) ?? {},
+    resolutionType: (row.resolutionType as any) ?? "unresolved",
+    resolvedByUserId: (row.resolvedByUserId as any) ?? null,
+    resolvedAt: (row.resolvedAt as any) ?? null,
+    resolutionNote: (row.resolutionNote as any) ?? null,
+    resolutionOriginalSnapshot: (row.resolutionOriginalSnapshot as any) ?? null,
+    resolutionFinalSnapshot: (row.resolutionFinalSnapshot as any) ?? null,
+    resolutionRelatedSetIds: (row.resolutionRelatedSetIds as any) ?? null,
     createdAt: row.createdAt
   };
 }
@@ -78,5 +85,85 @@ export class DrizzleProgressionRecommendationEventRepository
       .limit(limit);
 
     return rows.map(mapProgressionRecommendationEventRecord);
+  }
+
+  public async findOwnedById(
+    userId: string,
+    id: string,
+    options?: RepositoryOptions
+  ): Promise<ProgressionRecommendationEventRecord | null> {
+    const executor = resolveExecutor(this.db, options);
+    const row = await executor
+      .select()
+      .from(progressionRecommendationEvents)
+      .where(and(eq(progressionRecommendationEvents.userId, userId), eq(progressionRecommendationEvents.id, id)))
+      .limit(1)
+      .then((rows: any[]) => rows[0] ?? null);
+
+    return row ? mapProgressionRecommendationEventRecord(row) : null;
+  }
+
+  public async listBySessionId(
+    userId: string,
+    workoutSessionId: string,
+    options?: RepositoryOptions
+  ): Promise<ProgressionRecommendationEventRecord[]> {
+    const executor = resolveExecutor(this.db, options);
+    const rows = await executor
+      .select()
+      .from(progressionRecommendationEvents)
+      .where(
+        and(
+          eq(progressionRecommendationEvents.userId, userId),
+          eq(progressionRecommendationEvents.workoutSessionId, workoutSessionId)
+        )
+      )
+      .orderBy(desc(progressionRecommendationEvents.createdAt));
+
+    return rows.map(mapProgressionRecommendationEventRecord);
+  }
+
+  public async resolveOwnedEvent(
+    input: {
+      userId: string;
+      id: string;
+      workoutSessionId: string;
+      resolutionType: ProgressionRecommendationEventRecord["resolutionType"];
+      resolvedByUserId: string;
+      resolvedAt: Date;
+      note: string | null;
+      resolutionOriginalSnapshot: Record<string, unknown>;
+      resolutionFinalSnapshot: Record<string, unknown>;
+      relatedSetIds: string[] | null;
+    },
+    options?: RepositoryOptions
+  ): Promise<ProgressionRecommendationEventRecord> {
+    const executor = resolveExecutor(this.db, options);
+    const rows = await executor
+      .update(progressionRecommendationEvents)
+      .set({
+        resolutionType: input.resolutionType,
+        resolvedByUserId: input.resolvedByUserId,
+        resolvedAt: input.resolvedAt,
+        resolutionNote: input.note,
+        resolutionOriginalSnapshot: input.resolutionOriginalSnapshot,
+        resolutionFinalSnapshot: input.resolutionFinalSnapshot,
+        resolutionRelatedSetIds: input.relatedSetIds
+      })
+      .where(
+        and(
+          eq(progressionRecommendationEvents.userId, input.userId),
+          eq(progressionRecommendationEvents.id, input.id),
+          eq(progressionRecommendationEvents.workoutSessionId, input.workoutSessionId)
+        )
+      )
+      .returning();
+
+    const updated = rows[0] ?? null;
+    if (!updated) {
+      throw new Error("Progression recommendation event resolution update failed.");
+    }
+
+    return mapProgressionRecommendationEventRecord(updated);
   }
 }

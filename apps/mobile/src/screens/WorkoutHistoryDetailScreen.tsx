@@ -271,7 +271,9 @@ export function WorkoutHistoryDetailScreen({ route, navigation }: Props) {
     );
   }
 
-  const workout = detailQuery.data;
+  const detail = detailQuery.data;
+  const workout = detail.workoutSession;
+  const progressionRecommendationEvents = detail.progressionRecommendationEvents ?? [];
   const progressHighlights = buildWorkoutDetailProgressHighlights({
     workout,
     progression: progressionQuery.data,
@@ -283,6 +285,21 @@ export function WorkoutHistoryDetailScreen({ route, navigation }: Props) {
     return accumulator;
   }, {});
   const stats = getWorkoutDetailStats(workout);
+  const exerciseNameByEntryId = workout.exercises.reduce<Record<string, string>>((accumulator, exercise) => {
+    accumulator[exercise.id] = exercise.exerciseName;
+    return accumulator;
+  }, {});
+  const recommendationAuditEvents = progressionRecommendationEvents.filter((event) => {
+    const reasonCodes = event.reasonCodes ?? [];
+    const resolvable =
+      event.confidence === "low" ||
+      event.result === "recalibrated" ||
+      reasonCodes.includes("REPS_GREATLY_EXCEEDED_TARGET") ||
+      reasonCodes.includes("CONFLICTING_EFFORT_SIGNALS") ||
+      reasonCodes.includes("MIN_CONFIDENCE_GATE_BLOCKED_INCREASE");
+
+    return event.resolutionType !== "unresolved" || resolvable;
+  });
 
   return (
     <Screen>
@@ -354,6 +371,57 @@ export function WorkoutHistoryDetailScreen({ route, navigation }: Props) {
               </View>
             </View>
           ))}
+        </View>
+      ) : null}
+
+      {recommendationAuditEvents.length > 0 ? (
+        <View style={styles.auditCard}>
+          <Text style={styles.cardLabel}>Progression</Text>
+          <Text style={styles.cardTitle}>Recommendation history</Text>
+          <Text style={styles.cardBody}>
+            Shows the original recommendation and how it was resolved.
+          </Text>
+
+          {recommendationAuditEvents.map((event) => {
+            const exerciseName = exerciseNameByEntryId[event.exerciseEntryId] ?? "Exercise";
+            const original = event.originalRecommendation;
+            const final = event.resolution?.final ?? event.originalRecommendation;
+            const originalWeightText = formatWeightForUser({ weightLbs: original.nextWeight.value, unitSystem }).text;
+            const finalWeightText = formatWeightForUser({ weightLbs: final.nextWeight.value, unitSystem }).text;
+            const originalRepText = original.nextRepGoal != null ? `${original.nextRepGoal} reps` : null;
+            const finalRepText = final.nextRepGoal != null ? `${final.nextRepGoal} reps` : null;
+
+            return (
+              <View key={event.id} style={styles.auditItem}>
+                <Text style={styles.auditTitle}>{exerciseName}</Text>
+                <Text style={styles.auditBody}>
+                  Original next: {originalWeightText}
+                  {originalRepText ? ` · ${originalRepText}` : ""}
+                </Text>
+                {event.resolutionType === "unresolved" ? (
+                  <Text style={styles.auditUnresolved}>
+                    Unresolved · created {formatCompletedDate(event.createdAt)}
+                  </Text>
+                ) : (
+                  <>
+                    <Text style={styles.auditResolved}>
+                      Resolved: {event.resolutionType.replace(/_/g, " ")}
+                    </Text>
+                    <Text style={styles.auditMeta}>
+                      {event.resolution?.resolvedAt ? `Resolved ${formatCompletedDate(event.resolution.resolvedAt)}` : ""}
+                    </Text>
+                    <Text style={styles.auditBody}>
+                      Final next: {finalWeightText}
+                      {finalRepText ? ` · ${finalRepText}` : ""}
+                    </Text>
+                    {event.resolution?.note ? (
+                      <Text style={styles.auditNote}>{event.resolution.note}</Text>
+                    ) : null}
+                  </>
+                )}
+              </View>
+            );
+          })}
         </View>
       ) : null}
 
@@ -501,6 +569,51 @@ const styles = StyleSheet.create({
     gap: 4
   },
   reviewEvidenceItem: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    fontWeight: "600",
+    lineHeight: 18
+  },
+  auditCard: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: spacing.sm,
+    padding: spacing.lg
+  },
+  auditItem: {
+    borderTopColor: colors.border,
+    borderTopWidth: 1,
+    gap: 4,
+    paddingTop: spacing.sm
+  },
+  auditTitle: {
+    color: colors.textPrimary,
+    fontSize: 16,
+    fontWeight: "700"
+  },
+  auditBody: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    lineHeight: 20
+  },
+  auditMeta: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    fontWeight: "600"
+  },
+  auditUnresolved: {
+    color: colors.warning,
+    fontSize: 13,
+    fontWeight: "700"
+  },
+  auditResolved: {
+    color: colors.success,
+    fontSize: 13,
+    fontWeight: "700"
+  },
+  auditNote: {
     color: colors.textSecondary,
     fontSize: 13,
     fontWeight: "600",

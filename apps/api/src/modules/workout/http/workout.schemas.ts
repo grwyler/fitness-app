@@ -21,7 +21,8 @@ import {
   guidedEquipmentTypes,
   setFailureStatusValues,
   setRirValues,
-  workoutSetTypes
+  workoutSetTypes,
+  progressionRecommendationResolutionTypes
 } from "@fitness/shared";
 
 const weightValueSchema = z.object({
@@ -43,6 +44,11 @@ export const workoutSessionParamsSchema = z.object({
 export const workoutSessionExerciseParamsSchema = z.object({
   sessionId: z.string().min(1),
   exerciseEntryId: z.string().min(1)
+});
+
+export const workoutSessionProgressionEventParamsSchema = z.object({
+  sessionId: z.string().min(1),
+  eventId: z.string().min(1)
 });
 
 export const programParamsSchema = z.object({
@@ -200,6 +206,16 @@ export const createCustomProgramBodySchema = z.object({
 export const workoutHistoryQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional(),
   status: z.literal("completed").optional()
+});
+
+export const resolveProgressionRecommendationBodySchema = z.object({
+  resolutionType: z
+    .enum(progressionRecommendationResolutionTypes)
+    .refine((value) => value !== "unresolved", {
+      message: "resolutionType must not be unresolved."
+    }),
+  note: z.string().trim().min(1).max(240).nullable().optional(),
+  relatedSetIds: z.array(z.string().min(1)).max(50).nullable().optional()
 });
 
 export const setParamsSchema = z.object({

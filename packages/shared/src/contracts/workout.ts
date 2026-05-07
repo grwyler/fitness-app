@@ -9,6 +9,7 @@ import type {
   ProgressMetricType,
   ProgressionResult,
   ProgressionConfidence,
+  ProgressionRecommendationResolutionType,
   ProgressionAggressiveness,
   ProgressionStrategy,
   BodyweightProgressionMode,
@@ -379,6 +380,7 @@ export type GetWorkoutHistoryResponse = {
 
 export type GetWorkoutHistoryDetailResponse = {
   workoutSession: WorkoutSessionDto;
+  progressionRecommendationEvents?: ProgressionRecommendationEventDto[];
 };
 
 export type ProgressMetricDto = {
@@ -401,6 +403,52 @@ export type ProgressionUpdateDto = {
   confidence: ProgressionConfidence;
   reasonCodes: string[];
   evidence: string[];
+  recommendationEventId?: UUID;
+  recommendationResolutionType?: ProgressionRecommendationResolutionType;
+};
+
+export type ProgressionRecommendationSnapshotDto = {
+  previousWeight: WeightValueDto;
+  nextWeight: WeightValueDto;
+  previousRepGoal?: number | null;
+  nextRepGoal?: number | null;
+};
+
+export type ProgressionRecommendationResolutionDto = {
+  type: ProgressionRecommendationResolutionType;
+  userId: UUID;
+  resolvedAt: ISODateTime;
+  note?: string | null;
+  original: ProgressionRecommendationSnapshotDto;
+  final: ProgressionRecommendationSnapshotDto;
+  relatedSetIds?: UUID[];
+};
+
+export type ProgressionRecommendationEventDto = {
+  id: UUID;
+  workoutSessionId: UUID;
+  exerciseId: UUID | null;
+  workoutTemplateExerciseEntryId: UUID | null;
+  exerciseEntryId: UUID;
+  result: ProgressionResult;
+  reason: string;
+  confidence: ProgressionConfidence;
+  reasonCodes: string[];
+  evidence: string[];
+  originalRecommendation: ProgressionRecommendationSnapshotDto;
+  resolutionType: ProgressionRecommendationResolutionType;
+  resolution?: ProgressionRecommendationResolutionDto | null;
+  createdAt: ISODateTime;
+};
+
+export type ResolveProgressionRecommendationRequest = {
+  resolutionType: ProgressionRecommendationResolutionType;
+  note?: string | null;
+  relatedSetIds?: UUID[] | null;
+};
+
+export type ResolveProgressionRecommendationResponse = {
+  progressionRecommendationEvent: ProgressionRecommendationEventDto;
 };
 
 export type ProgressionVolumePointDto = {

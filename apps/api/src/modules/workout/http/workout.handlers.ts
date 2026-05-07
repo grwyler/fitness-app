@@ -7,6 +7,7 @@ import type {
   DeleteWorkoutExerciseEntryRequest,
   DeleteWorkoutSetRequest,
   RecommendGuidedProgramRequest,
+  ResolveProgressionRecommendationRequest,
   UpdateWorkoutExerciseEntryRequest,
   UpdateExerciseProgressionSettingsRequest,
   LogSetRequest,
@@ -40,7 +41,9 @@ import {
   workoutSessionExerciseParamsSchema,
   workoutHistoryQuerySchema,
   deleteWorkoutExerciseEntryBodySchema,
-  workoutSessionParamsSchema
+  workoutSessionParamsSchema,
+  workoutSessionProgressionEventParamsSchema,
+  resolveProgressionRecommendationBodySchema
 } from "./workout.schemas.js";
 import type { AddCustomWorkoutExerciseUseCase } from "../application/use-cases/add-custom-workout-exercise.use-case.js";
 import type { AddWorkoutSetUseCase } from "../application/use-cases/add-workout-set.use-case.js";
@@ -68,6 +71,7 @@ import type { GetTrainingSettingsUseCase } from "../application/use-cases/get-tr
 import type { UpdateTrainingSettingsUseCase } from "../application/use-cases/update-training-settings.use-case.js";
 import type { GetExerciseProgressionSettingsUseCase } from "../application/use-cases/get-exercise-progression-settings.use-case.js";
 import type { UpdateExerciseProgressionSettingsUseCase } from "../application/use-cases/update-exercise-progression-settings.use-case.js";
+import type { ResolveProgressionRecommendationUseCase } from "../application/use-cases/resolve-progression-recommendation.use-case.js";
 
 export type WorkoutHttpHandlers = {
   listPrograms: RequestHandler;
@@ -96,6 +100,7 @@ export type WorkoutHttpHandlers = {
   updateTrainingSettings: RequestHandler;
   getExerciseProgressionSettings: RequestHandler;
   updateExerciseProgressionSettings: RequestHandler;
+  resolveProgressionRecommendation: RequestHandler;
 };
 
 export function createWorkoutHandlers(dependencies: {
@@ -125,6 +130,7 @@ export function createWorkoutHandlers(dependencies: {
   updateTrainingSettingsUseCase: UpdateTrainingSettingsUseCase;
   getExerciseProgressionSettingsUseCase: GetExerciseProgressionSettingsUseCase;
   updateExerciseProgressionSettingsUseCase: UpdateExerciseProgressionSettingsUseCase;
+  resolveProgressionRecommendationUseCase: ResolveProgressionRecommendationUseCase;
 }): WorkoutHttpHandlers {
   return {
     listPrograms: asyncHandler(async (_request, response) => {
@@ -576,6 +582,29 @@ export function createWorkoutHandlers(dependencies: {
         context,
         request: useCaseRequest
       });
+      response.json(success(result.data, result.meta));
+    }),
+
+    resolveProgressionRecommendation: asyncHandler(async (request, response) => {
+      const context = getRequestContext(request);
+      const params = validateParams(workoutSessionProgressionEventParamsSchema, request);
+      const body = validateBody(resolveProgressionRecommendationBodySchema, request);
+
+      const useCaseRequest: ResolveProgressionRecommendationRequest = {
+        resolutionType: body.resolutionType,
+        ...(body.note !== undefined ? { note: body.note } : {}),
+        ...(body.relatedSetIds !== undefined ? { relatedSetIds: body.relatedSetIds } : {})
+      };
+
+      const result = await dependencies.resolveProgressionRecommendationUseCase.execute({
+        context,
+        sessionId: params.sessionId,
+        eventId: params.eventId,
+        resolutionType: useCaseRequest.resolutionType,
+        note: useCaseRequest.note ?? null,
+        relatedSetIds: useCaseRequest.relatedSetIds ?? null
+      });
+
       response.json(success(result.data, result.meta));
     })
   };

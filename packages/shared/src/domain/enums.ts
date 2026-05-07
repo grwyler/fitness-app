@@ -84,6 +84,18 @@ export type ProgressionResult = (typeof progressionResults)[number];
 export const progressionConfidenceLevels = ["low", "medium", "high"] as const;
 export type ProgressionConfidence = (typeof progressionConfidenceLevels)[number];
 
+export const progressionRecommendationResolutionTypes = [
+  "unresolved",
+  "accepted",
+  "smaller_increase",
+  "keep_current",
+  "ignored_bad_data",
+  "set_corrected",
+  "retest_next_time"
+] as const;
+export type ProgressionRecommendationResolutionType =
+  (typeof progressionRecommendationResolutionTypes)[number];
+
 export const progressionAggressivenessLevels = ["conservative", "balanced", "aggressive"] as const;
 export type ProgressionAggressiveness = (typeof progressionAggressivenessLevels)[number];
 

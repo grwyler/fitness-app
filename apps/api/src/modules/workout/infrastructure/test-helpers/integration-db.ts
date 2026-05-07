@@ -356,6 +356,13 @@ create table progression_recommendation_events (
   reason_codes jsonb not null,
   evidence jsonb not null,
   input_snapshot jsonb not null,
+  resolution_type text not null default 'unresolved',
+  resolved_by_user_id text references users(id),
+  resolved_at timestamptz,
+  resolution_note text,
+  resolution_original_snapshot jsonb,
+  resolution_final_snapshot jsonb,
+  resolution_related_set_ids jsonb,
   created_at timestamptz not null default now()
 );
 create index idx_progression_recommendation_events_user_id on progression_recommendation_events(user_id);

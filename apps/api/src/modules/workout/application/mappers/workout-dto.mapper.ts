@@ -11,6 +11,9 @@ import type {
   ProgramDto,
   ProgramPositionDto,
   ProgressMetricDto,
+  ProgressionRecommendationEventDto,
+  ProgressionRecommendationResolutionDto,
+  ProgressionRecommendationSnapshotDto,
   ProgressionUpdateDto,
   WeightValueDto,
   WorkoutHistoryItemDto,
@@ -24,6 +27,7 @@ import type { ExerciseRecord } from "../../repositories/models/exercise.persiste
 import type { WorkoutTemplateRecord } from "../../repositories/models/exercise.persistence.js";
 import type { ProgramDefinition } from "../../repositories/models/program.persistence.js";
 import type { ProgressMetricRecord } from "../../repositories/models/progress-metric.persistence.js";
+import type { ProgressionRecommendationEventRecord } from "../../repositories/models/progression-recommendation-event.persistence.js";
 import type {
   ExerciseEntryRecord,
   SetRecord,
@@ -321,6 +325,8 @@ export function mapProgressionUpdateDto(input: {
   confidence: ProgressionUpdateDto["confidence"];
   reasonCodes: ProgressionUpdateDto["reasonCodes"];
   evidence: ProgressionUpdateDto["evidence"];
+  recommendationEventId?: string;
+  recommendationResolutionType?: ProgressionUpdateDto["recommendationResolutionType"];
 }): ProgressionUpdateDto {
   return {
     exerciseId: input.exerciseId,
@@ -333,7 +339,97 @@ export function mapProgressionUpdateDto(input: {
     reason: input.reason,
     confidence: input.confidence,
     reasonCodes: input.reasonCodes,
-    evidence: input.evidence
+    evidence: input.evidence,
+    ...(input.recommendationEventId ? { recommendationEventId: input.recommendationEventId } : {}),
+    ...(input.recommendationResolutionType ? { recommendationResolutionType: input.recommendationResolutionType } : {})
+  };
+}
+
+function mapProgressionRecommendationSnapshotDto(input: {
+  previousWeightLbs: number;
+  nextWeightLbs: number;
+  previousRepGoal: number | null;
+  nextRepGoal: number | null;
+}): ProgressionRecommendationSnapshotDto {
+  return {
+    previousWeight: toWeightValueDto(input.previousWeightLbs),
+    nextWeight: toWeightValueDto(input.nextWeightLbs),
+    previousRepGoal: input.previousRepGoal,
+    nextRepGoal: input.nextRepGoal
+  };
+}
+
+function normalizeRecommendationSnapshotNumbers(snapshot: Record<string, unknown> | null, fallback: {
+  previousWeightLbs: number;
+  nextWeightLbs: number;
+  previousRepGoal: number | null;
+  nextRepGoal: number | null;
+}) {
+  if (!snapshot) {
+    return fallback;
+  }
+
+  const raw = snapshot as Record<string, unknown>;
+  const previousWeightLbs = typeof raw["previousWeightLbs"] === "number" ? (raw["previousWeightLbs"] as number) : fallback.previousWeightLbs;
+  const nextWeightLbs = typeof raw["nextWeightLbs"] === "number" ? (raw["nextWeightLbs"] as number) : fallback.nextWeightLbs;
+  const previousRepGoal = typeof raw["previousRepGoal"] === "number" ? (raw["previousRepGoal"] as number) : fallback.previousRepGoal;
+  const nextRepGoal = typeof raw["nextRepGoal"] === "number" ? (raw["nextRepGoal"] as number) : fallback.nextRepGoal;
+
+  return {
+    previousWeightLbs,
+    nextWeightLbs,
+    previousRepGoal,
+    nextRepGoal
+  };
+}
+
+export function mapProgressionRecommendationEventDto(
+  record: ProgressionRecommendationEventRecord
+): ProgressionRecommendationEventDto {
+  const original = mapProgressionRecommendationSnapshotDto({
+    previousWeightLbs: record.previousWeightLbs,
+    nextWeightLbs: record.nextWeightLbs,
+    previousRepGoal: record.previousRepGoal,
+    nextRepGoal: record.nextRepGoal
+  });
+
+  const resolvedAt = record.resolvedAt ? record.resolvedAt.toISOString() : null;
+  const resolutionOriginal = normalizeRecommendationSnapshotNumbers(record.resolutionOriginalSnapshot, {
+    previousWeightLbs: record.previousWeightLbs,
+    nextWeightLbs: record.nextWeightLbs,
+    previousRepGoal: record.previousRepGoal,
+    nextRepGoal: record.nextRepGoal
+  });
+  const resolutionFinal = normalizeRecommendationSnapshotNumbers(record.resolutionFinalSnapshot, resolutionOriginal);
+
+  const resolution: ProgressionRecommendationResolutionDto | null =
+    resolvedAt && record.resolvedByUserId
+      ? {
+          type: record.resolutionType,
+          userId: record.resolvedByUserId,
+          resolvedAt,
+          ...(record.resolutionNote ? { note: record.resolutionNote } : {}),
+          original: mapProgressionRecommendationSnapshotDto(resolutionOriginal),
+          final: mapProgressionRecommendationSnapshotDto(resolutionFinal),
+          ...(record.resolutionRelatedSetIds ? { relatedSetIds: record.resolutionRelatedSetIds } : {})
+        }
+      : null;
+
+  return {
+    id: record.id,
+    workoutSessionId: record.workoutSessionId,
+    exerciseId: record.exerciseId ?? null,
+    workoutTemplateExerciseEntryId: record.workoutTemplateExerciseEntryId ?? null,
+    exerciseEntryId: record.exerciseEntryId,
+    result: record.result,
+    reason: record.reason,
+    confidence: record.confidence,
+    reasonCodes: record.reasonCodes,
+    evidence: record.evidence,
+    originalRecommendation: original,
+    resolutionType: record.resolutionType,
+    resolution,
+    createdAt: record.createdAt.toISOString()
   };
 }
 

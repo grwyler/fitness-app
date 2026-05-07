@@ -26,6 +26,7 @@ import type { UpdateTrainingSettingsUseCase } from "../application/use-cases/upd
 import type { GetExerciseProgressionSettingsUseCase } from "../application/use-cases/get-exercise-progression-settings.use-case.js";
 import type { UpdateExerciseProgressionSettingsUseCase } from "../application/use-cases/update-exercise-progression-settings.use-case.js";
 import type { RecommendGuidedProgramUseCase } from "../application/use-cases/recommend-guided-program.use-case.js";
+import type { ResolveProgressionRecommendationUseCase } from "../application/use-cases/resolve-progression-recommendation.use-case.js";
 
 export function createWorkoutRouter(dependencies: {
   listProgramsUseCase: ListProgramsUseCase;
@@ -54,6 +55,7 @@ export function createWorkoutRouter(dependencies: {
   updateTrainingSettingsUseCase: UpdateTrainingSettingsUseCase;
   getExerciseProgressionSettingsUseCase: GetExerciseProgressionSettingsUseCase;
   updateExerciseProgressionSettingsUseCase: UpdateExerciseProgressionSettingsUseCase;
+  resolveProgressionRecommendationUseCase: ResolveProgressionRecommendationUseCase;
 }) {
   const router = Router();
   const handlers = createWorkoutHandlers(dependencies);
@@ -84,6 +86,10 @@ export function createWorkoutRouter(dependencies: {
   router.put("/training-settings", handlers.updateTrainingSettings);
   router.get("/exercise-progression-settings", handlers.getExerciseProgressionSettings);
   router.put("/exercise-progression-settings", handlers.updateExerciseProgressionSettings);
+  router.post(
+    "/workout-sessions/:sessionId/progression-events/:eventId/resolve",
+    handlers.resolveProgressionRecommendation
+  );
 
   return router;
 }

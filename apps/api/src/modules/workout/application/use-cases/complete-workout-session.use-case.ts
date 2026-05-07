@@ -604,6 +604,7 @@ function holdLoadWhenWeightNotConfirmedV1(input: {
 }
 
 function buildRecommendationEventInput(input: {
+  id?: string;
   userId: string;
   exerciseId: string | null;
   workoutTemplateExerciseEntryId: string | null;
@@ -621,7 +622,7 @@ function buildRecommendationEventInput(input: {
   inputSnapshot: Record<string, unknown>;
 }): CreateProgressionRecommendationEventInput {
   return {
-    id: randomUUID(),
+    id: input.id ?? randomUUID(),
     userId: input.userId,
     exerciseId: input.exerciseId,
     workoutTemplateExerciseEntryId: input.workoutTemplateExerciseEntryId,
@@ -1962,6 +1963,7 @@ export class CompleteWorkoutSessionUseCase {
             }
           });
 
+          const recommendationEventId = randomUUID();
           progressionUpdates.push(
             mapProgressionUpdateDto({
               exerciseId: exerciseEntry.exerciseId,
@@ -1974,12 +1976,15 @@ export class CompleteWorkoutSessionUseCase {
               reason: progressionResult.reason,
               confidence: explanation.confidence,
               reasonCodes: explanation.reasonCodes,
-              evidence: explanation.evidence
+              evidence: explanation.evidence,
+              recommendationEventId,
+              recommendationResolutionType: "unresolved"
             })
           );
 
           recommendationEventInputs.push(
             buildRecommendationEventInput({
+              id: recommendationEventId,
               userId: input.context.userId,
               exerciseId: exerciseEntry.exerciseId,
               workoutTemplateExerciseEntryId,
@@ -2083,6 +2088,7 @@ export class CompleteWorkoutSessionUseCase {
             }
           });
 
+          const recommendationEventId = randomUUID();
           progressionUpdates.push(
             mapProgressionUpdateDto({
               exerciseId: exerciseEntry.exerciseId,
@@ -2095,12 +2101,15 @@ export class CompleteWorkoutSessionUseCase {
               reason: progressionResult.reason,
               confidence: explanation.confidence,
               reasonCodes: explanation.reasonCodes,
-              evidence: explanation.evidence
+              evidence: explanation.evidence,
+              recommendationEventId,
+              recommendationResolutionType: "unresolved"
             })
           );
 
           recommendationEventInputs.push(
             buildRecommendationEventInput({
+              id: recommendationEventId,
               userId: input.context.userId,
               exerciseId: exerciseEntry.exerciseId,
               workoutTemplateExerciseEntryId: null,
@@ -2193,6 +2202,7 @@ export class CompleteWorkoutSessionUseCase {
             }
           });
 
+          const recommendationEventId = randomUUID();
           progressionUpdates.push(
             mapProgressionUpdateDto({
               exerciseId: exerciseEntry.exerciseId,
@@ -2205,12 +2215,15 @@ export class CompleteWorkoutSessionUseCase {
               reason,
               confidence: explanation.confidence,
               reasonCodes: explanation.reasonCodes,
-              evidence: explanation.evidence
+              evidence: explanation.evidence,
+              recommendationEventId,
+              recommendationResolutionType: "unresolved"
             })
           );
 
           recommendationEventInputs.push(
             buildRecommendationEventInput({
+              id: recommendationEventId,
               userId: input.context.userId,
               exerciseId: exerciseEntry.exerciseId,
               workoutTemplateExerciseEntryId,
@@ -2303,6 +2316,7 @@ export class CompleteWorkoutSessionUseCase {
             }
           });
 
+          const recommendationEventId = randomUUID();
           progressionUpdates.push(
             mapProgressionUpdateDto({
               exerciseId: exerciseEntry.exerciseId,
@@ -2315,12 +2329,15 @@ export class CompleteWorkoutSessionUseCase {
               reason,
               confidence: explanation.confidence,
               reasonCodes: explanation.reasonCodes,
-              evidence: explanation.evidence
+              evidence: explanation.evidence,
+              recommendationEventId,
+              recommendationResolutionType: "unresolved"
             })
           );
 
           recommendationEventInputs.push(
             buildRecommendationEventInput({
+              id: recommendationEventId,
               userId: input.context.userId,
               exerciseId: exerciseEntry.exerciseId,
               workoutTemplateExerciseEntryId: null,
@@ -2420,6 +2437,7 @@ export class CompleteWorkoutSessionUseCase {
           const workoutTemplateExerciseEntryId =
             exerciseEntry.workoutTemplateExerciseEntryId ?? fallbackTemplateEntryIdBySequenceOrder.get(exerciseEntry.sequenceOrder) ?? null;
 
+          const recommendationEventId = randomUUID();
           progressionUpdates.push(
             mapProgressionUpdateDto({
               exerciseId: exerciseEntry.exerciseId,
@@ -2432,12 +2450,15 @@ export class CompleteWorkoutSessionUseCase {
               reason,
               confidence: explanation.confidence,
               reasonCodes: explanation.reasonCodes,
-              evidence: explanation.evidence
+              evidence: explanation.evidence,
+              recommendationEventId,
+              recommendationResolutionType: "unresolved"
             })
           );
 
           recommendationEventInputs.push(
             buildRecommendationEventInput({
+              id: recommendationEventId,
               userId: input.context.userId,
               exerciseId: exerciseEntry.exerciseId,
               workoutTemplateExerciseEntryId,

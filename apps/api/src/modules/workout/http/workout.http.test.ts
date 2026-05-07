@@ -5,7 +5,9 @@ import {
   exerciseEntries,
   idempotencyRecords,
   progressMetrics,
+  progressionRecommendationEvents,
   progressionStates,
+  progressionStatesV2,
   programTrainingContexts,
   programs,
   sets,
@@ -2564,6 +2566,430 @@ export const workoutHttpTestCases: HttpTestCase[] = [
           assert.equal(progressionPayload.data.recentWorkoutVolume[0].totalVolume.value, 3240);
           assert.equal(progressionPayload.data.exercises[0].exerciseName, "Bench Press");
           assert.equal(progressionPayload.data.exercises[0].recentBestWeight.value, 135);
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "POST /api/v1/workout-sessions/:sessionId/progression-events/:eventId/resolve supports smaller-increase overrides and persists them",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        await seedInProgressWorkout(context, {
+          actualReps: [40, 40, 40],
+          setStatuses: ["completed", "completed", "completed"]
+        });
+        const server = await startHttpServer(context.db);
+
+        try {
+          const completeResponse = await fetch(`${server.baseUrl}/api/v1/workout-sessions/session-1/complete`, {
+            method: "POST",
+            headers: createAuthHeaders({
+              "content-type": "application/json",
+              "Idempotency-Key": "complete-http-key-rep-overperf-1"
+            }),
+            body: JSON.stringify({
+              completedAt: "2026-04-24T10:45:00.000Z",
+              exerciseFeedback: [
+                {
+                  exerciseEntryId: "entry-1",
+                  effortFeedback: "too_easy"
+                }
+              ],
+              userEffortFeedback: "too_easy"
+            })
+          });
+          const completePayload = await readJson(completeResponse);
+          const eventId = completePayload.data.progressionUpdates[0]?.recommendationEventId as string | undefined;
+
+          assert.equal(completeResponse.status, 200);
+          assert.ok(typeof eventId === "string" && eventId.length > 0);
+
+          const resolveResponse = await fetch(
+            `${server.baseUrl}/api/v1/workout-sessions/session-1/progression-events/${eventId}/resolve`,
+            {
+              method: "POST",
+              headers: createAuthHeaders({
+                "content-type": "application/json"
+              }),
+              body: JSON.stringify({
+                resolutionType: "smaller_increase"
+              })
+            }
+          );
+          const resolvePayload = await readJson(resolveResponse);
+
+          assert.equal(resolveResponse.status, 200);
+          assert.equal(resolvePayload.data.progressionRecommendationEvent.id, eventId);
+          assert.equal(resolvePayload.data.progressionRecommendationEvent.resolutionType, "smaller_increase");
+          assert.notEqual(
+            resolvePayload.data.progressionRecommendationEvent.originalRecommendation.nextWeight.value,
+            resolvePayload.data.progressionRecommendationEvent.resolution?.final.nextWeight.value
+          );
+
+          const eventRows = await context.db.select().from(progressionRecommendationEvents);
+          const storedEvent = eventRows.find((row) => row.id === eventId) ?? null;
+          assert.ok(storedEvent);
+          assert.equal(storedEvent.resolutionType, "smaller_increase");
+
+          const v2Rows = await context.db.select().from(progressionStatesV2);
+          const v2State = v2Rows.find((row) => row.workoutTemplateExerciseEntryId === "template-entry-1") ?? null;
+          assert.ok(v2State);
+          assert.equal(Number(v2State.currentWeightLbs), 140);
+
+          const resolveAgainResponse = await fetch(
+            `${server.baseUrl}/api/v1/workout-sessions/session-1/progression-events/${eventId}/resolve`,
+            {
+              method: "POST",
+              headers: createAuthHeaders({
+                "content-type": "application/json"
+              }),
+              body: JSON.stringify({
+                resolutionType: "smaller_increase"
+              })
+            }
+          );
+          const resolveAgainPayload = await readJson(resolveAgainResponse);
+          assert.equal(resolveAgainResponse.status, 200);
+          assert.equal(resolveAgainPayload.data.progressionRecommendationEvent.id, eventId);
+          assert.equal(resolveAgainPayload.data.progressionRecommendationEvent.resolutionType, "smaller_increase");
+
+          const historyDetailResponse = await fetch(`${server.baseUrl}/api/v1/workout-history/session-1`, {
+            headers: createAuthHeaders()
+          });
+          const historyDetailPayload = await readJson(historyDetailResponse);
+          const historyEvent = (historyDetailPayload.data.progressionRecommendationEvents as any[]).find(
+            (event) => event.id === eventId
+          );
+          assert.equal(historyDetailResponse.status, 200);
+          assert.ok(historyEvent);
+          assert.equal(historyEvent.resolutionType, "smaller_increase");
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "Resolving a normal recommendation is rejected to keep the flow non-noisy",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        await seedInProgressWorkout(context, {
+          actualReps: [8, 8, 8],
+          setStatuses: ["completed", "completed", "completed"]
+        });
+        const server = await startHttpServer(context.db);
+
+        try {
+          const completeResponse = await fetch(`${server.baseUrl}/api/v1/workout-sessions/session-1/complete`, {
+            method: "POST",
+            headers: createAuthHeaders({
+              "content-type": "application/json",
+              "Idempotency-Key": "complete-http-key-normal-1"
+            }),
+            body: JSON.stringify({
+              completedAt: "2026-04-24T10:45:00.000Z",
+              exerciseFeedback: [
+                {
+                  exerciseEntryId: "entry-1",
+                  effortFeedback: "just_right"
+                }
+              ],
+              userEffortFeedback: "just_right"
+            })
+          });
+          const completePayload = await readJson(completeResponse);
+          const eventId = completePayload.data.progressionUpdates[0]?.recommendationEventId as string | undefined;
+
+          assert.equal(completeResponse.status, 200);
+          assert.ok(typeof eventId === "string" && eventId.length > 0);
+
+          const resolveResponse = await fetch(
+            `${server.baseUrl}/api/v1/workout-sessions/session-1/progression-events/${eventId}/resolve`,
+            {
+              method: "POST",
+              headers: createAuthHeaders({
+                "content-type": "application/json"
+              }),
+              body: JSON.stringify({
+                resolutionType: "accepted"
+              })
+            }
+          );
+          const resolvePayload = await readJson(resolveResponse);
+
+          assert.equal(resolveResponse.status, 409);
+          assert.equal(resolvePayload.error.code, "BUSINESS_RULE_VIOLATION");
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "POST /api/v1/workout-sessions/:sessionId/progression-events/:eventId/resolve supports keep-current overrides",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        await seedInProgressWorkout(context, {
+          actualReps: [40, 40, 40],
+          setStatuses: ["completed", "completed", "completed"]
+        });
+        const server = await startHttpServer(context.db);
+
+        try {
+          const completeResponse = await fetch(`${server.baseUrl}/api/v1/workout-sessions/session-1/complete`, {
+            method: "POST",
+            headers: createAuthHeaders({
+              "content-type": "application/json",
+              "Idempotency-Key": "complete-http-key-rep-overperf-keep-1"
+            }),
+            body: JSON.stringify({
+              completedAt: "2026-04-24T10:45:00.000Z",
+              exerciseFeedback: [
+                {
+                  exerciseEntryId: "entry-1",
+                  effortFeedback: "too_easy"
+                }
+              ],
+              userEffortFeedback: "too_easy"
+            })
+          });
+          const completePayload = await readJson(completeResponse);
+          const eventId = completePayload.data.progressionUpdates[0]?.recommendationEventId as string | undefined;
+
+          assert.equal(completeResponse.status, 200);
+          assert.ok(typeof eventId === "string" && eventId.length > 0);
+
+          const resolveResponse = await fetch(
+            `${server.baseUrl}/api/v1/workout-sessions/session-1/progression-events/${eventId}/resolve`,
+            {
+              method: "POST",
+              headers: createAuthHeaders({
+                "content-type": "application/json"
+              }),
+              body: JSON.stringify({
+                resolutionType: "keep_current"
+              })
+            }
+          );
+          const resolvePayload = await readJson(resolveResponse);
+
+          assert.equal(resolveResponse.status, 200);
+          assert.equal(resolvePayload.data.progressionRecommendationEvent.resolutionType, "keep_current");
+
+          const v2Rows = await context.db.select().from(progressionStatesV2);
+          const v2State = v2Rows.find((row) => row.workoutTemplateExerciseEntryId === "template-entry-1") ?? null;
+          assert.ok(v2State);
+          assert.equal(Number(v2State.currentWeightLbs), 135);
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "POST /api/v1/workout-sessions/:sessionId/progression-events/:eventId/resolve supports accept resolution without changing targets",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        await seedInProgressWorkout(context, {
+          actualReps: [40, 40, 40],
+          setStatuses: ["completed", "completed", "completed"]
+        });
+        const server = await startHttpServer(context.db);
+
+        try {
+          const completeResponse = await fetch(`${server.baseUrl}/api/v1/workout-sessions/session-1/complete`, {
+            method: "POST",
+            headers: createAuthHeaders({
+              "content-type": "application/json",
+              "Idempotency-Key": "complete-http-key-rep-overperf-accept-1"
+            }),
+            body: JSON.stringify({
+              completedAt: "2026-04-24T10:45:00.000Z",
+              exerciseFeedback: [
+                {
+                  exerciseEntryId: "entry-1",
+                  effortFeedback: "too_easy"
+                }
+              ],
+              userEffortFeedback: "too_easy"
+            })
+          });
+          const completePayload = await readJson(completeResponse);
+          const update = completePayload.data.progressionUpdates[0];
+          const eventId = update?.recommendationEventId as string | undefined;
+
+          assert.equal(completeResponse.status, 200);
+          assert.ok(typeof eventId === "string" && eventId.length > 0);
+
+          const resolveResponse = await fetch(
+            `${server.baseUrl}/api/v1/workout-sessions/session-1/progression-events/${eventId}/resolve`,
+            {
+              method: "POST",
+              headers: createAuthHeaders({
+                "content-type": "application/json"
+              }),
+              body: JSON.stringify({
+                resolutionType: "accepted"
+              })
+            }
+          );
+          const resolvePayload = await readJson(resolveResponse);
+
+          assert.equal(resolveResponse.status, 200);
+          assert.equal(resolvePayload.data.progressionRecommendationEvent.resolutionType, "accepted");
+          assert.equal(
+            resolvePayload.data.progressionRecommendationEvent.originalRecommendation.nextWeight.value,
+            resolvePayload.data.progressionRecommendationEvent.resolution?.final.nextWeight.value
+          );
+
+          const v2Rows = await context.db.select().from(progressionStatesV2);
+          const v2State = v2Rows.find((row) => row.workoutTemplateExerciseEntryId === "template-entry-1") ?? null;
+          assert.ok(v2State);
+          assert.equal(Number(v2State.currentWeightLbs), update.nextWeight.value);
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "Invalid or unsupported recommendation resolutions are rejected",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        await seedInProgressWorkout(context, {
+          actualReps: [40, 40, 40],
+          setStatuses: ["completed", "completed", "completed"]
+        });
+        const server = await startHttpServer(context.db);
+
+        try {
+          const completeResponse = await fetch(`${server.baseUrl}/api/v1/workout-sessions/session-1/complete`, {
+            method: "POST",
+            headers: createAuthHeaders({
+              "content-type": "application/json",
+              "Idempotency-Key": "complete-http-key-rep-overperf-invalid-1"
+            }),
+            body: JSON.stringify({
+              completedAt: "2026-04-24T10:45:00.000Z",
+              exerciseFeedback: [
+                {
+                  exerciseEntryId: "entry-1",
+                  effortFeedback: "too_easy"
+                }
+              ],
+              userEffortFeedback: "too_easy"
+            })
+          });
+          const completePayload = await readJson(completeResponse);
+          const eventId = completePayload.data.progressionUpdates[0]?.recommendationEventId as string | undefined;
+
+          assert.equal(completeResponse.status, 200);
+          assert.ok(typeof eventId === "string" && eventId.length > 0);
+
+          const resolveResponse = await fetch(
+            `${server.baseUrl}/api/v1/workout-sessions/session-1/progression-events/${eventId}/resolve`,
+            {
+              method: "POST",
+              headers: createAuthHeaders({
+                "content-type": "application/json"
+              }),
+              body: JSON.stringify({
+                resolutionType: "ignored_bad_data"
+              })
+            }
+          );
+          const resolvePayload = await readJson(resolveResponse);
+
+          assert.equal(resolveResponse.status, 409);
+          assert.equal(resolvePayload.error.code, "BUSINESS_RULE_VIOLATION");
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "Only the owning user can resolve a progression recommendation event",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        await seedInProgressWorkout(context, {
+          actualReps: [40, 40, 40],
+          setStatuses: ["completed", "completed", "completed"]
+        });
+        const server = await startHttpServer(context.db);
+
+        try {
+          const completeResponse = await fetch(`${server.baseUrl}/api/v1/workout-sessions/session-1/complete`, {
+            method: "POST",
+            headers: createAuthHeaders({
+              "content-type": "application/json",
+              "Idempotency-Key": "complete-http-key-rep-overperf-owner-1"
+            }),
+            body: JSON.stringify({
+              completedAt: "2026-04-24T10:45:00.000Z",
+              exerciseFeedback: [
+                {
+                  exerciseEntryId: "entry-1",
+                  effortFeedback: "too_easy"
+                }
+              ],
+              userEffortFeedback: "too_easy"
+            })
+          });
+          const completePayload = await readJson(completeResponse);
+          const eventId = completePayload.data.progressionUpdates[0]?.recommendationEventId as string | undefined;
+
+          assert.equal(completeResponse.status, 200);
+          assert.ok(typeof eventId === "string" && eventId.length > 0);
+
+          const resolveResponse = await fetch(
+            `${server.baseUrl}/api/v1/workout-sessions/session-1/progression-events/${eventId}/resolve`,
+            {
+              method: "POST",
+              headers: createTestUserAuthHeaders({
+                "content-type": "application/json"
+              }),
+              body: JSON.stringify({
+                resolutionType: "keep_current"
+              })
+            }
+          );
+          const resolvePayload = await readJson(resolveResponse);
+
+          assert.equal(resolveResponse.status, 404);
+          assert.equal(resolvePayload.error.code, "NOT_FOUND");
         } finally {
           await server.close();
         }

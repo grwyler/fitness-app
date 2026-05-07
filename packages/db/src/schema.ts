@@ -706,6 +706,13 @@ export const progressionRecommendationEvents = pgTable(
     reasonCodes: jsonb("reason_codes").notNull(),
     evidence: jsonb("evidence").notNull(),
     inputSnapshot: jsonb("input_snapshot").notNull(),
+    resolutionType: text("resolution_type").notNull().default("unresolved"),
+    resolvedByUserId: uuid("resolved_by_user_id").references(() => users.id),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    resolutionNote: text("resolution_note"),
+    resolutionOriginalSnapshot: jsonb("resolution_original_snapshot"),
+    resolutionFinalSnapshot: jsonb("resolution_final_snapshot"),
+    resolutionRelatedSetIds: jsonb("resolution_related_set_ids"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
   },
   (table) => ({
