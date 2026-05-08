@@ -24,12 +24,15 @@ export type ProgressionStateSnapshotV2 = ProgressionStateSnapshot & {
   repRangeMax: number;
 };
 
+export type ExerciseLoadType = "external" | "assistance";
+
 export type ExerciseProgressionContext = {
   exerciseName: string;
   exerciseCategory: ExerciseCategory;
   incrementLbs: number;
   isBodyweight: boolean;
   isWeightOptional: boolean;
+  loadType?: ExerciseLoadType;
 };
 
 export type ExerciseWorkoutOutcome = {
