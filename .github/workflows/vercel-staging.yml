@@ -4,6 +4,19 @@ on:
   push:
     branches:
       - develop
+    # Note: if the Vercel project is also connected via Git Integration with preview deployments enabled,
+    # pushes to `develop` will produce an additional deployment from Vercel itself. To avoid double-deploys,
+    # disable Vercel Git preview deployments for the Web/Mobile project, or remove the `vercel deploy` steps below.
+    paths:
+      - apps/mobile/**
+      - packages/shared/**
+      - scripts/**
+      - vercel.json
+      - package.json
+      - package-lock.json
+      - tsconfig.json
+      - tsconfig.base.json
+      - .github/workflows/vercel-staging.yml
   workflow_dispatch:
 
 concurrency:
