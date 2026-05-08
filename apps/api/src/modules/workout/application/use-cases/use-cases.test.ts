@@ -906,6 +906,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
             createdAt: new Date(),
             updatedAt: new Date()
           };
+        },
+        async findLatestByUserProgram() {
+          return null;
         }
       };
       const followProgramUseCase = new FollowProgramUseCase(
@@ -1056,6 +1059,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
             createdAt: new Date(),
             updatedAt: new Date()
           };
+        },
+        async findLatestByUserProgram() {
+          return null;
         }
       };
 
