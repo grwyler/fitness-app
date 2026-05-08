@@ -15,6 +15,11 @@ import { mobileConfigTestCases } from "./mobile-config.test.js";
 import { guidedProgramIntakeTestCases } from "./guided-program-intake.test.js";
 import { releaseNotesTestCases } from "./release-notes.test.js";
 import { oauthConfigTestCases } from "./oauth-config.test.js";
+import { manualProgramOnboardingTestCases } from "./manual-program-onboarding.test.js";
+import { programBuilderCardActionsTestCases } from "./program-builder-card-actions.test.js";
+import { exerciseEntryEditTestCases } from "./exercise-entry-edit.test.js";
+import { programBuilderRemovalsTestCases } from "./program-builder-removals.test.js";
+import { programDayAssignmentRemovalTestCases } from "./program-day-assignment-removal.test.js";
 
 runMobileTestCases([
   ...mobileConfigTestCases,
@@ -31,6 +36,11 @@ runMobileTestCases([
   ...completionCacheTestCases,
   ...dashboardProgramTestCases,
   ...programCreatorTestCases,
+  ...manualProgramOnboardingTestCases,
+  ...programBuilderCardActionsTestCases,
+  ...programBuilderRemovalsTestCases,
+  ...programDayAssignmentRemovalTestCases,
+  ...exerciseEntryEditTestCases,
   ...historyDetailTestCases,
   ...guidedProgramIntakeTestCases,
 ]).catch((error) => {

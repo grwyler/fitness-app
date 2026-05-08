@@ -723,7 +723,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
         <AppText variant="screenTitle">{workout.workoutName}</AppText>
         <AppText tone="secondary">
           {isProgramDayCustomWorkoutBuilder && programDayNumber
-            ? `Building custom workout for Program Day ${programDayNumber}`
+            ? `Building custom workout for Workout ${programDayNumber}`
             : workout.sessionType === "custom"
             ? workout.exercises.length === 0
               ? "Custom workout started."

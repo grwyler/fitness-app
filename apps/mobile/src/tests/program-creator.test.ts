@@ -12,6 +12,7 @@ import {
   buildProgramDayWorkoutFromExerciseSelection,
   buildProgramDayWorkoutFromCustomSession,
   createProgramDayAssignments,
+  duplicateProgramWorkoutTemplate,
   getAssignableWorkoutDescription,
   getAssignableWorkoutChoices,
   groupAssignableWorkoutChoices
@@ -215,7 +216,7 @@ export const programCreatorTestCases: MobileTestCase[] = [
           mode: "assignToProgramDay",
           programDayNumber: 1
         }),
-        "Add to Day 1"
+        "Add to Workout 1"
       );
     }
   },
@@ -241,6 +242,18 @@ export const programCreatorTestCases: MobileTestCase[] = [
     }
   },
   {
+    name: "Program creator can duplicate a workout template for fast manual creation",
+    run: () => {
+      const duplicated = duplicateProgramWorkoutTemplate(predefinedWorkout);
+
+      assert.ok(duplicated.id.startsWith("custom-builder:"), "duplicated workout should have a custom-builder id");
+      assert.ok(duplicated.name.includes("(Copy)"));
+      assert.equal(duplicated.exercises.length, predefinedWorkout.exercises.length);
+      assert.notEqual(duplicated.exercises[0]?.id, predefinedWorkout.exercises[0]?.id);
+      assert.equal(duplicated.exercises[0]?.sequenceOrder, 1);
+    }
+  },
+  {
     name: "Program creator lists reusable custom program workouts under Your Workouts",
     run: () => {
       const groups = groupAssignableWorkoutChoices(
@@ -263,9 +276,60 @@ export const programCreatorTestCases: MobileTestCase[] = [
 
       assert.equal(result.error, null);
       assert.equal(result.request?.name, "My Assigned Program");
-      assert.equal(result.request?.workouts[0]?.name, "Day 1: Push Strength");
+      assert.equal(result.request?.workouts[0]?.name, "Workout 1: Push Strength");
       assert.equal(result.request?.workouts[0]?.exercises[0]?.exerciseId, "exercise-1");
       assert.equal(result.request?.workouts[0]?.exercises[0]?.targetSets, 3);
+    }
+  },
+  {
+    name: "Program creator allows a program with one workout even when additional days are empty",
+    run: () => {
+      const [day1, day2, day3] = createProgramDayAssignments(3);
+      const result = buildAssignedProgramRequest({
+        name: "One Workout Program",
+        days: [
+          { ...day1!, workout: predefinedWorkout },
+          { ...day2!, workout: null },
+          { ...day3!, workout: null }
+        ]
+      });
+
+      assert.equal(result.error, null);
+      assert.equal(result.request?.workouts.length, 1);
+      assert.equal(result.request?.workouts[0]?.name, "Workout 1: Push Strength");
+    }
+  },
+  {
+    name: "Program creator renumbers saved workouts when earlier days are unassigned",
+    run: () => {
+      const [day1, day2] = createProgramDayAssignments(2);
+      const result = buildAssignedProgramRequest({
+        name: "Shifted Days",
+        days: [
+          { ...day1!, workout: null },
+          { ...day2!, workout: predefinedWorkout }
+        ]
+      });
+
+      assert.equal(result.error, null);
+      assert.equal(result.request?.workouts.length, 1);
+      assert.equal(result.request?.workouts[0]?.name, "Workout 1: Push Strength");
+    }
+  },
+  {
+    name: "Program creator requires at least one workout before saving",
+    run: () => {
+      const [day1, day2] = createProgramDayAssignments(2);
+      const result = buildAssignedProgramRequest({
+        name: "Empty Program",
+        days: [
+          { ...day1!, workout: null },
+          { ...day2!, workout: null }
+        ]
+      });
+
+      assert.equal(result.request, null);
+      assert.equal(result.error, "Add at least one exercise.");
     }
   },
   {
@@ -291,7 +355,7 @@ export const programCreatorTestCases: MobileTestCase[] = [
       });
 
       assert.equal(result.error, null);
-      assert.equal(result.request?.workouts[0]?.name, "Day 1: My Pull Day");
+      assert.equal(result.request?.workouts[0]?.name, "Workout 1: My Pull Day");
       assert.equal(result.request?.workouts[0]?.exercises[0]?.exerciseId, "exercise-2");
       assert.equal(result.request?.workouts[0]?.exercises[0]?.targetReps, 8);
     }
@@ -326,7 +390,7 @@ export const programCreatorTestCases: MobileTestCase[] = [
 
       assert.equal(result.error, null);
       assert.equal(result.request?.name, "My Built Program");
-      assert.equal(result.request?.workouts[0]?.name, "Day 1: Custom Workout");
+      assert.equal(result.request?.workouts[0]?.name, "Workout 1: Custom Workout");
       assert.deepEqual(
         result.request?.workouts[0]?.exercises.map((exercise) => exercise.exerciseId),
         ["exercise-bench", "exercise-row"]
@@ -387,7 +451,7 @@ export const programCreatorTestCases: MobileTestCase[] = [
       });
 
       assert.equal(customBuiltWorkout.name, "Bench and Rows");
-      assert.equal(result.request?.workouts[0]?.name, "Day 1: Bench and Rows");
+      assert.equal(result.request?.workouts[0]?.name, "Workout 1: Bench and Rows");
     }
   },
   {

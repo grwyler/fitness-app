@@ -22,6 +22,22 @@ import {
   parseRepTargetText,
   parseWeightDraft
 } from "../utils/prescription.shared";
+import {
+  EXERCISE_CARD_LAYOUT_VARIANT,
+  getExerciseEntryOverflowActionLabels,
+  getExerciseEntryPrimaryActionLabels,
+  getWorkoutCardActionVisibility,
+  getWorkoutEntryOverflowActionLabels,
+  getWorkoutEntryPrimaryActionLabels
+} from "../utils/program-day-workout-builder-card.shared";
+import {
+  getExerciseEditFieldLabels,
+  getExerciseEditHelperCopy,
+  getExerciseEditVisibleFields,
+  parseIntDraft,
+  validateExerciseEditDraft
+} from "../utils/exercise-entry-edit.shared";
+import { removeExerciseFromWorkoutTemplate } from "../utils/program-builder-mutations.shared";
 
 type EditMode = "simple" | "by_set";
 
@@ -58,15 +74,6 @@ type CustomizeState =
     }
   | null;
 
-function parseIntDraft(value: string) {
-  if (!value.trim()) {
-    return null;
-  }
-
-  const parsed = Number.parseInt(value, 10);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
 function isRepsModality(modality: ProgramWorkoutExerciseDto["loggingModality"]) {
   return modality === "reps_load" || modality === "reps_only";
 }
@@ -83,49 +90,6 @@ function supportsRounds(modality: ProgramWorkoutExerciseDto["loggingModality"]) 
   return modality === "interval";
 }
 
-function parseDurationTextToSeconds(value: string): number | null {
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return null;
-  }
-
-  if (trimmed.includes(":")) {
-    const parts = trimmed.split(":").map((part) => part.trim());
-    if (parts.length !== 2) {
-      return null;
-    }
-
-    const minutes = Number(parts[0]);
-    const seconds = Number(parts[1]);
-    if (!Number.isInteger(minutes) || minutes < 0) return null;
-    if (!Number.isInteger(seconds) || seconds < 0 || seconds >= 60) return null;
-
-    const total = minutes * 60 + seconds;
-    return total > 0 ? total : null;
-  }
-
-  const seconds = Number(trimmed);
-  if (!Number.isInteger(seconds) || seconds <= 0) {
-    return null;
-  }
-
-  return seconds;
-}
-
-function parseDistanceDraftToMeters(value: string, unitSystem: UnitSystem): number | null {
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return null;
-  }
-
-  const distanceValue = Number(trimmed);
-  if (!Number.isFinite(distanceValue) || distanceValue < 0) {
-    return null;
-  }
-
-  return unitSystem === "metric" ? distanceValue * 1000 : distanceValue * 1609.344;
-}
-
 function normalizeWorkoutExercises(exercises: ProgramWorkoutExerciseDto[]) {
   return [...exercises]
     .sort((left, right) => left.sequenceOrder - right.sequenceOrder)
@@ -139,10 +103,16 @@ export function ProgramDayWorkoutBuilderCard(props: {
   dayNumber: number;
   workout: ProgramWorkoutTemplateDto | null;
   unitSystem: UnitSystem;
+  canRemoveWorkout?: boolean;
+  onMoveUp?: (() => void) | null;
+  onMoveDown?: (() => void) | null;
+  onDuplicateWorkout?: (() => void) | null;
+  onRemoveWorkoutDay?: (() => void) | null;
   onAddExercisePress: () => void;
   onChangeWorkout: (workout: ProgramWorkoutTemplateDto | null) => void;
 }) {
   const workout = props.workout;
+  const canRemoveWorkout = props.canRemoveWorkout ?? true;
   const sortedExercises = useMemo(
     () => (workout ? normalizeWorkoutExercises(workout.exercises) : []),
     [workout]
@@ -151,6 +121,10 @@ export function ProgramDayWorkoutBuilderCard(props: {
   const [edit, setEdit] = useState<SimpleEditState>(null);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [customize, setCustomize] = useState<CustomizeState>(null);
+  const [actionEntryId, setActionEntryId] = useState<string | null>(null);
+  const [exerciseRemoveConfirmingEntryId, setExerciseRemoveConfirmingEntryId] = useState<string | null>(null);
+  const [workoutActionsVisible, setWorkoutActionsVisible] = useState(false);
+  const [workoutRemoveConfirming, setWorkoutRemoveConfirming] = useState(false);
 
   const editingEntry = editingEntryId
     ? sortedExercises.find((entry) => entry.id === editingEntryId) ?? null
@@ -158,6 +132,10 @@ export function ProgramDayWorkoutBuilderCard(props: {
 
   const entryBeingCustomized = customize
     ? sortedExercises.find((entry) => entry.id === customize.entryId) ?? null
+    : null;
+
+  const actionEntry = actionEntryId
+    ? sortedExercises.find((entry) => entry.id === actionEntryId) ?? null
     : null;
 
   function updateWorkout(next: ProgramWorkoutTemplateDto) {
@@ -169,13 +147,38 @@ export function ProgramDayWorkoutBuilderCard(props: {
 
   function handleRemoveWorkoutIfEmpty(next: ProgramWorkoutTemplateDto) {
     if (next.exercises.length === 0) {
-      props.onChangeWorkout(null);
       setEdit(null);
       setCustomize(null);
-      return;
     }
 
     updateWorkout(next);
+  }
+
+  function moveEntry(entryId: string, direction: -1 | 1) {
+    if (!workout) {
+      return;
+    }
+
+    const normalized = normalizeWorkoutExercises(workout.exercises);
+    const index = normalized.findIndex((entry) => entry.id === entryId);
+    if (index < 0) {
+      return;
+    }
+
+    const nextIndex = index + direction;
+    if (nextIndex < 0 || nextIndex >= normalized.length) {
+      return;
+    }
+
+    const next = normalized.slice();
+    const swap = next[index]!;
+    next[index] = next[nextIndex]!;
+    next[nextIndex] = swap;
+
+    updateWorkout({
+      ...workout,
+      exercises: next
+    });
   }
 
   function startEdit(entry: ProgramWorkoutExerciseDto) {
@@ -221,36 +224,39 @@ export function ProgramDayWorkoutBuilderCard(props: {
       return;
     }
 
-    const sets = parseIntDraft(edit.setsText);
-    if (sets === null || sets < 1 || sets > 20) {
-      setEdit((current) => (current ? { ...current, error: "Sets must be between 1 and 20." } : current));
-      return;
-    }
-
     const notes = edit.notesText.trim().replace(/\s+/g, " ");
     const modality = entry.loggingModality;
 
+    const validated = validateExerciseEditDraft({
+      modality,
+      unitSystem: props.unitSystem,
+      setsText: edit.setsText,
+      repsText: edit.repsText,
+      weightText: edit.weightText,
+      durationText: edit.durationText,
+      distanceText: edit.distanceText,
+      roundsText: edit.roundsText
+    });
+    if (!validated.ok) {
+      const errorMessage =
+        (validated as { errorMessage?: string }).errorMessage ?? "Fix the missing fields above.";
+      setEdit((current) => (current ? { ...current, error: errorMessage } : current));
+      return;
+    }
+
+    const sets = validated.sets;
+
     if (isRepsModality(modality)) {
-      const repDraft = parseRepTargetText(edit.repsText);
+      const repDraft = validated.repDraft;
       if (!repDraft) {
-        setEdit((current) =>
-          current ? { ...current, error: "Reps must be something like 8, 8-12, AMRAP, or failure." } : current
-        );
+        setEdit((current) => (current ? { ...current, error: "Enter a rep target or range." } : current));
         return;
       }
 
       const derivedReps = repDraft.targetReps ?? entry.targetReps;
       const repRangeMin = repDraft.repRangeMin;
       const repRangeMax = repDraft.repRangeMax;
-
-      const weightLbs =
-        edit.weightText.trim().length > 0
-          ? parseWeightDraft({ weightText: edit.weightText, unitSystem: props.unitSystem })
-          : null;
-      if (edit.weightText.trim().length > 0 && weightLbs === null) {
-        setEdit((current) => (current ? { ...current, error: "Weight must be a valid number." } : current));
-        return;
-      }
+      const weightLbs = validated.weightLbs;
 
       const nextWorkout: ProgramWorkoutTemplateDto = {
         ...workout,
@@ -280,39 +286,9 @@ export function ProgramDayWorkoutBuilderCard(props: {
       return;
     }
 
-    const durationSeconds = parseDurationTextToSeconds(edit.durationText);
-    const distanceMeters = parseDistanceDraftToMeters(edit.distanceText, props.unitSystem);
-    const rounds = parseIntDraft(edit.roundsText);
-
-    if (modality === "time" || modality === "hold") {
-      if (durationSeconds === null) {
-        setEdit((current) =>
-          current ? { ...current, error: "Duration must look like 20:00 or 60 (seconds)." } : current
-        );
-        return;
-      }
-    }
-
-    if (modality === "time_distance") {
-      if (durationSeconds === null && distanceMeters === null) {
-        setEdit((current) => (current ? { ...current, error: "Enter a duration and/or distance." } : current));
-        return;
-      }
-    }
-
-    if (modality === "distance") {
-      if (distanceMeters === null) {
-        setEdit((current) => (current ? { ...current, error: "Enter a distance." } : current));
-        return;
-      }
-    }
-
-    if (modality === "interval") {
-      if (rounds === null || rounds < 1 || rounds > 10_000) {
-        setEdit((current) => (current ? { ...current, error: "Rounds must be a whole number." } : current));
-        return;
-      }
-    }
+    const durationSeconds = validated.durationSeconds;
+    const distanceMeters = validated.distanceMeters;
+    const rounds = validated.rounds;
 
     const nextWorkout: ProgramWorkoutTemplateDto = {
       ...workout,
@@ -346,10 +322,7 @@ export function ProgramDayWorkoutBuilderCard(props: {
       return;
     }
 
-    const nextWorkout: ProgramWorkoutTemplateDto = {
-      ...workout,
-      exercises: workout.exercises.filter((entry) => entry.id !== entryId)
-    };
+    const nextWorkout = removeExerciseFromWorkoutTemplate({ workout, entryId });
     if (edit?.entryId === entryId) {
       setEdit(null);
     }
@@ -466,29 +439,74 @@ export function ProgramDayWorkoutBuilderCard(props: {
   }
 
   const isEmpty = !workout || sortedExercises.length === 0;
+  const primaryLabels = getExerciseEntryPrimaryActionLabels();
+  const overflowLabels = getExerciseEntryOverflowActionLabels();
+  const workoutPrimaryLabels = getWorkoutEntryPrimaryActionLabels();
+  const workoutOverflowLabels = getWorkoutEntryOverflowActionLabels();
+  const workoutActionVisibility = getWorkoutCardActionVisibility({ isEmpty });
 
   return (
     <Card padding="md" variant="muted" contentStyle={styles.cardContent}>
-      <View style={styles.headerRow}>
+      <View style={styles.headerStack}>
         <View style={styles.titleCol}>
-          <AppText variant="bodyStrong">{`Day ${props.dayNumber}`}</AppText>
+          <AppText variant="bodyStrong">{`Workout ${props.dayNumber}`}</AppText>
           <AppText variant="caption" tone="secondary">
-            {isEmpty
-              ? "Needs workout"
-              : `${workout?.name || "Workout"} \u00b7 ${sortedExercises.length} exercise${
+            {workout
+              ? `${workout?.name || "Workout"} \u00b7 ${sortedExercises.length} exercise${
                   sortedExercises.length === 1 ? "" : "s"
-                }`}
+                }`
+              : "Unassigned"}
           </AppText>
+          {isEmpty ? (
+            <AppText variant="caption" tone="secondary">
+              Needs exercises
+            </AppText>
+          ) : null}
         </View>
-        {isEmpty ? (
-          <Button
-            label="Add exercise"
-            onPress={props.onAddExercisePress}
-            variant="primary"
-            fullWidth={false}
-            size="sm"
+
+        {workout ? (
+          <Input
+            autoCapitalize="words"
+            label="Workout name"
+            value={workout?.name ?? ""}
+            onChangeText={(value) => {
+              if (!workout) {
+                return;
+              }
+
+              const nextName = value.replace(/\s+/g, " ").trimStart();
+              updateWorkout({
+                ...workout,
+                name: nextName
+              });
+            }}
+            placeholder="Upper A, Lower A, Push, Pull..."
           />
         ) : null}
+
+        <View style={styles.workoutActionsRow}>
+          {workoutActionVisibility.showHeaderAddExercise ? (
+            <Button
+              label={workoutPrimaryLabels.addExercise}
+              onPress={props.onAddExercisePress}
+              variant="primary"
+              fullWidth={true}
+              size="sm"
+            />
+          ) : null}
+          {workoutActionVisibility.showHeaderMore ? (
+            <Button
+              label={workoutPrimaryLabels.more}
+              onPress={() => {
+                setWorkoutRemoveConfirming(false);
+                setWorkoutActionsVisible(true);
+              }}
+              variant="ghost"
+              fullWidth={false}
+              size="sm"
+            />
+          ) : null}
+        </View>
       </View>
 
       {isEmpty ? (
@@ -500,36 +518,232 @@ export function ProgramDayWorkoutBuilderCard(props: {
 
             return (
               <View key={entry.id} style={styles.exerciseBlock}>
-                <View style={styles.exerciseRow}>
-                  <View style={styles.exerciseTextCol}>
-                    <AppText variant="bodyStrong">{entry.exerciseName}</AppText>
-                    <AppText variant="caption" tone="secondary">
-                      {summary}
-                    </AppText>
-                  </View>
-                  <View style={styles.exerciseActions}>
-                    <Chip
-                      label="Edit"
+                <View style={styles.exerciseContent}>
+                  <AppText variant="bodyStrong" style={styles.exerciseName} numberOfLines={2}>
+                    {entry.exerciseName}
+                  </AppText>
+                  <AppText variant="caption" tone="secondary" style={styles.exerciseSummary} numberOfLines={2}>
+                    {summary}
+                  </AppText>
+                  <View style={styles.exerciseActionRow}>
+                    <Button
+                      label={primaryLabels.edit}
                       onPress={() => startEdit(entry)}
+                      variant="secondary"
+                      fullWidth={false}
+                      size="sm"
                     />
-                    <Chip label="Remove" variant="danger" onPress={() => removeEntry(entry.id)} />
+                    <Button
+                      label={primaryLabels.more}
+                      onPress={() => {
+                        setExerciseRemoveConfirmingEntryId(null);
+                        setActionEntryId(entry.id);
+                      }}
+                      variant="ghost"
+                      fullWidth={false}
+                      size="sm"
+                    />
                   </View>
                 </View>
               </View>
             );
           })}
 
-          <View style={styles.addMoreRow}>
-            <Button
-              label="Add exercise"
-              onPress={props.onAddExercisePress}
-              variant="secondary"
-              fullWidth={false}
-              size="sm"
-            />
-          </View>
+          {workoutActionVisibility.showFooterAddExercise ? (
+            <View style={styles.addMoreRow}>
+              <Button
+                label={workoutPrimaryLabels.addExercise}
+                onPress={props.onAddExercisePress}
+                variant="secondary"
+                fullWidth={true}
+                size="sm"
+              />
+            </View>
+          ) : null}
         </View>
       )}
+
+      <ModalSheet
+        visible={actionEntryId !== null && actionEntry !== null}
+        onClose={() => {
+          setActionEntryId(null);
+          setExerciseRemoveConfirmingEntryId(null);
+        }}
+        title="Exercise actions"
+        subtitle={actionEntry?.exerciseName}
+        headerRight={
+          <PrimaryButton
+            label="Close"
+            onPress={() => setActionEntryId(null)}
+            variant="ghost"
+            fullWidth={false}
+            size="sm"
+          />
+        }
+        contentStyle={styles.actionsSheetContent}
+      >
+        {actionEntry ? (
+          <View style={styles.actionsSheetBody}>
+            {exerciseRemoveConfirmingEntryId === actionEntry.id ? (
+              <View style={styles.confirmBlock}>
+                <AppText variant="bodyStrong">Remove exercise?</AppText>
+                <AppText variant="caption" tone="secondary">
+                  This will remove the exercise from this workout.
+                </AppText>
+                <View style={styles.confirmActions}>
+                  <Button
+                    label="Cancel"
+                    variant="secondary"
+                    size="sm"
+                    fullWidth={false}
+                    onPress={() => setExerciseRemoveConfirmingEntryId(null)}
+                  />
+                  <Button
+                    label={overflowLabels.remove}
+                    variant="danger"
+                    size="sm"
+                    fullWidth={false}
+                    onPress={() => {
+                      removeEntry(actionEntry.id);
+                      setActionEntryId(null);
+                      setExerciseRemoveConfirmingEntryId(null);
+                    }}
+                  />
+                </View>
+              </View>
+            ) : (
+              <>
+                <Button
+                  label={overflowLabels.moveUp}
+                  variant="secondary"
+                  size="sm"
+                  fullWidth={false}
+                  disabled={actionEntry.sequenceOrder <= 1}
+                  onPress={() => {
+                    moveEntry(actionEntry.id, -1);
+                    setActionEntryId(null);
+                  }}
+                />
+                <Button
+                  label={overflowLabels.moveDown}
+                  variant="secondary"
+                  size="sm"
+                  fullWidth={false}
+                  disabled={actionEntry.sequenceOrder >= sortedExercises.length}
+                  onPress={() => {
+                    moveEntry(actionEntry.id, 1);
+                    setActionEntryId(null);
+                  }}
+                />
+                <Button
+                  label={overflowLabels.remove}
+                  variant="danger"
+                  size="sm"
+                  fullWidth={false}
+                  onPress={() => setExerciseRemoveConfirmingEntryId(actionEntry.id)}
+                />
+              </>
+            )}
+          </View>
+        ) : null}
+      </ModalSheet>
+
+      <ModalSheet
+        visible={workoutActionsVisible}
+        onClose={() => {
+          setWorkoutActionsVisible(false);
+          setWorkoutRemoveConfirming(false);
+        }}
+        title="Workout actions"
+        contentStyle={styles.actionsSheetContent}
+      >
+        <View style={styles.actionsSheetBody}>
+          {props.onMoveUp ? (
+            <Button
+              label={workoutOverflowLabels.moveUp}
+              variant="secondary"
+              size="sm"
+              fullWidth={false}
+              onPress={() => {
+                props.onMoveUp?.();
+                setWorkoutActionsVisible(false);
+              }}
+            />
+          ) : null}
+          {props.onMoveDown ? (
+            <Button
+              label={workoutOverflowLabels.moveDown}
+              variant="secondary"
+              size="sm"
+              fullWidth={false}
+              onPress={() => {
+                props.onMoveDown?.();
+                setWorkoutActionsVisible(false);
+              }}
+            />
+          ) : null}
+          {props.onDuplicateWorkout ? (
+            <Button
+              label={workoutOverflowLabels.duplicate}
+              variant="secondary"
+              size="sm"
+              fullWidth={false}
+              onPress={() => {
+                props.onDuplicateWorkout?.();
+                setWorkoutActionsVisible(false);
+              }}
+            />
+          ) : null}
+          {props.onRemoveWorkoutDay ? (
+            workoutRemoveConfirming ? (
+              <View style={styles.confirmBlock}>
+                <AppText variant="bodyStrong">Remove workout?</AppText>
+                <AppText variant="caption" tone="secondary">
+                  This will remove the workout from your program.
+                </AppText>
+                <View style={styles.confirmActions}>
+                  <Button
+                    label="Cancel"
+                    variant="secondary"
+                    size="sm"
+                    fullWidth={false}
+                    onPress={() => setWorkoutRemoveConfirming(false)}
+                  />
+                  <Button
+                    label={workoutOverflowLabels.remove}
+                    variant="danger"
+                    size="sm"
+                    fullWidth={false}
+                    disabled={!canRemoveWorkout}
+                    onPress={() => {
+                      if (!canRemoveWorkout) {
+                        return;
+                      }
+                      props.onRemoveWorkoutDay?.();
+                      setWorkoutActionsVisible(false);
+                      setWorkoutRemoveConfirming(false);
+                    }}
+                  />
+                </View>
+                {!canRemoveWorkout ? (
+                  <AppText variant="caption" tone="secondary">
+                    A program needs at least one workout.
+                  </AppText>
+                ) : null}
+              </View>
+            ) : (
+              <Button
+                label={workoutOverflowLabels.remove}
+                variant="danger"
+                size="sm"
+                fullWidth={false}
+                disabled={!canRemoveWorkout}
+                onPress={() => setWorkoutRemoveConfirming(true)}
+              />
+            )
+          ) : null}
+        </View>
+      </ModalSheet>
 
       <ModalSheet
         visible={editingEntryId !== null && editingEntry !== null && edit !== null && edit.entryId === editingEntryId}
@@ -568,110 +782,127 @@ export function ProgramDayWorkoutBuilderCard(props: {
               </Card>
             ) : (
               <>
-                <View style={styles.editRow}>
-                  <Input
-                    label="Sets"
-                    keyboardType="number-pad"
-                    containerStyle={styles.editorInput}
-                    value={edit.setsText}
-                    onChangeText={(value) =>
-                      setEdit((current) => (current ? { ...current, setsText: value, error: null } : current))
-                    }
-                    placeholder="3"
-                  />
-                  {isRepsModality(editingEntry.loggingModality) ? (
-                    <Input
-                      label="Reps"
-                      containerStyle={styles.editorInput}
-                      value={edit.repsText}
-                      onChangeText={(value) =>
-                        setEdit((current) => (current ? { ...current, repsText: value, error: null } : current))
-                      }
-                      placeholder="8, 8-12, AMRAP..."
-                    />
-                  ) : supportsRounds(editingEntry.loggingModality) ? (
-                    <Input
-                      label="Rounds"
-                      keyboardType="number-pad"
-                      containerStyle={styles.editorInput}
-                      value={edit.roundsText}
-                      onChangeText={(value) =>
-                        setEdit((current) => (current ? { ...current, roundsText: value, error: null } : current))
-                      }
-                      placeholder="5"
-                    />
-                  ) : supportsDuration(editingEntry.loggingModality) ? (
-                    <Input
-                      label="Duration"
-                      containerStyle={styles.editorInput}
-                      value={edit.durationText}
-                      onChangeText={(value) =>
-                        setEdit((current) => (current ? { ...current, durationText: value, error: null } : current))
-                      }
-                      placeholder={editingEntry.loggingModality === "hold" ? "0:30" : "20:00"}
-                    />
-                  ) : supportsDistance(editingEntry.loggingModality) ? (
-                    <Input
-                      label={`Distance (${props.unitSystem === "metric" ? "km" : "mi"})`}
-                      keyboardType="decimal-pad"
-                      containerStyle={styles.editorInput}
-                      value={edit.distanceText}
-                      onChangeText={(value) =>
-                        setEdit((current) => (current ? { ...current, distanceText: value, error: null } : current))
-                      }
-                      placeholder="2.5"
-                    />
-                  ) : (
-                    <View style={styles.editorInput} />
-                  )}
-                </View>
-                <View style={styles.editRow}>
-                  {isRepsModality(editingEntry.loggingModality) ? (
-                    <Input
-                      label="Load (optional)"
-                      keyboardType="decimal-pad"
-                      containerStyle={styles.editorInput}
-                      value={edit.weightText}
-                      onChangeText={(value) =>
-                        setEdit((current) => (current ? { ...current, weightText: value, error: null } : current))
-                      }
-                      placeholder={props.unitSystem === "metric" ? "60" : "135"}
-                    />
-                  ) : editingEntry.loggingModality === "time_distance" ? (
-                    <Input
-                      label={`Distance (${props.unitSystem === "metric" ? "km" : "mi"})`}
-                      keyboardType="decimal-pad"
-                      containerStyle={styles.editorInput}
-                      value={edit.distanceText}
-                      onChangeText={(value) =>
-                        setEdit((current) => (current ? { ...current, distanceText: value, error: null } : current))
-                      }
-                      placeholder="2.5"
-                    />
-                  ) : (
-                    <View style={styles.editorInput} />
-                  )}
-                  <Input
-                    label="Notes (optional)"
-                    containerStyle={styles.editorInput}
-                    value={edit.notesText}
-                    onChangeText={(value) =>
-                      setEdit((current) => (current ? { ...current, notesText: value, error: null } : current))
-                    }
-                    placeholder="Optional"
-                  />
-                </View>
-                <View style={styles.editActionsRow}>
-                  {isRepsModality(editingEntry.loggingModality) ? (
-                    <Button
-                      label="Customize by set"
-                      onPress={() => openCustomize(editingEntry)}
-                      variant="secondary"
-                      fullWidth={false}
-                      size="sm"
-                    />
-                  ) : null}
-                </View>
+                {(() => {
+                  const labels = getExerciseEditFieldLabels({
+                    modality: editingEntry.loggingModality,
+                    unitSystem: props.unitSystem
+                  });
+                  const visible = getExerciseEditVisibleFields(editingEntry.loggingModality);
+                  const helper = getExerciseEditHelperCopy();
+
+                  return (
+                    <>
+                      <Card padding="md" variant="muted" contentStyle={styles.editIntroCard}>
+                        <AppText variant="bodyStrong">{editingEntry.exerciseName}</AppText>
+                        <AppText variant="caption" tone="secondary">
+                          {formatExercisePrescriptionSummary({ exercise: editingEntry, unitSystem: props.unitSystem })}
+                        </AppText>
+                      </Card>
+
+                      <View style={styles.editFields}>
+                        <Input
+                          label={labels.sets}
+                          keyboardType="number-pad"
+                          value={edit.setsText}
+                          onChangeText={(value) =>
+                            setEdit((current) => (current ? { ...current, setsText: value, error: null } : current))
+                          }
+                          placeholder="3"
+                        />
+                        {isRepsModality(editingEntry.loggingModality) ? (
+                          <AppText variant="caption" tone="secondary">
+                            {helper.volumeHint}
+                          </AppText>
+                        ) : null}
+
+                        {visible.repTarget ? (
+                          <Input
+                            label={labels.repTarget}
+                            value={edit.repsText}
+                            onChangeText={(value) =>
+                              setEdit((current) => (current ? { ...current, repsText: value, error: null } : current))
+                            }
+                            placeholder="8, 8-12, AMRAP..."
+                          />
+                        ) : null}
+
+                        {visible.weight ? (
+                          <Input
+                            label={labels.weight}
+                            keyboardType="decimal-pad"
+                            value={edit.weightText}
+                            onChangeText={(value) =>
+                              setEdit((current) => (current ? { ...current, weightText: value, error: null } : current))
+                            }
+                            placeholder={props.unitSystem === "metric" ? "60" : "135"}
+                          />
+                        ) : null}
+
+                        {visible.rounds ? (
+                          <Input
+                            label={labels.rounds}
+                            keyboardType="number-pad"
+                            value={edit.roundsText}
+                            onChangeText={(value) =>
+                              setEdit((current) => (current ? { ...current, roundsText: value, error: null } : current))
+                            }
+                            placeholder="5"
+                          />
+                        ) : null}
+
+                        {visible.duration ? (
+                          <Input
+                            label={labels.duration}
+                            value={edit.durationText}
+                            onChangeText={(value) =>
+                              setEdit((current) =>
+                                current ? { ...current, durationText: value, error: null } : current
+                              )
+                            }
+                            placeholder={editingEntry.loggingModality === "hold" ? "0:30" : "20:00"}
+                          />
+                        ) : null}
+
+                        {visible.distance ? (
+                          <Input
+                            label={labels.distance}
+                            keyboardType="decimal-pad"
+                            value={edit.distanceText}
+                            onChangeText={(value) =>
+                              setEdit((current) =>
+                                current ? { ...current, distanceText: value, error: null } : current
+                              )
+                            }
+                            placeholder="2.5"
+                          />
+                        ) : null}
+
+                        {visible.notes ? (
+                          <Input
+                            label={labels.notes}
+                            value={edit.notesText}
+                            onChangeText={(value) =>
+                              setEdit((current) => (current ? { ...current, notesText: value, error: null } : current))
+                            }
+                            placeholder="Optional"
+                          />
+                        ) : null}
+                      </View>
+
+                      {isRepsModality(editingEntry.loggingModality) ? (
+                        <View style={styles.editActionsRow}>
+                          <Button
+                            label="Customize by set"
+                            onPress={() => openCustomize(editingEntry)}
+                            variant="secondary"
+                            fullWidth={false}
+                            size="sm"
+                          />
+                        </View>
+                      ) : null}
+                    </>
+                  );
+                })()}
               </>
             )}
 
@@ -960,15 +1191,20 @@ const styles = StyleSheet.create({
   cardContent: {
     gap: spacing.md
   },
-  headerRow: {
-    alignItems: "center",
+  headerStack: {
+    gap: spacing.sm,
+    minWidth: 0
+  },
+  workoutActionsRow: {
     flexDirection: "row",
-    gap: spacing.md,
-    justifyContent: "space-between"
+    flexWrap: "wrap",
+    gap: spacing.xs,
+    alignItems: "center"
   },
   titleCol: {
     flex: 1,
-    gap: 2
+    gap: 2,
+    minWidth: 0
   },
   exerciseList: {
     gap: spacing.sm
@@ -978,27 +1214,41 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 12,
     backgroundColor: colors.surface,
-    overflow: "hidden"
+    overflow: "hidden",
+    minWidth: 0
   },
-  exerciseRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+  exerciseContent: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
-    gap: spacing.md
-  },
-  exerciseTextCol: {
-    flex: 1,
-    gap: 2
-  },
-  exerciseActions: {
-    flexDirection: "row",
     gap: spacing.xs,
+    minWidth: 0
+  },
+  exerciseName: {
+    color: colors.textPrimary
+  },
+  exerciseSummary: {
+    color: colors.textSecondary
+  },
+  exerciseActionRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
     alignItems: "center"
   },
-  editorInput: {
-    flex: 1
+  actionsSheetContent: {
+    paddingBottom: spacing.lg
+  },
+  actionsSheetBody: {
+    gap: spacing.sm
+  },
+  confirmBlock: {
+    gap: spacing.sm,
+    paddingVertical: spacing.xs
+  },
+  confirmActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+    alignItems: "center"
   },
   customModeActions: {
     flexDirection: "row",
@@ -1021,8 +1271,10 @@ const styles = StyleSheet.create({
   editSheetBody: {
     gap: spacing.md
   },
-  editRow: {
-    flexDirection: "row",
+  editIntroCard: {
+    gap: 4
+  },
+  editFields: {
     gap: spacing.sm
   },
   editActionsRow: {

@@ -11,7 +11,7 @@ export function getCustomExercisePickerActionLabel(input: {
 
   if (input.mode === "assignToProgramDay") {
     if (input.programDayNumber) {
-      return `Add to Day ${input.programDayNumber}`;
+      return `Add to Workout ${input.programDayNumber}`;
     }
 
     return `Use ${input.selectedExerciseCount} Exercise${

@@ -32,6 +32,8 @@ import {
 import { getWorkoutEstimatedDurationMinutes } from "../features/workout/utils/workout-duration-estimator.shared";
 import type { RootStackParamList } from "../core/navigation/navigation-types";
 import { colors, radius, spacing } from "../theme/tokens";
+import { getManualProgramEmptyStateCopy } from "../features/workout/utils/dashboard-empty-state.shared";
+import { getMvpProgramEntryPoints } from "../features/workout/utils/mvp-program-entrypoints.shared";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Dashboard">;
 
@@ -82,6 +84,7 @@ export function DashboardScreen({ navigation }: Props) {
 
   const dashboard = dashboardQuery.data;
   const unitSystem = trainingSettingsQuery.data?.unitSystem ?? "imperial";
+  const mvpEntryPoints = getMvpProgramEntryPoints();
   const activeProgram = dashboard.activeProgram;
   const activeWorkout = dashboard.activeWorkoutSession;
   const nextWorkout = dashboard.nextWorkoutTemplate;
@@ -316,7 +319,7 @@ export function DashboardScreen({ navigation }: Props) {
             </AppText>
           ) : null}
           <PrimaryButton
-            label="Create a program"
+            label="Create Program"
             tone="secondary"
             disabled={Boolean(activeWorkout)}
             onPress={() => {
@@ -343,8 +346,8 @@ export function DashboardScreen({ navigation }: Props) {
               }
 
               Alert.alert(
-                "Ready-made programs are hidden",
-                "Program creation is the only path right now. Create a program to continue."
+                "This program can't be edited",
+                "Create your own program to customize workouts and progression."
               );
               navigation.navigate("CreateProgram");
             }}
@@ -357,23 +360,23 @@ export function DashboardScreen({ navigation }: Props) {
           <AppText variant="caption" tone="accent">
             Program setup
           </AppText>
-          <AppText variant="title2">Create a program</AppText>
-          <AppText tone="secondary">
-            Create your own weekly plan by choosing your days and building workouts.
-          </AppText>
+          <AppText variant="title2">{getManualProgramEmptyStateCopy().title}</AppText>
+          <AppText tone="secondary">{getManualProgramEmptyStateCopy().subtitle}</AppText>
           {customPrograms.length > 0 ? (
             <PrimaryButton
-              label="Choose a program"
+              label="Choose Program"
               tone="secondary"
               onPress={openProgramPicker}
               disabled={Boolean(activeWorkout)}
             />
           ) : null}
-          <PrimaryButton
-            label="Create a program"
-            variant="primary"
-            onPress={() => navigation.navigate("CreateProgram")}
-          />
+          {mvpEntryPoints.manualProgramCreation ? (
+            <PrimaryButton
+              label={getManualProgramEmptyStateCopy().primaryCtaLabel}
+              variant="primary"
+              onPress={() => navigation.navigate("CreateProgram")}
+            />
+          ) : null}
         </Card>
       ) : null}
 
@@ -491,7 +494,7 @@ function CurrentProgramWorkoutPickerModal(props: {
       }
       onClose={props.onClose}
       subtitle="Current program"
-      title="Choose workout day"
+      title="Choose workout"
       visible={props.visible}
     >
       <ScrollView contentContainerStyle={styles.programChoiceList}>

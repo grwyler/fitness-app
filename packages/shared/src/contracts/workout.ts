@@ -346,6 +346,25 @@ export type UpdateCustomProgramResponse = {
   program: ProgramDto;
 };
 
+export type ManualProgramGoalContextDto = {
+  goalType: GuidedGoalType;
+  targetWorkoutsPerWeek: number;
+  plannedWeeks: 4 | 6 | 8 | 12;
+  progressionStyle: ProgressionAggressiveness;
+};
+
+export type GetProgramTrainingContextResponse = {
+  manualGoalContext: ManualProgramGoalContextDto | null;
+};
+
+export type UpdateManualProgramGoalContextRequest = {
+  manualGoalContext: ManualProgramGoalContextDto;
+};
+
+export type UpdateManualProgramGoalContextResponse = {
+  manualGoalContext: ManualProgramGoalContextDto;
+};
+
 export type ActiveProgramDto = {
   enrollmentId: UUID;
   program: ProgramDto;

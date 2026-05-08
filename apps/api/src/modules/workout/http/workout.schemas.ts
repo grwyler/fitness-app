@@ -203,6 +203,15 @@ export const createCustomProgramBodySchema = z.object({
   workouts: z.array(createCustomProgramWorkoutSchema).min(1).max(14)
 });
 
+export const updateManualProgramGoalContextBodySchema = z.object({
+  manualGoalContext: z.object({
+    goalType: z.enum(guidedGoalTypes),
+    targetWorkoutsPerWeek: z.number().int().min(1).max(14),
+    plannedWeeks: z.union([z.literal(4), z.literal(6), z.literal(8), z.literal(12)]),
+    progressionStyle: z.enum(progressionAggressivenessLevels)
+  })
+});
+
 export const workoutHistoryQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional(),
   status: z.literal("completed").optional()

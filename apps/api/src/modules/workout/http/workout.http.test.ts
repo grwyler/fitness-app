@@ -1498,6 +1498,109 @@ export const workoutHttpTestCases: HttpTestCase[] = [
     }
   },
   {
+    name: "Program training context goal metadata is optional and can be attached after manual creation",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+
+      try {
+        await seedBaseWorkoutProgram(context);
+        const server = await startHttpServer(context.db);
+
+        try {
+          const createResponse = await fetch(`${server.baseUrl}/api/v1/programs`, {
+            method: "POST",
+            headers: createAuthHeaders({
+              "content-type": "application/json",
+              "Idempotency-Key": "create-program-for-goal-context-key"
+            }),
+            body: JSON.stringify({
+              name: "Goal Context Program",
+              workouts: [
+                {
+                  name: "Workout 1",
+                  exercises: [
+                    {
+                      exerciseId: "exercise-1",
+                      targetSets: 3,
+                      targetReps: 8
+                    }
+                  ]
+                }
+              ]
+            })
+          });
+          const createPayload = await readJson(createResponse);
+          assert.equal(createResponse.status, 201);
+
+          const createdProgramId = createPayload.data.program.id as string;
+          assert.ok(createdProgramId);
+
+          const initialContextResponse = await fetch(
+            `${server.baseUrl}/api/v1/programs/${createdProgramId}/training-context`,
+            {
+              method: "GET",
+              headers: createAuthHeaders()
+            }
+          );
+          const initialContextPayload = await readJson(initialContextResponse);
+          assert.equal(initialContextResponse.status, 200);
+          assert.equal(initialContextPayload.data.manualGoalContext, null);
+
+          const updateResponse = await fetch(
+            `${server.baseUrl}/api/v1/programs/${createdProgramId}/training-context/manual-goal`,
+            {
+              method: "PUT",
+              headers: createAuthHeaders({
+                "content-type": "application/json"
+              }),
+              body: JSON.stringify({
+                manualGoalContext: {
+                  goalType: "strength",
+                  targetWorkoutsPerWeek: 3,
+                  plannedWeeks: 8,
+                  progressionStyle: "balanced"
+                }
+              })
+            }
+          );
+          const updatePayload = await readJson(updateResponse);
+          assert.equal(updateResponse.status, 200);
+          assert.equal(updatePayload.data.manualGoalContext.goalType, "strength");
+
+          const updatedContextResponse = await fetch(
+            `${server.baseUrl}/api/v1/programs/${createdProgramId}/training-context`,
+            {
+              method: "GET",
+              headers: createAuthHeaders()
+            }
+          );
+          const updatedContextPayload = await readJson(updatedContextResponse);
+          assert.equal(updatedContextResponse.status, 200);
+          assert.equal(updatedContextPayload.data.manualGoalContext.goalType, "strength");
+          assert.equal(updatedContextPayload.data.manualGoalContext.targetWorkoutsPerWeek, 3);
+          assert.equal(updatedContextPayload.data.manualGoalContext.plannedWeeks, 8);
+          assert.equal(updatedContextPayload.data.manualGoalContext.progressionStyle, "balanced");
+
+          const trainingContexts = await context.db.select().from(programTrainingContexts);
+          const savedContext =
+            trainingContexts
+              .filter((row) => row.userId === "user-1" && row.programId === createdProgramId)
+              .sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime())[0] ?? null;
+          assert.ok(savedContext);
+          assert.equal(savedContext?.source, "manual");
+          assert.equal(
+            (savedContext?.guidedAnswersSnapshot as any)?.manualGoalContextV1?.goalType ?? null,
+            "strength"
+          );
+        } finally {
+          await server.close();
+        }
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
     name: "POST /api/v1/guided-program/recommend returns a recommended predefined plan",
     run: async () => {
       const context = await createWorkoutInfrastructureTestContext();

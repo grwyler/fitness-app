@@ -29,6 +29,10 @@ export function getProgramWorkoutDayLabel(input: {
   const workoutNumber = workoutIndex >= 0 ? workoutIndex + 1 : input.workout.sequenceOrder;
   const daysPerWeek = input.activeProgram?.program.daysPerWeek ?? 0;
 
+  if (input.activeProgram?.program.source === "custom") {
+    return `Workout ${workoutNumber}`;
+  }
+
   if (!Number.isInteger(daysPerWeek) || daysPerWeek <= 0) {
     return `Workout ${workoutNumber}`;
   }
@@ -50,12 +54,21 @@ export function getNextProgramPositionLabel(activeProgram: ActiveProgramDto | nu
   }
 
   if (activeProgram.currentPosition?.label) {
+    if (activeProgram.program.source === "custom") {
+      const completedWorkoutCount = Math.max(0, activeProgram.completedWorkoutCount);
+      return `Workout ${completedWorkoutCount + 1}`;
+    }
+
     return activeProgram.currentPosition.label;
   }
 
   const completedWorkoutCount = Math.max(0, activeProgram.completedWorkoutCount);
   const daysPerWeek = activeProgram.program.daysPerWeek;
   const nextWorkoutNumber = completedWorkoutCount + 1;
+
+  if (activeProgram.program.source === "custom") {
+    return `Workout ${nextWorkoutNumber}`;
+  }
 
   if (!Number.isInteger(daysPerWeek) || daysPerWeek <= 0) {
     return `Workout ${nextWorkoutNumber}`;
@@ -113,6 +126,10 @@ export function getProgramWorkoutPositionLabel(input: {
   );
   const workoutNumber = workoutIndex >= 0 ? workoutIndex + 1 : input.workout.sequenceOrder;
   const daysPerWeek = input.activeProgram?.program.daysPerWeek ?? 0;
+
+  if (input.activeProgram?.program.source === "custom") {
+    return `Workout ${workoutNumber}`;
+  }
 
   if (!Number.isInteger(daysPerWeek) || daysPerWeek <= 0) {
     return `Workout ${workoutNumber}`;

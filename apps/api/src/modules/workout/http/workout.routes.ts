@@ -27,12 +27,16 @@ import type { GetExerciseProgressionSettingsUseCase } from "../application/use-c
 import type { UpdateExerciseProgressionSettingsUseCase } from "../application/use-cases/update-exercise-progression-settings.use-case.js";
 import type { RecommendGuidedProgramUseCase } from "../application/use-cases/recommend-guided-program.use-case.js";
 import type { ResolveProgressionRecommendationUseCase } from "../application/use-cases/resolve-progression-recommendation.use-case.js";
+import type { GetProgramTrainingContextUseCase } from "../application/use-cases/get-program-training-context.use-case.js";
+import type { UpdateManualProgramGoalContextUseCase } from "../application/use-cases/update-manual-program-goal-context.use-case.js";
 
 export function createWorkoutRouter(dependencies: {
   listProgramsUseCase: ListProgramsUseCase;
   getProgramUseCase: GetProgramUseCase;
+  getProgramTrainingContextUseCase: GetProgramTrainingContextUseCase;
   createCustomProgramUseCase: CreateCustomProgramUseCase;
   updateCustomProgramUseCase: UpdateCustomProgramUseCase;
+  updateManualProgramGoalContextUseCase: UpdateManualProgramGoalContextUseCase;
   listExercisesUseCase: ListExercisesUseCase;
   recommendGuidedProgramUseCase: RecommendGuidedProgramUseCase;
   followProgramUseCase: FollowProgramUseCase;
@@ -63,7 +67,9 @@ export function createWorkoutRouter(dependencies: {
   router.get("/programs", handlers.listPrograms);
   router.post("/programs", handlers.createCustomProgram);
   router.get("/programs/:programId", handlers.getProgram);
+  router.get("/programs/:programId/training-context", handlers.getProgramTrainingContext);
   router.put("/programs/:programId", handlers.updateCustomProgram);
+  router.put("/programs/:programId/training-context/manual-goal", handlers.updateManualProgramGoalContext);
   router.get("/exercises", handlers.listExercises);
   router.post("/guided-program/recommend", handlers.recommendGuidedProgram);
   router.post("/programs/:programId/follow", handlers.followProgram);

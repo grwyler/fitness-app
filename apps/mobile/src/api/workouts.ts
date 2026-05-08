@@ -22,9 +22,12 @@ import type {
   FollowProgramRequest,
   RecommendGuidedProgramResponse,
   GuidedProgramAnswers,
+  GetProgramTrainingContextResponse,
   ResolveProgressionRecommendationRequest,
   ResolveProgressionRecommendationResponse,
   StartWorkoutSessionRequest,
+  UpdateManualProgramGoalContextRequest,
+  UpdateManualProgramGoalContextResponse,
   UpdateCustomProgramRequest,
   UpdateCustomProgramResponse,
   UpdateExerciseProgressionSettingsRequest,
@@ -64,6 +67,23 @@ export async function updateCustomProgram(input: {
     method: "PUT",
     body: input.request
   });
+}
+
+export async function fetchProgramTrainingContext(programId: string) {
+  return apiRequest<GetProgramTrainingContextResponse>(`/programs/${programId}/training-context`);
+}
+
+export async function updateManualProgramGoalContext(input: {
+  programId: string;
+  request: UpdateManualProgramGoalContextRequest;
+}) {
+  return apiRequest<UpdateManualProgramGoalContextResponse>(
+    `/programs/${input.programId}/training-context/manual-goal`,
+    {
+      method: "PUT",
+      body: input.request
+    }
+  );
 }
 
 export async function fetchExercises() {

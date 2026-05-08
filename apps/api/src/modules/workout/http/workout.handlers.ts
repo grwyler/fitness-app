@@ -4,6 +4,7 @@ import type {
   AddWorkoutSetRequest,
   CompleteWorkoutSessionRequest,
   CreateCustomProgramRequest,
+  UpdateManualProgramGoalContextRequest,
   DeleteWorkoutExerciseEntryRequest,
   DeleteWorkoutSetRequest,
   RecommendGuidedProgramRequest,
@@ -43,7 +44,8 @@ import {
   deleteWorkoutExerciseEntryBodySchema,
   workoutSessionParamsSchema,
   workoutSessionProgressionEventParamsSchema,
-  resolveProgressionRecommendationBodySchema
+  resolveProgressionRecommendationBodySchema,
+  updateManualProgramGoalContextBodySchema
 } from "./workout.schemas.js";
 import type { AddCustomWorkoutExerciseUseCase } from "../application/use-cases/add-custom-workout-exercise.use-case.js";
 import type { AddWorkoutSetUseCase } from "../application/use-cases/add-workout-set.use-case.js";
@@ -72,12 +74,16 @@ import type { UpdateTrainingSettingsUseCase } from "../application/use-cases/upd
 import type { GetExerciseProgressionSettingsUseCase } from "../application/use-cases/get-exercise-progression-settings.use-case.js";
 import type { UpdateExerciseProgressionSettingsUseCase } from "../application/use-cases/update-exercise-progression-settings.use-case.js";
 import type { ResolveProgressionRecommendationUseCase } from "../application/use-cases/resolve-progression-recommendation.use-case.js";
+import type { GetProgramTrainingContextUseCase } from "../application/use-cases/get-program-training-context.use-case.js";
+import type { UpdateManualProgramGoalContextUseCase } from "../application/use-cases/update-manual-program-goal-context.use-case.js";
 
 export type WorkoutHttpHandlers = {
   listPrograms: RequestHandler;
   getProgram: RequestHandler;
+  getProgramTrainingContext: RequestHandler;
   createCustomProgram: RequestHandler;
   updateCustomProgram: RequestHandler;
+  updateManualProgramGoalContext: RequestHandler;
   listExercises: RequestHandler;
   recommendGuidedProgram: RequestHandler;
   followProgram: RequestHandler;
@@ -106,8 +112,10 @@ export type WorkoutHttpHandlers = {
 export function createWorkoutHandlers(dependencies: {
   listProgramsUseCase: ListProgramsUseCase;
   getProgramUseCase: GetProgramUseCase;
+  getProgramTrainingContextUseCase: GetProgramTrainingContextUseCase;
   createCustomProgramUseCase: CreateCustomProgramUseCase;
   updateCustomProgramUseCase: UpdateCustomProgramUseCase;
+  updateManualProgramGoalContextUseCase: UpdateManualProgramGoalContextUseCase;
   listExercisesUseCase: ListExercisesUseCase;
   recommendGuidedProgramUseCase: RecommendGuidedProgramUseCase;
   followProgramUseCase: FollowProgramUseCase;
@@ -143,6 +151,16 @@ export function createWorkoutHandlers(dependencies: {
       const context = getRequestContext(request);
       const params = validateParams(programParamsSchema, request);
       const result = await dependencies.getProgramUseCase.execute({
+        context,
+        programId: params.programId
+      });
+      response.json(success(result.data, result.meta));
+    }),
+
+    getProgramTrainingContext: asyncHandler(async (request, response) => {
+      const context = getRequestContext(request);
+      const params = validateParams(programParamsSchema, request);
+      const result = await dependencies.getProgramTrainingContextUseCase.execute({
         context,
         programId: params.programId
       });
@@ -235,6 +253,24 @@ export function createWorkoutHandlers(dependencies: {
         programId: params.programId,
         request: useCaseRequest
       });
+      response.json(success(result.data, result.meta));
+    }),
+
+    updateManualProgramGoalContext: asyncHandler(async (request, response) => {
+      const context = getRequestContext(request);
+      const params = validateParams(programParamsSchema, request);
+      const body = validateBody(updateManualProgramGoalContextBodySchema, request);
+
+      const useCaseRequest: UpdateManualProgramGoalContextRequest = {
+        manualGoalContext: body.manualGoalContext
+      };
+
+      const result = await dependencies.updateManualProgramGoalContextUseCase.execute({
+        context,
+        programId: params.programId,
+        request: useCaseRequest
+      });
+
       response.json(success(result.data, result.meta));
     }),
 

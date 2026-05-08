@@ -25,6 +25,7 @@ import { CreateCustomProgramUseCase } from "../application/use-cases/create-cust
 import { GetCurrentWorkoutSessionUseCase } from "../application/use-cases/get-current-workout-session.use-case.js";
 import { GetDashboardUseCase } from "../application/use-cases/get-dashboard.use-case.js";
 import { GetProgramUseCase } from "../application/use-cases/get-program.use-case.js";
+import { GetProgramTrainingContextUseCase } from "../application/use-cases/get-program-training-context.use-case.js";
 import { GetProgressionUseCase } from "../application/use-cases/get-progression.use-case.js";
 import { GetWorkoutHistoryDetailUseCase } from "../application/use-cases/get-workout-history-detail.use-case.js";
 import { GetWorkoutHistoryUseCase } from "../application/use-cases/get-workout-history.use-case.js";
@@ -34,6 +35,7 @@ import { LogSetUseCase } from "../application/use-cases/log-set.use-case.js";
 import { StartWorkoutSessionUseCase } from "../application/use-cases/start-workout-session.use-case.js";
 import { UpdateLoggedSetUseCase } from "../application/use-cases/update-logged-set.use-case.js";
 import { UpdateCustomProgramUseCase } from "../application/use-cases/update-custom-program.use-case.js";
+import { UpdateManualProgramGoalContextUseCase } from "../application/use-cases/update-manual-program-goal-context.use-case.js";
 import { RecommendGuidedProgramUseCase } from "../application/use-cases/recommend-guided-program.use-case.js";
 import { GetTrainingSettingsUseCase } from "../application/use-cases/get-training-settings.use-case.js";
 import { UpdateTrainingSettingsUseCase } from "../application/use-cases/update-training-settings.use-case.js";
@@ -153,6 +155,10 @@ export function createWorkoutHttpRouter(database: WorkoutDatabase) {
   const getProgressionUseCase = new GetProgressionUseCase(workoutSessionRepository);
   const listProgramsUseCase = new ListProgramsUseCase(programRepository);
   const getProgramUseCase = new GetProgramUseCase(programRepository);
+  const getProgramTrainingContextUseCase = new GetProgramTrainingContextUseCase(
+    programRepository,
+    programTrainingContextRepository
+  );
   const recommendGuidedProgramUseCase = new RecommendGuidedProgramUseCase(programRepository);
   const getTrainingSettingsUseCase = new GetTrainingSettingsUseCase(trainingSettingsRepository);
   const updateTrainingSettingsUseCase = new UpdateTrainingSettingsUseCase(trainingSettingsRepository);
@@ -182,6 +188,12 @@ export function createWorkoutHttpRouter(database: WorkoutDatabase) {
     programRepository,
     transactionManager
   );
+  const updateManualProgramGoalContextUseCase = new UpdateManualProgramGoalContextUseCase(
+    programRepository,
+    trainingSettingsRepository,
+    exerciseProgressionSettingsRepository,
+    programTrainingContextRepository
+  );
   const listExercisesUseCase = new ListExercisesUseCase(exerciseRepository);
   const followProgramUseCase = new FollowProgramUseCase(
     programRepository,
@@ -204,8 +216,10 @@ export function createWorkoutHttpRouter(database: WorkoutDatabase) {
   return createWorkoutRouter({
     listProgramsUseCase,
     getProgramUseCase,
+    getProgramTrainingContextUseCase,
     createCustomProgramUseCase,
     updateCustomProgramUseCase,
+    updateManualProgramGoalContextUseCase,
     listExercisesUseCase,
     recommendGuidedProgramUseCase,
     followProgramUseCase,

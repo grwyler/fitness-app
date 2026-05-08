@@ -90,7 +90,7 @@ export function AppNavigator() {
                 ? "Edit Program"
                 : route.params?.cloneProgramId
                   ? "Customize Program"
-                  : "Create a program",
+                  : "Create Program",
               headerRight: () => <UserMenuButton />
             })}
           />
