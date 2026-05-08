@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented here.
 
+## v0.1.4 (2026-05-06)
+
+### Changed
+
+- Make cardio migration skip missing exercise_category enum
+- Add active workout exercise editing and removal
+- Fix cardio workout summaries and duration estimates
+- Hide RIR for cardio and add cardio set defaults
+- Reconcile set-level and exercise-level effort signals
+
 ## v0.1.3 (2026-05-06)
 
 ### Changed
