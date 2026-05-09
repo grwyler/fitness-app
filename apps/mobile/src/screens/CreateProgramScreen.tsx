@@ -8,7 +8,7 @@ import type {
   TrainingGoal
 } from "@fitness/shared";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { StyleSheet, View } from "react-native";
+import { ScrollView, StyleSheet, View } from "react-native";
 import { AppText } from "../components/AppText";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
@@ -861,7 +861,11 @@ export function CreateProgramScreen({ navigation, route }: Props) {
         }
         contentStyle={styles.goalSheetContent}
       >
-        <View style={styles.goalSheetBody}>
+        <ScrollView
+          style={styles.goalSheetScroll}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={styles.goalSheetBody}
+        >
           <AppText tone="secondary">
             This does not change your workouts today. It just saves context for future coaching features.
           </AppText>
@@ -971,7 +975,7 @@ export function CreateProgramScreen({ navigation, route }: Props) {
               );
             }}
           />
-        </View>
+        </ScrollView>
       </ModalSheet>
     </Screen>
   );
@@ -1021,7 +1025,11 @@ const styles = StyleSheet.create({
     gap: spacing.sm
   },
   goalSheetContent: {
+    flex: 1,
     paddingBottom: spacing.lg
+  },
+  goalSheetScroll: {
+    flex: 1
   },
   goalSheetBody: {
     gap: spacing.md
