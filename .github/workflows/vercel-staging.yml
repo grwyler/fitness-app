@@ -68,7 +68,7 @@ jobs:
 
       - name: Optional alias to stable staging domain
         env:
-          STAGING_DOMAIN: ${{ vars.VERCEL_STAGING_DOMAIN }}
+          STAGING_DOMAIN: ${{ vars.VERCEL_STAGING_DOMAIN || 'stridefitness.org' }}
         run: |
           if [ -n "$STAGING_DOMAIN" ]; then
             npx vercel alias set "$DEPLOYMENT_URL" "$STAGING_DOMAIN" --token=${{ secrets.VERCEL_TOKEN }}
