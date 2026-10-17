@@ -4,11 +4,10 @@
   "outputDirectory": "dist",
   "devCommand": "npm run dev:web",
   "framework": null,
-  "cleanUrls": true,
   "rewrites": [
     {
       "source": "/(.*)",
-      "destination": "/"
+      "destination": "/index.html"
     }
   ]
 }
