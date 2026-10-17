@@ -72,6 +72,10 @@ function requireDatabaseUrl() {
   return databaseUrl;
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function describePgError(error) {
   if (!error || typeof error !== "object") return { message: String(error) };
   const pgError = error;
@@ -88,6 +92,36 @@ function describePgError(error) {
     constraint: pgError.constraint,
     routine: pgError.routine
   };
+}
+
+function redactDatabaseUrl(databaseUrl) {
+  try {
+    const url = new URL(databaseUrl);
+    if (url.password) {
+      url.password = "[REDACTED]";
+    }
+    return url.toString();
+  } catch {
+    return "[unparseable DATABASE_URL]";
+  }
+}
+
+function buildConnectionFailureHint(error) {
+  const message = typeof error?.message === "string" ? error.message : "";
+  const code = typeof error?.code === "string" ? error.code : "";
+
+  if (message.toLowerCase().includes("control plane request failed") || code === "XX000") {
+    return [
+      "Hint: this looks like a Neon proxy/pooler control-plane connection failure.",
+      "Common causes:",
+      "- Neon compute/branch is suspended or waking up slowly",
+      "- connection string points to a deleted project/branch/endpoint",
+      "- transient Neon control-plane outage",
+      "Try re-running, or verify the secret DATABASE_URL/STAGING_DATABASE_URL points to an active Neon endpoint."
+    ].join("\n");
+  }
+
+  return null;
 }
 
 async function ensureMigrationsTable(client) {
@@ -134,16 +168,46 @@ async function applyMigration(client, filename, { dryRun }) {
   }
 }
 
+async function connectWithRetries(pool, { attempts, baseDelayMs }) {
+  let lastError = null;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await pool.connect();
+    } catch (error) {
+      lastError = error;
+      const described = JSON.stringify(describePgError(error), null, 2);
+      process.stderr.write(`Failed to connect to Postgres (attempt ${attempt}/${attempts}).\n${described}\n`);
+      const hint = buildConnectionFailureHint(error);
+      if (hint) {
+        process.stderr.write(`${hint}\n`);
+      }
+
+      if (attempt < attempts) {
+        const delayMs = baseDelayMs * Math.pow(2, attempt - 1);
+        process.stderr.write(`Retrying in ${delayMs}ms...\n`);
+        await sleep(delayMs);
+      }
+    }
+  }
+
+  throw lastError;
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   loadEnv(args);
   const databaseUrl = requireDatabaseUrl();
 
   const { Pool } = pg;
-  const pool = new Pool({ connectionString: databaseUrl, max: 1 });
+  const pool = new Pool({
+    connectionString: databaseUrl,
+    max: 1,
+    connectionTimeoutMillis: 15_000
+  });
 
-  const client = await pool.connect();
+  let client;
   try {
+    client = await connectWithRetries(pool, { attempts: 5, baseDelayMs: 750 });
     await ensureMigrationsTable(client);
 
     const files = await listMigrationFiles();
@@ -163,8 +227,16 @@ async function main() {
       await applyMigration(client, filename, args);
       process.stdout.write(`Applied ${filename}\n`);
     }
+  } catch (error) {
+    const described = JSON.stringify(describePgError(error), null, 2);
+    const hint = buildConnectionFailureHint(error);
+    process.stderr.write(`Database migrations failed.\nDATABASE_URL=${redactDatabaseUrl(databaseUrl)}\n${described}\n`);
+    if (hint) {
+      process.stderr.write(`${hint}\n`);
+    }
+    throw error;
   } finally {
-    client.release();
+    client?.release();
     await pool.end();
   }
 }

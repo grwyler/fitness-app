@@ -34,7 +34,10 @@ import {
   bodyweightProgressionModes,
   progressionConfidenceLevels,
   workoutSessionStatuses,
-  workoutSetTypes
+  workoutSetTypes,
+  exerciseSetSchemes,
+  trainingBlockSources,
+  trainingBlockStatuses
 } from "@fitness/shared";
 
 const unitSystemEnum = pgEnum("unit_system", unitSystems);
@@ -63,6 +66,9 @@ const userRoleEnum = pgEnum("user_role", ["user", "admin"]);
 const oauthProviderEnum = pgEnum("oauth_provider", ["google", "facebook"]);
 const exerciseLoggingModalityEnum = pgEnum("exercise_logging_modality", exerciseLoggingModalities);
 const workoutSetTypeEnum = pgEnum("workout_set_type", workoutSetTypes);
+const exerciseSetSchemeEnum = pgEnum("exercise_set_scheme", exerciseSetSchemes);
+const trainingBlockSourceEnum = pgEnum("training_block_source", trainingBlockSources);
+const trainingBlockStatusEnum = pgEnum("training_block_status", trainingBlockStatuses);
 
 const timestamps = {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -380,6 +386,39 @@ export const programTrainingContexts = pgTable(
   })
 );
 
+export const trainingBlocks = pgTable(
+  "training_blocks",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").notNull().references(() => users.id),
+    programId: uuid("program_id").notNull().references(() => programs.id),
+    programTrainingContextId: uuid("program_training_context_id").references(() => programTrainingContexts.id),
+    name: text("name").notNull(),
+    goalType: trainingGoalEnum("goal_type"),
+    source: trainingBlockSourceEnum("source").notNull().default("manual"),
+    status: trainingBlockStatusEnum("status").notNull().default("active"),
+    startDate: timestamp("start_date", { withTimezone: true }).notNull().defaultNow(),
+    plannedWeeks: integer("planned_weeks").notNull(),
+    targetWorkoutsPerWeek: integer("target_workouts_per_week").notNull(),
+    progressionStyle: progressionAggressivenessEnum("progression_style"),
+    ...timestamps
+  },
+  (table) => ({
+    userIndex: index("idx_training_blocks_user_id").on(table.userId),
+    programIndex: index("idx_training_blocks_program_id").on(table.programId),
+    userProgramIndex: index("idx_training_blocks_user_program").on(table.userId, table.programId),
+    statusIndex: index("idx_training_blocks_status").on(table.status),
+    oneActivePerProgram: uniqueIndex("idx_training_blocks_one_active")
+      .on(table.userId, table.programId)
+      .where(sql`${table.status} = 'active'`),
+    positivePlannedWeeks: check("chk_training_blocks_planned_weeks", sql`${table.plannedWeeks} > 0`),
+    positiveTargetWorkouts: check(
+      "chk_training_blocks_target_workouts_per_week",
+      sql`${table.targetWorkoutsPerWeek} > 0`
+    )
+  })
+);
+
 export const workoutTemplateExerciseEntries = pgTable(
   "workout_template_exercise_entries",
   {
@@ -393,6 +432,7 @@ export const workoutTemplateExerciseEntries = pgTable(
     repRangeMax: integer("rep_range_max"),
     restSeconds: integer("rest_seconds"),
     progressionStrategy: progressionStrategyEnum("progression_strategy"),
+    setScheme: exerciseSetSchemeEnum("set_scheme").notNull().default("straight"),
     repTargetText: text("rep_target_text"),
     targetWeightLbs: numeric("target_weight_lbs", { precision: 6, scale: 2 }),
     targetDurationSeconds: integer("target_duration_seconds"),
@@ -541,9 +581,16 @@ export const sets = pgTable(
     exerciseEntryId: uuid("exercise_entry_id").notNull().references(() => exerciseEntries.id),
     setNumber: integer("set_number").notNull(),
     setType: workoutSetTypeEnum("set_type").notNull().default("working"),
+    repTargetText: text("rep_target_text"),
     targetReps: integer("target_reps"),
+    originalTargetReps: integer("original_target_reps"),
     actualReps: integer("actual_reps"),
     targetWeightLbs: numeric("target_weight_lbs", { precision: 6, scale: 2 }),
+    originalTargetWeightLbs: numeric("original_target_weight_lbs", { precision: 6, scale: 2 }),
+    previousActualReps: integer("previous_actual_reps"),
+    previousActualWeightLbs: numeric("previous_actual_weight_lbs", { precision: 6, scale: 2 }),
+    adaptationReason: text("adaptation_reason"),
+    tiers: jsonb("tiers").$type<import("@fitness/shared").WorkoutSetTierDto[] | null>(),
     actualWeightLbs: numeric("actual_weight_lbs", { precision: 6, scale: 2 }),
     targetDurationSeconds: integer("target_duration_seconds"),
     actualDurationSeconds: integer("actual_duration_seconds"),
@@ -706,6 +753,13 @@ export const progressionRecommendationEvents = pgTable(
     reasonCodes: jsonb("reason_codes").notNull(),
     evidence: jsonb("evidence").notNull(),
     inputSnapshot: jsonb("input_snapshot").notNull(),
+    resolutionType: text("resolution_type").notNull().default("unresolved"),
+    resolvedByUserId: uuid("resolved_by_user_id").references(() => users.id),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    resolutionNote: text("resolution_note"),
+    resolutionOriginalSnapshot: jsonb("resolution_original_snapshot"),
+    resolutionFinalSnapshot: jsonb("resolution_final_snapshot"),
+    resolutionRelatedSetIds: jsonb("resolution_related_set_ids"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
   },
   (table) => ({

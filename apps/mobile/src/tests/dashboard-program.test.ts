@@ -124,6 +124,21 @@ function createActiveProgram(overrides?: {
   };
 }
 
+function createActiveCustomProgram(overrides?: {
+  completedWorkoutCount?: number;
+  daysPerWeek?: number;
+}): ActiveProgramDto {
+  const base = createActiveProgram(overrides);
+
+  return {
+    ...base,
+    program: {
+      ...base.program,
+      source: "custom"
+    }
+  };
+}
+
 export const dashboardProgramTestCases: MobileTestCase[] = [
   {
     name: "Dashboard renders current program before start workout when enrolled",
@@ -220,6 +235,20 @@ export const dashboardProgramTestCases: MobileTestCase[] = [
         choices.map((choice) => choice.workout.name),
         ["Workout A", "Workout B"]
       );
+    }
+  },
+  {
+    name: "Custom programs use flexible Workout labels instead of weekly Day labels",
+    run: () => {
+      const activeProgram = createActiveCustomProgram();
+      const choices = getCurrentProgramWorkoutChoices(activeProgram);
+
+      assert.deepEqual(
+        choices.map((choice) => choice.positionLabel),
+        ["Workout 1", "Workout 2"]
+      );
+      assert.equal(getNextProgramPositionLabel(activeProgram), "Workout 1");
+      assert.equal(getProgramWorkoutPositionLabel({ activeProgram, workout: workoutB }), "Workout 2");
     }
   },
 ];

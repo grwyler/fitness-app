@@ -17,7 +17,7 @@ export function useWorkoutHistoryDetail(sessionId: string) {
     queryKey: [...workoutQueryKeys.workoutHistoryDetail, sessionId],
     queryFn: async () => {
       const response = await fetchWorkoutHistoryDetail(sessionId);
-      return response.data.workoutSession;
+      return response.data;
     }
   });
 }

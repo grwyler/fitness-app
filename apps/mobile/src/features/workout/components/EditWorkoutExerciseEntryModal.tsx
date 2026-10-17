@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  exerciseSetSchemes,
   formatWeightForUser,
   parseWeightInputForUser,
   type ExerciseEntryDto,
+  type ExerciseSetScheme,
   type UnitSystem,
   type UpdateWorkoutExerciseEntryRequest
 } from "@fitness/shared";
@@ -97,6 +99,7 @@ export function EditWorkoutExerciseEntryModal(props: {
   const [targetDistanceText, setTargetDistanceText] = useState("");
   const [targetRoundsText, setTargetRoundsText] = useState("");
   const [restSecondsText, setRestSecondsText] = useState("");
+  const [setScheme, setSetScheme] = useState<ExerciseSetScheme>("straight");
   const [updatePlan, setUpdatePlan] = useState(false);
 
   const fieldUsage = useMemo(() => (exercise ? getFieldUsage(exercise.loggingModality) : null), [exercise?.loggingModality]);
@@ -119,6 +122,8 @@ export function EditWorkoutExerciseEntryModal(props: {
     setTargetDistanceText(exercise.targetDistanceMeters != null ? formatDistanceDraft(exercise.targetDistanceMeters, props.unitSystem) : "");
     setTargetRoundsText(exercise.targetRounds != null ? String(exercise.targetRounds) : "");
     setRestSecondsText(exercise.restSeconds != null ? String(exercise.restSeconds) : "");
+    setSetScheme(exercise.setScheme ?? "straight");
+    setSetScheme(exercise.setScheme ?? "straight");
     setUpdatePlan(false);
   }, [exercise, props.unitSystem, props.visible]);
 
@@ -216,6 +221,25 @@ export function EditWorkoutExerciseEntryModal(props: {
             onChangeText={setTargetSetsText}
             editable={!props.submitting}
           />
+          {fieldUsage?.usesReps ? (
+            <View style={styles.scopeRow}>
+              {exerciseSetSchemes.map((scheme) => (
+                <Chip key={scheme} label={scheme.replaceAll("_", " ")} selected={setScheme === scheme}
+                  variant={setScheme === scheme ? "selected" : "muted"} disabled={props.submitting}
+                  onPress={() => setSetScheme(scheme)} />
+              ))}
+            </View>
+          ) : null}
+
+          {fieldUsage?.usesReps ? (
+            <View style={styles.scopeRow}>
+              {exerciseSetSchemes.map((scheme) => (
+                <Chip key={scheme} label={scheme.replaceAll("_", " ")} selected={setScheme === scheme}
+                  variant={setScheme === scheme ? "selected" : "muted"} disabled={props.submitting}
+                  onPress={() => setSetScheme(scheme)} />
+              ))}
+            </View>
+          ) : null}
 
           {fieldUsage?.usesReps ? (
             <Input
@@ -321,6 +345,7 @@ export function EditWorkoutExerciseEntryModal(props: {
                 targetDistanceMeters: distanceMeters,
                 targetRounds: rounds,
                 restSeconds: restSeconds ?? null,
+                setScheme,
                 ...(updatePlan ? { updatePlan: true } : {})
               };
 

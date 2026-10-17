@@ -3,6 +3,7 @@ import type {
   ExerciseLoggingModality,
   PredefinedWorkoutCategory,
   ProgressionStrategy,
+  ExerciseSetScheme,
   WorkoutSetTargetDto
 } from "@fitness/shared";
 
@@ -54,6 +55,7 @@ export type WorkoutTemplateExerciseRecord = {
   targetRounds?: number | null;
   restSeconds: number | null;
   progressionStrategy?: ProgressionStrategy | null;
+  setScheme?: ExerciseSetScheme;
   repTargetText?: string | null;
   targetWeightLbs?: number | null;
   notes?: string | null;

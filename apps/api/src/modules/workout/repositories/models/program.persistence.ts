@@ -5,6 +5,7 @@ import type {
   PredefinedWorkoutCategory,
   ProgramSource,
   ProgressionStrategy,
+  ExerciseSetScheme,
   TrainingGoal,
   PredefinedProgramMetadataDto,
   WorkoutSetTargetDto,
@@ -47,6 +48,7 @@ export type ProgramTemplateExerciseRecord = {
   targetRounds?: number | null;
   restSeconds: number | null;
   progressionStrategy?: ProgressionStrategy | null;
+  setScheme?: ExerciseSetScheme;
   repTargetText?: string | null;
   targetWeight?: WeightValueDto | null;
   setTargets?: WorkoutSetTargetDto[] | null;
@@ -87,6 +89,7 @@ export type CreateCustomProgramExerciseInput = {
   targetRounds?: number | null;
   restSeconds: number | null;
   progressionStrategy?: ProgressionStrategy | null;
+  setScheme?: ExerciseSetScheme;
   repTargetText?: string | null;
   targetWeight?: WeightValueDto | null;
   setTargets?: WorkoutSetTargetDto[] | null;

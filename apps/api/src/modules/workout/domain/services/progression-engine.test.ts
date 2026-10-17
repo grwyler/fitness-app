@@ -1937,4 +1937,44 @@ export const progressionEngineTestCases: DomainTestCase[] = [
       assert.equal(result.nextRepGoal, 6);
     }
   }
+  ,
+  {
+    name: "ProgressionEngine (assistance load) increases difficulty by lowering assistance weight",
+    run: () => {
+      const result = engine.calculateWithStrategyV2({
+        strategy: "double_progression",
+        performedAt: new Date("2026-05-01T10:00:00.000Z"),
+        state: {
+          currentWeightLbs: 70,
+          lastCompletedWeightLbs: 70,
+          consecutiveFailures: 0,
+          lastEffortFeedback: "just_right",
+          lastPerformedAt: new Date("2026-04-28T10:00:00.000Z"),
+          repGoal: 10,
+          repRangeMin: 6,
+          repRangeMax: 10
+        },
+        exercise: {
+          exerciseName: "Assisted Pull-Up",
+          exerciseCategory: "accessory",
+          incrementLbs: 5,
+          isBodyweight: true,
+          isWeightOptional: true,
+          loadType: "assistance"
+        },
+        outcome: {
+          effortFeedback: "just_right",
+          sets: [
+            { targetReps: 10, actualReps: 10, targetWeightLbs: 70, actualWeightLbs: 70 },
+            { targetReps: 10, actualReps: 10, targetWeightLbs: 70, actualWeightLbs: 70 },
+            { targetReps: 10, actualReps: 10, targetWeightLbs: 70, actualWeightLbs: 70 }
+          ]
+        }
+      });
+
+      assert.equal(result.result, "increased");
+      assert.equal(result.nextWeightLbs, 65);
+      assert.equal(result.nextRepGoal, 6);
+    }
+  }
 ];

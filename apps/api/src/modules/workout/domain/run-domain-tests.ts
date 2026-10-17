@@ -3,6 +3,7 @@ import { programAdvancementPolicyTestCases } from "./services/program-advancemen
 import { customWorkoutNamingTestCases } from "./services/custom-workout-naming.test.js";
 import { customProgramDescriptionTestCases } from "./services/custom-program-description.test.js";
 import { workoutValidationServiceTestCases } from "./services/workout-validation-service.test.js";
+import { workoutSessionFactoryTestCases } from "./services/workout-session-factory.test.js";
 import { runDomainTestCases } from "./test-helpers/test-case.js";
 
 await runDomainTestCases([
@@ -10,5 +11,6 @@ await runDomainTestCases([
   ...customProgramDescriptionTestCases,
   ...progressionEngineTestCases,
   ...programAdvancementPolicyTestCases,
-  ...workoutValidationServiceTestCases
+  ...workoutValidationServiceTestCases,
+  ...workoutSessionFactoryTestCases
 ]);

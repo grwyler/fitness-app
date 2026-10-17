@@ -6,6 +6,7 @@ import {
   type LogSetRequest,
   type SetFailureStatus,
   type SetRir,
+  type SetStatus,
   type SetDto,
   type UnitSystem,
   type WorkoutSetType,
@@ -21,6 +22,7 @@ export type SetLogDraft = {
   setType: WorkoutSetType;
   rir?: SetRir | null;
   failureStatus?: SetFailureStatus | null;
+  tierDrafts?: Record<number, { repsText: string; weightText: string; status: SetStatus; touched: boolean }>;
 };
 
 export type SetEffortCategory = "very_easy" | "good" | "hard" | "max" | "stopped_early";
@@ -125,20 +127,27 @@ export function getSetLogDefaultDraft(input: {
   unitSystem?: UnitSystem;
   modality?: ExerciseLoggingModality;
 }): SetLogDraft {
-  const previousSet = input.previousSet;
   const modality = input.modality ?? "reps_load";
-  const sourceReps =
-    previousSet?.actualReps !== null && previousSet?.actualReps !== undefined
-      ? previousSet.actualReps
-      : input.set.actualReps ?? input.set.targetReps ?? 0;
-  const sourceWeight =
-    previousSet?.actualWeight?.value ?? input.set.actualWeight?.value ?? input.set.targetWeight?.value ?? 0;
-  const sourceDurationSeconds =
-    previousSet?.actualDurationSeconds ?? input.set.actualDurationSeconds ?? input.set.targetDurationSeconds ?? null;
-  const sourceDistanceMeters =
-    previousSet?.actualDistanceMeters ?? input.set.actualDistanceMeters ?? input.set.targetDistanceMeters ?? null;
-  const sourceRounds =
-    previousSet?.actualRounds ?? input.set.actualRounds ?? input.set.targetRounds ?? null;
+  // Actual inputs start from this set's target. Copying the previous set's result here
+  // made the input disagree with the prescription shown above it.
+  const sourceReps = input.set.actualReps ?? input.set.targetReps ?? 0;
+  const sourceWeight = input.set.actualWeight?.value ?? input.set.targetWeight?.value ?? 0;
+  const sourceDurationSeconds = input.set.actualDurationSeconds ?? input.set.targetDurationSeconds ?? null;
+  const sourceDistanceMeters = input.set.actualDistanceMeters ?? input.set.targetDistanceMeters ?? null;
+  const sourceRounds = input.set.actualRounds ?? input.set.targetRounds ?? null;
+  const tierDrafts = input.set.tiers?.reduce<NonNullable<SetLogDraft["tierDrafts"]>>((result, tier) => {
+    result[tier.order] = {
+      repsText: String(tier.actualReps ?? tier.targetReps ?? ""),
+      weightText: tier.actualWeight?.value != null
+        ? formatWeightForUser({ weightLbs: tier.actualWeight.value, unitSystem: input.unitSystem ?? "imperial", includeUnit: false }).text
+        : tier.targetWeight?.value != null
+          ? formatWeightForUser({ weightLbs: tier.targetWeight.value, unitSystem: input.unitSystem ?? "imperial", includeUnit: false }).text
+          : "",
+      status: tier.status === "completed" || tier.status === "failed" || tier.status === "skipped" ? tier.status : "pending",
+      touched: false
+    };
+    return result;
+  }, {});
   const unitSystem = input.unitSystem ?? "imperial";
   const isRepsModality = modality === "reps_load" || modality === "reps_only";
   const supportsDuration =
@@ -151,7 +160,13 @@ export function getSetLogDefaultDraft(input: {
   const supportsRounds = modality === "interval";
 
   return {
-    repsText: isRepsModality ? sourceReps.toString() : "",
+    repsText: isRepsModality
+      ? input.set.actualReps !== null && input.set.actualReps !== undefined
+        ? sourceReps.toString()
+        : input.set.targetReps === null && input.set.repTargetText?.trim().toUpperCase() === "AMRAP"
+          ? ""
+          : sourceReps.toString()
+      : "",
     weightText: isRepsModality
       ? formatWeightForUser({
           weightLbs: sourceWeight,
@@ -166,6 +181,7 @@ export function getSetLogDefaultDraft(input: {
         ? formatDistanceValue(metersToDistanceValueForUser(sourceDistanceMeters, unitSystem))
         : "",
     roundsText: supportsRounds && sourceRounds !== null ? sourceRounds.toString() : "",
+    ...(tierDrafts ? { tierDrafts } : {}),
     setType: input.set.setType ?? "working",
     ...(input.set.rir ? { rir: input.set.rir } : {}),
     ...(input.set.failureStatus ? { failureStatus: input.set.failureStatus } : {})
@@ -190,7 +206,7 @@ export function normalizeWeightInput(value: string) {
 
 export function validateSetLogDraft(
   draft: SetLogDraft,
-  input: { unitSystem?: UnitSystem; modality: ExerciseLoggingModality }
+  input: { unitSystem?: UnitSystem; modality: ExerciseLoggingModality; set?: SetDto }
 ): SetLogValidation {
   const unitSystem = input.unitSystem ?? "imperial";
   const modality = input.modality;
@@ -282,7 +298,7 @@ export function validateSetLogDraft(
 
 export function buildLogSetRequestFromDraft(
   draft: SetLogDraft,
-  input: { unitSystem?: UnitSystem; modality: ExerciseLoggingModality }
+  input: { unitSystem?: UnitSystem; modality: ExerciseLoggingModality; set?: SetDto }
 ): LogSetRequest | null {
   const modality = input.modality;
   const validation = validateSetLogDraft(draft, input);
@@ -291,6 +307,24 @@ export function buildLogSetRequestFromDraft(
   }
 
   const setType = validation.setType;
+  const tierRows = input.set?.tiers?.length ? input.set.tiers.map((target) => {
+    const draftTier = draft.tierDrafts?.[target.order];
+    if (!draftTier || draftTier.status === "pending") return null;
+    if (draftTier.status === "skipped") return { order: target.order, status: "skipped" as const };
+    const actualReps = Number.parseInt(draftTier.repsText, 10);
+    if (!Number.isInteger(actualReps) || actualReps < 0) return null;
+    const parsedWeight = draftTier.weightText.trim()
+      ? parseWeightInputForUser({ weightText: draftTier.weightText, unitSystem: input.unitSystem ?? "imperial" })
+      : null;
+    if (input.modality === "reps_load" && parsedWeight === null) return null;
+    return {
+      order: target.order,
+      status: draftTier.status,
+      actualReps,
+      actualWeight: parsedWeight === null ? null : { value: parsedWeight, unit: "lb" as const }
+    };
+  }) : null;
+  if (tierRows?.some((tier) => tier === null)) return null;
 
   const hasRirField = "rir" in draft;
   const hasFailureStatusField = "failureStatus" in draft;
@@ -317,7 +351,8 @@ export function buildLogSetRequestFromDraft(
       actualWeight: validation.actualWeight!,
       setType,
       ...(hasRirField || hasFailureStatusField ? { rir: normalizedRir ?? null } : {}),
-      ...(hasFailureStatusField ? { failureStatus: normalizedFailureStatus ?? null } : {})
+      ...(hasFailureStatusField ? { failureStatus: normalizedFailureStatus ?? null } : {}),
+      ...(tierRows ? { tiers: tierRows } : {})
     };
   }
 
@@ -327,7 +362,8 @@ export function buildLogSetRequestFromDraft(
       ...(validation.actualWeight ? { actualWeight: validation.actualWeight } : {}),
       setType,
       ...(hasRirField || hasFailureStatusField ? { rir: normalizedRir ?? null } : {}),
-      ...(hasFailureStatusField ? { failureStatus: normalizedFailureStatus ?? null } : {})
+      ...(hasFailureStatusField ? { failureStatus: normalizedFailureStatus ?? null } : {}),
+      ...(tierRows ? { tiers: tierRows } : {})
     };
   }
 

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { programTrainingContexts } from "@fitness/db";
+import { and, desc, eq } from "drizzle-orm";
 import { resolveExecutor } from "../db/drizzle-helpers.js";
 import type {
   CreateProgramTrainingContextInput,
@@ -63,5 +64,21 @@ export class DrizzleProgramTrainingContextRepository implements ProgramTrainingC
     }
 
     throw new Error("Unable to create program training context.");
+  }
+
+  public async findLatestByUserProgram(
+    input: { userId: string; programId: string },
+    options?: RepositoryOptions
+  ): Promise<ProgramTrainingContextRecord | null> {
+    const executor = resolveExecutor(this.db, options);
+
+    const [row] = await executor
+      .select()
+      .from(programTrainingContexts)
+      .where(and(eq(programTrainingContexts.userId, input.userId), eq(programTrainingContexts.programId, input.programId)))
+      .orderBy(desc(programTrainingContexts.updatedAt))
+      .limit(1);
+
+    return row ? mapRow(row) : null;
   }
 }

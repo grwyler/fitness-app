@@ -14,9 +14,11 @@ import type {
   ProgressionComputationResultV2,
   ProgressionStateSnapshot,
   ProgressionStateSnapshotV2,
+  ExerciseLoadType,
   ExerciseWorkoutOutcome,
   ExerciseWorkoutSetOutcome
 } from "../models/progression.js";
+import type { GeneratedSetTarget, PrescriptionGenerationInput } from "../models/progression.js";
 import { resolveEffortFeedbackForProgression } from "./exercise-effort-summary.js";
 
 const MIN_RECALIBRATION_SET_COUNT = 2;
@@ -41,6 +43,57 @@ function roundDownToIncrement(weightLbs: number, incrementLbs: number) {
 
   const rounded = Math.floor(weightLbs / incrementLbs) * incrementLbs;
   return roundToTwoDecimals(Math.max(0, rounded));
+}
+
+function roundUpToIncrement(weightLbs: number, incrementLbs: number) {
+  if (incrementLbs <= 0) {
+    throw new Error("incrementLbs must be greater than 0.");
+  }
+
+  const rounded = Math.ceil(weightLbs / incrementLbs) * incrementLbs;
+  return roundToTwoDecimals(Math.max(0, rounded));
+}
+
+function resolveLoadType(loadType: ExerciseLoadType | undefined): ExerciseLoadType {
+  return loadType ?? "external";
+}
+
+function loadNoun(loadType: ExerciseLoadType) {
+  return loadType === "assistance" ? "assistance" : "weight";
+}
+
+function applyHarderLoad(input: {
+  loadType: ExerciseLoadType;
+  previousWeightLbs: number;
+  deltaLbs: number;
+  incrementLbs: number;
+}) {
+  const raw =
+    input.loadType === "assistance"
+      ? Math.max(0, input.previousWeightLbs - input.deltaLbs)
+      : input.previousWeightLbs + input.deltaLbs;
+
+  // In assistance-mode, rounding "up" avoids accidentally making the movement harder than intended.
+  return input.loadType === "assistance"
+    ? roundUpToIncrement(raw, input.incrementLbs)
+    : roundDownToIncrement(raw, input.incrementLbs);
+}
+
+function applyEasierLoad(input: {
+  loadType: ExerciseLoadType;
+  previousWeightLbs: number;
+  deltaLbs: number;
+  incrementLbs: number;
+}) {
+  const raw =
+    input.loadType === "assistance"
+      ? input.previousWeightLbs + input.deltaLbs
+      : Math.max(0, input.previousWeightLbs - input.deltaLbs);
+
+  // Rounding "up" in assistance-mode keeps assistance at least as high as computed (never harder than intended).
+  return input.loadType === "assistance"
+    ? roundUpToIncrement(raw, input.incrementLbs)
+    : roundDownToIncrement(raw, input.incrementLbs);
 }
 
 function clampInteger(value: number, min: number, max: number) {
@@ -167,15 +220,19 @@ function estimateWorkingWeightFromOneRepMax(e1rm: number, targetReps: number) {
   return e1rm / (1 + targetReps / 30);
 }
 
-export function isMaterialOverperformanceSet(set: ExerciseWorkoutSetOutcome) {
+export function isMaterialOverperformanceSet(set: ExerciseWorkoutSetOutcome, loadType?: ExerciseLoadType) {
   if (set.actualReps === null || set.actualWeightLbs === null) {
     return false;
   }
 
+  const resolvedLoadType = resolveLoadType(loadType);
+
   return (
     set.actualReps > 0 &&
     set.targetWeightLbs > 0 &&
-    set.actualWeightLbs >= set.targetWeightLbs * MATERIAL_OVERPERFORMANCE_MULTIPLIER
+    (resolvedLoadType === "assistance"
+      ? set.actualWeightLbs <= set.targetWeightLbs / MATERIAL_OVERPERFORMANCE_MULTIPLIER
+      : set.actualWeightLbs >= set.targetWeightLbs * MATERIAL_OVERPERFORMANCE_MULTIPLIER)
   );
 }
 
@@ -269,7 +326,7 @@ function getSetEffortSignals(sets: ExerciseWorkoutSetOutcome[] | undefined) {
   };
 }
 
-function hasEffectiveFailure(outcome: ExerciseWorkoutOutcome) {
+function hasEffectiveFailure(outcome: ExerciseWorkoutOutcome, loadType: ExerciseLoadType) {
   if (!outcome.sets) {
     return outcome.hasFailure ?? false;
   }
@@ -279,13 +336,13 @@ function hasEffectiveFailure(outcome: ExerciseWorkoutOutcome) {
       set.failureStatus !== "stopped_early" &&
       set.actualReps !== null &&
       set.actualReps < set.targetReps &&
-      !isMaterialOverperformanceSet(set)
+      !isMaterialOverperformanceSet(set, loadType)
   );
 }
 
 function hasExceptionalOverperformance(input: { outcome: ExerciseWorkoutOutcome; incrementLbs: number }) {
   const performanceSets = (input.outcome.sets ?? []).filter((set) => set.failureStatus !== "stopped_early");
-  const weightQualifyingSets = performanceSets.filter(isMaterialOverperformanceSet);
+  const weightQualifyingSets = performanceSets.filter((set) => isMaterialOverperformanceSet(set));
   if (weightQualifyingSets.length >= MIN_RECALIBRATION_SET_COUNT) {
     return true;
   }
@@ -299,6 +356,244 @@ function hasExceptionalOverperformance(input: { outcome: ExerciseWorkoutOutcome;
 }
 
 export class ProgressionEngine {
+  private isManualTarget(reason: string | null | undefined): boolean {
+    return reason?.startsWith("manual") === true;
+  }
+  /**
+   * One deterministic prescription path for new and established users. Saved state
+   * is the fast projection; when absent/incomplete it is seeded from comparable
+   * completed history here, never by the workout-session factory.
+   */
+  public generatePrescription(input: PrescriptionGenerationInput): GeneratedSetTarget[] {
+    const { state, exercise, setScheme, targetSets } = input;
+    const explicit = input.explicitTargets ?? [];
+    const workingHistory = input.history?.sets.filter((set) => set.setType !== "warmup") ?? [];
+    const hasFailedSet = workingHistory.some((set) => set.status === "failed" || set.failureStatus != null);
+    const eligible = workingHistory.filter((set) => set.status === "completed" && set.failureStatus == null && set.actualReps !== null);
+    const allSuccessful = eligible.length > 0 && eligible.length === workingHistory.length && !hasFailedSet &&
+      eligible.every((set) => (set.actualReps ?? 0) >= (set.targetReps ?? 0));
+    const failedHistory = hasFailedSet;
+    const firstActual = eligible[0];
+    const lastSuccessful = eligible.at(-1) ?? null;
+    const priorSuccessfulSets = input.history?.previousSuccessfulSets?.filter((set) => set.setType !== "warmup" && set.status === "completed" && set.failureStatus == null) ?? [];
+    const priorSuccessfulLoad = [...priorSuccessfulSets].reverse().find((set) => (set.actualWeightLbs ?? set.targetWeightLbs) != null)?.actualWeightLbs ?? [...priorSuccessfulSets].reverse().find((set) => set.targetWeightLbs != null)?.targetWeightLbs ?? null;
+    const actualLoad = lastSuccessful?.actualWeightLbs;
+    const historicalLoad = actualLoad != null && actualLoad > 0
+      ? actualLoad
+      : lastSuccessful?.targetWeightLbs != null && lastSuccessful.targetWeightLbs > 0
+        ? lastSuccessful.targetWeightLbs
+        : priorSuccessfulLoad != null && priorSuccessfulLoad > 0 ? priorSuccessfulLoad : null;
+    const historicalPlannedLoad = [...workingHistory].reverse().find((set) => set.targetWeightLbs != null && set.targetWeightLbs > 0)?.targetWeightLbs ?? null;
+    const stateIsNewerThanHistory = state.lastPerformedAt !== null &&
+      (input.history?.completedAt == null || state.lastPerformedAt.getTime() >= input.history.completedAt.getTime());
+    const hasSavedProgress = stateIsNewerThanHistory;
+    const plannedCandidate = explicit.find((target) => target.targetWeight?.value != null)?.targetWeight?.value ?? input.planTargetWeightLbs ?? null;
+    const plannedLoad = plannedCandidate != null && plannedCandidate > 0 ? plannedCandidate : null;
+    const validSavedLoad = state.currentWeightLbs > 0 || exercise.isBodyweight || exercise.isWeightOptional;
+    const fallbackLoad = input.defaultStartingWeightLbs != null && input.defaultStartingWeightLbs > 0
+      ? input.defaultStartingWeightLbs
+      : exercise.isBodyweight || exercise.isWeightOptional ? 0 : null;
+    // Source-of-truth precedence: a current plan-scoped saved state wins only
+    // when it is at least as recent as comparable history. Otherwise use the
+    // reusable plan target, then successful actual history, then historical
+    // planned work, then a valid legacy state seed, and finally the exercise
+    // default. Zero is a valid fallback only for no-external-load movements.
+    const baselineLoad = hasSavedProgress && validSavedLoad
+      ? state.currentWeightLbs
+      : plannedLoad ?? historicalLoad ?? historicalPlannedLoad ?? (validSavedLoad ? state.currentWeightLbs : null) ?? fallbackLoad;
+    const historicalRep = lastSuccessful?.targetReps ?? state.repGoal;
+    const baselineRep = hasSavedProgress ? state.repGoal : historicalRep;
+
+    // History is evidence for the same engine's next small step. Failures and
+    // mixed outcomes hold; a successful sequence earns one rep (then one increment).
+    let nextLoad: number | null = baselineLoad;
+    let nextRep = Math.max(state.repRangeMin, Math.min(state.repRangeMax, baselineRep));
+    if (!hasSavedProgress && allSuccessful) {
+      const progressionSets = input.history?.sets.filter((set) => set.setType !== "warmup") ?? [];
+      const completedReps = progressionSets.map((set) => set.actualReps ?? set.targetReps ?? nextRep);
+      const priorTargets = progressionSets.map((set) => set.targetReps ?? nextRep);
+      const reachedPriorTargets = completedReps.every((reps, index) => reps >= (priorTargets[index] ?? nextRep));
+      const reachedRangeTop = nextRep >= state.repRangeMax;
+      const successfulWork = progressionSets.every((set) => (set.actualReps ?? 0) >= (set.targetReps ?? 0));
+      const completedAtTarget = completedReps.every((reps, index) => reps >= (priorTargets[index] ?? nextRep));
+      if (reachedPriorTargets && input.loggingModality !== "reps_only" &&
+          successfulWork && completedAtTarget && reachedRangeTop) {
+        nextLoad = baselineLoad === null ? null : baselineLoad + exercise.incrementLbs;
+        nextRep = state.repRangeMin;
+      } else if (reachedPriorTargets) {
+        nextRep = Math.min(state.repRangeMax, nextRep + 1);
+      }
+    } else if (!hasSavedProgress && failedHistory) {
+      const usable = firstActual;
+      if (usable) {
+        nextLoad = usable.actualWeightLbs ?? usable.targetWeightLbs ?? nextLoad;
+        nextRep = Math.max(state.repRangeMin, usable.targetReps ?? nextRep);
+      }
+      nextRep = Math.max(state.repRangeMin, nextRep);
+    }
+    if (hasSavedProgress && failedHistory) {
+      const missed = workingHistory.some((set) => set.status === "failed" || (set.actualReps ?? set.targetReps ?? 0) < (set.targetReps ?? 0));
+      if (missed) {
+        nextLoad = baselineLoad;
+        nextRep = Math.max(state.repRangeMin, Math.min(state.repRangeMax, state.repGoal));
+      }
+    }
+    const loadIsValid = baselineLoad !== null && (baselineLoad > 0 || exercise.isBodyweight || exercise.isWeightOptional);
+    if (!loadIsValid) nextLoad = plannedLoad ?? historicalLoad ?? historicalPlannedLoad ?? (validSavedLoad ? state.currentWeightLbs : null) ?? fallbackLoad;
+
+    let progressionReason: string | null = null;
+    const generated = Array.from({ length: targetSets }, (_, index): GeneratedSetTarget => {
+      const target = explicit[index];
+      let repTargetText = target?.repTargetText ?? null;
+      let reps = repTargetText?.trim().toUpperCase() === "AMRAP"
+        ? null
+        : repTargetText && /^\d+$/.test(repTargetText.trim()) ? Number(repTargetText.trim()) : nextRep;
+      let load = target?.targetWeight?.value ?? nextLoad;
+      const prior = eligible[index] ?? null;
+      if (prior && !target?.targetWeight && !hasSavedProgress) load = prior.actualWeightLbs ?? prior.targetWeightLbs ?? load;
+      if (prior && !target?.repTargetText && !hasSavedProgress) reps = nextRep;
+      if (setScheme === "ascending_pyramid" && !target?.targetWeight) {
+        load = nextLoad === null ? null : nextLoad + exercise.incrementLbs * index;
+        reps = reps === null ? null : Math.max(state.repRangeMin, nextRep - index);
+      } else if (setScheme === "reverse_pyramid" && !target?.targetWeight) {
+        load = nextLoad === null ? null : nextLoad + exercise.incrementLbs * (targetSets - index - 1);
+        reps = reps === null ? null : nextRep + index;
+      }
+      if (setScheme === "amrap" && index === targetSets - 1 && !repTargetText) {
+        reps = null;
+        repTargetText = "AMRAP";
+      }
+      if (setScheme === "ascending_pyramid" || setScheme === "reverse_pyramid") {
+        const perSetBaseline = eligible[index];
+        if (perSetBaseline && allSuccessful && perSetBaseline.actualReps !== null && perSetBaseline.actualReps >= (perSetBaseline.targetReps ?? nextRep)) {
+          progressionReason = "+1 rep from last session";
+        }
+      } else if (allSuccessful) {
+        progressionReason = nextLoad !== null && baselineLoad !== null && nextLoad > baselineLoad ? "Load increased" : nextRep > baselineRep ? "+1 rep from last session" : null;
+      }
+      const historicalTierSet = input.history?.sets.find((set) => set.setNumber === index + 1);
+      const historicalTiers = historicalTierSet?.tiers;
+      const historicalSet = input.history?.sets.find((set) => set.setNumber === index + 1) ?? null;
+      const tierSequenceSuccessful = !!historicalTiers?.length && historicalTiers.every((tier) => tier.status === "completed" && tier.actualReps != null && (tier.targetReps == null || tier.actualReps >= tier.targetReps));
+      const tiers = setScheme === "drop_multi_tier"
+        ? (target?.tiers?.length ? target.tiers : historicalTiers?.length ? historicalTiers : [
+            { order: 1, targetWeight: load === null ? null : { value: load, unit: "lb" as const }, targetReps: reps ?? nextRep },
+            { order: 2, targetWeight: load === null ? null : { value: Math.max(0, load - exercise.incrementLbs * 2), unit: "lb" as const }, targetReps: reps ?? nextRep }
+          ]).map((tier, tierIndex) => {
+            const priorTier = historicalTiers?.find((prior) => prior.order === tier.order) ?? historicalTiers?.[tierIndex];
+            const priorSuccessful = tierSequenceSuccessful && priorTier?.status === "completed" && priorTier.actualReps !== null && priorTier.actualReps !== undefined;
+            const repGoal = priorSuccessful
+              ? Math.max(1, (priorTier.actualReps ?? tier.targetReps ?? nextRep) + 1)
+              : tier.targetReps ?? nextRep;
+            // A multi-tier sequence has its own rep bands per tier. Progress it
+            // with one rep at a time; seed changed loads from actual performance,
+            // and leave load escalation to a later progression decision.
+            const nextTierLoad = priorSuccessful
+              ? priorTier?.actualWeight?.value ?? priorTier?.targetWeight?.value ?? tier.targetWeight?.value ?? load
+              : tier.targetWeight?.value ?? load;
+            return {
+              ...tier,
+              targetWeight: nextTierLoad === null ? null : { value: nextTierLoad, unit: "lb" as const },
+              targetReps: repGoal,
+              originalTargetWeight: tier.originalTargetWeight ?? tier.targetWeight ?? null,
+              originalTargetReps: tier.originalTargetReps ?? tier.targetReps ?? null,
+              previousActualWeight: priorTier?.actualWeight ?? null,
+              previousActualReps: priorTier?.actualReps ?? null,
+              adaptationReason: priorSuccessful ? "+1 rep from last session" : null,
+              actualWeight: null,
+              actualReps: null,
+              status: "pending" as const
+            };
+          })
+        : null;
+      return {
+        setNumber: index + 1,
+        targetReps: reps,
+        targetWeightLbs: load,
+        repTargetText,
+        tiers,
+        previousActualReps: historicalSet?.actualReps ?? null,
+        previousActualWeightLbs: historicalSet?.actualWeightLbs ?? null,
+        reason: progressionReason
+      };
+    });
+
+    // Explicit per-set targets are authoritative. History only fills gaps and the
+    // same progression decision is then materialized across the chosen structure.
+    return generated;
+  }
+
+  /** Reassess only pending targets; deterministic updates share the engine boundary. */
+  public adaptRemainingTargets(input: {
+    targetReps: number | null;
+    targetWeightLbs: number | null;
+    actualReps: number | null;
+    actualWeightLbs: number | null;
+    status: "completed" | "failed";
+    rir?: import("@fitness/shared").SetRir | null;
+    repRangeMin: number;
+    repRangeMax: number;
+    tiers?: import("@fitness/shared").WorkoutSetTierDto[] | null;
+    pending: Array<{ setId: string; targetReps: number | null; targetWeightLbs: number | null; tiers?: import("@fitness/shared").WorkoutSetTierDto[] | null; adaptationReason?: string | null }>;
+  }): Array<{ setId: string; targetReps: number | null; targetWeightLbs: number | null; tiers?: import("@fitness/shared").WorkoutSetTierDto[]; reason: string }> {
+    if (input.tiers?.length) {
+      const skipped = input.tiers.some((tier) => tier.status === "skipped");
+      const failed = input.tiers.some((tier) => tier.status === "failed" || (tier.status === "completed" && tier.targetReps != null && (tier.actualReps ?? 0) < tier.targetReps));
+      const complete = input.tiers.every((tier) => tier.status === "completed" && (tier.targetReps == null || (tier.actualReps ?? 0) >= tier.targetReps));
+      // A skipped tier means there is not enough evidence to adapt an extended
+      // sequence. A failed performed tier earns only a one-rep ease on future
+      // sequences; it never changes their loads.
+      if (skipped || (!failed && !complete)) return [];
+      const reason = failed ? "Held after difficult tier sequence" : input.tiers.some((tier) => tier.actualWeight?.value !== tier.targetWeight?.value) ? "Adjusted to performed tier loads" : "+1 rep after successful tier sequence";
+      return input.pending.filter((set) => !this.isManualTarget(set.adaptationReason)).flatMap((set) => {
+        if (!set.tiers?.length) return [];
+        let changed = false;
+        const tiers = set.tiers.map((tier) => {
+          if (this.isManualTarget(tier.adaptationReason)) return tier;
+          const priorTier = input.tiers?.find((item) => item.order === tier.order);
+          if (!priorTier) return tier;
+          if (failed) {
+            if (tier.targetReps == null) return tier;
+            const targetReps = Math.max(input.repRangeMin, tier.targetReps - 1);
+            changed ||= targetReps !== tier.targetReps;
+              return { ...tier, targetReps, ...(targetReps !== tier.targetReps ? { adaptationReason: reason } : {}) };
+          }
+          const performedWeight = priorTier.actualWeight?.value ?? null;
+          const weightChanged = performedWeight !== null && performedWeight !== priorTier.targetWeight?.value;
+          const comfortable = input.rir != null && ["rir_3", "rir_4", "rir_5_plus"].includes(input.rir) && priorTier.targetReps != null && (priorTier.actualReps ?? 0) >= priorTier.targetReps;
+          const targetReps = comfortable && tier.targetReps != null ? tier.targetReps + 1 : tier.targetReps;
+          const targetWeight = weightChanged ? { value: performedWeight!, unit: "lb" as const } : tier.targetWeight;
+          changed ||= targetReps !== tier.targetReps || weightChanged;
+          return {
+            ...tier,
+            ...(targetReps !== undefined ? { targetReps } : {}),
+            ...(weightChanged ? { targetWeight } : {}),
+            ...(targetReps !== tier.targetReps || weightChanged ? { adaptationReason: reason } : {})
+          };
+        });
+        const setComfortable = !failed && input.rir != null && ["rir_3", "rir_4", "rir_5_plus"].includes(input.rir);
+        const targetReps = setComfortable && set.targetReps !== null ? Math.min(input.repRangeMax, set.targetReps + 1) : set.targetReps;
+        changed ||= targetReps !== set.targetReps;
+        return changed ? [{ setId: set.setId, targetReps, targetWeightLbs: set.targetWeightLbs, tiers, reason }] : [];
+      });
+    }
+    const missed = input.status === "failed" || (input.actualReps !== null && input.targetReps !== null && input.actualReps < input.targetReps);
+    const comfortable = input.status === "completed" && input.actualReps !== null && input.targetReps !== null &&
+      input.actualReps >= input.targetReps + 2 && ["rir_3", "rir_4", "rir_5_plus"].includes(input.rir ?? "");
+    const changedLoad = input.actualWeightLbs !== null && input.targetWeightLbs !== null && input.actualWeightLbs !== input.targetWeightLbs;
+    if (!missed && !comfortable && !changedLoad) return [];
+    const reason = missed ? "Adjusted after missed target" : changedLoad ? "Adjusted to performed load" : "+1 rep after comfortable set";
+    return input.pending.filter((set) => !this.isManualTarget(set.adaptationReason)).flatMap((set) => {
+      const reps = set.targetReps === null ? null : missed
+        ? Math.max(input.repRangeMin, set.targetReps - 1)
+        : comfortable ? Math.min(input.repRangeMax, set.targetReps + 1) : set.targetReps;
+      const weight = changedLoad ? input.actualWeightLbs : set.targetWeightLbs;
+      return reps !== set.targetReps || weight !== set.targetWeightLbs
+        ? [{ setId: set.setId, targetReps: reps, targetWeightLbs: weight, reason }]
+        : [];
+    });
+  }
+
   public calculateWithStrategyV2(
     input: ProgressionComputationInputV2 & { strategy: ProgressionStrategy }
   ): ProgressionComputationResultV2 {
@@ -355,6 +650,7 @@ export class ProgressionEngine {
     const { exercise, outcome: rawOutcome, state } = input;
     const trainingGoal = resolveTrainingGoal(input.trainingGoal);
     const recoveryState = input.recoveryState ?? null;
+    const loadType = resolveLoadType(exercise.loadType);
     const previousWeightLbs = roundToTwoDecimals(state.currentWeightLbs);
     const lastPerformedAt = state.lastPerformedAt ?? null;
     const performedAt = input.performedAt ?? new Date(0);
@@ -414,12 +710,12 @@ export class ProgressionEngine {
         previousWeightLbs,
         nextWeightLbs: previousWeightLbs,
         result: "skipped",
-        reason: `No weight progression because ${exercise.exerciseName} is weight-optional and you logged 0 lb of external load.`,
+        reason: `No ${loadNoun(loadType)} progression because ${exercise.exerciseName} is weight-optional and you logged 0 lb of ${loadNoun(loadType)}.`,
         nextState
       };
     }
 
-    if (hasEffectiveFailure(outcome)) {
+    if (hasEffectiveFailure(outcome, loadType)) {
       return this.calculateFailureResult(effectiveInput, previousWeightLbs);
     }
 
@@ -427,10 +723,12 @@ export class ProgressionEngine {
       const gapDays = daysSince({ previous: lastPerformedAt, current: performedAt });
 
       if (gapDays >= RECENT_TRAINING_REDUCTION_THRESHOLD_DAYS) {
-        const nextWeightLbs = roundDownToIncrement(
-          Math.max(0, previousWeightLbs - exercise.incrementLbs),
-          exercise.incrementLbs
-        );
+        const nextWeightLbs = applyEasierLoad({
+          loadType,
+          previousWeightLbs,
+          deltaLbs: exercise.incrementLbs,
+          incrementLbs: exercise.incrementLbs
+        });
 
         const nextState: ProgressionStateSnapshot = {
           currentWeightLbs: nextWeightLbs,
@@ -482,6 +780,7 @@ export class ProgressionEngine {
     const { exercise, outcome: rawOutcome, state } = input;
     const trainingGoal = resolveTrainingGoal(input.trainingGoal);
     const recoveryState = input.recoveryState ?? null;
+    const loadType = resolveLoadType(exercise.loadType);
 
     const previousWeightLbs = roundToTwoDecimals(state.currentWeightLbs);
     const previousRepGoal = state.repGoal;
@@ -619,20 +918,20 @@ export class ProgressionEngine {
         previousRepGoal,
         nextRepGoal: previousRepGoal,
         result: "skipped",
-        reason: `No progression because ${exercise.exerciseName} is weight-optional and you logged 0 lb of external load.`,
+        reason: `No progression because ${exercise.exerciseName} is weight-optional and you logged 0 lb of ${loadNoun(loadType)}.`,
         nextState
       };
     }
 
     const hasBelowRangeMin = setsForProgression.some(
-      (set) => (set.actualReps ?? 0) < repRangeMin && !isMaterialOverperformanceSet(set)
+      (set) => (set.actualReps ?? 0) < repRangeMin && !isMaterialOverperformanceSet(set, loadType)
     );
     if (hasBelowRangeMin) {
       return this.calculateFailureResultV2(input, previousWeightLbs);
     }
 
     const metRepGoal = setsForProgression.every(
-      (set) => (set.actualReps ?? 0) >= previousRepGoal || isMaterialOverperformanceSet(set)
+      (set) => (set.actualReps ?? 0) >= previousRepGoal || isMaterialOverperformanceSet(set, loadType)
     );
     if (!metRepGoal) {
       const nextState: ProgressionStateSnapshotV2 = {
@@ -660,10 +959,12 @@ export class ProgressionEngine {
       const gapDays = daysSince({ previous: lastPerformedAt, current: performedAt });
 
       if (gapDays >= RECENT_TRAINING_REDUCTION_THRESHOLD_DAYS) {
-        const nextWeightLbs = roundDownToIncrement(
-          Math.max(0, previousWeightLbs - exercise.incrementLbs),
-          exercise.incrementLbs
-        );
+        const nextWeightLbs = applyEasierLoad({
+          loadType,
+          previousWeightLbs,
+          deltaLbs: exercise.incrementLbs,
+          incrementLbs: exercise.incrementLbs
+        });
         const nextRepGoal = repRangeMin;
 
         const nextState: ProgressionStateSnapshotV2 = {
@@ -860,7 +1161,12 @@ export class ProgressionEngine {
           : 1;
       const increaseSteps = shouldCapIncreaseSteps ? 1 : computedIncreaseSteps;
       const nextRepGoal = clampInteger(previousRepGoal + increaseSteps, repRangeMin, repRangeMax);
-      const nextWeightLbs = roundDownToIncrement(previousWeightLbs + exercise.incrementLbs, exercise.incrementLbs);
+      const nextWeightLbs = applyHarderLoad({
+        loadType,
+        previousWeightLbs,
+        deltaLbs: exercise.incrementLbs,
+        incrementLbs: exercise.incrementLbs
+      });
       const nextState: ProgressionStateSnapshotV2 = {
         currentWeightLbs: nextWeightLbs,
         lastCompletedWeightLbs: previousWeightLbs,
@@ -879,7 +1185,11 @@ export class ProgressionEngine {
         nextRepGoal,
         result: "increased",
         reason: withPolicySuffix(
-          `Increased weight from ${previousWeightLbs} to ${nextWeightLbs} and reps from ${previousRepGoal} to ${nextRepGoal} within range ${repRangeMin}-${repRangeMax} because effort was marked too easy and sets indicated 5+ reps in reserve.`,
+          `${
+            loadType === "assistance"
+              ? `Reduced ${loadNoun(loadType)} from ${previousWeightLbs} to ${nextWeightLbs}`
+              : `Increased ${loadNoun(loadType)} from ${previousWeightLbs} to ${nextWeightLbs}`
+          } and reps from ${previousRepGoal} to ${nextRepGoal} within range ${repRangeMin}-${repRangeMax} because effort was marked too easy and sets indicated 5+ reps in reserve.`,
           { trainingGoal, experienceLevel: input.experienceLevel ?? null, recoveryState }
         ),
         nextState
@@ -989,7 +1299,12 @@ export class ProgressionEngine {
         ? 1
         : rawIncreaseSteps;
     const increaseLbs = roundToTwoDecimals(increaseSteps * exercise.incrementLbs);
-    const nextWeightLbs = roundDownToIncrement(previousWeightLbs + increaseLbs, exercise.incrementLbs);
+    const nextWeightLbs = applyHarderLoad({
+      loadType,
+      previousWeightLbs,
+      deltaLbs: increaseLbs,
+      incrementLbs: exercise.incrementLbs
+    });
     const nextRepGoal = repRangeMin;
     const nextState: ProgressionStateSnapshotV2 = {
       currentWeightLbs: nextWeightLbs,
@@ -1009,8 +1324,16 @@ export class ProgressionEngine {
       nextRepGoal,
       result: "increased",
       reason: withPolicySuffix(
-        `Increased weight from ${previousWeightLbs} to ${nextWeightLbs} and reset reps to ${repRangeMin}.${
-          rirTooEasySignal ? " (Set effort suggested the weight was too light.)" : ""
+        `${
+          loadType === "assistance"
+            ? `Reduced ${loadNoun(loadType)} from ${previousWeightLbs} to ${nextWeightLbs}`
+            : `Increased ${loadNoun(loadType)} from ${previousWeightLbs} to ${nextWeightLbs}`
+        } and reset reps to ${repRangeMin}.${
+          rirTooEasySignal
+            ? loadType === "assistance"
+              ? " (Set effort suggested assistance was too high.)"
+              : " (Set effort suggested the weight was too light.)"
+            : ""
         }`,
         { trainingGoal, experienceLevel: input.experienceLevel ?? null, recoveryState }
       ),
@@ -1119,6 +1442,7 @@ export class ProgressionEngine {
     const { exercise, outcome, state } = input;
     const trainingGoal = resolveTrainingGoal(input.trainingGoal);
     const recoveryState = input.recoveryState ?? null;
+    const loadType = resolveLoadType(exercise.loadType);
 
     const previousWeightLbs = roundToTwoDecimals(state.currentWeightLbs);
     const previousRepGoal = state.repGoal;
@@ -1171,7 +1495,7 @@ export class ProgressionEngine {
     }
 
     const hasBelowRangeMin = outcome.sets.some(
-      (set) => (set.actualReps ?? 0) < repRangeMin && !isMaterialOverperformanceSet(set)
+      (set) => (set.actualReps ?? 0) < repRangeMin && !isMaterialOverperformanceSet(set, loadType)
     );
     if (hasBelowRangeMin) {
       const nextFailureCount = state.consecutiveFailures + 1;
@@ -1222,7 +1546,7 @@ export class ProgressionEngine {
     }
 
     const metRepGoal = outcome.sets.every(
-      (set) => (set.actualReps ?? 0) >= previousRepGoal || isMaterialOverperformanceSet(set)
+      (set) => (set.actualReps ?? 0) >= previousRepGoal || isMaterialOverperformanceSet(set, loadType)
     );
     if (!metRepGoal) {
       const nextState: ProgressionStateSnapshotV2 = {
@@ -1439,13 +1763,23 @@ export class ProgressionEngine {
     previousWeightLbs: number
   ): ProgressionComputationResult {
     const { exercise, outcome, state } = input;
+    const loadType = resolveLoadType(exercise.loadType);
 
     if (input.allowAutoDeload !== false && state.consecutiveFailures >= 1) {
-      const attemptedDeloadWeight = roundToTwoDecimals(previousWeightLbs * 0.9);
-      let nextWeightLbs = roundDownToIncrement(attemptedDeloadWeight, exercise.incrementLbs);
+      const deloadMultiplier = loadType === "assistance" ? 1.1 : 0.9;
+      const attemptedDeloadWeight = roundToTwoDecimals(previousWeightLbs * deloadMultiplier);
+      let nextWeightLbs =
+        loadType === "assistance"
+          ? roundUpToIncrement(attemptedDeloadWeight, exercise.incrementLbs)
+          : roundDownToIncrement(attemptedDeloadWeight, exercise.incrementLbs);
 
       if (nextWeightLbs === previousWeightLbs) {
-        nextWeightLbs = roundToTwoDecimals(Math.max(0, previousWeightLbs - exercise.incrementLbs));
+        nextWeightLbs = applyEasierLoad({
+          loadType,
+          previousWeightLbs,
+          deltaLbs: exercise.incrementLbs,
+          incrementLbs: exercise.incrementLbs
+        });
       }
 
       const nextState: ProgressionStateSnapshot = {
@@ -1455,14 +1789,20 @@ export class ProgressionEngine {
         lastEffortFeedback: outcome.effortFeedback
       };
 
-      const roundingNote =
-        nextWeightLbs !== attemptedDeloadWeight ? ` (rounded down to ${exercise.incrementLbs} lb increments)` : "";
+      const roundingNote = (() => {
+        if (nextWeightLbs === attemptedDeloadWeight) {
+          return "";
+        }
+        return loadType === "assistance"
+          ? ` (rounded up to ${exercise.incrementLbs} lb increments)`
+          : ` (rounded down to ${exercise.incrementLbs} lb increments)`;
+      })();
 
       return {
         previousWeightLbs,
         nextWeightLbs,
         result: "reduced",
-        reason: `Reduced from ${previousWeightLbs} lb to ${nextWeightLbs} lb after two consecutive failed workouts (10% deload)${roundingNote}.`,
+        reason: `Adjusted ${loadNoun(loadType)} from ${previousWeightLbs} lb to ${nextWeightLbs} lb after two consecutive failed workouts (10% deload)${roundingNote}.`,
         nextState
       };
     }
@@ -1479,7 +1819,7 @@ export class ProgressionEngine {
         previousWeightLbs,
         nextWeightLbs: previousWeightLbs,
         result: "repeated",
-        reason: `Repeated ${previousWeightLbs} lb because sets missed the prescribed reps and auto-deload is disabled.`,
+        reason: `Repeated ${previousWeightLbs} lb of ${loadNoun(loadType)} because sets missed the prescribed reps and auto-deload is disabled.`,
         nextState
       };
     }
@@ -1495,7 +1835,7 @@ export class ProgressionEngine {
       previousWeightLbs,
       nextWeightLbs: previousWeightLbs,
       result: "repeated",
-      reason: `Repeated ${previousWeightLbs} lb because at least one set missed the prescribed reps.`,
+      reason: `Repeated ${previousWeightLbs} lb of ${loadNoun(loadType)} because at least one set missed the prescribed reps.`,
       nextState
     };
   }
@@ -1505,6 +1845,7 @@ export class ProgressionEngine {
     previousWeightLbs: number
   ): ProgressionComputationResultV2 {
     const { exercise, outcome, state } = input;
+    const loadType = resolveLoadType(exercise.loadType);
 
     const previousRepGoal = state.repGoal;
     const repRangeMin = state.repRangeMin;
@@ -1513,10 +1854,12 @@ export class ProgressionEngine {
     const nextFailureCount = state.consecutiveFailures + 1;
 
     if (input.allowAutoDeload !== false && nextFailureCount >= 2) {
-      const nextWeightLbs = roundDownToIncrement(
-        Math.max(0, previousWeightLbs - exercise.incrementLbs),
-        exercise.incrementLbs
-      );
+      const nextWeightLbs = applyEasierLoad({
+        loadType,
+        previousWeightLbs,
+        deltaLbs: exercise.incrementLbs,
+        incrementLbs: exercise.incrementLbs
+      });
       const nextRepGoal = repRangeMin;
 
       const nextState: ProgressionStateSnapshotV2 = {
@@ -1535,7 +1878,10 @@ export class ProgressionEngine {
         previousRepGoal,
         nextRepGoal,
         result: "reduced",
-        reason: "Reduced weight after consecutive failures and reset reps to the bottom of the range.",
+        reason:
+          loadType === "assistance"
+            ? "Increased assistance after consecutive failures and reset reps to the bottom of the range."
+            : "Reduced weight after consecutive failures and reset reps to the bottom of the range.",
         nextState
       };
     }
@@ -1590,6 +1936,7 @@ export class ProgressionEngine {
     const { exercise, outcome } = input;
     const trainingGoal = resolveTrainingGoal(input.trainingGoal);
     const recoveryState = input.recoveryState ?? null;
+    const loadType = resolveLoadType(exercise.loadType);
 
     const effortSignals = getSetEffortSignals(outcome.sets);
     const rirTooEasySignal = shouldTreatRirAsTooEasy(outcome, exercise.incrementLbs);
@@ -1747,7 +2094,12 @@ export class ProgressionEngine {
         : rawIncreaseSteps;
     const increaseLbs = roundToTwoDecimals(increaseSteps * exercise.incrementLbs);
 
-    const nextWeightLbs = roundDownToIncrement(previousWeightLbs + increaseLbs, exercise.incrementLbs);
+    const nextWeightLbs = applyHarderLoad({
+      loadType,
+      previousWeightLbs,
+      deltaLbs: increaseLbs,
+      incrementLbs: exercise.incrementLbs
+    });
     const nextState: ProgressionStateSnapshot = {
       currentWeightLbs: nextWeightLbs,
       lastCompletedWeightLbs: previousWeightLbs,
@@ -1761,8 +2113,12 @@ export class ProgressionEngine {
       result: "increased",
       reason: withPolicySuffix(
         effectiveEffortFeedback === "too_easy"
-          ? `Increased from ${previousWeightLbs} lb to ${nextWeightLbs} lb because all sets were completed and the set-level effort suggests the weight was too light.`
-          : `Increased from ${previousWeightLbs} lb to ${nextWeightLbs} lb because all sets were completed and effort was marked manageable.`,
+          ? loadType === "assistance"
+            ? `Reduced ${loadNoun(loadType)} from ${previousWeightLbs} lb to ${nextWeightLbs} lb because all sets were completed and the set-level effort suggests assistance was too high.`
+            : `Increased ${loadNoun(loadType)} from ${previousWeightLbs} lb to ${nextWeightLbs} lb because all sets were completed and the set-level effort suggests the weight was too light.`
+          : loadType === "assistance"
+            ? `Reduced ${loadNoun(loadType)} from ${previousWeightLbs} lb to ${nextWeightLbs} lb because all sets were completed and effort was marked manageable.`
+            : `Increased ${loadNoun(loadType)} from ${previousWeightLbs} lb to ${nextWeightLbs} lb because all sets were completed and effort was marked manageable.`,
         { trainingGoal, experienceLevel: input.experienceLevel ?? null, recoveryState }
       ),
       nextState
@@ -1774,6 +2130,14 @@ export class ProgressionEngine {
     previousWeightLbs: number
   ): ProgressionComputationResult | null {
     const { exercise, outcome } = input;
+    const loadType = resolveLoadType(exercise.loadType);
+
+    // Assisted movements (e.g., assisted pull-up) log "assistance" weight, where lower is harder.
+    // The current recalibration model assumes higher logged weight is harder (external load),
+    // so skip recalibration until we have an assistance-aware model.
+    if (loadType === "assistance") {
+      return null;
+    }
 
     const effortSignals = getSetEffortSignals(outcome.sets);
     if (effortSignals.hasNearFailure || effortSignals.hasTechnicalFailure || effortSignals.hasStoppedEarly) {
@@ -1781,7 +2145,7 @@ export class ProgressionEngine {
     }
 
     const performanceSets = (outcome.sets ?? []).filter((set) => set.failureStatus !== "stopped_early");
-    const weightQualifyingSets = performanceSets.filter(isMaterialOverperformanceSet);
+    const weightQualifyingSets = performanceSets.filter((set) => isMaterialOverperformanceSet(set, loadType));
     const repQualifyingSets = performanceSets.filter(
       (set) =>
         isMaterialRepOverperformanceSet(set, exercise.incrementLbs) ||
@@ -1843,6 +2207,12 @@ export class ProgressionEngine {
     previousWeightLbs: number
   ): ProgressionComputationResultV2 | null {
     const { exercise, outcome, state } = input;
+    const loadType = resolveLoadType(exercise.loadType);
+
+    // See calculateRecalibrationResult(): skip assistance-mode recalibration for now.
+    if (loadType === "assistance") {
+      return null;
+    }
 
     const effortSignals = getSetEffortSignals(outcome.sets);
     if (effortSignals.hasNearFailure || effortSignals.hasTechnicalFailure || effortSignals.hasStoppedEarly) {
@@ -1850,7 +2220,7 @@ export class ProgressionEngine {
     }
 
     const performanceSets = (outcome.sets ?? []).filter((set) => set.failureStatus !== "stopped_early");
-    const weightQualifyingSets = performanceSets.filter(isMaterialOverperformanceSet);
+    const weightQualifyingSets = performanceSets.filter((set) => isMaterialOverperformanceSet(set, loadType));
     const repQualifyingSets = performanceSets.filter(
       (set) =>
         isMaterialRepOverperformanceSet(set, exercise.incrementLbs) ||
@@ -1913,7 +2283,7 @@ export class ProgressionEngine {
       result: "recalibrated",
       reason: useWeightSignal
         ? `Recalibrated from ${previousWeightLbs} lb to ${nextWeightLbs} lb based on materially heavier sets logged.`
-        : `Recalibrated from ${previousWeightLbs} lb to ${nextWeightLbs} lb because reps greatly exceeded the target at the prescribed weight${
+        : `Recalibrated from ${previousWeightLbs} lb to ${nextWeightLbs} lb because reps greatly exceeded the target at the prescribed ${loadNoun(loadType)}${
             includesRir5Plus ? " (and you reported 5+ reps in reserve)." : "."
           }`,
       nextState

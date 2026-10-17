@@ -5,6 +5,7 @@ import type {
   PredefinedWorkoutCategory,
   ProgramDto,
   ProgramWorkoutTemplateDto,
+  ProgramWorkoutExerciseDto,
   WorkoutSessionDto
 } from "@fitness/shared";
 import { resolveCustomProgramName } from "@fitness/shared";
@@ -53,6 +54,21 @@ export function createProgramDayAssignments(daysPerWeek: number): ProgramDayAssi
   return Array.from({ length: daysPerWeek }, (_, index) => ({
     dayNumber: index + 1,
     workout: null
+  }));
+}
+
+export function removeProgramDayAssignment(input: {
+  current: ProgramDayAssignment[];
+  dayNumber: number;
+}): ProgramDayAssignment[] {
+  if (input.current.length <= 1) {
+    return input.current.map((day) => (day.dayNumber === input.dayNumber ? { ...day, workout: null } : day));
+  }
+
+  const next = input.current.filter((day) => day.dayNumber !== input.dayNumber);
+  return next.map((day, index) => ({
+    ...day,
+    dayNumber: index + 1
   }));
 }
 
@@ -131,27 +147,27 @@ export function buildAssignedProgramRequest(input: {
   if (input.days.length === 0) {
     return {
       request: null,
-      error: "Select at least one day per week."
+      error: "Add at least one exercise."
     };
   }
 
-  const missingDay = input.days.find((day) => !day.workout);
-  if (missingDay) {
+  const assignedDays = input.days.filter((day) => day.workout && day.workout.exercises.length > 0);
+  if (assignedDays.length === 0) {
     return {
       request: null,
-      error: `Add a workout for Day ${missingDay.dayNumber}.`
+      error: "Add at least one exercise."
     };
   }
 
   return {
     request: {
       name,
-      workouts: input.days.map((day) => {
+      workouts: assignedDays.map((day, index) => {
         const workout = day.workout!;
         const shouldPreserveEntryIds = input.preserveEntryIdsForWorkoutIds?.has(workout.id) ?? false;
 
         return {
-          name: `Day ${day.dayNumber}: ${workout.name}`,
+          name: `Workout ${index + 1}: ${workout.name}`,
           exercises: [...workout.exercises]
             .sort((left, right) => left.sequenceOrder - right.sequenceOrder)
             .map((exercise) => ({
@@ -178,6 +194,28 @@ export function buildAssignedProgramRequest(input: {
       })
     },
     error: null
+  };
+}
+
+function duplicateWorkoutExercises(exercises: ProgramWorkoutExerciseDto[]): ProgramWorkoutExerciseDto[] {
+  return [...exercises]
+    .sort((left, right) => left.sequenceOrder - right.sequenceOrder)
+    .map((exercise, index) => ({
+      ...exercise,
+      id: `${CUSTOM_WORKOUT_BUILDER_PREFIX}${exercise.exerciseId}:${Date.now()}:${index}`,
+      sequenceOrder: index + 1
+    }));
+}
+
+export function duplicateProgramWorkoutTemplate(workout: ProgramWorkoutTemplateDto): ProgramWorkoutTemplateDto {
+  const name = workout.name?.trim() ? `${workout.name.trim()} (Copy)` : "Workout (Copy)";
+
+  return {
+    ...workout,
+    id: `${CUSTOM_WORKOUT_BUILDER_PREFIX}workout-copy:${Date.now()}`,
+    name,
+    sequenceOrder: 1,
+    exercises: duplicateWorkoutExercises(workout.exercises)
   };
 }
 

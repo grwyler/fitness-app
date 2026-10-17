@@ -177,6 +177,7 @@ export class DrizzleProgramRepository implements ProgramRepository {
             repRangeMax: exercise.repRangeMax ?? null,
             restSeconds: exercise.restSeconds,
             progressionStrategy: exercise.progressionStrategy ?? null,
+            setScheme: exercise.setScheme ?? "straight",
             repTargetText: exercise.repTargetText ?? null,
             targetWeightLbs: exercise.targetWeight ? String(exercise.targetWeight.value) : null,
             targetDurationSeconds: exercise.targetDurationSeconds ?? null,
@@ -437,6 +438,7 @@ export class DrizzleProgramRepository implements ProgramRepository {
           targetRounds: exercise.targetRounds ?? null,
           restSeconds: exercise.restSeconds,
           progressionStrategy: exercise.progressionStrategy ?? null,
+          setScheme: exercise.setScheme ?? "straight",
           repTargetText: exercise.repTargetText ?? null,
           targetWeightLbs: exercise.targetWeight ? String(exercise.targetWeight.value) : null,
           notes: exercise.notes ?? null,
@@ -641,6 +643,7 @@ export class DrizzleProgramRepository implements ProgramRepository {
                 unit: "lb" as const
               },
         setTargets: row.templateExercise.setTargets ?? null,
+        setScheme: row.templateExercise.setScheme,
         notes: row.templateExercise.notes ?? null
       });
       exercisesByTemplateId.set(row.templateExercise.workoutTemplateId, existing);

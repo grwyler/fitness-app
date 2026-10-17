@@ -1,4 +1,4 @@
-import { formatWeightForUser, type CompleteWorkoutSessionResponse, type UnitSystem, type WorkoutSessionDto } from "@fitness/shared";
+import { formatWeightForUser, type CompleteWorkoutSessionResponse, type UnitSystem, type WorkoutSessionDto, type ProgressionRecommendationResolutionType } from "@fitness/shared";
 
 export type WorkoutSummaryStats = {
   completedExerciseCount: number;
@@ -22,6 +22,12 @@ export type UnusualProgressionReviewItem = {
   title: string;
   message: string;
   evidence: string[];
+  recommendationEventId: string | null;
+  recommendedNextWeightLbs: number;
+  recommendedNextRepGoal: number | null;
+  finalNextWeightLbs: number;
+  finalNextRepGoal: number | null;
+  resolutionType: ProgressionRecommendationResolutionType;
 };
 
 function resolveUnitSystem(unitSystem: UnitSystem | undefined) {
@@ -132,7 +138,13 @@ export function getUnusualProgressionReviewItems(
       title: "Unusual performance detected",
       message:
         "You completed far more reps than prescribed. This usually means the weight is too light, the starting point needs recalibration, or the log may need review. The recommendation is cautious because this is a large mismatch.",
-      evidence: buildRepOverperformanceEvidenceLines({ workout: summary.workoutSession, update, unitSystem })
+      evidence: buildRepOverperformanceEvidenceLines({ workout: summary.workoutSession, update, unitSystem }),
+      recommendationEventId: update.recommendationEventId ?? null,
+      recommendedNextWeightLbs: update.nextWeight.value,
+      recommendedNextRepGoal: update.nextRepGoal ?? null,
+      finalNextWeightLbs: update.nextWeight.value,
+      finalNextRepGoal: update.nextRepGoal ?? null,
+      resolutionType: update.recommendationResolutionType ?? "unresolved"
     }));
 
   return repOverperformanceItems;

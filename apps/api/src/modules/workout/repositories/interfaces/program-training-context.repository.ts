@@ -41,4 +41,9 @@ export interface ProgramTrainingContextRepository {
     input: CreateProgramTrainingContextInput,
     options?: RepositoryOptions
   ): Promise<ProgramTrainingContextRecord>;
+
+  findLatestByUserProgram(
+    input: { userId: string; programId: string },
+    options?: RepositoryOptions
+  ): Promise<ProgramTrainingContextRecord | null>;
 }

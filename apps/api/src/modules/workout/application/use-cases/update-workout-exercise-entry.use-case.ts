@@ -1,5 +1,6 @@
 import type { UpdateWorkoutExerciseEntryRequest, WorkoutSessionDto } from "@fitness/shared";
 import { isCustomWorkoutProgramId } from "../../domain/models/custom-workout.js";
+import { ProgressionEngine } from "../../domain/services/progression-engine.js";
 import type { ExerciseRepository } from "../../repositories/interfaces/exercise.repository.js";
 import type { IdempotencyRepository } from "../../repositories/interfaces/idempotency.repository.js";
 import type { ProgramRepository } from "../../repositories/interfaces/program.repository.js";
@@ -27,12 +28,14 @@ function buildUpdateWorkoutExerciseEntryFingerprint(input: {
     targetDistanceMeters: input.request.targetDistanceMeters ?? undefined,
     targetRounds: input.request.targetRounds ?? undefined,
     restSeconds: input.request.restSeconds ?? undefined,
+    setScheme: input.request.setScheme ?? null,
     updatePlan: input.request.updatePlan ?? false
   });
 }
 
 export class UpdateWorkoutExerciseEntryUseCase {
   private readonly idempotencyService: IdempotencyService;
+  private readonly progressionEngine = new ProgressionEngine();
 
   public constructor(
     private readonly workoutSessionRepository: WorkoutSessionRepository,
@@ -102,6 +105,42 @@ export class UpdateWorkoutExerciseEntryUseCase {
           input.request.targetRounds !== undefined ? input.request.targetRounds ?? null : (exerciseEntry.targetRounds ?? null);
         const restSeconds =
           input.request.restSeconds !== undefined ? input.request.restSeconds ?? null : (exerciseEntry.restSeconds ?? null);
+        const setScheme = input.request.setScheme ?? (exerciseEntry.progressionRuleSnapshot?.setScheme as import("@fitness/shared").ExerciseSetScheme | undefined) ?? "straight";
+        const exerciseModel = (await this.exerciseRepository.findByIds([exerciseEntry.exerciseId], { tx }))[0] ?? null;
+        const incrementLbs = exerciseModel?.defaultIncrementLbs ?? 5;
+        const rangeMin = exerciseEntry.repRangeMin ?? targetReps ?? 1;
+        const rangeMax = exerciseEntry.repRangeMax ?? targetReps ?? Math.max(12, rangeMin);
+        const manualPrescription = this.progressionEngine.generatePrescription({
+          state: {
+            id: `manual-${exerciseEntry.id}`,
+            userId: input.context.userId,
+            workoutTemplateExerciseEntryId: exerciseEntry.workoutTemplateExerciseEntryId ?? exerciseEntry.id,
+            currentWeightLbs: targetWeightLbs ?? (exerciseModel?.isBodyweight || exerciseModel?.isWeightOptional ? 0 : exerciseModel?.defaultStartingWeightLbs ?? 0),
+            lastCompletedWeightLbs: null,
+            repGoal: targetReps ?? rangeMin,
+            repRangeMin: rangeMin,
+            repRangeMax: rangeMax,
+            consecutiveFailures: 0,
+            lastEffortFeedback: null,
+            lastPerformedAt: null,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          },
+          exercise: {
+            exerciseName: exerciseEntry.exerciseNameSnapshot,
+            exerciseCategory: exerciseEntry.exerciseCategorySnapshot,
+            incrementLbs,
+            isBodyweight: exerciseModel?.isBodyweight ?? false,
+            isWeightOptional: exerciseModel?.isWeightOptional ?? false,
+            loadType: "external"
+          },
+          loggingModality: exerciseEntry.loggingModalitySnapshot === "reps_only" ? "reps_only" : "reps_load",
+          strategy: (exerciseEntry.progressionRuleSnapshot?.progressionStrategy as import("@fitness/shared").ProgressionStrategy | undefined) ?? "double_progression",
+          setScheme,
+          targetSets: input.request.targetSets,
+          planTargetWeightLbs: targetWeightLbs,
+          ...(exerciseModel ? { defaultStartingWeightLbs: exerciseModel.defaultStartingWeightLbs } : {})
+        });
 
         const updatedGraph = await this.workoutSessionRepository.updateWorkoutExerciseEntry(
           {
@@ -112,7 +151,11 @@ export class UpdateWorkoutExerciseEntryUseCase {
             targetDurationSeconds,
             targetDistanceMeters,
             targetRounds,
-            restSeconds
+            restSeconds,
+            setScheme,
+            setTargets: manualPrescription.map(({ setNumber, targetReps, targetWeightLbs, repTargetText, tiers }) => ({ setNumber, targetReps, targetWeightLbs, repTargetText, tiers })),
+            manualTargetOverride:
+              input.request.targetReps !== undefined || input.request.targetWeight !== undefined || input.request.setScheme !== undefined
           },
           { tx }
         );
@@ -157,7 +200,8 @@ export class UpdateWorkoutExerciseEntryUseCase {
               targetDurationSeconds,
               targetDistanceMeters,
               targetRounds,
-              restSeconds
+              restSeconds,
+              setScheme
             },
             { tx }
           );

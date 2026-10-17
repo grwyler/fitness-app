@@ -159,6 +159,7 @@ export class DrizzleExerciseRepository implements ExerciseRepository {
           targetRounds: row.templateExercise.targetRounds ?? null,
           restSeconds: row.templateExercise.restSeconds,
           progressionStrategy: row.templateExercise.progressionStrategy ?? null,
+          setScheme: row.templateExercise.setScheme,
           repTargetText: row.templateExercise.repTargetText ?? null,
           targetWeightLbs: normalizeNullableNumeric(row.templateExercise.targetWeightLbs),
           notes: row.templateExercise.notes ?? null,
@@ -292,6 +293,7 @@ export class DrizzleExerciseRepository implements ExerciseRepository {
       targetRounds?: number | null;
       restSeconds: number | null;
       progressionStrategy?: ProgressionStrategy;
+      setScheme?: import("@fitness/shared").ExerciseSetScheme;
     },
     options?: RepositoryOptions
   ): Promise<string> {
@@ -316,6 +318,7 @@ export class DrizzleExerciseRepository implements ExerciseRepository {
         targetRounds: input.targetRounds ?? null,
         restSeconds: input.restSeconds,
         progressionStrategy: input.progressionStrategy ?? null,
+        setScheme: input.setScheme ?? "straight",
         deletedAt: null,
         createdAt: now,
         updatedAt: now
@@ -339,6 +342,7 @@ export class DrizzleExerciseRepository implements ExerciseRepository {
       targetDistanceMeters?: number | null;
       targetRounds?: number | null;
       restSeconds: number | null;
+      setScheme?: import("@fitness/shared").ExerciseSetScheme;
     },
     options?: RepositoryOptions
   ): Promise<void> {
@@ -358,6 +362,7 @@ export class DrizzleExerciseRepository implements ExerciseRepository {
           : {}),
         ...(input.targetRounds !== undefined ? { targetRounds: input.targetRounds } : {}),
         restSeconds: input.restSeconds,
+        ...(input.setScheme ? { setScheme: input.setScheme } : {}),
         updatedAt: new Date()
       })
       .where(

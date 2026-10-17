@@ -4,9 +4,11 @@ import type {
   AddWorkoutSetRequest,
   CompleteWorkoutSessionRequest,
   CreateCustomProgramRequest,
+  UpdateManualProgramGoalContextRequest,
   DeleteWorkoutExerciseEntryRequest,
   DeleteWorkoutSetRequest,
   RecommendGuidedProgramRequest,
+  ResolveProgressionRecommendationRequest,
   UpdateWorkoutExerciseEntryRequest,
   UpdateExerciseProgressionSettingsRequest,
   LogSetRequest,
@@ -40,7 +42,10 @@ import {
   workoutSessionExerciseParamsSchema,
   workoutHistoryQuerySchema,
   deleteWorkoutExerciseEntryBodySchema,
-  workoutSessionParamsSchema
+  workoutSessionParamsSchema,
+  workoutSessionProgressionEventParamsSchema,
+  resolveProgressionRecommendationBodySchema,
+  updateManualProgramGoalContextBodySchema
 } from "./workout.schemas.js";
 import type { AddCustomWorkoutExerciseUseCase } from "../application/use-cases/add-custom-workout-exercise.use-case.js";
 import type { AddWorkoutSetUseCase } from "../application/use-cases/add-workout-set.use-case.js";
@@ -68,12 +73,19 @@ import type { GetTrainingSettingsUseCase } from "../application/use-cases/get-tr
 import type { UpdateTrainingSettingsUseCase } from "../application/use-cases/update-training-settings.use-case.js";
 import type { GetExerciseProgressionSettingsUseCase } from "../application/use-cases/get-exercise-progression-settings.use-case.js";
 import type { UpdateExerciseProgressionSettingsUseCase } from "../application/use-cases/update-exercise-progression-settings.use-case.js";
+import type { ResolveProgressionRecommendationUseCase } from "../application/use-cases/resolve-progression-recommendation.use-case.js";
+import type { GetProgramTrainingContextUseCase } from "../application/use-cases/get-program-training-context.use-case.js";
+import type { UpdateManualProgramGoalContextUseCase } from "../application/use-cases/update-manual-program-goal-context.use-case.js";
+import type { GetProgramCoachReviewUseCase } from "../application/use-cases/get-program-coach-review.use-case.js";
 
 export type WorkoutHttpHandlers = {
   listPrograms: RequestHandler;
   getProgram: RequestHandler;
+  getProgramTrainingContext: RequestHandler;
+  getProgramCoachReview: RequestHandler;
   createCustomProgram: RequestHandler;
   updateCustomProgram: RequestHandler;
+  updateManualProgramGoalContext: RequestHandler;
   listExercises: RequestHandler;
   recommendGuidedProgram: RequestHandler;
   followProgram: RequestHandler;
@@ -96,13 +108,17 @@ export type WorkoutHttpHandlers = {
   updateTrainingSettings: RequestHandler;
   getExerciseProgressionSettings: RequestHandler;
   updateExerciseProgressionSettings: RequestHandler;
+  resolveProgressionRecommendation: RequestHandler;
 };
 
 export function createWorkoutHandlers(dependencies: {
   listProgramsUseCase: ListProgramsUseCase;
   getProgramUseCase: GetProgramUseCase;
+  getProgramTrainingContextUseCase: GetProgramTrainingContextUseCase;
+  getProgramCoachReviewUseCase: GetProgramCoachReviewUseCase;
   createCustomProgramUseCase: CreateCustomProgramUseCase;
   updateCustomProgramUseCase: UpdateCustomProgramUseCase;
+  updateManualProgramGoalContextUseCase: UpdateManualProgramGoalContextUseCase;
   listExercisesUseCase: ListExercisesUseCase;
   recommendGuidedProgramUseCase: RecommendGuidedProgramUseCase;
   followProgramUseCase: FollowProgramUseCase;
@@ -125,6 +141,7 @@ export function createWorkoutHandlers(dependencies: {
   updateTrainingSettingsUseCase: UpdateTrainingSettingsUseCase;
   getExerciseProgressionSettingsUseCase: GetExerciseProgressionSettingsUseCase;
   updateExerciseProgressionSettingsUseCase: UpdateExerciseProgressionSettingsUseCase;
+  resolveProgressionRecommendationUseCase: ResolveProgressionRecommendationUseCase;
 }): WorkoutHttpHandlers {
   return {
     listPrograms: asyncHandler(async (_request, response) => {
@@ -137,6 +154,26 @@ export function createWorkoutHandlers(dependencies: {
       const context = getRequestContext(request);
       const params = validateParams(programParamsSchema, request);
       const result = await dependencies.getProgramUseCase.execute({
+        context,
+        programId: params.programId
+      });
+      response.json(success(result.data, result.meta));
+    }),
+
+    getProgramTrainingContext: asyncHandler(async (request, response) => {
+      const context = getRequestContext(request);
+      const params = validateParams(programParamsSchema, request);
+      const result = await dependencies.getProgramTrainingContextUseCase.execute({
+        context,
+        programId: params.programId
+      });
+      response.json(success(result.data, result.meta));
+    }),
+
+    getProgramCoachReview: asyncHandler(async (request, response) => {
+      const context = getRequestContext(request);
+      const params = validateParams(programParamsSchema, request);
+      const result = await dependencies.getProgramCoachReviewUseCase.execute({
         context,
         programId: params.programId
       });
@@ -229,6 +266,24 @@ export function createWorkoutHandlers(dependencies: {
         programId: params.programId,
         request: useCaseRequest
       });
+      response.json(success(result.data, result.meta));
+    }),
+
+    updateManualProgramGoalContext: asyncHandler(async (request, response) => {
+      const context = getRequestContext(request);
+      const params = validateParams(programParamsSchema, request);
+      const body = validateBody(updateManualProgramGoalContextBodySchema, request);
+
+      const useCaseRequest: UpdateManualProgramGoalContextRequest = {
+        manualGoalContext: body.manualGoalContext
+      };
+
+      const result = await dependencies.updateManualProgramGoalContextUseCase.execute({
+        context,
+        programId: params.programId,
+        request: useCaseRequest
+      });
+
       response.json(success(result.data, result.meta));
     }),
 
@@ -362,6 +417,7 @@ export function createWorkoutHandlers(dependencies: {
         ...(body.targetDistanceMeters !== undefined ? { targetDistanceMeters: body.targetDistanceMeters } : {}),
         ...(body.targetRounds !== undefined ? { targetRounds: body.targetRounds } : {}),
         ...(body.restSeconds !== undefined ? { restSeconds: body.restSeconds } : {}),
+        ...(body.setScheme !== undefined ? { setScheme: body.setScheme } : {}),
         ...(body.updatePlan !== undefined ? { updatePlan: body.updatePlan } : {})
       };
 
@@ -443,7 +499,13 @@ export function createWorkoutHandlers(dependencies: {
         ...(body.setType != null ? { setType: body.setType } : {}),
         ...(body.completedAt ? { completedAt: body.completedAt } : {}),
         ...(body.rir !== undefined ? { rir: body.rir } : {}),
-        ...(body.failureStatus !== undefined ? { failureStatus: body.failureStatus } : {})
+        ...(body.failureStatus !== undefined ? { failureStatus: body.failureStatus } : {}),
+        ...(body.tiers !== undefined ? { tiers: body.tiers.map((tier) => ({
+          order: tier.order,
+          ...(tier.actualWeight !== undefined ? { actualWeight: tier.actualWeight } : {}),
+          ...(tier.actualReps !== undefined ? { actualReps: tier.actualReps } : {}),
+          status: tier.status
+        })) } : {})
       };
 
       const result = await dependencies.logSetUseCase.execute({
@@ -470,7 +532,13 @@ export function createWorkoutHandlers(dependencies: {
         ...(body.setType != null ? { setType: body.setType } : {}),
         ...(body.completedAt ? { completedAt: body.completedAt } : {}),
         ...(body.rir !== undefined ? { rir: body.rir } : {}),
-        ...(body.failureStatus !== undefined ? { failureStatus: body.failureStatus } : {})
+        ...(body.failureStatus !== undefined ? { failureStatus: body.failureStatus } : {}),
+        ...(body.tiers !== undefined ? { tiers: body.tiers.map((tier) => ({
+          order: tier.order,
+          ...(tier.actualWeight !== undefined ? { actualWeight: tier.actualWeight } : {}),
+          ...(tier.actualReps !== undefined ? { actualReps: tier.actualReps } : {}),
+          status: tier.status
+        })) } : {})
       };
 
       const result = await dependencies.updateLoggedSetUseCase.execute({
@@ -576,6 +644,29 @@ export function createWorkoutHandlers(dependencies: {
         context,
         request: useCaseRequest
       });
+      response.json(success(result.data, result.meta));
+    }),
+
+    resolveProgressionRecommendation: asyncHandler(async (request, response) => {
+      const context = getRequestContext(request);
+      const params = validateParams(workoutSessionProgressionEventParamsSchema, request);
+      const body = validateBody(resolveProgressionRecommendationBodySchema, request);
+
+      const useCaseRequest: ResolveProgressionRecommendationRequest = {
+        resolutionType: body.resolutionType,
+        ...(body.note !== undefined ? { note: body.note } : {}),
+        ...(body.relatedSetIds !== undefined ? { relatedSetIds: body.relatedSetIds } : {})
+      };
+
+      const result = await dependencies.resolveProgressionRecommendationUseCase.execute({
+        context,
+        sessionId: params.sessionId,
+        eventId: params.eventId,
+        resolutionType: useCaseRequest.resolutionType,
+        note: useCaseRequest.note ?? null,
+        relatedSetIds: useCaseRequest.relatedSetIds ?? null
+      });
+
       response.json(success(result.data, result.meta));
     })
   };

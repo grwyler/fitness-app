@@ -26,12 +26,19 @@ import type { UpdateTrainingSettingsUseCase } from "../application/use-cases/upd
 import type { GetExerciseProgressionSettingsUseCase } from "../application/use-cases/get-exercise-progression-settings.use-case.js";
 import type { UpdateExerciseProgressionSettingsUseCase } from "../application/use-cases/update-exercise-progression-settings.use-case.js";
 import type { RecommendGuidedProgramUseCase } from "../application/use-cases/recommend-guided-program.use-case.js";
+import type { ResolveProgressionRecommendationUseCase } from "../application/use-cases/resolve-progression-recommendation.use-case.js";
+import type { GetProgramTrainingContextUseCase } from "../application/use-cases/get-program-training-context.use-case.js";
+import type { UpdateManualProgramGoalContextUseCase } from "../application/use-cases/update-manual-program-goal-context.use-case.js";
+import type { GetProgramCoachReviewUseCase } from "../application/use-cases/get-program-coach-review.use-case.js";
 
 export function createWorkoutRouter(dependencies: {
   listProgramsUseCase: ListProgramsUseCase;
   getProgramUseCase: GetProgramUseCase;
+  getProgramTrainingContextUseCase: GetProgramTrainingContextUseCase;
+  getProgramCoachReviewUseCase: GetProgramCoachReviewUseCase;
   createCustomProgramUseCase: CreateCustomProgramUseCase;
   updateCustomProgramUseCase: UpdateCustomProgramUseCase;
+  updateManualProgramGoalContextUseCase: UpdateManualProgramGoalContextUseCase;
   listExercisesUseCase: ListExercisesUseCase;
   recommendGuidedProgramUseCase: RecommendGuidedProgramUseCase;
   followProgramUseCase: FollowProgramUseCase;
@@ -54,6 +61,7 @@ export function createWorkoutRouter(dependencies: {
   updateTrainingSettingsUseCase: UpdateTrainingSettingsUseCase;
   getExerciseProgressionSettingsUseCase: GetExerciseProgressionSettingsUseCase;
   updateExerciseProgressionSettingsUseCase: UpdateExerciseProgressionSettingsUseCase;
+  resolveProgressionRecommendationUseCase: ResolveProgressionRecommendationUseCase;
 }) {
   const router = Router();
   const handlers = createWorkoutHandlers(dependencies);
@@ -61,7 +69,10 @@ export function createWorkoutRouter(dependencies: {
   router.get("/programs", handlers.listPrograms);
   router.post("/programs", handlers.createCustomProgram);
   router.get("/programs/:programId", handlers.getProgram);
+  router.get("/programs/:programId/training-context", handlers.getProgramTrainingContext);
+  router.get("/programs/:programId/coach-review", handlers.getProgramCoachReview);
   router.put("/programs/:programId", handlers.updateCustomProgram);
+  router.put("/programs/:programId/training-context/manual-goal", handlers.updateManualProgramGoalContext);
   router.get("/exercises", handlers.listExercises);
   router.post("/guided-program/recommend", handlers.recommendGuidedProgram);
   router.post("/programs/:programId/follow", handlers.followProgram);
@@ -84,6 +95,10 @@ export function createWorkoutRouter(dependencies: {
   router.put("/training-settings", handlers.updateTrainingSettings);
   router.get("/exercise-progression-settings", handlers.getExerciseProgressionSettings);
   router.put("/exercise-progression-settings", handlers.updateExerciseProgressionSettings);
+  router.post(
+    "/workout-sessions/:sessionId/progression-events/:eventId/resolve",
+    handlers.resolveProgressionRecommendation
+  );
 
   return router;
 }

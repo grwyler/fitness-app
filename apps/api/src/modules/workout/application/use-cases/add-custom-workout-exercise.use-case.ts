@@ -243,7 +243,8 @@ export class AddCustomWorkoutExerciseUseCase {
                     : {}),
                   ...(input.request.progressionStrategy !== undefined
                     ? { progressionStrategy: input.request.progressionStrategy }
-                    : {})
+                    : {}),
+                  ...(input.request.setScheme !== undefined ? { setScheme: input.request.setScheme } : {})
                 },
                 { tx }
               );
@@ -270,7 +271,8 @@ export class AddCustomWorkoutExerciseUseCase {
               exerciseCategorySnapshot: exercise.category,
               loggingModalitySnapshot: exercise.loggingModality,
               progressionRuleSnapshot: {
-                incrementLbs: exercise.defaultIncrementLbs
+                incrementLbs: exercise.defaultIncrementLbs,
+                setScheme: input.request.setScheme ?? "straight"
               }
             },
             sets: Array.from({ length: input.request.targetSets }, (_, index) => ({

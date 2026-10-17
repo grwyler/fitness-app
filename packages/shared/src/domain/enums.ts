@@ -84,8 +84,29 @@ export type ProgressionResult = (typeof progressionResults)[number];
 export const progressionConfidenceLevels = ["low", "medium", "high"] as const;
 export type ProgressionConfidence = (typeof progressionConfidenceLevels)[number];
 
+export const progressionRecommendationResolutionTypes = [
+  "unresolved",
+  "accepted",
+  "smaller_increase",
+  "keep_current",
+  "ignored_bad_data",
+  "set_corrected",
+  "retest_next_time"
+] as const;
+export type ProgressionRecommendationResolutionType =
+  (typeof progressionRecommendationResolutionTypes)[number];
+
 export const progressionAggressivenessLevels = ["conservative", "balanced", "aggressive"] as const;
 export type ProgressionAggressiveness = (typeof progressionAggressivenessLevels)[number];
+
+export const trainingBlockStatuses = ["active", "completed", "paused", "abandoned"] as const;
+export type TrainingBlockStatus = (typeof trainingBlockStatuses)[number];
+
+export const trainingBlockSources = ["manual"] as const;
+export type TrainingBlockSource = (typeof trainingBlockSources)[number];
+
+export const coachReviewStatuses = ["not_started", "on_track", "needs_attention", "off_track"] as const;
+export type CoachReviewStatus = (typeof coachReviewStatuses)[number];
 
 export const progressionStrategies = [
   "fixed_weight",
@@ -96,6 +117,9 @@ export const progressionStrategies = [
 ] as const;
 export type ProgressionStrategy = (typeof progressionStrategies)[number];
 
+export const exerciseSetSchemes = ["straight", "ascending_pyramid", "reverse_pyramid", "amrap", "drop_multi_tier"] as const;
+export type ExerciseSetScheme = (typeof exerciseSetSchemes)[number];
+
 export const bodyweightProgressionModes = ["auto", "reps", "weighted"] as const;
 export type BodyweightProgressionMode = (typeof bodyweightProgressionModes)[number];
 
@@ -104,7 +128,10 @@ export const trainingGoals = [
   "hypertrophy",
   "general_fitness",
   "endurance",
-  "maintenance"
+  "maintenance",
+  "consistency",
+  "sport_support",
+  "custom"
 ] as const;
 export type TrainingGoal = (typeof trainingGoals)[number];
 

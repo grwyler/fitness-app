@@ -1,12 +1,13 @@
 import { useState } from "react";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import type { ProgressMetricDto, ProgressionUpdateDto } from "@fitness/shared";
+import type { ProgressMetricDto, ProgressionRecommendationResolutionType, ProgressionUpdateDto } from "@fitness/shared";
 import { StyleSheet, Text, View } from "react-native";
 import { Screen } from "../components/Screen";
 import { PrimaryButton } from "../components/PrimaryButton";
 import type { RootStackParamList } from "../core/navigation/navigation-types";
 import { FeedbackButton } from "../features/feedback/components/FeedbackButton";
 import { UnusualProgressionReviewCard } from "../features/workout/components/UnusualProgressionReviewCard";
+import { useResolveProgressionRecommendation } from "../features/workout/hooks/useResolveProgressionRecommendation";
 import { useTrainingSettings } from "../features/workout/hooks/useTrainingSettings";
 import {
   getWorkoutSummaryEncouragement,
@@ -29,11 +30,31 @@ export function WorkoutSummaryScreen({ navigation, route }: Props) {
   const { summary } = route.params;
   const trainingSettingsQuery = useTrainingSettings();
   const unitSystem = trainingSettingsQuery.data?.unitSystem ?? "imperial";
+  const resolveRecommendationMutation = useResolveProgressionRecommendation();
   const [lastAction, setLastAction] = useState<string | null>("completed_workout");
+  const [resolutionOverrides, setResolutionOverrides] = useState<
+    Record<
+      string,
+      { resolutionType: ProgressionRecommendationResolutionType; finalNextWeightLbs: number; finalNextRepGoal: number | null }
+    >
+  >({});
   const headline = getWorkoutSummaryHeadline(summary);
   const encouragement = getWorkoutSummaryEncouragement(summary, unitSystem);
   const outcomes = getWorkoutSummaryOutcomes(summary, unitSystem);
-  const unusualReviewItems = getUnusualProgressionReviewItems(summary, unitSystem);
+  const unusualReviewItems = getUnusualProgressionReviewItems(summary, unitSystem).map((item) => {
+    const eventId = item.recommendationEventId ?? null;
+    const override = eventId ? resolutionOverrides[eventId] : null;
+    if (!override) {
+      return item;
+    }
+
+    return {
+      ...item,
+      resolutionType: override.resolutionType,
+      finalNextWeightLbs: override.finalNextWeightLbs,
+      finalNextRepGoal: override.finalNextRepGoal
+    };
+  });
   const effortSetCount = summary.workoutSession.exercises.reduce((total, exercise) => {
     return (
       total +
@@ -80,6 +101,42 @@ export function WorkoutSummaryScreen({ navigation, route }: Props) {
 
       <UnusualProgressionReviewCard
         items={unusualReviewItems}
+        resolvingEventIds={
+          resolveRecommendationMutation.isPending && resolveRecommendationMutation.variables
+            ? { [resolveRecommendationMutation.variables.eventId]: true }
+            : {}
+        }
+        onResolveRecommendation={(input) => {
+          const eventId = input.eventId;
+          if (!eventId) {
+            return;
+          }
+
+          setLastAction(`resolve_recommendation_${input.resolutionType}`);
+          resolveRecommendationMutation.mutate(
+            {
+              sessionId: summary.workoutSession.id,
+              eventId,
+              request: {
+                resolutionType: input.resolutionType
+              }
+            },
+            {
+              onSuccess: (data) => {
+                const event = data.progressionRecommendationEvent;
+                const final = event.resolution?.final ?? event.originalRecommendation;
+                setResolutionOverrides((current) => ({
+                  ...current,
+                  [event.id]: {
+                    resolutionType: event.resolutionType,
+                    finalNextWeightLbs: final.nextWeight.value,
+                    finalNextRepGoal: final.nextRepGoal ?? null
+                  }
+                }));
+              }
+            }
+          );
+        }}
         onReviewWorkoutDetail={() => {
           setLastAction("review_unusual_progression");
           navigation.navigate("WorkoutHistoryDetail", { sessionId: summary.workoutSession.id });

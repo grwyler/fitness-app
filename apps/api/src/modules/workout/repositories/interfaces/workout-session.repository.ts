@@ -15,10 +15,22 @@ import type {
   WorkoutHistorySummaryRecord,
   WorkoutSessionGraph,
   WorkoutSessionRecord,
-  WorkoutSetForLoggingRecord
+  WorkoutSetForLoggingRecord,
+  ComparableExerciseHistory,
+  PendingSetTargetUpdate
 } from "../models/workout-session.persistence.js";
 
 export interface WorkoutSessionRepository {
+  findMostRecentComparableExerciseHistory?(
+    input: {
+      userId: string;
+      exerciseId: string;
+      workoutTemplateExerciseEntryId: string | null;
+      setScheme?: import("@fitness/shared").ExerciseSetScheme;
+      targetSets?: number;
+    },
+    options?: RepositoryOptions
+  ): Promise<ComparableExerciseHistory | null>;
   findInProgressByUserId(
     userId: string,
     options?: RepositoryOptions
@@ -74,6 +86,11 @@ export interface WorkoutSessionRepository {
     options?: RepositoryOptions
   ): Promise<WorkoutSetForLoggingRecord>;
 
+  updatePendingSetTargets?(
+    input: { exerciseEntryId: string; targets: PendingSetTargetUpdate[] },
+    options?: RepositoryOptions
+  ): Promise<void>;
+
   persistExerciseEntryFeedback(
     inputs: PersistExerciseEntryFeedbackInput[],
     options?: RepositoryOptions
@@ -114,6 +131,13 @@ export interface WorkoutSessionRepository {
   countCompletedByUserIdAndProgramId(
     userId: string,
     programId: string,
+    options?: RepositoryOptions
+  ): Promise<number>;
+
+  countCompletedByUserIdAndProgramIdWithinRange(
+    userId: string,
+    programId: string,
+    range: { startsAt: Date; endsAt: Date },
     options?: RepositoryOptions
   ): Promise<number>;
 
