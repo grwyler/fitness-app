@@ -18,6 +18,7 @@ import type {
   ExerciseWorkoutOutcome,
   ExerciseWorkoutSetOutcome
 } from "../models/progression.js";
+import type { GeneratedSetTarget, PrescriptionGenerationInput } from "../models/progression.js";
 import { resolveEffortFeedbackForProgression } from "./exercise-effort-summary.js";
 
 const MIN_RECALIBRATION_SET_COUNT = 2;
@@ -355,6 +356,244 @@ function hasExceptionalOverperformance(input: { outcome: ExerciseWorkoutOutcome;
 }
 
 export class ProgressionEngine {
+  private isManualTarget(reason: string | null | undefined): boolean {
+    return reason?.startsWith("manual") === true;
+  }
+  /**
+   * One deterministic prescription path for new and established users. Saved state
+   * is the fast projection; when absent/incomplete it is seeded from comparable
+   * completed history here, never by the workout-session factory.
+   */
+  public generatePrescription(input: PrescriptionGenerationInput): GeneratedSetTarget[] {
+    const { state, exercise, setScheme, targetSets } = input;
+    const explicit = input.explicitTargets ?? [];
+    const workingHistory = input.history?.sets.filter((set) => set.setType !== "warmup") ?? [];
+    const hasFailedSet = workingHistory.some((set) => set.status === "failed" || set.failureStatus != null);
+    const eligible = workingHistory.filter((set) => set.status === "completed" && set.failureStatus == null && set.actualReps !== null);
+    const allSuccessful = eligible.length > 0 && eligible.length === workingHistory.length && !hasFailedSet &&
+      eligible.every((set) => (set.actualReps ?? 0) >= (set.targetReps ?? 0));
+    const failedHistory = hasFailedSet;
+    const firstActual = eligible[0];
+    const lastSuccessful = eligible.at(-1) ?? null;
+    const priorSuccessfulSets = input.history?.previousSuccessfulSets?.filter((set) => set.setType !== "warmup" && set.status === "completed" && set.failureStatus == null) ?? [];
+    const priorSuccessfulLoad = [...priorSuccessfulSets].reverse().find((set) => (set.actualWeightLbs ?? set.targetWeightLbs) != null)?.actualWeightLbs ?? [...priorSuccessfulSets].reverse().find((set) => set.targetWeightLbs != null)?.targetWeightLbs ?? null;
+    const actualLoad = lastSuccessful?.actualWeightLbs;
+    const historicalLoad = actualLoad != null && actualLoad > 0
+      ? actualLoad
+      : lastSuccessful?.targetWeightLbs != null && lastSuccessful.targetWeightLbs > 0
+        ? lastSuccessful.targetWeightLbs
+        : priorSuccessfulLoad != null && priorSuccessfulLoad > 0 ? priorSuccessfulLoad : null;
+    const historicalPlannedLoad = [...workingHistory].reverse().find((set) => set.targetWeightLbs != null && set.targetWeightLbs > 0)?.targetWeightLbs ?? null;
+    const stateIsNewerThanHistory = state.lastPerformedAt !== null &&
+      (input.history?.completedAt == null || state.lastPerformedAt.getTime() >= input.history.completedAt.getTime());
+    const hasSavedProgress = stateIsNewerThanHistory;
+    const plannedCandidate = explicit.find((target) => target.targetWeight?.value != null)?.targetWeight?.value ?? input.planTargetWeightLbs ?? null;
+    const plannedLoad = plannedCandidate != null && plannedCandidate > 0 ? plannedCandidate : null;
+    const validSavedLoad = state.currentWeightLbs > 0 || exercise.isBodyweight || exercise.isWeightOptional;
+    const fallbackLoad = input.defaultStartingWeightLbs != null && input.defaultStartingWeightLbs > 0
+      ? input.defaultStartingWeightLbs
+      : exercise.isBodyweight || exercise.isWeightOptional ? 0 : null;
+    // Source-of-truth precedence: a current plan-scoped saved state wins only
+    // when it is at least as recent as comparable history. Otherwise use the
+    // reusable plan target, then successful actual history, then historical
+    // planned work, then a valid legacy state seed, and finally the exercise
+    // default. Zero is a valid fallback only for no-external-load movements.
+    const baselineLoad = hasSavedProgress && validSavedLoad
+      ? state.currentWeightLbs
+      : plannedLoad ?? historicalLoad ?? historicalPlannedLoad ?? (validSavedLoad ? state.currentWeightLbs : null) ?? fallbackLoad;
+    const historicalRep = lastSuccessful?.targetReps ?? state.repGoal;
+    const baselineRep = hasSavedProgress ? state.repGoal : historicalRep;
+
+    // History is evidence for the same engine's next small step. Failures and
+    // mixed outcomes hold; a successful sequence earns one rep (then one increment).
+    let nextLoad: number | null = baselineLoad;
+    let nextRep = Math.max(state.repRangeMin, Math.min(state.repRangeMax, baselineRep));
+    if (!hasSavedProgress && allSuccessful) {
+      const progressionSets = input.history?.sets.filter((set) => set.setType !== "warmup") ?? [];
+      const completedReps = progressionSets.map((set) => set.actualReps ?? set.targetReps ?? nextRep);
+      const priorTargets = progressionSets.map((set) => set.targetReps ?? nextRep);
+      const reachedPriorTargets = completedReps.every((reps, index) => reps >= (priorTargets[index] ?? nextRep));
+      const reachedRangeTop = nextRep >= state.repRangeMax;
+      const successfulWork = progressionSets.every((set) => (set.actualReps ?? 0) >= (set.targetReps ?? 0));
+      const completedAtTarget = completedReps.every((reps, index) => reps >= (priorTargets[index] ?? nextRep));
+      if (reachedPriorTargets && input.loggingModality !== "reps_only" &&
+          successfulWork && completedAtTarget && reachedRangeTop) {
+        nextLoad = baselineLoad === null ? null : baselineLoad + exercise.incrementLbs;
+        nextRep = state.repRangeMin;
+      } else if (reachedPriorTargets) {
+        nextRep = Math.min(state.repRangeMax, nextRep + 1);
+      }
+    } else if (!hasSavedProgress && failedHistory) {
+      const usable = firstActual;
+      if (usable) {
+        nextLoad = usable.actualWeightLbs ?? usable.targetWeightLbs ?? nextLoad;
+        nextRep = Math.max(state.repRangeMin, usable.targetReps ?? nextRep);
+      }
+      nextRep = Math.max(state.repRangeMin, nextRep);
+    }
+    if (hasSavedProgress && failedHistory) {
+      const missed = workingHistory.some((set) => set.status === "failed" || (set.actualReps ?? set.targetReps ?? 0) < (set.targetReps ?? 0));
+      if (missed) {
+        nextLoad = baselineLoad;
+        nextRep = Math.max(state.repRangeMin, Math.min(state.repRangeMax, state.repGoal));
+      }
+    }
+    const loadIsValid = baselineLoad !== null && (baselineLoad > 0 || exercise.isBodyweight || exercise.isWeightOptional);
+    if (!loadIsValid) nextLoad = plannedLoad ?? historicalLoad ?? historicalPlannedLoad ?? (validSavedLoad ? state.currentWeightLbs : null) ?? fallbackLoad;
+
+    let progressionReason: string | null = null;
+    const generated = Array.from({ length: targetSets }, (_, index): GeneratedSetTarget => {
+      const target = explicit[index];
+      let repTargetText = target?.repTargetText ?? null;
+      let reps = repTargetText?.trim().toUpperCase() === "AMRAP"
+        ? null
+        : repTargetText && /^\d+$/.test(repTargetText.trim()) ? Number(repTargetText.trim()) : nextRep;
+      let load = target?.targetWeight?.value ?? nextLoad;
+      const prior = eligible[index] ?? null;
+      if (prior && !target?.targetWeight && !hasSavedProgress) load = prior.actualWeightLbs ?? prior.targetWeightLbs ?? load;
+      if (prior && !target?.repTargetText && !hasSavedProgress) reps = nextRep;
+      if (setScheme === "ascending_pyramid" && !target?.targetWeight) {
+        load = nextLoad === null ? null : nextLoad + exercise.incrementLbs * index;
+        reps = reps === null ? null : Math.max(state.repRangeMin, nextRep - index);
+      } else if (setScheme === "reverse_pyramid" && !target?.targetWeight) {
+        load = nextLoad === null ? null : nextLoad + exercise.incrementLbs * (targetSets - index - 1);
+        reps = reps === null ? null : nextRep + index;
+      }
+      if (setScheme === "amrap" && index === targetSets - 1 && !repTargetText) {
+        reps = null;
+        repTargetText = "AMRAP";
+      }
+      if (setScheme === "ascending_pyramid" || setScheme === "reverse_pyramid") {
+        const perSetBaseline = eligible[index];
+        if (perSetBaseline && allSuccessful && perSetBaseline.actualReps !== null && perSetBaseline.actualReps >= (perSetBaseline.targetReps ?? nextRep)) {
+          progressionReason = "+1 rep from last session";
+        }
+      } else if (allSuccessful) {
+        progressionReason = nextLoad !== null && baselineLoad !== null && nextLoad > baselineLoad ? "Load increased" : nextRep > baselineRep ? "+1 rep from last session" : null;
+      }
+      const historicalTierSet = input.history?.sets.find((set) => set.setNumber === index + 1);
+      const historicalTiers = historicalTierSet?.tiers;
+      const historicalSet = input.history?.sets.find((set) => set.setNumber === index + 1) ?? null;
+      const tierSequenceSuccessful = !!historicalTiers?.length && historicalTiers.every((tier) => tier.status === "completed" && tier.actualReps != null && (tier.targetReps == null || tier.actualReps >= tier.targetReps));
+      const tiers = setScheme === "drop_multi_tier"
+        ? (target?.tiers?.length ? target.tiers : historicalTiers?.length ? historicalTiers : [
+            { order: 1, targetWeight: load === null ? null : { value: load, unit: "lb" as const }, targetReps: reps ?? nextRep },
+            { order: 2, targetWeight: load === null ? null : { value: Math.max(0, load - exercise.incrementLbs * 2), unit: "lb" as const }, targetReps: reps ?? nextRep }
+          ]).map((tier, tierIndex) => {
+            const priorTier = historicalTiers?.find((prior) => prior.order === tier.order) ?? historicalTiers?.[tierIndex];
+            const priorSuccessful = tierSequenceSuccessful && priorTier?.status === "completed" && priorTier.actualReps !== null && priorTier.actualReps !== undefined;
+            const repGoal = priorSuccessful
+              ? Math.max(1, (priorTier.actualReps ?? tier.targetReps ?? nextRep) + 1)
+              : tier.targetReps ?? nextRep;
+            // A multi-tier sequence has its own rep bands per tier. Progress it
+            // with one rep at a time; seed changed loads from actual performance,
+            // and leave load escalation to a later progression decision.
+            const nextTierLoad = priorSuccessful
+              ? priorTier?.actualWeight?.value ?? priorTier?.targetWeight?.value ?? tier.targetWeight?.value ?? load
+              : tier.targetWeight?.value ?? load;
+            return {
+              ...tier,
+              targetWeight: nextTierLoad === null ? null : { value: nextTierLoad, unit: "lb" as const },
+              targetReps: repGoal,
+              originalTargetWeight: tier.originalTargetWeight ?? tier.targetWeight ?? null,
+              originalTargetReps: tier.originalTargetReps ?? tier.targetReps ?? null,
+              previousActualWeight: priorTier?.actualWeight ?? null,
+              previousActualReps: priorTier?.actualReps ?? null,
+              adaptationReason: priorSuccessful ? "+1 rep from last session" : null,
+              actualWeight: null,
+              actualReps: null,
+              status: "pending" as const
+            };
+          })
+        : null;
+      return {
+        setNumber: index + 1,
+        targetReps: reps,
+        targetWeightLbs: load,
+        repTargetText,
+        tiers,
+        previousActualReps: historicalSet?.actualReps ?? null,
+        previousActualWeightLbs: historicalSet?.actualWeightLbs ?? null,
+        reason: progressionReason
+      };
+    });
+
+    // Explicit per-set targets are authoritative. History only fills gaps and the
+    // same progression decision is then materialized across the chosen structure.
+    return generated;
+  }
+
+  /** Reassess only pending targets; deterministic updates share the engine boundary. */
+  public adaptRemainingTargets(input: {
+    targetReps: number | null;
+    targetWeightLbs: number | null;
+    actualReps: number | null;
+    actualWeightLbs: number | null;
+    status: "completed" | "failed";
+    rir?: import("@fitness/shared").SetRir | null;
+    repRangeMin: number;
+    repRangeMax: number;
+    tiers?: import("@fitness/shared").WorkoutSetTierDto[] | null;
+    pending: Array<{ setId: string; targetReps: number | null; targetWeightLbs: number | null; tiers?: import("@fitness/shared").WorkoutSetTierDto[] | null; adaptationReason?: string | null }>;
+  }): Array<{ setId: string; targetReps: number | null; targetWeightLbs: number | null; tiers?: import("@fitness/shared").WorkoutSetTierDto[]; reason: string }> {
+    if (input.tiers?.length) {
+      const skipped = input.tiers.some((tier) => tier.status === "skipped");
+      const failed = input.tiers.some((tier) => tier.status === "failed" || (tier.status === "completed" && tier.targetReps != null && (tier.actualReps ?? 0) < tier.targetReps));
+      const complete = input.tiers.every((tier) => tier.status === "completed" && (tier.targetReps == null || (tier.actualReps ?? 0) >= tier.targetReps));
+      // A skipped tier means there is not enough evidence to adapt an extended
+      // sequence. A failed performed tier earns only a one-rep ease on future
+      // sequences; it never changes their loads.
+      if (skipped || (!failed && !complete)) return [];
+      const reason = failed ? "Held after difficult tier sequence" : input.tiers.some((tier) => tier.actualWeight?.value !== tier.targetWeight?.value) ? "Adjusted to performed tier loads" : "+1 rep after successful tier sequence";
+      return input.pending.filter((set) => !this.isManualTarget(set.adaptationReason)).flatMap((set) => {
+        if (!set.tiers?.length) return [];
+        let changed = false;
+        const tiers = set.tiers.map((tier) => {
+          if (this.isManualTarget(tier.adaptationReason)) return tier;
+          const priorTier = input.tiers?.find((item) => item.order === tier.order);
+          if (!priorTier) return tier;
+          if (failed) {
+            if (tier.targetReps == null) return tier;
+            const targetReps = Math.max(input.repRangeMin, tier.targetReps - 1);
+            changed ||= targetReps !== tier.targetReps;
+              return { ...tier, targetReps, ...(targetReps !== tier.targetReps ? { adaptationReason: reason } : {}) };
+          }
+          const performedWeight = priorTier.actualWeight?.value ?? null;
+          const weightChanged = performedWeight !== null && performedWeight !== priorTier.targetWeight?.value;
+          const comfortable = input.rir != null && ["rir_3", "rir_4", "rir_5_plus"].includes(input.rir) && priorTier.targetReps != null && (priorTier.actualReps ?? 0) >= priorTier.targetReps;
+          const targetReps = comfortable && tier.targetReps != null ? tier.targetReps + 1 : tier.targetReps;
+          const targetWeight = weightChanged ? { value: performedWeight!, unit: "lb" as const } : tier.targetWeight;
+          changed ||= targetReps !== tier.targetReps || weightChanged;
+          return {
+            ...tier,
+            ...(targetReps !== undefined ? { targetReps } : {}),
+            ...(weightChanged ? { targetWeight } : {}),
+            ...(targetReps !== tier.targetReps || weightChanged ? { adaptationReason: reason } : {})
+          };
+        });
+        const setComfortable = !failed && input.rir != null && ["rir_3", "rir_4", "rir_5_plus"].includes(input.rir);
+        const targetReps = setComfortable && set.targetReps !== null ? Math.min(input.repRangeMax, set.targetReps + 1) : set.targetReps;
+        changed ||= targetReps !== set.targetReps;
+        return changed ? [{ setId: set.setId, targetReps, targetWeightLbs: set.targetWeightLbs, tiers, reason }] : [];
+      });
+    }
+    const missed = input.status === "failed" || (input.actualReps !== null && input.targetReps !== null && input.actualReps < input.targetReps);
+    const comfortable = input.status === "completed" && input.actualReps !== null && input.targetReps !== null &&
+      input.actualReps >= input.targetReps + 2 && ["rir_3", "rir_4", "rir_5_plus"].includes(input.rir ?? "");
+    const changedLoad = input.actualWeightLbs !== null && input.targetWeightLbs !== null && input.actualWeightLbs !== input.targetWeightLbs;
+    if (!missed && !comfortable && !changedLoad) return [];
+    const reason = missed ? "Adjusted after missed target" : changedLoad ? "Adjusted to performed load" : "+1 rep after comfortable set";
+    return input.pending.filter((set) => !this.isManualTarget(set.adaptationReason)).flatMap((set) => {
+      const reps = set.targetReps === null ? null : missed
+        ? Math.max(input.repRangeMin, set.targetReps - 1)
+        : comfortable ? Math.min(input.repRangeMax, set.targetReps + 1) : set.targetReps;
+      const weight = changedLoad ? input.actualWeightLbs : set.targetWeightLbs;
+      return reps !== set.targetReps || weight !== set.targetWeightLbs
+        ? [{ setId: set.setId, targetReps: reps, targetWeightLbs: weight, reason }]
+        : [];
+    });
+  }
+
   public calculateWithStrategyV2(
     input: ProgressionComputationInputV2 & { strategy: ProgressionStrategy }
   ): ProgressionComputationResultV2 {

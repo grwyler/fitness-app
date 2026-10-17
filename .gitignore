@@ -18,3 +18,16 @@ coverage/
 .env.api.staging
 .env.web.staging
 .env.vercel.local
+
+# Android build state and machine-local SDK configuration
+android/.gradle/
+android/.gradle-user-home/
+android/local.properties
+android/app/build/
+
+# Android signing material must never be committed
+android/*.jks
+android/*.keystore
+android/signing.properties
+
+android/build/

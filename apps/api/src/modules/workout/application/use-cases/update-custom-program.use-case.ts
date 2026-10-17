@@ -129,6 +129,7 @@ function validateUpdateCustomProgramRequest(request: UpdateCustomProgramRequest)
           targetRounds,
           restSeconds: exercise.restSeconds ?? null,
           progressionStrategy: exercise.progressionStrategy ?? null,
+          setScheme: exercise.setScheme ?? "straight",
           ...(repTargetText ? { repTargetText } : {}),
           ...(exercise.targetWeight ? { targetWeight: exercise.targetWeight } : {}),
           ...(notes ? { notes } : {}),

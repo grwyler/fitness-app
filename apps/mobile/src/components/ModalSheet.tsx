@@ -33,9 +33,8 @@ export function ModalSheet({
         onPress={onClose}
         style={styles.backdrop}
       >
-        <Pressable
-          accessibilityRole="none"
-          onPress={() => null}
+        <View
+          onStartShouldSetResponder={() => true}
           style={[styles.sheet, { maxWidth }, style]}
         >
           {(title || subtitle || headerRight) ? (
@@ -52,7 +51,7 @@ export function ModalSheet({
             </View>
           ) : null}
           {contentStyle ? <View style={contentStyle}>{children}</View> : children}
-        </Pressable>
+        </View>
       </Pressable>
     </Modal>
   );

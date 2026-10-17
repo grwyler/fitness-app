@@ -355,6 +355,9 @@ async function completeSingleExerciseWorkoutScenario(input: {
     async countCompletedByUserIdAndProgramId() {
       return 0;
     },
+    async countCompletedByUserIdAndProgramIdWithinRange() {
+      return 0;
+    },
     async listCompletedProgressionByUserId() {
       return [];
     }
@@ -843,6 +846,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         async countCompletedByUserIdAndProgramId() {
           return 0;
         },
+        async countCompletedByUserIdAndProgramIdWithinRange() {
+          return 0;
+        },
         async listCompletedProgressionByUserId() {
           return [];
         }
@@ -1167,6 +1173,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         async countCompletedByUserIdAndProgramId() {
           return 0;
         },
+        async countCompletedByUserIdAndProgramIdWithinRange() {
+          return 0;
+        },
         async listCompletedProgressionByUserId() {
           return [];
         }
@@ -1401,6 +1410,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         async countCompletedByUserIdAndProgramId() {
           return 0;
         },
+        async countCompletedByUserIdAndProgramIdWithinRange() {
+          return 0;
+        },
         async listCompletedProgressionByUserId() {
           return [];
         }
@@ -1554,6 +1566,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         async countCompletedByUserIdAndProgramId() {
           return 0;
         },
+        async countCompletedByUserIdAndProgramIdWithinRange() {
+          return 0;
+        },
         async listCompletedProgressionByUserId() {
           return [];
         }
@@ -1666,20 +1681,36 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
     run: async () => {
       const idempotency = createMockIdempotencyRepository();
       const workoutGraph = createBaseWorkoutSessionGraph();
+      workoutGraph.exerciseEntries[0]!.repRangeMin = 8;
+      workoutGraph.exerciseEntries[0]!.repRangeMax = 12;
+      workoutGraph.sets[2]!.adaptationReason = "manual override";
+      workoutGraph.sets[0]!.tiers = [
+        { order: 1, targetWeight: { value: 100, unit: "lb" }, targetReps: 8, actualWeight: null, actualReps: null, status: "pending" },
+        { order: 2, targetWeight: { value: 90, unit: "lb" }, targetReps: 10, actualWeight: null, actualReps: null, status: "pending" }
+      ];
+      workoutGraph.sets[1]!.tiers = [
+        { order: 1, targetWeight: { value: 100, unit: "lb" }, targetReps: 8, actualWeight: null, actualReps: null, status: "pending" },
+        { order: 2, targetWeight: { value: 90, unit: "lb" }, targetReps: 10, actualWeight: null, actualReps: null, status: "pending" }
+      ];
       const updatedGraph: WorkoutSessionGraph = {
         ...workoutGraph,
         sets: workoutGraph.sets.map((set) =>
           set.id === "set-1"
             ? {
                 ...set,
-                actualReps: 8,
+                actualReps: 10,
                 actualWeightLbs: 135,
+                tiers: set.tiers?.map((tier) => ({ ...tier, actualReps: tier.targetReps ?? 0, actualWeight: tier.targetWeight ?? null, status: "completed" })) ?? null,
                 status: "completed",
+                rir: "rir_5_plus",
                 completedAt: new Date("2026-04-24T10:05:00.000Z")
               }
             : set
         )
       };
+      let responseGraph = updatedGraph;
+      let adaptedTargets: Array<{ setId: string; targetReps: number | null; targetWeightLbs: number | null; reason: string }> = [];
+      const historicalSetIds = new Set(["set-1"]);
 
       const workoutSessionRepository: WorkoutSessionRepository = {
         async findInProgressByUserId() {
@@ -1689,7 +1720,7 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
           return null;
         },
         async findOwnedSessionGraphById() {
-          return updatedGraph;
+          return responseGraph;
         },
         async findOwnedSetForLogging() {
           return {
@@ -1726,6 +1757,17 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
             workoutSession: updatedGraph.session
           };
         },
+        async updatePendingSetTargets(input) {
+          adaptedTargets = input.targets;
+          const changes = new Map(input.targets.map((target) => [target.setId, target]));
+          responseGraph = {
+            ...responseGraph,
+            sets: responseGraph.sets.map((set) => {
+              const target = changes.get(set.id);
+              return target ? { ...set, targetReps: target.targetReps, targetWeightLbs: target.targetWeightLbs, adaptationReason: target.reason } : set;
+            })
+          };
+        },
         async persistExerciseEntryFeedback() {},
         async skipPendingWorkoutSets() {
           return 0;
@@ -1748,6 +1790,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         async countCompletedByUserIdAndProgramId() {
           return 0;
         },
+        async countCompletedByUserIdAndProgramIdWithinRange() {
+          return 0;
+        },
         async listCompletedProgressionByUserId() {
           return [];
         }
@@ -1763,7 +1808,12 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         context: { userId: "user-1", unitSystem: "imperial" },
         setId: "set-1",
         request: {
-          actualReps: 8
+          actualReps: 10,
+          rir: "rir_5_plus",
+          tiers: [
+            { order: 1, actualReps: 8, actualWeight: { value: 100, unit: "lb" }, status: "completed" },
+            { order: 2, actualReps: 10, actualWeight: { value: 90, unit: "lb" }, status: "completed" }
+          ]
         },
         idempotencyKey: "log-key-1"
       });
@@ -1771,6 +1821,13 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
       assert.equal(result.data.set.id, "set-1");
       assert.equal(result.data.set.status, "completed");
       assert.equal(result.data.exerciseEntry.completedSetCount, 1);
+      assert.equal(adaptedTargets.find((target) => target.setId === "set-2")?.targetReps, 9);
+      assert.ok(adaptedTargets.every((target) => !historicalSetIds.has(target.setId)));
+      assert.ok(!adaptedTargets.some((target) => target.setId === "set-3"));
+      assert.equal(result.data.set.originalTargetReps, workoutGraph.sets[0]?.originalTargetReps ?? workoutGraph.sets[0]?.targetReps);
+      assert.deepEqual(result.data.set.tiers?.map((tier) => tier.actualReps), [8, 10]);
+      assert.deepEqual(result.data.set.tiers?.map((tier) => tier.order), [1, 2]);
+      assert.match(adaptedTargets.find((target) => target.setId === "set-2")?.reason ?? "", /successful tier sequence/);
       assert.equal(result.meta.replayed, false);
     }
   },
@@ -1878,6 +1935,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
           return 0;
         },
         async countCompletedByUserIdAndProgramId() {
+          return 0;
+        },
+        async countCompletedByUserIdAndProgramIdWithinRange() {
           return 0;
         },
         async listCompletedProgressionByUserId() {
@@ -2010,6 +2070,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         async countCompletedByUserIdAndProgramId() {
           return 0;
         },
+        async countCompletedByUserIdAndProgramIdWithinRange() {
+          return 0;
+        },
         async listCompletedProgressionByUserId() {
           return [];
         }
@@ -2120,6 +2183,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
           return 0;
         },
         async countCompletedByUserIdAndProgramId() {
+          return 0;
+        },
+        async countCompletedByUserIdAndProgramIdWithinRange() {
           return 0;
         },
         async listCompletedProgressionByUserId() {
@@ -2255,6 +2321,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         async countCompletedByUserIdAndProgramId() {
           return 0;
         },
+        async countCompletedByUserIdAndProgramIdWithinRange() {
+          return 0;
+        },
         async listCompletedProgressionByUserId() {
           return [];
         }
@@ -2384,6 +2453,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
           return 0;
         },
         async countCompletedByUserIdAndProgramId() {
+          return 0;
+        },
+        async countCompletedByUserIdAndProgramIdWithinRange() {
           return 0;
         },
         async listCompletedProgressionByUserId() {
@@ -2579,6 +2651,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         },
         async listRecentByUserId() {
           return [];
+        },
+        async countUnresolvedByUserIdAndProgramIdWithinRange() {
+          return 0;
         }
       };
 
@@ -2769,6 +2844,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         async countCompletedByUserIdAndProgramId() {
           return 0;
         },
+        async countCompletedByUserIdAndProgramIdWithinRange() {
+          return 0;
+        },
         async listCompletedProgressionByUserId() {
           return [];
         }
@@ -2877,6 +2955,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         },
         async listRecentByUserId() {
           return [];
+        },
+        async countUnresolvedByUserIdAndProgramIdWithinRange() {
+          return 0;
         }
       };
 
@@ -3050,6 +3131,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         async countCompletedByUserIdAndProgramId() {
           return 0;
         },
+        async countCompletedByUserIdAndProgramIdWithinRange() {
+          return 0;
+        },
         async listCompletedProgressionByUserId() {
           return [];
         }
@@ -3156,6 +3240,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         },
         async listRecentByUserId() {
           return [];
+        },
+        async countUnresolvedByUserIdAndProgramIdWithinRange() {
+          return 0;
         }
       };
 
@@ -3337,6 +3424,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         async countCompletedByUserIdAndProgramId() {
           return 0;
         },
+        async countCompletedByUserIdAndProgramIdWithinRange() {
+          return 0;
+        },
         async listCompletedProgressionByUserId() {
           return [];
         }
@@ -3442,6 +3532,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         },
         async listRecentByUserId() {
           return [];
+        },
+        async countUnresolvedByUserIdAndProgramIdWithinRange() {
+          return 0;
         }
       };
 
@@ -3758,6 +3851,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         async countCompletedByUserIdAndProgramId() {
           return 0;
         },
+        async countCompletedByUserIdAndProgramIdWithinRange() {
+          return 0;
+        },
         async listCompletedProgressionByUserId() {
           return [];
         }
@@ -3883,6 +3979,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
         },
         async listRecentByUserId() {
           return [];
+        },
+        async countUnresolvedByUserIdAndProgramIdWithinRange() {
+          return 0;
         }
       };
 
@@ -4020,6 +4119,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
           return 0;
         },
         async countCompletedByUserIdAndProgramId() {
+          return 0;
+        },
+        async countCompletedByUserIdAndProgramIdWithinRange() {
           return 0;
         },
         async listCompletedProgressionByUserId() {
@@ -4222,6 +4324,9 @@ export const applicationUseCaseTestCases: ApplicationTestCase[] = [
           return 1;
         },
         async countCompletedByUserIdAndProgramId() {
+          return 1;
+        },
+        async countCompletedByUserIdAndProgramIdWithinRange() {
           return 1;
         },
         async listCompletedProgressionByUserId() {

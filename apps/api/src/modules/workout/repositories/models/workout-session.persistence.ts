@@ -7,7 +7,9 @@ import type {
   SetRir,
   SetStatus,
   WorkoutSetType,
-  WorkoutSessionStatus
+  WorkoutSessionStatus,
+  WorkoutSetTierDto,
+  ExerciseSetScheme
 } from "@fitness/shared";
 
 export type WorkoutSessionRecord = {
@@ -58,9 +60,16 @@ export type SetRecord = {
   exerciseEntryId: string;
   setNumber: number;
   setType: WorkoutSetType;
+  repTargetText?: string | null;
   targetReps: number | null;
+  originalTargetReps?: number | null;
   actualReps: number | null;
   targetWeightLbs: number | null;
+  originalTargetWeightLbs?: number | null;
+  previousActualReps?: number | null;
+  previousActualWeightLbs?: number | null;
+  adaptationReason?: string | null;
+  tiers?: WorkoutSetTierDto[] | null;
   actualWeightLbs: number | null;
   targetDurationSeconds?: number | null;
   actualDurationSeconds?: number | null;
@@ -86,6 +95,13 @@ export type WorkoutSetForLoggingRecord = {
   set: SetRecord;
   exerciseEntry: ExerciseEntryRecord;
   workoutSession: WorkoutSessionRecord;
+};
+
+export type ComparableExerciseHistory = {
+  workoutTemplateExerciseEntryId: string | null;
+  completedAt?: Date | null;
+  previousSuccessfulSets?: Array<Pick<SetRecord, "setNumber" | "setType" | "targetReps" | "actualReps" | "targetWeightLbs" | "actualWeightLbs" | "status" | "failureStatus" | "tiers">>;
+  sets: Array<Pick<SetRecord, "setNumber" | "setType" | "targetReps" | "actualReps" | "targetWeightLbs" | "actualWeightLbs" | "status" | "failureStatus" | "tiers">>;
 };
 
 export type CreateWorkoutSessionGraphInput = {
@@ -121,6 +137,15 @@ export type UpdateWorkoutExerciseEntryInput = {
   targetDistanceMeters?: number | null;
   targetRounds?: number | null;
   restSeconds: number | null;
+  setScheme?: ExerciseSetScheme;
+  manualTargetOverride?: boolean;
+  setTargets?: Array<{
+    setNumber: number;
+    targetReps: number | null;
+    targetWeightLbs: number | null;
+    repTargetText: string | null;
+    tiers: import("@fitness/shared").WorkoutSetTierDto[] | null;
+  }>;
 };
 
 export type DeleteWorkoutExerciseEntryInput = {
@@ -139,6 +164,15 @@ export type UpdateLoggedSetInput = {
   completedAt: Date;
   rir?: SetRir | null;
   failureStatus?: SetFailureStatus | null;
+  tiers?: WorkoutSetTierDto[] | null;
+};
+
+export type PendingSetTargetUpdate = {
+  setId: string;
+  targetReps: number | null;
+  targetWeightLbs: number | null;
+  reason: string;
+  tiers?: WorkoutSetTierDto[] | null;
 };
 
 export type CompleteWorkoutSessionPersistenceInput = {

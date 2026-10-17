@@ -198,6 +198,29 @@ create index idx_program_training_contexts_program_id on program_training_contex
 create index idx_program_training_contexts_enrollment_id on program_training_contexts(enrollment_id);
 create index idx_program_training_contexts_user_program on program_training_contexts(user_id, program_id);
 
+create table training_blocks (
+  id text primary key,
+  user_id text not null references users(id),
+  program_id text not null references programs(id),
+  program_training_context_id text references program_training_contexts(id),
+  name text not null,
+  goal_type text,
+  source text not null default 'manual',
+  status text not null default 'active',
+  start_date timestamptz not null default now(),
+  planned_weeks integer not null,
+  target_workouts_per_week integer not null,
+  progression_style text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index idx_training_blocks_user_id on training_blocks(user_id);
+create index idx_training_blocks_program_id on training_blocks(program_id);
+create index idx_training_blocks_user_program on training_blocks(user_id, program_id);
+create index idx_training_blocks_status on training_blocks(status);
+create unique index idx_training_blocks_one_active on training_blocks(user_id, program_id)
+  where status = 'active';
+
 create table workout_template_exercise_entries (
   id text primary key,
   workout_template_id text not null references workout_templates(id),
@@ -209,6 +232,7 @@ create table workout_template_exercise_entries (
   rep_range_max integer,
   rest_seconds integer,
   progression_strategy text,
+  set_scheme text not null default 'straight',
   rep_target_text text,
   target_weight_lbs numeric(6,2),
   target_duration_seconds integer,
@@ -272,9 +296,16 @@ create table sets (
   exercise_entry_id text not null references exercise_entries(id),
   set_number integer not null,
   set_type text not null default 'working',
+  rep_target_text text,
   target_reps integer,
+  original_target_reps integer,
   actual_reps integer,
   target_weight_lbs numeric(6,2),
+  original_target_weight_lbs numeric(6,2),
+  previous_actual_reps integer,
+  previous_actual_weight_lbs numeric(6,2),
+  adaptation_reason text,
+  tiers jsonb,
   actual_weight_lbs numeric(6,2),
   target_duration_seconds integer,
   actual_duration_seconds integer,
@@ -659,6 +690,8 @@ export async function seedUpperLowerArmsProgram(context: WorkoutInfrastructureTe
       equipmentType: "bodyweight",
       defaultStartingWeightLbs: "0.00",
       defaultIncrementLbs: "2.50",
+      isBodyweight: true,
+      isWeightOptional: true,
       isActive: true,
       createdAt: now,
       updatedAt: now

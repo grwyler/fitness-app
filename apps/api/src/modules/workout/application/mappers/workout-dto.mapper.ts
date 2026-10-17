@@ -56,9 +56,15 @@ function mapSetDto(set: SetRecord) {
     exerciseEntryId: set.exerciseEntryId,
     setNumber: set.setNumber,
     setType: set.setType,
+    repTargetText: set.repTargetText ?? null,
     targetReps: set.targetReps,
+    originalTargetReps: set.originalTargetReps ?? set.targetReps,
     actualReps: set.actualReps,
     targetWeight: toNullableWeightValueDto(set.targetWeightLbs),
+    originalTargetWeight: toNullableWeightValueDto(set.originalTargetWeightLbs ?? set.targetWeightLbs),
+    previousActualReps: set.previousActualReps ?? null,
+    previousActualWeight: toNullableWeightValueDto(set.previousActualWeightLbs ?? null),
+    adaptationReason: set.adaptationReason ?? null,
     actualWeight: toNullableWeightValueDto(set.actualWeightLbs),
     targetDurationSeconds: set.targetDurationSeconds ?? null,
     actualDurationSeconds: set.actualDurationSeconds ?? null,
@@ -69,6 +75,12 @@ function mapSetDto(set: SetRecord) {
     status: set.status,
     rir: set.rir ?? null,
     failureStatus: set.failureStatus ?? null,
+    tiers: set.tiers?.map((tier) => ({
+      ...tier,
+      targetWeight: tier.targetWeight ? toWeightValueDto(tier.targetWeight.value) : null,
+      actualWeight: tier.actualWeight ? toWeightValueDto(tier.actualWeight.value) : null,
+      previousActualWeight: tier.previousActualWeight ? toWeightValueDto(tier.previousActualWeight.value) : null
+    })) ?? null,
     completedAt: toIsoString(set.completedAt)
   };
 }
@@ -83,6 +95,7 @@ function mapExerciseEntryDto(exerciseEntry: ExerciseEntryRecord, sets: SetRecord
     loggingModality: exerciseEntry.loggingModalitySnapshot,
     sequenceOrder: exerciseEntry.sequenceOrder,
     targetSets: exerciseEntry.targetSets,
+    setScheme: (exerciseEntry.progressionRuleSnapshot?.setScheme as ExerciseEntryDto["setScheme"]) ?? "straight",
     targetReps: exerciseEntry.targetReps,
     repRangeMin: exerciseEntry.targetReps === null ? null : (exerciseEntry.repRangeMin ?? exerciseEntry.targetReps),
     repRangeMax: exerciseEntry.targetReps === null ? null : (exerciseEntry.repRangeMax ?? exerciseEntry.targetReps),
@@ -198,6 +211,7 @@ export function mapProgramDto(definition: ProgramDefinition): ProgramDto {
             ...(exercise.targetRounds != null ? { targetRounds: exercise.targetRounds } : {}),
             restSeconds: exercise.restSeconds,
             ...(exercise.progressionStrategy != null ? { progressionStrategy: exercise.progressionStrategy } : {}),
+            setScheme: exercise.setScheme ?? "straight",
             ...(exercise.repTargetText != null ? { repTargetText: exercise.repTargetText } : {}),
             ...(exercise.targetWeight ? { targetWeight: exercise.targetWeight } : {}),
             ...(exercise.setTargets ? { setTargets: exercise.setTargets } : {}),

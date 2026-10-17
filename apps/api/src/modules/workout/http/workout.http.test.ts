@@ -1111,7 +1111,7 @@ export const workoutHttpTestCases: HttpTestCase[] = [
               });
               const logPayload = await readJson(logResponse);
 
-              assert.equal(logResponse.status, 200);
+              assert.equal(logResponse.status, 200, `${exercise.exerciseName} set ${set.setNumber}: ${JSON.stringify(logPayload)}`);
               assert.equal(logPayload.data.set.status, "completed");
             }
           }

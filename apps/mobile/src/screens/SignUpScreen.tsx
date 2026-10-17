@@ -4,8 +4,10 @@ import { StyleSheet, Text, TextInput, View } from "react-native";
 import { signUpWithPassword } from "../api/auth";
 import { Screen } from "../components/Screen";
 import { PrimaryButton } from "../components/PrimaryButton";
+import { OAuthButtons } from "../components/OAuthButtons";
 import type { RootStackParamList } from "../core/navigation/navigation-types";
 import { useAppAuth } from "../core/auth/AuthProvider";
+import { useOAuthAuth } from "../core/auth/use-oauth-auth";
 import { colors, spacing } from "../theme/tokens";
 
 type Props = NativeStackScreenProps<RootStackParamList, "SignUp">;
@@ -20,6 +22,10 @@ export function SignUpScreen({ navigation }: Props) {
   const [password, setPassword] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { oauthErrorMessage, oauthLoadingProvider, startOAuth } = useOAuthAuth({
+    intent: "signup",
+    enabledProviders: ["google"]
+  });
 
   const handleCreateAccount = async () => {
     if (isSubmitting) {
@@ -39,6 +45,13 @@ export function SignUpScreen({ navigation }: Props) {
       setErrorMessage(getErrorMessage(error));
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleGoogleSignUp = async () => {
+    const result = await startOAuth("google");
+    if (result) {
+      await auth.completeSignIn(result);
     }
   };
 
@@ -75,12 +88,17 @@ export function SignUpScreen({ navigation }: Props) {
           value={password}
         />
 
-        {errorMessage ? <Text style={styles.error}>{errorMessage}</Text> : null}
+        {errorMessage || oauthErrorMessage ? <Text style={styles.error}>{errorMessage ?? oauthErrorMessage}</Text> : null}
 
         <PrimaryButton
           label="Create account"
           loading={isSubmitting}
           onPress={() => void handleCreateAccount()}
+        />
+        <OAuthButtons
+          disabled={isSubmitting}
+          loading={oauthLoadingProvider === "google"}
+          onPressGoogle={() => void handleGoogleSignUp()}
         />
         <PrimaryButton
           label="Back to sign in"

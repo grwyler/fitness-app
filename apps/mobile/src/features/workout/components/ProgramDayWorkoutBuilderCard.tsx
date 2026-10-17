@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, View } from "react-native";
 import type {
   ProgramWorkoutExerciseDto,
   ProgramWorkoutTemplateDto,
+  ExerciseSetScheme,
   UnitSystem,
   WorkoutSetTargetDto
 } from "@fitness/shared";
@@ -68,6 +69,7 @@ type SetDraft = {
 type CustomizeState =
   | {
       entryId: string;
+      setScheme: ExerciseSetScheme;
       drafts: SetDraft[];
       showAdvanced: boolean;
       error: string | null;
@@ -333,7 +335,7 @@ export function ProgramDayWorkoutBuilderCard(props: {
     handleRemoveWorkoutIfEmpty(nextWorkout);
   }
 
-  function applySetTargets(entryId: string, setTargets: WorkoutSetTargetDto[]) {
+  function applySetTargets(entryId: string, setTargets: WorkoutSetTargetDto[], setScheme: ExerciseSetScheme) {
     if (!workout) {
       return;
     }
@@ -351,6 +353,7 @@ export function ProgramDayWorkoutBuilderCard(props: {
         return {
           ...entry,
           targetSets: setTargets.length,
+          setScheme,
           targetReps: derived?.targetReps ?? entry.targetReps,
           repTargetText: undefined,
           ...(derived?.repRangeMin != null &&
@@ -423,6 +426,7 @@ export function ProgramDayWorkoutBuilderCard(props: {
 
     setCustomize({
       entryId: entry.id,
+      setScheme: entry.setScheme ?? "straight",
       drafts: initialTargets.map((target) => ({
         repTargetText: target.repTargetText?.trim() ?? baseRepText,
         weightText: target.targetWeight
@@ -997,6 +1001,27 @@ export function ProgramDayWorkoutBuilderCard(props: {
               </View>
             </View>
 
+            <View style={styles.setInputs}>
+              <AppText variant="caption" tone="secondary">Set scheme</AppText>
+              <View style={styles.setTypeChips}>
+                {([
+                  ["straight", "Straight"],
+                  ["ascending_pyramid", "Ascending"],
+                  ["reverse_pyramid", "Reverse"],
+                  ["amrap", "AMRAP"],
+                  ["drop_multi_tier", "Drop / tiers"]
+                ] as Array<[ExerciseSetScheme, string]>).map(([scheme, label]) => (
+                  <Chip
+                    key={scheme}
+                    label={label}
+                    selected={customize.setScheme === scheme}
+                    variant={customize.setScheme === scheme ? "selected" : "muted"}
+                    onPress={() => setCustomize((current) => current ? { ...current, setScheme: scheme } : current)}
+                  />
+                ))}
+              </View>
+            </View>
+
             {customize.drafts.map((draft, index) => (
               <Card key={`set:${index + 1}`} padding="md" variant="elevated" contentStyle={styles.setCard}>
                 <AppText variant="bodyStrong">{`Set ${index + 1}`}</AppText>
@@ -1173,7 +1198,7 @@ export function ProgramDayWorkoutBuilderCard(props: {
                   });
                 }
 
-                applySetTargets(entryBeingCustomized.id, setTargets);
+                applySetTargets(entryBeingCustomized.id, setTargets, customize.setScheme);
                 setCustomize(null);
                 setEdit((current) =>
                   current && current.entryId === entryBeingCustomized.id ? { ...current, mode: "by_set" } : current
@@ -1308,5 +1333,10 @@ const styles = StyleSheet.create({
   },
   setInputs: {
     gap: spacing.sm
+  },
+  setTypeChips: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.xs
   }
 });

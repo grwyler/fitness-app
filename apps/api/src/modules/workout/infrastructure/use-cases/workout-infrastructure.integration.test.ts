@@ -8,6 +8,7 @@ import { CreateCustomProgramUseCase } from "../../application/use-cases/create-c
 import { LogSetUseCase } from "../../application/use-cases/log-set.use-case.js";
 import { StartWorkoutSessionUseCase } from "../../application/use-cases/start-workout-session.use-case.js";
 import { UpdateLoggedSetUseCase } from "../../application/use-cases/update-logged-set.use-case.js";
+import { UpdateWorkoutExerciseEntryUseCase } from "../../application/use-cases/update-workout-exercise-entry.use-case.js";
 import { UpdateCustomProgramUseCase } from "../../application/use-cases/update-custom-program.use-case.js";
 import type { InfrastructureTestCase } from "../test-helpers/infrastructure-test-case.js";
 import { eq } from "../db/drizzle-helpers.js";
@@ -53,6 +54,10 @@ async function createAndEnrollCustomProgram(input: {
       exerciseId: string;
       targetSets: number;
       targetReps: number;
+      setScheme?: import("@fitness/shared").ExerciseSetScheme;
+      repRangeMin?: number;
+      repRangeMax?: number;
+      targetWeight?: { value: number; unit: "lb" };
     }>;
   }>;
   idempotencyKey: string;
@@ -376,8 +381,8 @@ export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[]
         assert.equal(counts.progressionStatesV2, 1);
         assert.equal(counts.idempotencyRecords, 1);
         assert.equal(result.data.exercises[0]?.workoutTemplateExerciseEntryId, "template-entry-1");
-        assert.equal(result.data.exercises[0]?.repRangeMin, 8);
-        assert.equal(result.data.exercises[0]?.repRangeMax, 8);
+        assert.equal(result.data.exercises[0]?.repRangeMin, 6);
+        assert.equal(result.data.exercises[0]?.repRangeMax, 10);
       } finally {
         await disposeWorkoutInfrastructureTestContext(context);
       }
@@ -554,7 +559,7 @@ export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[]
           .from(progressionStatesV2)
           .where(eq(progressionStatesV2.workoutTemplateExerciseEntryId, templateEntryId));
 
-        assert.equal(String(before?.currentWeightLbs), "140.00");
+        assert.equal(String(before?.currentWeightLbs), "135.00");
 
         const updateUseCase = new UpdateCustomProgramUseCase(
           context.repositories.programRepository,
@@ -599,7 +604,7 @@ export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[]
         });
 
         assert.equal(started.data.exercises[0]!.workoutTemplateExerciseEntryId, templateEntryId);
-        assert.equal(started.data.exercises[0]!.targetWeight!.value, 140);
+        assert.equal(started.data.exercises[0]!.targetWeight!.value, 135);
       } finally {
         await disposeWorkoutInfrastructureTestContext(context);
       }
@@ -1016,6 +1021,96 @@ export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[]
         assert.equal(result.data.exerciseEntry.completedSetCount, 1);
         assert.equal(sessionGraph?.sets.find((set) => set.id === "set-1")?.status, "completed");
         assert.equal(sessionGraph?.sets.find((set) => set.id === "set-2")?.status, "pending");
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "Drop tier logging preserves target and actual snapshots across repository reload",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+      try {
+        await seedBaseWorkoutProgram(context);
+        await seedInProgressWorkout(context, { setStatuses: ["pending", "pending", "pending"], actualReps: [0, 0, 0] });
+        await context.db.insert(progressionStatesV2).values({
+          id: "v2-tier-adaptation",
+          userId: "user-1",
+          workoutTemplateExerciseEntryId: "template-entry-1",
+          currentWeightLbs: "135.00",
+          lastCompletedWeightLbs: "135.00",
+          repGoal: 8,
+          repRangeMin: 8,
+          repRangeMax: 16,
+          consecutiveFailures: 0,
+          lastEffortFeedback: "just_right",
+          lastPerformedAt: new Date("2026-04-24T10:00:00.000Z"),
+          createdAt: new Date("2026-04-24T10:00:00.000Z"),
+          updatedAt: new Date("2026-04-24T10:00:00.000Z")
+        });
+        const targets = [
+          { order: 1, originalTargetWeight: { value: 135, unit: "lb" as const }, originalTargetReps: 8, targetWeight: { value: 135, unit: "lb" as const }, targetReps: 8, actualWeight: null, actualReps: null, status: "pending" as const },
+          { order: 2, originalTargetWeight: { value: 115, unit: "lb" as const }, originalTargetReps: 10, targetWeight: { value: 115, unit: "lb" as const }, targetReps: 10, actualWeight: null, actualReps: null, status: "pending" as const },
+          { order: 3, originalTargetWeight: { value: 95, unit: "lb" as const }, originalTargetReps: 12, targetWeight: { value: 95, unit: "lb" as const }, targetReps: 12, actualWeight: null, actualReps: null, status: "pending" as const }
+        ];
+        await context.db.update(sets).set({ tiers: targets }).where(eq(sets.id, "set-1"));
+        const useCase = new LogSetUseCase(context.repositories.workoutSessionRepository, context.transactionManager, context.repositories.idempotencyRepository);
+        await useCase.execute({
+          context: { userId: "user-1", unitSystem: "imperial" }, setId: "set-1",
+          request: {
+            actualReps: 8, actualWeight: { value: 135, unit: "lb" },
+            tiers: [
+              { order: 1, status: "completed", actualReps: 9, actualWeight: { value: 140, unit: "lb" } },
+              { order: 2, status: "completed", actualReps: 10, actualWeight: { value: 115, unit: "lb" } },
+              { order: 3, status: "skipped" }
+            ]
+          }, idempotencyKey: "log-drop-partial-set"
+        });
+        const reloaded = await context.repositories.workoutSessionRepository.findOwnedSessionGraphById("user-1", "session-1");
+        const set = reloaded?.sets.find((item) => item.id === "set-1");
+        assert.equal(set?.status, "failed");
+        assert.deepEqual(set?.tiers?.map((tier) => [tier.order, tier.originalTargetWeight?.value, tier.targetWeight?.value, tier.actualWeight?.value ?? null, tier.actualReps, tier.status]), [
+          [1, 135, 135, 140, 9, "completed"], [2, 115, 115, 115, 10, "completed"], [3, 95, 95, null, null, "skipped"]
+        ]);
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "Completed tier sequences adapt only pending tier targets and preserve manual tier overrides",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+      try {
+        await seedBaseWorkoutProgram(context);
+        await seedInProgressWorkout(context, { setStatuses: ["pending", "pending", "pending"], actualReps: [0, 0, 0] });
+        const tierTargets = [
+          { order: 1, originalTargetWeight: { value: 135, unit: "lb" as const }, originalTargetReps: 8, targetWeight: { value: 135, unit: "lb" as const }, targetReps: 8, actualWeight: null, actualReps: null, status: "pending" as const },
+          { order: 2, originalTargetWeight: { value: 115, unit: "lb" as const }, originalTargetReps: 10, targetWeight: { value: 115, unit: "lb" as const }, targetReps: 10, actualWeight: null, actualReps: null, status: "pending" as const },
+          { order: 3, originalTargetWeight: { value: 95, unit: "lb" as const }, originalTargetReps: 12, targetWeight: { value: 95, unit: "lb" as const }, targetReps: 12, actualWeight: null, actualReps: null, status: "pending" as const }
+        ];
+        await context.db.update(sets).set({ tiers: tierTargets }).where(eq(sets.id, "set-1"));
+        await context.db.update(sets).set({ tiers: tierTargets }).where(eq(sets.id, "set-2"));
+        await context.db.update(sets).set({ tiers: tierTargets.map((tier) => ({ ...tier, adaptationReason: tier.order === 2 ? "manual override" : null })) }).where(eq(sets.id, "set-3"));
+        const useCase = new LogSetUseCase(context.repositories.workoutSessionRepository, context.transactionManager, context.repositories.idempotencyRepository);
+        await useCase.execute({
+          context: { userId: "user-1", unitSystem: "imperial" }, setId: "set-1",
+          request: {
+            actualReps: 10, actualWeight: { value: 135, unit: "lb" }, rir: "rir_4",
+            tiers: [
+              { order: 1, status: "completed", actualReps: 10, actualWeight: { value: 135, unit: "lb" } },
+              { order: 2, status: "completed", actualReps: 12, actualWeight: { value: 115, unit: "lb" } },
+              { order: 3, status: "completed", actualReps: 14, actualWeight: { value: 95, unit: "lb" } }
+            ]
+          }, idempotencyKey: "log-drop-complete-adapt"
+        });
+        const reloaded = await context.repositories.workoutSessionRepository.findOwnedSessionGraphById("user-1", "session-1");
+        const adapted = reloaded?.sets.find((item) => item.id === "set-2")?.tiers;
+        const manual = reloaded?.sets.find((item) => item.id === "set-3")?.tiers;
+        assert.deepEqual(adapted?.map((tier) => tier.targetReps), [9, 11, 13]);
+        assert.deepEqual(manual?.map((tier) => tier.targetReps), [9, 10, 13]);
+        assert.equal(manual?.[1]?.adaptationReason, "manual override");
+        assert.ok(adapted?.every((tier) => tier.adaptationReason === "+1 rep after successful tier sequence"));
       } finally {
         await disposeWorkoutInfrastructureTestContext(context);
       }
@@ -1999,6 +2094,259 @@ export const workoutInfrastructureIntegrationTestCases: InfrastructureTestCase[]
             error instanceof WorkoutApplicationError &&
             error.code === "IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD"
         );
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "Reusable set schemes survive plan reload, workout history, and next-session generation",
+    run: async () => {
+      const schemes = ["straight", "ascending_pyramid", "reverse_pyramid", "amrap", "drop_multi_tier"] as const;
+      for (const scheme of schemes) {
+        const context = await createWorkoutInfrastructureTestContext();
+        try {
+          await seedBaseWorkoutProgram(context);
+          const program = await createAndEnrollCustomProgram({
+            context, userId: "user-1", programName: `Lifecycle ${scheme}`, idempotencyKey: `create-scheme-${scheme}`,
+            workouts: [{ name: `Day ${scheme}`, exercises: [{ exerciseId: "exercise-1", targetSets: 3, targetReps: 8, targetWeight: { value: 100, unit: "lb" }, repRangeMin: 8, repRangeMax: 10, setScheme: scheme }] }]
+          });
+          const templateId = program.workouts[0]?.id;
+          assert.ok(templateId, `${scheme}: saved template id`);
+          const reloadedPlan = await context.repositories.programRepository.findActiveById(program.id, "user-1");
+          const planEntry = reloadedPlan?.templates[0]?.exercises[0];
+          assert.equal(planEntry?.setScheme, scheme, `${scheme}: scheme persisted on plan reload`);
+          assert.equal(planEntry?.repRangeMin, 8, `${scheme}: explicit minimum range persisted`);
+          assert.equal(planEntry?.repRangeMax, 10, `${scheme}: explicit maximum range persisted`);
+
+          const start = new StartWorkoutSessionUseCase(context.repositories.workoutSessionRepository, context.repositories.enrollmentRepository, context.repositories.progressionStateRepository, context.repositories.progressionStateV2Repository, context.repositories.exerciseRepository, context.transactionManager, context.repositories.idempotencyRepository);
+          const log = new LogSetUseCase(context.repositories.workoutSessionRepository, context.transactionManager, context.repositories.idempotencyRepository);
+          const complete = new CompleteWorkoutSessionUseCase(context.repositories.workoutSessionRepository, context.repositories.enrollmentRepository, context.repositories.progressionStateRepository, context.repositories.progressionStateV2Repository, context.repositories.exerciseRepository, context.repositories.userRepository, context.repositories.programRepository, context.repositories.progressMetricRepository, context.repositories.progressionRecommendationEventRepository, context.repositories.trainingSettingsRepository, context.repositories.exerciseProgressionSettingsRepository, context.transactionManager, context.repositories.idempotencyRepository);
+          const first = await start.execute({ context: { userId: "user-1", unitSystem: "imperial" }, request: { workoutTemplateId: templateId }, idempotencyKey: `start-scheme-${scheme}-1` });
+          const firstExercise = first.data.exercises[0]!;
+          assert.equal(firstExercise.setScheme, scheme);
+          if (scheme === "ascending_pyramid") assert.ok((firstExercise.sets[0]?.targetWeight?.value ?? 0) < (firstExercise.sets[2]?.targetWeight?.value ?? 0));
+          if (scheme === "reverse_pyramid") assert.ok((firstExercise.sets[0]?.targetWeight?.value ?? 0) > (firstExercise.sets[2]?.targetWeight?.value ?? 0));
+          if (scheme === "amrap") assert.equal(firstExercise.sets[2]?.repTargetText, "AMRAP");
+          if (scheme === "drop_multi_tier") assert.equal(firstExercise.sets[0]?.tiers?.length, 2);
+
+          for (const set of firstExercise.sets) {
+            const reps = set.targetReps == null ? 10 : set.targetReps + 1;
+            const firstTier = set.tiers?.[0];
+            await log.execute({ context: { userId: "user-1", unitSystem: "imperial" }, setId: set.id, request: {
+              actualReps: reps,
+              actualWeight: set.targetWeight ?? firstTier?.targetWeight ?? { value: 100, unit: "lb" },
+              ...(set.tiers?.length ? { tiers: set.tiers.map((tier) => ({ order: tier.order, status: "completed" as const, actualReps: (tier.targetReps ?? 8) + 1, actualWeight: tier.targetWeight ?? { value: 0, unit: "lb" as const } })) } : {})
+            }, idempotencyKey: `log-scheme-${scheme}-${set.id}` });
+          }
+          await complete.execute({ context: { userId: "user-1", unitSystem: "imperial" }, sessionId: first.data.id, request: { completedAt: "2026-07-01T10:45:00.000Z", exerciseFeedback: [] }, idempotencyKey: `complete-scheme-${scheme}-1` });
+          const historyGraph = await context.repositories.workoutSessionRepository.findOwnedSessionGraphById("user-1", first.data.id);
+          assert.equal(historyGraph?.exerciseEntries[0]?.progressionRuleSnapshot?.setScheme, scheme);
+          assert.equal(historyGraph?.sets[0]?.targetReps, firstExercise.sets[0]?.targetReps);
+          assert.equal(historyGraph?.sets[0]?.actualWeightLbs, firstExercise.sets[0]?.targetWeight?.value ?? firstExercise.sets[0]?.tiers?.[0]?.targetWeight?.value);
+          if (scheme === "drop_multi_tier") assert.ok(historyGraph?.sets[0]?.tiers?.every((tier) => tier.actualReps != null && tier.actualWeight != null));
+
+          const next = await start.execute({ context: { userId: "user-1", unitSystem: "imperial" }, request: {}, idempotencyKey: `start-scheme-${scheme}-2` });
+          const nextExercise = next.data.exercises[0]!;
+          assert.equal(nextExercise.setScheme, scheme, `${scheme}: scheme remains on next workout`);
+          assert.equal(nextExercise.sets.length, 3);
+          if (scheme === "ascending_pyramid") assert.ok((nextExercise.sets[0]?.targetWeight?.value ?? 0) < (nextExercise.sets[2]?.targetWeight?.value ?? 0));
+          if (scheme === "reverse_pyramid") assert.ok((nextExercise.sets[0]?.targetWeight?.value ?? 0) > (nextExercise.sets[2]?.targetWeight?.value ?? 0));
+          if (scheme === "amrap") assert.equal(nextExercise.sets[2]?.repTargetText, "AMRAP");
+          if (scheme === "drop_multi_tier") {
+            assert.ok((nextExercise.sets[0]?.tiers?.[0]?.targetReps ?? 0) > (firstExercise.sets[0]?.tiers?.[0]?.targetReps ?? 0));
+          } else {
+            assert.ok((nextExercise.sets[0]?.targetReps ?? 0) >= (firstExercise.sets[0]?.targetReps ?? 0));
+          }
+        } finally {
+          await disposeWorkoutInfrastructureTestContext(context);
+        }
+      }
+    }
+  },
+  {
+    name: "Drop-tier history preserves full, partial, and changed-load outcomes into the next prescription",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+      try {
+        await seedBaseWorkoutProgram(context);
+        const program = await createAndEnrollCustomProgram({ context, userId: "user-1", programName: "Drop Tier Lifecycle", workouts: [{ name: "Day 1", exercises: [{ exerciseId: "exercise-1", targetSets: 3, targetReps: 8, targetWeight: { value: 100, unit: "lb" }, repRangeMin: 8, repRangeMax: 10, setScheme: "drop_multi_tier" }] }], idempotencyKey: "drop-tier-lifecycle" });
+        const start = new StartWorkoutSessionUseCase(context.repositories.workoutSessionRepository, context.repositories.enrollmentRepository, context.repositories.progressionStateRepository, context.repositories.progressionStateV2Repository, context.repositories.exerciseRepository, context.transactionManager, context.repositories.idempotencyRepository);
+        const log = new LogSetUseCase(context.repositories.workoutSessionRepository, context.transactionManager, context.repositories.idempotencyRepository);
+        const complete = new CompleteWorkoutSessionUseCase(context.repositories.workoutSessionRepository, context.repositories.enrollmentRepository, context.repositories.progressionStateRepository, context.repositories.progressionStateV2Repository, context.repositories.exerciseRepository, context.repositories.userRepository, context.repositories.programRepository, context.repositories.progressMetricRepository, context.repositories.progressionRecommendationEventRepository, context.repositories.trainingSettingsRepository, context.repositories.exerciseProgressionSettingsRepository, context.transactionManager, context.repositories.idempotencyRepository);
+        const first = await start.execute({ context: { userId: "user-1", unitSystem: "imperial" }, request: { workoutTemplateId: program.workouts[0]!.id }, idempotencyKey: "drop-tier-start-1" });
+        const firstSets = first.data.exercises[0]!.sets;
+        assert.ok(firstSets.every((set) => set.tiers?.length === 2));
+        for (const initial of firstSets) {
+          const latest = await context.repositories.workoutSessionRepository.findOwnedSessionGraphById("user-1", first.data.id);
+          const set = latest!.sets.find((item) => item.id === initial.id)!;
+          const tiers = set.tiers!;
+          let tierLog: Array<{ order: number; status: "completed" | "skipped"; actualReps?: number; actualWeight?: { value: number; unit: "lb" } }>;
+          if (set.setNumber === 2) {
+            tierLog = [
+              { order: 1, status: "completed", actualReps: tiers[0]!.targetReps ?? 8, actualWeight: tiers[0]!.targetWeight ?? { value: 100, unit: "lb" } },
+              { order: 2, status: "skipped" }
+            ];
+          } else {
+            tierLog = tiers.map((tier) => ({ order: tier.order, status: "completed" as const, actualReps: (tier.targetReps ?? 8) + 1, actualWeight: { value: (tier.targetWeight?.value ?? 100) + (set.setNumber === 3 && tier.order === 1 ? 5 : 0), unit: "lb" as const } }));
+          }
+          await log.execute({ context: { userId: "user-1", unitSystem: "imperial" }, setId: set.id, request: { actualReps: tierLog[0]?.actualReps ?? null, actualWeight: tierLog[0]?.actualWeight ?? null, tiers: tierLog }, idempotencyKey: `drop-tier-log-${set.id}` });
+        }
+        await complete.execute({ context: { userId: "user-1", unitSystem: "imperial" }, sessionId: first.data.id, request: { completedAt: "2026-07-01T10:45:00.000Z", exerciseFeedback: [] }, idempotencyKey: "drop-tier-complete-1" });
+        const reloaded = await context.repositories.workoutSessionRepository.findOwnedSessionGraphById("user-1", first.data.id);
+        const partial = reloaded?.sets.find((set) => set.setNumber === 2);
+        const changed = reloaded?.sets.find((set) => set.setNumber === 3);
+        assert.equal(partial?.status, "failed");
+        assert.deepEqual(partial?.tiers?.map((tier) => tier.status), ["completed", "skipped"]);
+        assert.equal(changed?.tiers?.[0]?.targetWeight?.value, changed?.tiers?.[0]?.originalTargetWeight?.value);
+        assert.equal(changed?.tiers?.[0]?.actualWeight?.value, (changed?.tiers?.[0]?.targetWeight?.value ?? 0) + 5);
+
+        const next = await start.execute({ context: { userId: "user-1", unitSystem: "imperial" }, request: {}, idempotencyKey: "drop-tier-start-2" });
+        const nextSets = next.data.exercises[0]!.sets;
+        assert.equal(next.data.exercises[0]?.setScheme, "drop_multi_tier");
+        assert.equal(nextSets[0]?.tiers?.[0]?.targetReps, (firstSets[0]?.tiers?.[0]?.targetReps ?? 0) + 2);
+        assert.equal(nextSets[1]?.tiers?.[0]?.targetReps, firstSets[1]?.tiers?.[0]?.targetReps, "partial tier sequence holds instead of receiving full-sequence progression");
+        assert.equal(nextSets[2]?.tiers?.[0]?.targetWeight?.value, changed?.tiers?.[0]?.actualWeight?.value, "the performed tier load seeds its comparable next tier");
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "Session-only load, rep, and scheme overrides remain local while explicit reusable changes persist",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+      try {
+        await seedBaseWorkoutProgram(context);
+        const program = await createAndEnrollCustomProgram({
+          context, userId: "user-1", programName: "Override Lifecycle",
+          workouts: [{ name: "Day 1", exercises: [{ exerciseId: "exercise-1", targetSets: 3, targetReps: 8, targetWeight: { value: 100, unit: "lb" }, repRangeMin: 6, repRangeMax: 12, setScheme: "straight" }] }],
+          idempotencyKey: "override-lifecycle"
+        });
+        const start = new StartWorkoutSessionUseCase(context.repositories.workoutSessionRepository, context.repositories.enrollmentRepository, context.repositories.progressionStateRepository, context.repositories.progressionStateV2Repository, context.repositories.exerciseRepository, context.transactionManager, context.repositories.idempotencyRepository);
+        const log = new LogSetUseCase(context.repositories.workoutSessionRepository, context.transactionManager, context.repositories.idempotencyRepository);
+        const complete = new CompleteWorkoutSessionUseCase(context.repositories.workoutSessionRepository, context.repositories.enrollmentRepository, context.repositories.progressionStateRepository, context.repositories.progressionStateV2Repository, context.repositories.exerciseRepository, context.repositories.userRepository, context.repositories.programRepository, context.repositories.progressMetricRepository, context.repositories.progressionRecommendationEventRepository, context.repositories.trainingSettingsRepository, context.repositories.exerciseProgressionSettingsRepository, context.transactionManager, context.repositories.idempotencyRepository);
+        const update = new UpdateWorkoutExerciseEntryUseCase(context.repositories.workoutSessionRepository, context.repositories.exerciseRepository, context.repositories.progressionStateV2Repository, context.repositories.programRepository, context.transactionManager, context.repositories.idempotencyRepository);
+        const first = await start.execute({ context: { userId: "user-1", unitSystem: "imperial" }, request: { workoutTemplateId: program.workouts[0]!.id }, idempotencyKey: "override-session-1" });
+        const entryId = first.data.exercises[0]!.id;
+        assert.equal(first.data.exercises[0]?.sets[0]?.targetWeight?.value, 100, "Reusable plan load overrides exercise profile defaults.");
+        await update.execute({ context: { userId: "user-1", unitSystem: "imperial" }, sessionId: first.data.id, exerciseEntryId: entryId, request: { targetSets: 3, targetReps: 10, targetWeight: { value: 110, unit: "lb" }, setScheme: "reverse_pyramid", updatePlan: false }, idempotencyKey: "override-session-only" });
+        const adaptedSession = await context.repositories.workoutSessionRepository.findOwnedSessionGraphById("user-1", first.data.id);
+        assert.equal(adaptedSession?.exerciseEntries[0]?.progressionRuleSnapshot?.setScheme, "reverse_pyramid");
+        const adaptedPending = adaptedSession?.sets.filter((set) => set.status === "pending").sort((a, b) => a.setNumber - b.setNumber) ?? [];
+        assert.deepEqual(adaptedPending.map((set) => set.targetWeightLbs), [120, 115, 110]);
+        assert.deepEqual(adaptedPending.map((set) => set.targetReps), [10, 11, 12]);
+        assert.ok(adaptedPending.every((set) => set.adaptationReason?.startsWith("manual")));
+        const planAfterSessionChange = await context.repositories.programRepository.findActiveById(program.id, "user-1");
+        const planEntry = planAfterSessionChange?.templates.flatMap((template) => template.exercises).find((exercise) => exercise.id === program.workouts[0]!.exercises[0]!.id);
+        assert.equal(planEntry?.setScheme, "straight");
+        assert.equal(planEntry?.targetWeight?.value, 100);
+        for (const set of first.data.exercises[0]!.sets) {
+          await log.execute({ context: { userId: "user-1", unitSystem: "imperial" }, setId: set.id, request: { actualReps: set.setNumber === 1 ? 8 : 10, actualWeight: { value: 100, unit: "lb" } }, idempotencyKey: `override-log-1-${set.id}` });
+        }
+        const afterFirstLog = await context.repositories.workoutSessionRepository.findOwnedSessionGraphById("user-1", first.data.id);
+        assert.equal(afterFirstLog?.sets[0]?.actualWeightLbs, 100);
+        assert.equal(afterFirstLog?.sets[0]?.targetWeightLbs, 120);
+        assert.equal(afterFirstLog?.sets[1]?.targetReps, 11);
+        assert.equal(afterFirstLog?.sets[1]?.targetWeightLbs, 115);
+        await complete.execute({ context: { userId: "user-1", unitSystem: "imperial" }, sessionId: first.data.id, request: { completedAt: "2026-07-01T10:45:00.000Z", exerciseFeedback: [] }, idempotencyKey: "override-complete-1" });
+
+        const second = await start.execute({ context: { userId: "user-1", unitSystem: "imperial" }, request: { workoutTemplateId: program.workouts[0]!.id }, idempotencyKey: "override-session-2" });
+        assert.equal(second.data.exercises[0]?.setScheme, "straight");
+        assert.notEqual(second.data.exercises[0]?.sets[0]?.targetWeight?.value, 110, "Session-only 110 lb target must not become the future prescription when it was not performed.");
+        await update.execute({ context: { userId: "user-1", unitSystem: "imperial" }, sessionId: second.data.id, exerciseEntryId: second.data.exercises[0]!.id, request: { targetSets: 3, targetReps: 9, targetWeight: { value: 120, unit: "lb" }, setScheme: "reverse_pyramid", updatePlan: true }, idempotencyKey: "override-reusable-plan" });
+        const savedPlan = await context.repositories.programRepository.findActiveById(program.id, "user-1");
+        const savedEntry = savedPlan?.templates.flatMap((template) => template.exercises).find((exercise) => exercise.id === program.workouts[0]!.exercises[0]!.id);
+        assert.equal(savedEntry?.setScheme, "reverse_pyramid");
+        assert.equal(savedEntry?.targetWeight?.value, 120);
+        const secondSets = second.data.exercises[0]!.sets;
+        for (const set of secondSets) await log.execute({ context: { userId: "user-1", unitSystem: "imperial" }, setId: set.id, request: { actualReps: 9, actualWeight: { value: 120, unit: "lb" } }, idempotencyKey: `override-log-2-${set.id}` });
+        await complete.execute({ context: { userId: "user-1", unitSystem: "imperial" }, sessionId: second.data.id, request: { completedAt: "2026-07-02T10:45:00.000Z", exerciseFeedback: [] }, idempotencyKey: "override-complete-2" });
+        const third = await start.execute({ context: { userId: "user-1", unitSystem: "imperial" }, request: { workoutTemplateId: program.workouts[0]!.id }, idempotencyKey: "override-session-3" });
+        assert.equal(third.data.exercises[0]?.setScheme, "reverse_pyramid");
+        assert.equal(third.data.exercises[0]?.targetWeight?.value, 120);
+        const immutableHistory = await context.repositories.workoutSessionRepository.findOwnedSessionGraphById("user-1", first.data.id);
+        assert.equal(immutableHistory?.sets[0]?.targetWeightLbs, 120);
+        assert.equal(immutableHistory?.sets[0]?.actualWeightLbs, 100);
+        assert.equal(immutableHistory?.exerciseEntries[0]?.progressionRuleSnapshot?.setScheme, "reverse_pyramid");
+      } finally {
+        await disposeWorkoutInfrastructureTestContext(context);
+      }
+    }
+  },
+  {
+    name: "Comparable history is isolated by template entry and ignores incompatible schemes",
+    run: async () => {
+      const context = await createWorkoutInfrastructureTestContext();
+      try {
+        await seedBaseWorkoutProgram(context);
+        const program = await createAndEnrollCustomProgram({
+          context,
+          userId: "user-1",
+          programName: "Comparable History",
+          idempotencyKey: "comparable-history-plan",
+          workouts: [{ name: "Day 1", exercises: [
+            { exerciseId: "exercise-1", targetSets: 2, targetReps: 8, targetWeight: { value: 100, unit: "lb" }, repRangeMin: 8, repRangeMax: 10, setScheme: "straight" },
+            { exerciseId: "exercise-1", targetSets: 3, targetReps: 8, targetWeight: { value: 100, unit: "lb" }, repRangeMin: 8, repRangeMax: 10, setScheme: "reverse_pyramid" }
+          ] }]
+        });
+        const start = new StartWorkoutSessionUseCase(context.repositories.workoutSessionRepository, context.repositories.enrollmentRepository, context.repositories.progressionStateRepository, context.repositories.progressionStateV2Repository, context.repositories.exerciseRepository, context.transactionManager, context.repositories.idempotencyRepository);
+        const log = new LogSetUseCase(context.repositories.workoutSessionRepository, context.transactionManager, context.repositories.idempotencyRepository);
+        const complete = new CompleteWorkoutSessionUseCase(context.repositories.workoutSessionRepository, context.repositories.enrollmentRepository, context.repositories.progressionStateRepository, context.repositories.progressionStateV2Repository, context.repositories.exerciseRepository, context.repositories.userRepository, context.repositories.programRepository, context.repositories.progressMetricRepository, context.repositories.progressionRecommendationEventRepository, context.repositories.trainingSettingsRepository, context.repositories.exerciseProgressionSettingsRepository, context.transactionManager, context.repositories.idempotencyRepository);
+        const first = await start.execute({ context: { userId: "user-1", unitSystem: "imperial" }, request: { workoutTemplateId: program.workouts[0]!.id }, idempotencyKey: "comparable-history-start-1" });
+        for (const [exerciseIndex, exercise] of first.data.exercises.entries()) {
+          for (const set of exercise.sets) {
+            await log.execute({ context: { userId: "user-1", unitSystem: "imperial" }, setId: set.id, request: {
+              actualReps: set.targetReps ?? 8,
+              actualWeight: { value: exerciseIndex === 0 ? 105 : 135, unit: "lb" }
+            }, idempotencyKey: `comparable-history-log-${set.id}` });
+          }
+        }
+        await complete.execute({ context: { userId: "user-1", unitSystem: "imperial" }, sessionId: first.data.id, request: { completedAt: "2026-07-03T10:45:00.000Z", exerciseFeedback: [] }, idempotencyKey: "comparable-history-complete-1" });
+
+        const next = await start.execute({ context: { userId: "user-1", unitSystem: "imperial" }, request: { workoutTemplateId: program.workouts[0]!.id }, idempotencyKey: "comparable-history-start-2" });
+        assert.equal(next.data.exercises[0]?.sets[0]?.previousActualWeight?.value, 105, "straight entry keeps its own same-entry history");
+        assert.equal(next.data.exercises[1]?.sets[0]?.previousActualWeight?.value, 135, "duplicate exercise entry keeps its own pyramid history");
+
+        const straightPlanEntry = program.workouts[0]!.exercises[0]!;
+        const reversePlanEntry = program.workouts[0]!.exercises[1]!;
+        const mismatched = await context.repositories.workoutSessionRepository.findMostRecentComparableExerciseHistory?.({
+          userId: "user-1",
+          exerciseId: "exercise-1",
+          workoutTemplateExerciseEntryId: straightPlanEntry.id,
+          setScheme: "ascending_pyramid",
+          targetSets: 2
+        });
+        assert.equal(mismatched, null, "different scheme evidence is not used as comparable history");
+        const matchingReverse = await context.repositories.workoutSessionRepository.findMostRecentComparableExerciseHistory?.({
+          userId: "user-1",
+          exerciseId: "exercise-1",
+          workoutTemplateExerciseEntryId: reversePlanEntry.id,
+          setScheme: "reverse_pyramid",
+          targetSets: 3
+        });
+        assert.equal(matchingReverse?.sets[0]?.actualWeightLbs, 135);
+        for (const [exerciseIndex, exercise] of next.data.exercises.entries()) {
+          for (const set of exercise.sets) {
+            await log.execute({ context: { userId: "user-1", unitSystem: "imperial" }, setId: set.id, request: {
+              actualReps: (set.targetReps ?? 8) + 3,
+              actualWeight: { value: exerciseIndex === 0 ? 107 : 137, unit: "lb" }
+            }, idempotencyKey: `comparable-history-cross-log-${set.id}` });
+          }
+        }
+        await complete.execute({ context: { userId: "user-1", unitSystem: "imperial" }, sessionId: next.data.id, request: { completedAt: "2026-07-04T10:45:00.000Z", exerciseFeedback: [] }, idempotencyKey: "comparable-history-finish-cross-plan" });
+
+        const otherPlan = await createAndEnrollCustomProgram({
+          context,
+          userId: "user-1",
+          programName: "Second Comparable Plan",
+          idempotencyKey: "comparable-history-second-plan",
+          workouts: [{ name: "Day 1", exercises: [
+            { exerciseId: "exercise-1", targetSets: 2, targetReps: 8, targetWeight: { value: 100, unit: "lb" }, repRangeMin: 8, repRangeMax: 10, setScheme: "straight" }
+          ] }]
+        });
+        const crossPlan = await start.execute({ context: { userId: "user-1", unitSystem: "imperial" }, request: { workoutTemplateId: otherPlan.workouts[0]!.id }, idempotencyKey: "comparable-history-start-cross-plan" });
+        assert.equal(crossPlan.data.exercises[0]?.sets[0]?.previousActualWeight?.value, 107, "compatible same-exercise history can seed a different plan entry");
       } finally {
         await disposeWorkoutInfrastructureTestContext(context);
       }

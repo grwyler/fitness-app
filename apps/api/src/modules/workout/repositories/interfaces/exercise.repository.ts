@@ -50,6 +50,7 @@ export interface ExerciseRepository {
       targetRounds?: number | null;
       restSeconds: number | null;
       progressionStrategy?: ProgressionStrategy;
+      setScheme?: import("@fitness/shared").ExerciseSetScheme;
     },
     options?: RepositoryOptions
   ): Promise<string>;
@@ -64,6 +65,7 @@ export interface ExerciseRepository {
       targetDistanceMeters?: number | null;
       targetRounds?: number | null;
       restSeconds: number | null;
+      setScheme?: import("@fitness/shared").ExerciseSetScheme;
     },
     options?: RepositoryOptions
   ): Promise<void>;

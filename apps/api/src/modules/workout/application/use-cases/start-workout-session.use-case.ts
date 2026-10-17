@@ -4,6 +4,9 @@ import {
   isCustomWorkoutTemplateId
 } from "../../domain/models/custom-workout.js";
 import { WorkoutSessionFactory } from "../../domain/services/workout-session-factory.js";
+import { ProgressionEngine } from "../../domain/services/progression-engine.js";
+import { resolveExerciseProgrammingProfile } from "../../domain/services/exercise-programming-profile.js";
+import type { GeneratedSetTarget } from "../../domain/models/progression.js";
 import type { EnrollmentRepository } from "../../repositories/interfaces/enrollment.repository.js";
 import type { ExerciseRepository } from "../../repositories/interfaces/exercise.repository.js";
 import type { IdempotencyRepository } from "../../repositories/interfaces/idempotency.repository.js";
@@ -28,6 +31,7 @@ function buildStartWorkoutFingerprint(request: StartWorkoutSessionRequest) {
 export class StartWorkoutSessionUseCase {
   private readonly idempotencyService: IdempotencyService;
   private readonly workoutSessionFactory = new WorkoutSessionFactory();
+  private readonly progressionEngine = new ProgressionEngine();
 
   public constructor(
     private readonly workoutSessionRepository: WorkoutSessionRepository,
@@ -114,8 +118,14 @@ export class StartWorkoutSessionUseCase {
         }
 
         const templateExercises = workoutTemplateDefinition.exercises.map(({ exercise, templateExercise }) => {
-          const repRangeMin = templateExercise.repRangeMin ?? templateExercise.targetReps;
-          const repRangeMax = templateExercise.repRangeMax ?? templateExercise.targetReps;
+          const profile = resolveExerciseProgrammingProfile({
+            category: exercise.category,
+            movementPattern: exercise.movementPattern,
+            equipmentType: exercise.equipmentType,
+            primaryMuscleGroup: exercise.primaryMuscleGroup
+          });
+          const repRangeMin = templateExercise.repRangeMin ?? profile.repRangeMin;
+          const repRangeMax = templateExercise.repRangeMax ?? profile.repRangeMax;
 
           return {
             exerciseId: exercise.id,
@@ -246,6 +256,25 @@ export class StartWorkoutSessionUseCase {
           v2StateByTemplateEntryId.set(updated.workoutTemplateExerciseEntryId, updated);
         }
 
+        const historyEntries = await Promise.all(
+          workoutTemplateDefinition.exercises.map(async ({ exercise, templateExercise }) => [
+            templateExercise.id,
+            this.workoutSessionRepository.findMostRecentComparableExerciseHistory
+              ? await this.workoutSessionRepository.findMostRecentComparableExerciseHistory(
+                  {
+                    userId: input.context.userId,
+                    exerciseId: exercise.id,
+                    workoutTemplateExerciseEntryId: templateExercise.id,
+                    setScheme: templateExercise.setScheme ?? "straight",
+                    targetSets: templateExercise.targetSets
+                  },
+                  { tx }
+                )
+              : null
+          ] as const)
+        );
+        const historyByTemplateEntryId = new Map(historyEntries);
+
         const missingV2Inputs = progressionEligibleTemplateExercises
           .filter((row) => !v2StateByTemplateEntryId.has(row.templateExerciseEntryId))
           .map((row) => {
@@ -260,11 +289,14 @@ export class StartWorkoutSessionUseCase {
 
             const repRangeMin = row.templateRepRangeMin!;
             const repRangeMax = row.templateRepRangeMax!;
-            const repGoal = repRangeMin;
+            const repGoal = Math.max(repRangeMin, Math.min(repRangeMax, row.templateTargetReps ?? repRangeMin));
 
             return {
               userId: input.context.userId,
               workoutTemplateExerciseEntryId: row.templateExerciseEntryId,
+              // History is passed to generatePrescription below. State creation
+              // only supplies a neutral migration seed; it must not make its
+              // own target choice from a historical set.
               currentWeightLbs: v1State?.currentWeightLbs ?? progressionSeed.defaultStartingWeightLbs,
               lastCompletedWeightLbs: v1State?.lastCompletedWeightLbs ?? null,
               repGoal,
@@ -272,7 +304,11 @@ export class StartWorkoutSessionUseCase {
               repRangeMax,
               consecutiveFailures: v1State?.consecutiveFailures ?? 0,
               lastEffortFeedback: v1State?.lastEffortFeedback ?? null,
-              lastPerformedAt: v1State?.lastPerformedAt ?? null
+              // A v1 timestamp is exercise-global and may belong to an
+              // incompatible plan entry or scheme. Let the canonical engine
+              // compare compatible history before treating this migrated value
+              // as a current plan-scoped progression decision.
+              lastPerformedAt: null
             };
           });
 
@@ -285,21 +321,40 @@ export class StartWorkoutSessionUseCase {
           v2StateByTemplateEntryId.set(created.workoutTemplateExerciseEntryId, created);
         }
 
-        const progressionStatesV2 = templateEntryIds.map((templateEntryId) => {
-          const state = v2StateByTemplateEntryId.get(templateEntryId);
-          if (!state) {
-            throw new Error(`Missing progression state v2 for template entry ${templateEntryId}.`);
-          }
-
-          return state;
-        });
+        const prescribedTargetsByTemplateEntryId = new Map<string, GeneratedSetTarget[]>();
+        for (const { exercise, templateExercise } of workoutTemplateDefinition.exercises) {
+          if (!exercise.isProgressionEligible || (exercise.loggingModality !== "reps_load" && exercise.loggingModality !== "reps_only")) continue;
+          const state = v2StateByTemplateEntryId.get(templateExercise.id);
+          if (!state) continue;
+          prescribedTargetsByTemplateEntryId.set(templateExercise.id, this.progressionEngine.generatePrescription({
+            state,
+            exercise: {
+              exerciseName: exercise.name,
+              exerciseCategory: exercise.category,
+              incrementLbs: exercise.defaultIncrementLbs,
+              isBodyweight: exercise.isBodyweight,
+              isWeightOptional: exercise.isWeightOptional,
+              loadType: "external"
+            },
+            loggingModality: exercise.loggingModality as "reps_load" | "reps_only",
+            strategy: templateExercise.progressionStrategy ?? "double_progression",
+            setScheme: templateExercise.setScheme ?? "straight",
+            targetSets: templateExercise.targetSets,
+            planTargetWeightLbs: templateExercise.targetWeightLbs ?? null,
+            defaultStartingWeightLbs: exercise.defaultStartingWeightLbs,
+            explicitTargets: templateExercise.setTargets ?? null,
+            history: historyByTemplateEntryId.get(templateExercise.id) ?? null,
+            performedAt: input.request.startedAt ? new Date(input.request.startedAt) : new Date()
+          }));
+        }
 
         const workoutSessionGraphInput = this.workoutSessionFactory.build({
           userId: input.context.userId,
           programId: workoutTemplateDefinition.template.programId,
           programName: workoutTemplateDefinition.template.programName,
           workoutTemplateDefinition,
-          progressionStatesV2,
+          progressionStatesV2: [...v2StateByTemplateEntryId.values()],
+          prescribedTargetsByTemplateEntryId,
           startedAt: input.request.startedAt ? new Date(input.request.startedAt) : new Date()
         });
 

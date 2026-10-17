@@ -4,8 +4,10 @@ import { StyleSheet, Text, TextInput, View } from "react-native";
 import { signInWithPassword } from "../api/auth";
 import { Screen } from "../components/Screen";
 import { PrimaryButton } from "../components/PrimaryButton";
+import { OAuthButtons } from "../components/OAuthButtons";
 import type { RootStackParamList } from "../core/navigation/navigation-types";
 import { useAppAuth } from "../core/auth/AuthProvider";
+import { useOAuthAuth } from "../core/auth/use-oauth-auth";
 import { colors, spacing } from "../theme/tokens";
 
 type Props = NativeStackScreenProps<RootStackParamList, "SignIn">;
@@ -34,6 +36,10 @@ export function SignInScreen({ navigation, route }: Props) {
   const [password, setPassword] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { oauthErrorMessage, oauthLoadingProvider, startOAuth } = useOAuthAuth({
+    intent: "signin",
+    enabledProviders: ["google"]
+  });
 
   useEffect(() => {
     const tokenFromLink = (route.params as any)?.token ?? getWebQueryParam("token");
@@ -60,6 +66,13 @@ export function SignInScreen({ navigation, route }: Props) {
       setErrorMessage(getErrorMessage(error));
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    const result = await startOAuth("google");
+    if (result) {
+      await auth.completeSignIn(result);
     }
   };
 
@@ -96,12 +109,17 @@ export function SignInScreen({ navigation, route }: Props) {
           value={password}
         />
 
-        {errorMessage ? <Text style={styles.error}>{errorMessage}</Text> : null}
+        {errorMessage || oauthErrorMessage ? <Text style={styles.error}>{errorMessage ?? oauthErrorMessage}</Text> : null}
 
         <PrimaryButton
           label="Sign in"
           loading={isSubmitting}
           onPress={() => void handleSubmit()}
+        />
+        <OAuthButtons
+          disabled={isSubmitting}
+          loading={oauthLoadingProvider === "google"}
+          onPressGoogle={() => void handleGoogleSignIn()}
         />
         <PrimaryButton
           label="Forgot password"

@@ -23,6 +23,7 @@ import type {
   RecommendGuidedProgramResponse,
   GuidedProgramAnswers,
   GetProgramTrainingContextResponse,
+  GetProgramCoachReviewResponse,
   ResolveProgressionRecommendationRequest,
   ResolveProgressionRecommendationResponse,
   StartWorkoutSessionRequest,
@@ -71,6 +72,10 @@ export async function updateCustomProgram(input: {
 
 export async function fetchProgramTrainingContext(programId: string) {
   return apiRequest<GetProgramTrainingContextResponse>(`/programs/${programId}/training-context`);
+}
+
+export async function fetchProgramCoachReview(programId: string) {
+  return apiRequest<GetProgramCoachReviewResponse>(`/programs/${programId}/coach-review`);
 }
 
 export async function updateManualProgramGoalContext(input: {

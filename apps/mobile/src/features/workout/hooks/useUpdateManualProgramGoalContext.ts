@@ -13,6 +13,7 @@ export function useUpdateManualProgramGoalContext() {
     },
     onSuccess(_data, input) {
       void queryClient.invalidateQueries({ queryKey: workoutQueryKeys.programTrainingContext(input.programId) });
+      void queryClient.invalidateQueries({ queryKey: workoutQueryKeys.programCoachReview(input.programId) });
     }
   });
 }

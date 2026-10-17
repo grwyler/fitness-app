@@ -12,6 +12,7 @@ import type {
   ProgressionRecommendationResolutionType,
   ProgressionAggressiveness,
   ProgressionStrategy,
+  ExerciseSetScheme,
   BodyweightProgressionMode,
   WorkoutSetType,
   TrainingGoal,
@@ -56,11 +57,35 @@ export type WeightValueDto = {
 
 export type WorkoutSetTargetDto = {
   repTargetText?: string | null;
+  targetReps?: number | null;
   targetWeight?: WeightValueDto;
   durationSeconds?: number | null;
   distanceMeters?: number | null;
   rpe?: number | null;
   note?: string | null;
+  tiers?: WorkoutSetTierTargetDto[] | null;
+};
+
+export type WorkoutSetTierTargetDto = {
+  order: number;
+  originalTargetWeight?: WeightValueDto | null;
+  originalTargetReps?: number | null;
+  adaptationReason?: string | null;
+  targetWeight?: WeightValueDto | null;
+  repTargetText?: string | null;
+  targetReps?: number | null;
+  rpe?: number | null;
+};
+
+export type WorkoutSetTierDto = WorkoutSetTierTargetDto & {
+  originalTargetWeight?: WeightValueDto | null;
+  originalTargetReps?: number | null;
+  adaptationReason?: string | null;
+  actualWeight?: WeightValueDto | null;
+  actualReps?: number | null;
+  previousActualWeight?: WeightValueDto | null;
+  previousActualReps?: number | null;
+  status: SetStatus;
 };
 
 export type WorkoutSessionType = "program" | "custom";
@@ -72,9 +97,15 @@ export type SetDto = {
   exerciseEntryId: UUID;
   setNumber: number;
   setType: WorkoutSetType;
+  repTargetText?: string | null;
   targetReps: number | null;
+  originalTargetReps?: number | null;
   actualReps: number | null;
   targetWeight: WeightValueDto | null;
+  originalTargetWeight?: WeightValueDto | null;
+  previousActualWeight?: WeightValueDto | null;
+  previousActualReps?: number | null;
+  adaptationReason?: string | null;
   actualWeight: WeightValueDto | null;
   targetDurationSeconds?: number | null;
   actualDurationSeconds?: number | null;
@@ -86,6 +117,7 @@ export type SetDto = {
   rir: SetRir | null;
   failureStatus: SetFailureStatus | null;
   completedAt: ISODateTime | null;
+  tiers?: WorkoutSetTierDto[] | null;
 };
 
 export type ExerciseEntryDto = {
@@ -97,6 +129,7 @@ export type ExerciseEntryDto = {
   loggingModality: ExerciseLoggingModality;
   sequenceOrder: number;
   targetSets: number;
+  setScheme?: ExerciseSetScheme;
   targetReps: number | null;
   repRangeMin?: number | null;
   repRangeMax?: number | null;
@@ -183,6 +216,7 @@ export type ProgramWorkoutExerciseDto = {
   targetRounds?: number | null;
   restSeconds: number | null;
   progressionStrategy?: ProgressionStrategy;
+  setScheme?: ExerciseSetScheme;
   repTargetText?: string | null;
   targetWeight?: WeightValueDto;
   setTargets?: WorkoutSetTargetDto[] | null;
@@ -319,6 +353,7 @@ export type CreateCustomProgramExerciseRequest = {
   targetRounds?: number | null;
   restSeconds?: number | null;
   progressionStrategy?: ProgressionStrategy | null;
+  setScheme?: ExerciseSetScheme;
   repTargetText?: string | null;
   targetWeight?: WeightValueDto;
   setTargets?: WorkoutSetTargetDto[] | null;
@@ -525,6 +560,7 @@ export type AddCustomWorkoutExerciseRequest = {
   targetRounds?: number | null;
   restSeconds?: number | null;
   progressionStrategy?: ProgressionStrategy;
+  setScheme?: ExerciseSetScheme;
   /**
    * When true, also updates the underlying workout template (plan) so this exercise
    * appears in future sessions of this workout.
@@ -544,6 +580,7 @@ export type UpdateWorkoutExerciseEntryRequest = {
   targetDistanceMeters?: number | null;
   targetRounds?: number | null;
   restSeconds?: number | null;
+  setScheme?: ExerciseSetScheme;
   /**
    * When true, also updates the underlying workout template / progression settings (plan)
    * so the change applies to future sessions.
@@ -569,6 +606,7 @@ export type LogSetRequest = {
   completedAt?: ISODateTime;
   rir?: SetRir | null;
   failureStatus?: SetFailureStatus | null;
+  tiers?: Array<{ order: number; actualWeight?: WeightValueDto | null; actualReps?: number | null; status?: SetStatus }>;
 };
 
 export type LogSetResponse = {
@@ -623,6 +661,32 @@ export type DashboardDto = {
 };
 
 export type GetDashboardResponse = DashboardDto;
+
+export type TrainingBlockCoachReviewDto = {
+  trainingBlock: {
+    id: UUID;
+    programId: UUID;
+    name: string;
+    source: "manual";
+    status: "active" | "completed" | "paused" | "abandoned";
+    startDate: ISODateTime;
+    plannedWeeks: number;
+    targetWorkoutsPerWeek: number;
+    progressionStyle: ProgressionAggressiveness | null;
+    currentWeek: number;
+    completedWorkoutsThisWeek: number;
+    completedWorkoutsTotal: number;
+  } | null;
+  coachReview: {
+    status: "not_started" | "on_track" | "needs_attention" | "off_track";
+    highlights: string[];
+    attentionItems: string[];
+    recommendations: string[];
+    evidence: string[];
+  } | null;
+};
+
+export type GetProgramCoachReviewResponse = TrainingBlockCoachReviewDto;
 
 export type CurrentWorkoutSessionDto = {
   activeWorkoutSession: WorkoutSessionDto | null;

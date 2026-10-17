@@ -1,10 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Alert, Platform, ScrollView, StyleSheet, View } from "react-native";
-import type { ProgramDto, UnitSystem } from "@fitness/shared";
+import type { ManualProgramGoalContextDto, ProgressionAggressiveness, ProgramDto, TrainingGoal, UnitSystem } from "@fitness/shared";
 import { AppText } from "../components/AppText";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
+import { Chip } from "../components/Chip";
 import { Input } from "../components/Input";
 import { ModalSheet } from "../components/ModalSheet";
 import { Screen } from "../components/Screen";
@@ -17,8 +18,11 @@ import { useDashboard } from "../features/workout/hooks/useDashboard";
 import { useCancelWorkout } from "../features/workout/hooks/useCancelWorkout";
 import { useFollowProgram } from "../features/workout/hooks/useFollowProgram";
 import { usePrograms } from "../features/workout/hooks/usePrograms";
+import { useProgramTrainingContext } from "../features/workout/hooks/useProgramTrainingContext";
 import { useStartWorkout } from "../features/workout/hooks/useStartWorkout";
 import { useTrainingSettings } from "../features/workout/hooks/useTrainingSettings";
+import { useUpdateManualProgramGoalContext } from "../features/workout/hooks/useUpdateManualProgramGoalContext";
+import { useProgramCoachReview } from "../features/workout/hooks/useProgramCoachReview";
 import {
   getCurrentProgramWorkoutChoices,
   findProgramWorkoutById,
@@ -34,8 +38,16 @@ import type { RootStackParamList } from "../core/navigation/navigation-types";
 import { colors, radius, spacing } from "../theme/tokens";
 import { getManualProgramEmptyStateCopy } from "../features/workout/utils/dashboard-empty-state.shared";
 import { getMvpProgramEntryPoints } from "../features/workout/utils/mvp-program-entrypoints.shared";
+import { getDashboardGoalContextModel } from "../features/workout/utils/dashboard-goal-context.shared";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Dashboard">;
+
+function mapTrainingGoalToManualGoalType(value: TrainingGoal | null): ManualProgramGoalContextDto["goalType"] {
+  if (value === "strength") return "strength";
+  if (value === "hypertrophy") return "hypertrophy";
+  if (value === "maintenance") return "consistency";
+  return "general_fitness";
+}
 
 export function DashboardScreen({ navigation }: Props) {
   const [isCurrentProgramWorkoutPickerOpen, setIsCurrentProgramWorkoutPickerOpen] = useState(false);
@@ -44,6 +56,13 @@ export function DashboardScreen({ navigation }: Props) {
   const [discardWorkoutSessionId, setDiscardWorkoutSessionId] = useState<string | null>(null);
   const [programPickerVisible, setProgramPickerVisible] = useState(false);
   const [selectingProgramId, setSelectingProgramId] = useState<string | null>(null);
+  const [coachReviewVisible, setCoachReviewVisible] = useState(false);
+  const [goalSheetVisible, setGoalSheetVisible] = useState(false);
+  const [goalType, setGoalType] = useState<ManualProgramGoalContextDto["goalType"]>("general_fitness");
+  const [targetWorkoutsPerWeek, setTargetWorkoutsPerWeek] = useState("1");
+  const [plannedWeeks, setPlannedWeeks] = useState<ManualProgramGoalContextDto["plannedWeeks"]>(8);
+  const [progressionStyle, setProgressionStyle] = useState<ProgressionAggressiveness>("balanced");
+  const [goalValidationError, setGoalValidationError] = useState<string | null>(null);
   const auth = useAppAuth();
   const dashboardQuery = useDashboard();
   const programsQuery = usePrograms();
@@ -51,7 +70,44 @@ export function DashboardScreen({ navigation }: Props) {
   const startWorkoutMutation = useStartWorkout();
   const cancelWorkoutMutation = useCancelWorkout();
   const followProgramMutation = useFollowProgram();
+  const updateGoalContextMutation = useUpdateManualProgramGoalContext();
   const [lastAction, setLastAction] = useState<string | null>(null);
+
+  const activeProgramId = dashboardQuery.data?.activeProgram?.program.id ?? null;
+  const activeProgramDaysPerWeek = dashboardQuery.data?.activeProgram?.program.daysPerWeek ?? null;
+  const activeProgramSource = dashboardQuery.data?.activeProgram?.program.source ?? null;
+  const coachReviewQuery = useProgramCoachReview(activeProgramId);
+  const trainingContextQuery = useProgramTrainingContext(activeProgramId);
+
+  useEffect(() => {
+    if (!activeProgramId) {
+      return;
+    }
+
+    if (trainingContextQuery.data?.manualGoalContext) {
+      const context = trainingContextQuery.data.manualGoalContext;
+      setGoalType(context.goalType);
+      setTargetWorkoutsPerWeek(String(context.targetWorkoutsPerWeek));
+      setPlannedWeeks(context.plannedWeeks);
+      setProgressionStyle(context.progressionStyle);
+      return;
+    }
+
+    const settings = trainingSettingsQuery.data;
+    if (!settings) {
+      return;
+    }
+
+    setGoalType(mapTrainingGoalToManualGoalType(settings.trainingGoal));
+    setTargetWorkoutsPerWeek(String(Math.max(1, Math.min(14, activeProgramDaysPerWeek ?? 1))));
+    setPlannedWeeks(8);
+    setProgressionStyle(settings.progressionAggressiveness);
+  }, [
+    activeProgramDaysPerWeek,
+    activeProgramId,
+    trainingContextQuery.data?.manualGoalContext,
+    trainingSettingsQuery.data
+  ]);
 
   const customPrograms = useMemo(() => {
     const programs = programsQuery.data ?? [];
@@ -94,6 +150,14 @@ export function DashboardScreen({ navigation }: Props) {
   });
   const currentProgramWorkoutChoices = getCurrentProgramWorkoutChoices(activeProgram);
   const programPositionLabel = getNextProgramPositionLabel(activeProgram);
+  const goalContextModel =
+    activeProgramSource === "custom"
+      ? getDashboardGoalContextModel({
+          manualGoalContext: trainingContextQuery.data?.manualGoalContext ?? null,
+          coachReview:
+            coachReviewQuery.data?.trainingBlock && coachReviewQuery.data.coachReview ? coachReviewQuery.data : null
+        })
+      : null;
   const isStartingRecommendedWorkout =
     startWorkoutMutation.isPending && selectedStartingWorkoutId === nextWorkout?.id;
 
@@ -313,6 +377,26 @@ export function DashboardScreen({ navigation }: Props) {
               <AppText variant="bodyStrong">{programPositionLabel}</AppText>
             </View>
           ) : null}
+
+          {goalContextModel ? (
+            <View style={styles.goalSummary}>
+              <AppText variant="meta" tone="secondary">
+                {goalContextModel.title}
+              </AppText>
+              <AppText variant="meta" tone="secondary">
+                {goalContextModel.detail}
+              </AppText>
+              <PrimaryButton
+                label={goalContextModel.ctaLabel}
+                tone="secondary"
+                disabled={updateGoalContextMutation.isPending}
+                onPress={() => {
+                  setGoalValidationError(null);
+                  setGoalSheetVisible(true);
+                }}
+              />
+            </View>
+          ) : null}
           {activeWorkout ? (
             <AppText variant="meta" tone="danger">
               Finish your active workout before creating or editing a program.
@@ -355,6 +439,167 @@ export function DashboardScreen({ navigation }: Props) {
         </Card>
       ) : null}
 
+      <ModalSheet
+        visible={goalSheetVisible && Boolean(activeProgramId) && activeProgramSource === "custom"}
+        onClose={() => setGoalSheetVisible(false)}
+        title="Program goal"
+        subtitle="Optional"
+        headerRight={
+          <PrimaryButton
+            label="Close"
+            variant="ghost"
+            fullWidth={false}
+            size="sm"
+            onPress={() => setGoalSheetVisible(false)}
+          />
+        }
+        contentStyle={styles.goalSheetContent}
+      >
+        <ScrollView
+          style={styles.goalSheetScroll}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={styles.goalSheetBody}
+        >
+          <AppText tone="secondary">
+            This does not change your workouts today. It just saves context for future coaching features.
+          </AppText>
+
+          <Card padding="md" variant="muted" contentStyle={styles.goalSection}>
+            <AppText variant="bodyStrong">Goal type</AppText>
+            <View style={styles.goalChoiceRow}>
+              {(["strength", "hypertrophy", "general_fitness", "consistency", "sport_support", "custom"] as const).map(
+                (option) => (
+                  <Chip
+                    key={option}
+                    label={option.replace(/_/g, " ")}
+                    selected={goalType === option}
+                    onPress={() => setGoalType(option)}
+                  />
+                )
+              )}
+            </View>
+          </Card>
+
+          <Card padding="md" variant="muted" contentStyle={styles.goalSection}>
+            <Input
+              label="Target workouts per week"
+              keyboardType="number-pad"
+              value={targetWorkoutsPerWeek}
+              onChangeText={(value) => {
+                setTargetWorkoutsPerWeek(value);
+                setGoalValidationError(null);
+              }}
+              placeholder={String(Math.max(1, activeProgramDaysPerWeek ?? 1))}
+            />
+          </Card>
+
+          <Card padding="md" variant="muted" contentStyle={styles.goalSection}>
+            <AppText variant="bodyStrong">Planned weeks</AppText>
+            <View style={styles.goalChoiceRow}>
+              {([4, 6, 8, 12] as const).map((option) => (
+                <Chip
+                  key={option}
+                  label={`${option}`}
+                  selected={plannedWeeks === option}
+                  onPress={() => setPlannedWeeks(option)}
+                />
+              ))}
+            </View>
+          </Card>
+
+          <Card padding="md" variant="muted" contentStyle={styles.goalSection}>
+            <AppText variant="bodyStrong">Progression style</AppText>
+            <View style={styles.goalChoiceRow}>
+              {(["conservative", "balanced", "aggressive"] as const).map((option) => (
+                <Chip
+                  key={option}
+                  label={option}
+                  selected={progressionStyle === option}
+                  onPress={() => setProgressionStyle(option)}
+                />
+              ))}
+            </View>
+          </Card>
+
+          {goalValidationError ? (
+            <AppText variant="meta" tone="danger">
+              {goalValidationError}
+            </AppText>
+          ) : null}
+          {updateGoalContextMutation.error instanceof Error ? (
+            <AppText variant="meta" tone="danger">
+              {updateGoalContextMutation.error.message}
+            </AppText>
+          ) : null}
+
+          <PrimaryButton
+            label="Save goal"
+            loading={updateGoalContextMutation.isPending}
+            disabled={updateGoalContextMutation.isPending || !activeProgramId}
+            onPress={() => {
+              if (!activeProgramId) {
+                return;
+              }
+
+              const parsedTarget = Number.parseInt(targetWorkoutsPerWeek.trim(), 10);
+              if (!Number.isFinite(parsedTarget) || parsedTarget <= 0) {
+                setGoalValidationError("Enter a target workouts per week value.");
+                return;
+              }
+
+              const clampedTarget = Math.max(1, Math.min(14, parsedTarget));
+
+              updateGoalContextMutation.mutate(
+                {
+                  programId: activeProgramId,
+                  request: {
+                    manualGoalContext: {
+                      goalType,
+                      targetWorkoutsPerWeek: clampedTarget,
+                      plannedWeeks,
+                      progressionStyle
+                    }
+                  }
+                },
+                {
+                  onSuccess: () => {
+                    setGoalSheetVisible(false);
+                  }
+                }
+              );
+            }}
+          />
+        </ScrollView>
+      </ModalSheet>
+
+      {coachReviewQuery.data?.trainingBlock && coachReviewQuery.data.coachReview ? (
+        <Card variant="default" style={styles.card}>
+          <AppText variant="caption" tone="accent">
+            Coach review
+          </AppText>
+          <AppText variant="bodyStrong">
+            {`Week ${coachReviewQuery.data.trainingBlock.currentWeek} of ${coachReviewQuery.data.trainingBlock.plannedWeeks}`}
+          </AppText>
+          <AppText tone="secondary">
+            {`${coachReviewQuery.data.trainingBlock.completedWorkoutsThisWeek} of ${coachReviewQuery.data.trainingBlock.targetWorkoutsPerWeek} workouts completed this week`}
+          </AppText>
+          <AppText variant="meta" tone="secondary">
+            {`Status: ${coachReviewQuery.data.coachReview.status.replace(/_/g, " ")}`}
+          </AppText>
+          {coachReviewQuery.data.coachReview.attentionItems.length > 0 ? (
+            <AppText variant="meta" tone="secondary">
+              {`Needs attention: ${coachReviewQuery.data.coachReview.attentionItems[0]}`}
+            </AppText>
+          ) : null}
+          <PrimaryButton
+            label="View review"
+            tone="secondary"
+            onPress={() => setCoachReviewVisible(true)}
+            disabled={coachReviewQuery.isLoading}
+          />
+        </Card>
+      ) : null}
+
       {!activeProgram ? (
         <Card variant="default" style={styles.card}>
           <AppText variant="caption" tone="accent">
@@ -379,6 +624,55 @@ export function DashboardScreen({ navigation }: Props) {
           ) : null}
         </Card>
       ) : null}
+
+      <ModalSheet
+        visible={coachReviewVisible}
+        onClose={() => setCoachReviewVisible(false)}
+        title="Coach review"
+        contentStyle={styles.sheetContent}
+      >
+        {coachReviewQuery.data?.trainingBlock && coachReviewQuery.data.coachReview ? (
+          <View style={styles.sheetBody}>
+            <AppText variant="bodyStrong">
+              {`Week ${coachReviewQuery.data.trainingBlock.currentWeek} of ${coachReviewQuery.data.trainingBlock.plannedWeeks}`}
+            </AppText>
+            <AppText tone="secondary">
+              {`${coachReviewQuery.data.trainingBlock.completedWorkoutsThisWeek} of ${coachReviewQuery.data.trainingBlock.targetWorkoutsPerWeek} workouts completed this week`}
+            </AppText>
+            <AppText variant="meta" tone="secondary">
+              {`Status: ${coachReviewQuery.data.coachReview.status.replace(/_/g, " ")}`}
+            </AppText>
+            {coachReviewQuery.data.coachReview.highlights.length > 0 ? (
+              <View>
+                <AppText variant="bodyStrong">Highlights</AppText>
+                {coachReviewQuery.data.coachReview.highlights.map((item, index) => (
+                  <AppText key={`h:${index}`} tone="secondary">{`\u2022 ${item}`}</AppText>
+                ))}
+              </View>
+            ) : null}
+            {coachReviewQuery.data.coachReview.attentionItems.length > 0 ? (
+              <View>
+                <AppText variant="bodyStrong">Needs attention</AppText>
+                {coachReviewQuery.data.coachReview.attentionItems.map((item, index) => (
+                  <AppText key={`a:${index}`} tone="secondary">{`\u2022 ${item}`}</AppText>
+                ))}
+              </View>
+            ) : null}
+            {coachReviewQuery.data.coachReview.recommendations.length > 0 ? (
+              <View>
+                <AppText variant="bodyStrong">Recommendations</AppText>
+                {coachReviewQuery.data.coachReview.recommendations.map((item, index) => (
+                  <AppText key={`r:${index}`} tone="secondary">{`\u2022 ${item}`}</AppText>
+                ))}
+              </View>
+            ) : null}
+          </View>
+        ) : (
+          <View style={styles.sheetBody}>
+            <AppText tone="secondary">No active training block found.</AppText>
+          </View>
+        )}
+      </ModalSheet>
 
       <UserProgramPickerModal
         activeProgramId={activeProgram?.program.id ?? null}
@@ -1076,6 +1370,37 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     lineHeight: 20
+  },
+  sheetContent: {
+    flex: 1,
+    paddingBottom: spacing.lg
+  },
+  sheetBody: {
+    gap: spacing.md
+  },
+  goalSummary: {
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: radius.md,
+    gap: spacing.xs,
+    padding: spacing.md
+  },
+  goalSheetContent: {
+    flex: 1,
+    paddingBottom: spacing.lg
+  },
+  goalSheetScroll: {
+    flex: 1
+  },
+  goalSheetBody: {
+    gap: spacing.md
+  },
+  goalSection: {
+    gap: spacing.sm
+  },
+  goalChoiceRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm
   },
   actions: {
     gap: spacing.sm

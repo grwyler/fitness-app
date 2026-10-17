@@ -48,7 +48,7 @@ function createSet(overrides: Partial<SetDto> = {}): SetDto {
 
 export const setLoggingTestCases: MobileTestCase[] = [
   {
-    name: "Set logging defaults use the previous logged set when available",
+    name: "Set logging defaults match the current set target, not the previous result",
     run: () => {
       const previousSet = createSet({
         id: "set-1",
@@ -70,8 +70,8 @@ export const setLoggingTestCases: MobileTestCase[] = [
       });
 
       assert.deepEqual(getSetLogDefaultDraft({ set: nextSet, previousSet, modality: "reps_load", unitSystem: "imperial" }), {
-        repsText: "7",
-        weightText: "132.5",
+        repsText: "8",
+        weightText: "135",
         durationText: "",
         distanceText: "",
         roundsText: "",
@@ -162,6 +162,33 @@ export const setLoggingTestCases: MobileTestCase[] = [
         ),
         null
       );
+    }
+  },
+  {
+    name: "Drop set tier inputs require explicit status and submit actuals only for performed tiers",
+    run: () => {
+      const set = createSet({ tiers: [
+        { order: 1, targetWeight: { value: 100, unit: "lb" }, targetReps: 10, actualWeight: null, actualReps: null, status: "pending" },
+        { order: 2, targetWeight: { value: 80, unit: "lb" }, targetReps: 12, actualWeight: null, actualReps: null, status: "pending" }
+      ] });
+      const defaults = getSetLogDefaultDraft({ set, modality: "reps_load", unitSystem: "imperial" });
+      assert.equal(defaults.tierDrafts?.[1]?.weightText, "100");
+      assert.equal(defaults.tierDrafts?.[1]?.repsText, "10");
+      assert.equal(buildLogSetRequestFromDraft({ ...defaults, repsText: "10", weightText: "100" }, { set, modality: "reps_load", unitSystem: "imperial" }), null);
+      const draft = {
+        ...defaults,
+        repsText: "10",
+        weightText: "100",
+        tierDrafts: {
+          1: { repsText: "11", weightText: "100", status: "completed" as const, touched: true },
+          2: { repsText: "", weightText: "", status: "skipped" as const, touched: true }
+        }
+      };
+      const request = buildLogSetRequestFromDraft(draft, { set, modality: "reps_load", unitSystem: "imperial" });
+      assert.deepEqual(request?.tiers, [
+        { order: 1, status: "completed", actualReps: 11, actualWeight: { value: 100, unit: "lb" } },
+        { order: 2, status: "skipped" }
+      ]);
     }
   },
   {

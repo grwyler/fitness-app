@@ -331,7 +331,31 @@ create index if not exists idx_program_training_contexts_user_id on program_trai
 create index if not exists idx_program_training_contexts_program_id on program_training_contexts(program_id);
 create index if not exists idx_program_training_contexts_enrollment_id on program_training_contexts(enrollment_id);
 create index if not exists idx_program_training_contexts_user_program on program_training_contexts(user_id, program_id);
-create table if not exists workout_template_exercise_entries (id uuid primary key, workout_template_id uuid not null references workout_templates(id), exercise_id uuid not null references exercises(id), sequence_order integer not null, target_sets integer not null, target_reps integer not null, rep_range_min integer, rep_range_max integer, rest_seconds integer, progression_strategy text, rep_target_text text, target_weight_lbs numeric(6,2), notes text, set_targets jsonb, deleted_at timestamptz, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
+
+create table if not exists training_blocks (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references users(id),
+  program_id uuid not null references programs(id),
+  program_training_context_id uuid references program_training_contexts(id),
+  name text not null,
+  goal_type text,
+  source text not null default 'manual',
+  status text not null default 'active',
+  start_date timestamptz not null default now(),
+  planned_weeks integer not null,
+  target_workouts_per_week integer not null,
+  progression_style text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists idx_training_blocks_user_id on training_blocks(user_id);
+create index if not exists idx_training_blocks_program_id on training_blocks(program_id);
+create index if not exists idx_training_blocks_user_program on training_blocks(user_id, program_id);
+create index if not exists idx_training_blocks_status on training_blocks(status);
+create unique index if not exists idx_training_blocks_one_active on training_blocks(user_id, program_id)
+  where status = 'active';
+
+create table if not exists workout_template_exercise_entries (id uuid primary key, workout_template_id uuid not null references workout_templates(id), exercise_id uuid not null references exercises(id), sequence_order integer not null, target_sets integer not null, target_reps integer not null, rep_range_min integer, rep_range_max integer, rest_seconds integer, progression_strategy text, set_scheme text not null default 'straight', rep_target_text text, target_weight_lbs numeric(6,2), notes text, set_targets jsonb, deleted_at timestamptz, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
 alter table workout_template_exercise_entries alter column target_reps drop not null;
 alter table workout_template_exercise_entries add column if not exists progression_strategy text;
 alter table workout_template_exercise_entries add column if not exists deleted_at timestamptz;
@@ -346,6 +370,7 @@ alter table workout_template_exercise_entries add column if not exists target_di
 alter table workout_template_exercise_entries add column if not exists target_rounds integer;
 alter table workout_template_exercise_entries add column if not exists notes text;
 alter table workout_template_exercise_entries add column if not exists set_targets jsonb;
+alter table workout_template_exercise_entries add column if not exists set_scheme text not null default 'straight';
 create unique index if not exists idx_workout_template_entry_sequence on workout_template_exercise_entries(workout_template_id, sequence_order);
 create table if not exists workout_sessions (id uuid primary key, user_id uuid not null references users(id), program_id uuid not null references programs(id), workout_template_id uuid not null references workout_templates(id), status text not null, started_at timestamptz, completed_at timestamptz, duration_seconds integer, is_partial boolean not null default false, user_effort_feedback text, recovery_state text, program_name_snapshot text not null, workout_name_snapshot text not null, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
 alter table workout_sessions add column if not exists is_partial boolean not null default false;
@@ -361,6 +386,11 @@ alter table exercise_entries add column if not exists workout_template_exercise_
 create unique index if not exists idx_exercise_entries_session_sequence on exercise_entries(workout_session_id, sequence_order);
 create index if not exists idx_exercise_entries_template_entry_id on exercise_entries(workout_template_exercise_entry_id);
 create table if not exists sets (id uuid primary key, exercise_entry_id uuid not null references exercise_entries(id), set_number integer not null, target_reps integer not null, actual_reps integer, target_weight_lbs numeric(6,2) not null, actual_weight_lbs numeric(6,2), status text not null default 'pending', rir text, failure_status text, completed_at timestamptz, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
+alter table sets add column if not exists rep_target_text text;
+alter table sets add column if not exists tiers jsonb;
+alter table sets add column if not exists original_target_reps integer;
+alter table sets add column if not exists original_target_weight_lbs numeric(6,2);
+alter table sets add column if not exists adaptation_reason text;
 alter table sets add column if not exists set_type workout_set_type not null default 'working';
 alter table sets alter column target_reps drop not null;
 alter table sets alter column target_weight_lbs drop not null;

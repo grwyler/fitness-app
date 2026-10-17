@@ -1,4 +1,4 @@
-import { progressionRecommendationEvents } from "@fitness/db";
+import { progressionRecommendationEvents, workoutSessions } from "@fitness/db";
 import { randomUUID } from "node:crypto";
 import type { ProgressionRecommendationEventRepository } from "../../repositories/interfaces/progression-recommendation-event.repository.js";
 import type { RepositoryOptions } from "../../repositories/models/persistence-context.js";
@@ -6,7 +6,7 @@ import type {
   CreateProgressionRecommendationEventInput,
   ProgressionRecommendationEventRecord
 } from "../../repositories/models/progression-recommendation-event.persistence.js";
-import { and, desc, eq, normalizeNumeric, resolveExecutor } from "../db/drizzle-helpers.js";
+import { and, desc, eq, gte, lte, normalizeNumeric, resolveExecutor, sql } from "../db/drizzle-helpers.js";
 
 function mapProgressionRecommendationEventRecord(
   row: typeof progressionRecommendationEvents.$inferSelect
@@ -85,6 +85,28 @@ export class DrizzleProgressionRecommendationEventRepository
       .limit(limit);
 
     return rows.map(mapProgressionRecommendationEventRecord);
+  }
+
+  public async countUnresolvedByUserIdAndProgramIdWithinRange(
+    input: { userId: string; programId: string; startsAt: Date; endsAt: Date },
+    options?: RepositoryOptions
+  ): Promise<number> {
+    const executor = resolveExecutor(this.db, options);
+    const rows = await executor
+      .select({ count: sql<number>`count(*)` })
+      .from(progressionRecommendationEvents)
+      .innerJoin(workoutSessions, eq(workoutSessions.id, progressionRecommendationEvents.workoutSessionId))
+      .where(
+        and(
+          eq(progressionRecommendationEvents.userId, input.userId),
+          eq(workoutSessions.programId, input.programId),
+          eq(progressionRecommendationEvents.resolutionType, "unresolved"),
+          gte(progressionRecommendationEvents.createdAt, input.startsAt),
+          lte(progressionRecommendationEvents.createdAt, input.endsAt)
+        )
+      );
+
+    return Number(rows[0]?.count ?? 0);
   }
 
   public async findOwnedById(

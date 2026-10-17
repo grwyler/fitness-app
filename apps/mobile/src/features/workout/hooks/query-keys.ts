@@ -5,6 +5,7 @@ export const workoutQueryKeys = {
   progression: ["progression"] as const,
   programs: ["programs"] as const,
   programTrainingContext: (programId: string) => ["program-training-context", programId] as const,
+  programCoachReview: (programId: string) => ["program-coach-review", programId] as const,
   workoutHistory: ["workout-history"] as const,
   workoutHistoryDetail: ["workout-history-detail"] as const,
   trainingSettings: ["training-settings"] as const,

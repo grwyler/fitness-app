@@ -20,7 +20,8 @@ import type {
   WorkoutHistorySummaryRecord,
   WorkoutSessionGraph,
   WorkoutSessionRecord,
-  WorkoutSetForLoggingRecord
+  WorkoutSetForLoggingRecord,
+  ComparableExerciseHistory
 } from "../../repositories/models/workout-session.persistence.js";
 import {
   and,
@@ -121,9 +122,16 @@ function mapSetRecord(row: typeof sets.$inferSelect): SetRecord {
     exerciseEntryId: row.exerciseEntryId,
     setNumber: row.setNumber,
     setType: row.setType,
+    repTargetText: row.repTargetText ?? null,
     targetReps: row.targetReps ?? null,
+    originalTargetReps: row.originalTargetReps ?? row.targetReps ?? null,
     actualReps: row.actualReps,
     targetWeightLbs: normalizeNullableNumeric(row.targetWeightLbs),
+    originalTargetWeightLbs: normalizeNullableNumeric(row.originalTargetWeightLbs) ?? normalizeNullableNumeric(row.targetWeightLbs),
+    previousActualReps: row.previousActualReps ?? null,
+    previousActualWeightLbs: normalizeNullableNumeric(row.previousActualWeightLbs),
+    adaptationReason: row.adaptationReason ?? null,
+    tiers: (row.tiers as SetRecord["tiers"]) ?? null,
     actualWeightLbs: normalizeNullableNumeric(row.actualWeightLbs),
     targetDurationSeconds: row.targetDurationSeconds ?? null,
     actualDurationSeconds: row.actualDurationSeconds ?? null,
@@ -142,6 +150,71 @@ function mapSetRecord(row: typeof sets.$inferSelect): SetRecord {
 
 export class DrizzleWorkoutSessionRepository implements WorkoutSessionRepository {
   public constructor(private readonly db: any) {}
+
+  public async findMostRecentComparableExerciseHistory(
+    input: {
+      userId: string;
+      exerciseId: string;
+      workoutTemplateExerciseEntryId: string | null;
+      setScheme?: import("@fitness/shared").ExerciseSetScheme;
+      targetSets?: number;
+    },
+    options?: RepositoryOptions
+  ): Promise<ComparableExerciseHistory | null> {
+    const executor = resolveExecutor(this.db, options);
+    const clauses = [
+      eq(workoutSessions.userId, input.userId),
+      eq(workoutSessions.status, "completed"),
+      eq(exerciseEntries.exerciseId, input.exerciseId)
+    ];
+    const rows = await executor
+      .select({ entry: exerciseEntries, session: workoutSessions })
+      .from(exerciseEntries)
+      .innerJoin(workoutSessions, eq(exerciseEntries.workoutSessionId, workoutSessions.id))
+      .where(and(...clauses))
+      .orderBy(desc(workoutSessions.completedAt), desc(exerciseEntries.updatedAt));
+
+    const isCompatible = (row: any) => {
+      const snapshot = row.entry.progressionRuleSnapshot as Record<string, unknown> | null;
+      const priorScheme = snapshot?.setScheme ?? "straight";
+      return (input.setScheme === undefined || priorScheme === input.setScheme) &&
+        (input.targetSets === undefined || row.entry.targetSets === input.targetSets);
+    };
+    const comparableRows = rows.filter(isCompatible);
+    const prioritizedRows = input.workoutTemplateExerciseEntryId
+      ? [...comparableRows.filter((row: any) => row.entry.workoutTemplateExerciseEntryId === input.workoutTemplateExerciseEntryId), ...comparableRows.filter((row: any) => row.entry.workoutTemplateExerciseEntryId !== input.workoutTemplateExerciseEntryId)]
+      : comparableRows;
+    const comparable = prioritizedRows[0];
+    if (!comparable) return null;
+
+    const setRows = await executor
+      .select()
+      .from(sets)
+      .where(eq(sets.exerciseEntryId, comparable.entry.id))
+      .orderBy(asc(sets.setNumber));
+    let previousSuccessfulSetRows: any[] = [];
+    for (const row of prioritizedRows.slice(1)) {
+      if (row.entry.targetSets !== comparable.entry.targetSets) continue;
+      const rowScheme = (row.entry.progressionRuleSnapshot as Record<string, unknown> | null)?.setScheme ?? "straight";
+      const comparableScheme = (comparable.entry.progressionRuleSnapshot as Record<string, unknown> | null)?.setScheme ?? "straight";
+      if (rowScheme !== comparableScheme) continue;
+      const candidateSets = await executor
+        .select()
+        .from(sets)
+        .where(eq(sets.exerciseEntryId, row.entry.id))
+        .orderBy(asc(sets.setNumber));
+      if (candidateSets.some((set: any) => set.status === "completed" && set.failureStatus == null)) {
+        previousSuccessfulSetRows = candidateSets;
+        break;
+      }
+    }
+    return {
+      workoutTemplateExerciseEntryId: comparable.entry.workoutTemplateExerciseEntryId ?? null,
+      completedAt: comparable.session.completedAt ?? null,
+      sets: setRows.map((row: any) => mapSetRecord(row)),
+      previousSuccessfulSets: previousSuccessfulSetRows.map((row: any) => mapSetRecord(row)).filter((set: SetRecord) => set.status === "completed" && set.failureStatus == null)
+    };
+  }
 
   private applyRepRangeDefaults(exerciseEntries: ExerciseEntryRecord[]): ExerciseEntryRecord[] {
     return exerciseEntries.map((entry) => ({
@@ -349,6 +422,10 @@ export class DrizzleWorkoutSessionRepository implements WorkoutSessionRepository
         .values({
           id: randomUUID(),
           ...setInput,
+          repTargetText: setInput.repTargetText ?? null,
+          tiers: setInput.tiers ?? null,
+          originalTargetReps: setInput.targetReps,
+          originalTargetWeightLbs: setInput.targetWeightLbs === null ? null : setInput.targetWeightLbs.toString(),
           exerciseEntryId: entryIdByPlaceholder.get(setInput.exerciseEntryId) ?? setInput.exerciseEntryId,
           targetWeightLbs: setInput.targetWeightLbs === null ? null : setInput.targetWeightLbs.toString(),
           actualWeightLbs: setInput.actualWeightLbs === null ? null : setInput.actualWeightLbs.toString(),
@@ -619,23 +696,26 @@ export class DrizzleWorkoutSessionRepository implements WorkoutSessionRepository
           : {}),
         ...(input.targetRounds !== undefined ? { targetRounds: input.targetRounds } : {}),
         restSeconds: input.restSeconds,
+        ...(input.setScheme ? { progressionRuleSnapshot: { ...((exerciseEntryRow.progressionRuleSnapshot as Record<string, unknown> | null) ?? {}), setScheme: input.setScheme } } : {}),
         updatedAt: new Date()
       })
       .where(eq(exerciseEntries.id, input.exerciseEntryId));
 
-    await executor
-      .update(sets)
-      .set({
-        targetReps: input.targetReps,
-        targetWeightLbs: input.targetWeightLbs === null ? null : String(input.targetWeightLbs),
+    for (const setRow of existingSetRows.filter((row: any) => row.status === "pending")) {
+      const target = input.setTargets?.find((candidate) => candidate.setNumber === setRow.setNumber);
+      await executor.update(sets).set({
+        ...(input.manualTargetOverride ? {
+          targetReps: target?.targetReps ?? input.targetReps,
+          targetWeightLbs: target?.targetWeightLbs === undefined ? (input.targetWeightLbs === null ? null : String(input.targetWeightLbs)) : target.targetWeightLbs === null ? null : String(target.targetWeightLbs),
+          ...(input.setTargets ? { repTargetText: target?.repTargetText ?? null, tiers: target?.tiers ?? null } : {}),
+          adaptationReason: input.setScheme ? "manual scheme change" : "manual override"
+        } : {}),
         ...(input.targetDurationSeconds !== undefined ? { targetDurationSeconds: input.targetDurationSeconds } : {}),
-        ...(input.targetDistanceMeters !== undefined
-          ? { targetDistanceMeters: input.targetDistanceMeters === null ? null : String(input.targetDistanceMeters) }
-          : {}),
+        ...(input.targetDistanceMeters !== undefined ? { targetDistanceMeters: input.targetDistanceMeters === null ? null : String(input.targetDistanceMeters) } : {}),
         ...(input.targetRounds !== undefined ? { targetRounds: input.targetRounds } : {}),
         updatedAt: new Date()
-      })
-      .where(and(eq(sets.exerciseEntryId, input.exerciseEntryId), eq(sets.status, "pending")));
+      }).where(and(eq(sets.id, setRow.id), eq(sets.status, "pending")));
+    }
 
     if (input.targetSets > maxExistingSetNumber) {
       const missingCount = input.targetSets - maxExistingSetNumber;
@@ -644,14 +724,18 @@ export class DrizzleWorkoutSessionRepository implements WorkoutSessionRepository
         .values(
           Array.from({ length: missingCount }, (_, index) => {
             const setNumber = maxExistingSetNumber + index + 1;
+            const target = input.setTargets?.find((candidate) => candidate.setNumber === setNumber);
             return {
               id: randomUUID(),
               exerciseEntryId: input.exerciseEntryId,
               setNumber,
               setType: "working",
-              targetReps: input.targetReps,
+              targetReps: target?.targetReps ?? input.targetReps,
+              originalTargetReps: target?.targetReps ?? input.targetReps,
               actualReps: null,
-              targetWeightLbs: input.targetWeightLbs === null ? null : String(input.targetWeightLbs),
+              targetWeightLbs: target?.targetWeightLbs === undefined ? (input.targetWeightLbs === null ? null : String(input.targetWeightLbs)) : target.targetWeightLbs === null ? null : String(target.targetWeightLbs),
+              originalTargetWeightLbs: target?.targetWeightLbs === undefined ? (input.targetWeightLbs === null ? null : String(input.targetWeightLbs)) : target.targetWeightLbs === null ? null : String(target.targetWeightLbs),
+              ...(target ? { repTargetText: target.repTargetText, tiers: target.tiers } : {}),
               actualWeightLbs: null,
               ...(input.targetDurationSeconds !== undefined ? { targetDurationSeconds: input.targetDurationSeconds } : {}),
               actualDurationSeconds: null,
@@ -743,6 +827,7 @@ export class DrizzleWorkoutSessionRepository implements WorkoutSessionRepository
         completedAt: input.completedAt,
         ...(input.rir !== undefined ? { rir: input.rir } : {}),
         ...(input.failureStatus !== undefined ? { failureStatus: input.failureStatus } : {}),
+        ...(input.tiers !== undefined ? { tiers: input.tiers } : {}),
         updatedAt: new Date()
       })
       .where(eq(sets.id, input.setId))
@@ -773,6 +858,22 @@ export class DrizzleWorkoutSessionRepository implements WorkoutSessionRepository
       exerciseEntry: mapExerciseEntryRecord(row.exerciseEntry),
       workoutSession: mapWorkoutSessionRecord(row.workoutSession)
     };
+  }
+
+  public async updatePendingSetTargets(
+    input: { exerciseEntryId: string; targets: import("../../repositories/models/workout-session.persistence.js").PendingSetTargetUpdate[] },
+    options?: RepositoryOptions
+  ): Promise<void> {
+    const executor = resolveExecutor(this.db, options);
+    for (const target of input.targets) {
+      await executor.update(sets).set({
+        targetReps: target.targetReps,
+        targetWeightLbs: target.targetWeightLbs === null ? null : String(target.targetWeightLbs),
+        adaptationReason: target.reason,
+        ...(target.tiers ? { tiers: target.tiers } : {}),
+        updatedAt: new Date()
+      }).where(and(eq(sets.id, target.setId), eq(sets.exerciseEntryId, input.exerciseEntryId), eq(sets.status, "pending")));
+    }
   }
 
   public async persistExerciseEntryFeedback(
@@ -982,6 +1083,29 @@ export class DrizzleWorkoutSessionRepository implements WorkoutSessionRepository
           eq(workoutSessions.userId, userId),
           eq(workoutSessions.programId, programId),
           eq(workoutSessions.status, "completed")
+        )
+      );
+
+    return Number(rows[0]?.count ?? 0);
+  }
+
+  public async countCompletedByUserIdAndProgramIdWithinRange(
+    userId: string,
+    programId: string,
+    range: { startsAt: Date; endsAt: Date },
+    options?: RepositoryOptions
+  ): Promise<number> {
+    const executor = resolveExecutor(this.db, options);
+    const rows = await executor
+      .select({ count: sql<number>`count(*)` })
+      .from(workoutSessions)
+      .where(
+        and(
+          eq(workoutSessions.userId, userId),
+          eq(workoutSessions.programId, programId),
+          eq(workoutSessions.status, "completed"),
+          gte(workoutSessions.completedAt, range.startsAt),
+          lte(workoutSessions.completedAt, range.endsAt)
         )
       );
 

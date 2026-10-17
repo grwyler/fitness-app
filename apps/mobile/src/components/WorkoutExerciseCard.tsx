@@ -82,22 +82,27 @@ function formatSetTargetLine(input: { set: SetDto; modality: ExerciseEntryDto["l
   const { set, modality, unitSystem } = input;
 
   if (modality === "reps_load") {
+    if (set.tiers?.length) {
+      return `Extended set ${set.tiers.map((tier) => `${tier.targetReps ?? tier.repTargetText ?? "AMRAP"} @ ${tier.targetWeight ? formatWeightForUser({ weightLbs: tier.targetWeight.value, unitSystem }).text : "bodyweight"}`).join(" → ")}`;
+    }
     const reps = set.targetReps ?? null;
     const weight = set.targetWeight?.value ?? null;
-    if (reps == null || weight == null) {
+    const repsText = set.repTargetText?.trim() || (reps == null ? null : `${reps} reps`);
+    if (repsText == null && weight == null) {
       return null;
     }
-    return `Target ${reps} reps at ${formatWeightForUser({ weightLbs: weight, unitSystem }).text}`;
+    return `Target ${[repsText, weight !== null ? `at ${formatWeightForUser({ weightLbs: weight, unitSystem }).text}` : null].filter(Boolean).join(" ")}`;
   }
 
   if (modality === "reps_only") {
     const reps = set.targetReps ?? null;
     const weight = set.targetWeight?.value ?? null;
-    if (reps == null && (weight == null || weight <= 0)) {
+    const repsText = set.repTargetText?.trim() || (reps == null ? null : `${reps} reps`);
+    if (repsText == null && (weight == null || weight <= 0)) {
       return null;
     }
     const parts: string[] = [];
-    if (reps != null) parts.push(`Target ${reps} reps`);
+    if (repsText != null) parts.push(`Target ${repsText}`);
     if (weight != null && weight > 0) parts.push(`@ ${formatWeightForUser({ weightLbs: weight, unitSystem }).text}`);
     return parts.join(" ");
   }
@@ -308,8 +313,8 @@ export function WorkoutExerciseCard(props: {
           const draft =
             props.setLogDraftsBySetId[set.id] ??
             getSetLogDefaultDraft({ set, previousSet, unitSystem: props.unitSystem, modality: props.exercise.loggingModality });
-          const validation = validateSetLogDraft(draft, { unitSystem: props.unitSystem, modality: props.exercise.loggingModality });
-          const request = buildLogSetRequestFromDraft(draft, { unitSystem: props.unitSystem, modality: props.exercise.loggingModality });
+          const validation = validateSetLogDraft(draft, { unitSystem: props.unitSystem, modality: props.exercise.loggingModality, set });
+          const request = buildLogSetRequestFromDraft(draft, { unitSystem: props.unitSystem, modality: props.exercise.loggingModality, set });
           const outcomeText =
             props.exercise.loggingModality === "reps_load" || props.exercise.loggingModality === "reps_only"
               ? getSetOutcomeText({
@@ -320,7 +325,8 @@ export function WorkoutExerciseCard(props: {
                 })
               : "Ready";
           const canSubmit = (isPending || isEditing) && request !== null && !isLogging && !readOnly;
-          const previousWeight = previousSet?.actualWeight?.value ?? null;
+          const previousWeight = set.previousActualWeight?.value ?? null;
+          const previousReps = set.previousActualReps ?? null;
           const loggedOutcomeText = !isPending
             ? props.exercise.loggingModality === "reps_load" || props.exercise.loggingModality === "reps_only"
               ? getSetOutcomeText({
@@ -395,11 +401,37 @@ export function WorkoutExerciseCard(props: {
                     unitSystem: props.unitSystem
                   });
                   return targetLine ? (
-                    <AppText variant="caption" tone="secondary">
+                    <AppText variant="bodyStrong" tone="accent">
                       {targetLine}
                     </AppText>
                   ) : null;
                 })()}
+                {isPending && set.adaptationReason ? (
+                  <AppText variant="caption" tone="secondary">{set.adaptationReason}</AppText>
+                ) : null}
+                {set.tiers?.length ? set.tiers.map((tier) => (
+                  <View key={`${set.id}-tier-${tier.order}`} style={styles.tierRow}>
+                    <AppText variant="caption" tone="secondary">
+                      Tier {tier.order}: target {tier.targetReps ?? tier.repTargetText ?? "AMRAP"} @ {tier.targetWeight ? formatWeightForUser({ weightLbs: tier.targetWeight.value, unitSystem: props.unitSystem }).text : "bodyweight"}{tier.previousActualReps != null || tier.previousActualWeight ? ` · Last time ${tier.previousActualReps ?? "?"} reps @ ${tier.previousActualWeight ? formatWeightForUser({ weightLbs: tier.previousActualWeight.value, unitSystem: props.unitSystem }).text : "bodyweight"}` : ""}
+                    </AppText>
+                    {isPending ? (() => {
+                      const tierDraft = draft.tierDrafts?.[tier.order];
+                      const changeTier = (next: NonNullable<SetLogDraft["tierDrafts"]>[number]) => props.onChangeSetLogDraft(set.id, {
+                        ...draft,
+                        tierDrafts: { ...(draft.tierDrafts ?? {}), [tier.order]: { ...next, touched: true } }
+                      });
+                      return <View style={styles.tierActualEntry}>
+                        <View style={styles.tierActualInputs}>
+                          <SetMetricInput label="Actual load" accessibilityLabel={`Set ${set.setNumber} tier ${tier.order} actual load`} disabled={isLogging || readOnly} inputMode="decimal" keyboardType="decimal-pad" value={tierDraft?.weightText ?? ""} onChangeText={(value) => changeTier({ ...(tierDraft ?? { repsText: "", weightText: "", status: "pending", touched: false }), weightText: normalizeWeightInput(value) })} />
+                          <SetMetricInput label="Actual reps" accessibilityLabel={`Set ${set.setNumber} tier ${tier.order} actual reps`} disabled={isLogging || readOnly} inputMode="numeric" keyboardType="number-pad" maxLength={3} value={tierDraft?.repsText ?? ""} onChangeText={(value) => changeTier({ ...(tierDraft ?? { repsText: "", weightText: "", status: "pending", touched: false }), repsText: normalizeRepsInput(value) })} />
+                        </View>
+                        <View style={styles.tierStatusChips}>
+                          {(["completed", "failed", "skipped"] as const).map((status) => <Chip key={status} label={status === "completed" ? "Performed" : status === "failed" ? "Failed" : "Skip"} selected={tierDraft?.status === status} variant={tierDraft?.status === status ? "selected" : "muted"} disabled={isLogging || readOnly} onPress={() => changeTier({ ...(tierDraft ?? { repsText: "", weightText: "", status: "pending", touched: false }), status })} />)}
+                        </View>
+                      </View>;
+                    })() : tier.status === "skipped" ? <AppText variant="caption" tone="secondary">Skipped · no actual recorded</AppText> : tier.actualReps != null ? <AppText variant="caption" tone="secondary">Actual {tier.actualReps} @ {tier.actualWeight ? formatWeightForUser({ weightLbs: tier.actualWeight.value, unitSystem: props.unitSystem }).text : "bodyweight"} · {tier.status}</AppText> : null}
+                  </View>
+                )) : null}
               </View>
 
               {isPending || isEditing ? (
@@ -430,7 +462,7 @@ export function WorkoutExerciseCard(props: {
                         </View>
 
                         <SetMetricInput
-                          label="Reps"
+                          label="Actual reps"
                           accessibilityLabel={`Set ${set.setNumber} reps`}
                           disabled={isLogging || readOnly}
                           error={Boolean(validation.error)}
@@ -474,14 +506,14 @@ export function WorkoutExerciseCard(props: {
                         />
 
                         <SetMetricInput
-                          label={`Load (${unitLabel})${props.exercise.loggingModality === "reps_only" ? " (optional)" : ""}`}
+                          label={`Actual load (${unitLabel})${props.exercise.loggingModality === "reps_only" ? " (optional)" : ""}`}
                           accessibilityLabel={`Set ${set.setNumber} load`}
                           disabled={isLogging || readOnly}
                           error={Boolean(validation.error)}
                           helperRight={
                             previousWeight !== null ? (
                               <AppText variant="caption" tone="secondary" style={styles.previousValue}>
-                                Previous {formatWeightForUser({ weightLbs: previousWeight, unitSystem: props.unitSystem }).text}
+                                Last time{previousReps !== null ? `: ${previousReps} reps` : ""}{previousWeight !== null ? ` @ ${formatWeightForUser({ weightLbs: previousWeight, unitSystem: props.unitSystem }).text}` : ""}
                               </AppText>
                             ) : null
                           }
@@ -1015,6 +1047,13 @@ const styles = StyleSheet.create({
   pendingSetBody: {
     gap: spacing.sm
   },
+  tierRow: {
+    gap: spacing.xs,
+    paddingLeft: spacing.md
+  },
+  tierActualEntry: { gap: spacing.xs, marginTop: spacing.xs },
+  tierActualInputs: { flexDirection: "row", gap: spacing.sm },
+  tierStatusChips: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
   inputGrid: {
     gap: spacing.sm
   },

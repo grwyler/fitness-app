@@ -40,4 +40,9 @@ export interface ProgressionRecommendationEventRepository {
     limit: number,
     options?: RepositoryOptions
   ): Promise<ProgressionRecommendationEventRecord[]>;
+
+  countUnresolvedByUserIdAndProgramIdWithinRange(
+    input: { userId: string; programId: string; startsAt: Date; endsAt: Date },
+    options?: RepositoryOptions
+  ): Promise<number>;
 }

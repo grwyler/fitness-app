@@ -9,6 +9,33 @@ import type {
   RecoveryState,
   TrainingGoal
 } from "@fitness/shared";
+import type { ComparableExerciseHistory } from "../../repositories/models/workout-session.persistence.js";
+import type { ProgressionStateV2Record } from "../../repositories/models/progression-state-v2.persistence.js";
+
+export type GeneratedSetTarget = {
+  setNumber: number;
+  targetReps: number | null;
+  targetWeightLbs: number | null;
+  repTargetText: string | null;
+  tiers: import("@fitness/shared").WorkoutSetTierDto[] | null;
+  previousActualReps?: number | null;
+  previousActualWeightLbs?: number | null;
+  reason?: string | null;
+};
+
+export type PrescriptionGenerationInput = {
+  state: ProgressionStateV2Record;
+  exercise: ExerciseProgressionContext;
+  loggingModality: "reps_load" | "reps_only";
+  strategy: import("@fitness/shared").ProgressionStrategy;
+  setScheme: import("@fitness/shared").ExerciseSetScheme;
+  targetSets: number;
+  planTargetWeightLbs?: number | null;
+  defaultStartingWeightLbs?: number;
+  explicitTargets?: import("@fitness/shared").WorkoutSetTargetDto[] | null;
+  history?: ComparableExerciseHistory | null;
+  performedAt?: Date;
+};
 
 export type ProgressionStateSnapshot = {
   currentWeightLbs: number;

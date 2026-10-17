@@ -5,6 +5,7 @@ import {
   progressionAggressivenessLevels,
   progressionConfidenceLevels,
   progressionStrategies,
+  exerciseSetSchemes,
   recoveryStates,
   trainingGoals,
   unitSystems,
@@ -20,6 +21,7 @@ import {
   guidedRecoveryTolerances,
   guidedEquipmentTypes,
   setFailureStatusValues,
+  setStatuses,
   setRirValues,
   workoutSetTypes,
   progressionRecommendationResolutionTypes
@@ -135,6 +137,7 @@ const createCustomProgramExerciseSchema = z.object({
   targetRounds: z.number().int().min(1).max(10_000).nullable().optional(),
   restSeconds: z.number().int().min(0).max(1800).nullable().optional(),
   progressionStrategy: z.enum(progressionStrategies).nullable().optional(),
+  setScheme: z.enum(exerciseSetSchemes).optional(),
   repTargetText: z.string().trim().min(1).max(24).nullable().optional(),
   targetWeight: weightValueSchema.optional(),
   notes: z.string().trim().min(1).max(240).nullable().optional(),
@@ -249,6 +252,7 @@ export const addCustomWorkoutExerciseBodySchema = z.object({
   targetRounds: z.number().int().min(1).max(10_000).nullable().optional(),
   restSeconds: z.number().int().min(0).max(1800).nullable().optional(),
   progressionStrategy: z.enum(progressionStrategies).optional(),
+  setScheme: z.enum(exerciseSetSchemes).optional(),
   updatePlan: z.boolean().optional()
 }).superRefine((value, ctx) => {
   const min = value.repRangeMin ?? null;
@@ -299,6 +303,7 @@ export const updateWorkoutExerciseEntryBodySchema = z.object({
   targetDistanceMeters: z.number().finite().min(0).max(200_000).nullable().optional(),
   targetRounds: z.number().int().min(1).max(10_000).nullable().optional(),
   restSeconds: z.number().int().min(0).max(1800).nullable().optional(),
+  setScheme: z.enum(exerciseSetSchemes).optional(),
   updatePlan: z.boolean().optional()
 });
 
@@ -318,7 +323,13 @@ export const logSetBodySchema = z
     setType: z.enum(workoutSetTypes).nullable().optional(),
     completedAt: isoDateTimeSchema.optional(),
     rir: z.enum(setRirValues).nullable().optional(),
-    failureStatus: z.enum(setFailureStatusValues).nullable().optional()
+    failureStatus: z.enum(setFailureStatusValues).nullable().optional(),
+    tiers: z.array(z.object({
+      order: z.number().int().min(1),
+      actualWeight: weightValueSchema.nullable().optional(),
+      actualReps: z.number().int().min(0).nullable().optional(),
+        status: z.enum(setStatuses).refine((status) => status !== "pending", "Choose whether this tier was performed, failed, or skipped.")
+    })).optional()
   })
   .superRefine((value, ctx) => {
     if (value.failureStatus === "muscular_failure" || value.failureStatus === "technical_failure") {
