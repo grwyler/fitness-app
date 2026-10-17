@@ -1,6 +1,18 @@
 {
   "releases": [
     {
+      "version": "0.1.6",
+      "date": "2026-10-17",
+      "sections": [
+        {
+          "title": "Fixed",
+          "items": [
+            "serve mobile web SPA entry on Vercel"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.1.5",
       "date": "2026-10-17",
       "sections": [

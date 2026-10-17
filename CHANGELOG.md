@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## v0.1.6 (2026-10-17)
+
+### Fixed
+
+- serve mobile web SPA entry on Vercel
+
 ## v0.1.5 (2026-10-17)
 
 ### Added
