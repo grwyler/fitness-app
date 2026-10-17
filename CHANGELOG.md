@@ -2,6 +2,25 @@
 
 All notable changes to this project are documented here.
 
+## v0.1.5 (2026-10-17)
+
+### Added
+
+- harden progression and workout workflows
+
+### Changed
+
+- Revert "Configure stable staging domain"
+- Configure stable staging domain
+- Make program goal sheet scrollable
+- Fix manual builder remove actions and workout empty state
+- Fix workout and exercise removal in manual builder
+- Limit develop deploy workflows to relevant paths
+- Handle assisted pull-up progression by lowering assistance
+- Fix assisted pull-up progression to reduce assistance
+- Add progression recommendation resolution persistence
+- Prevent duplicate Vercel production deploys
+
 ## v0.1.4 (2026-05-06)
 
 ### Changed
